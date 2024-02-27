@@ -1,0 +1,45 @@
+{{- if and .Values.admissionWebhooks.create .Values.admissionWebhooks.certManager.enabled }}
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  {{- if .Values.admissionWebhooks.certManager.certificateAnnotations }}
+  annotations:
+  {{- toYaml .Values.admissionWebhooks.certManager.certificateAnnotations | nindent 4 }}
+  {{- end }}
+  labels:
+    {{- include "amazon-cloudwatch-observability.labels" . | nindent 4}}
+  name: {{ template "amazon-cloudwatch-observability.name" . }}-serving-cert
+  namespace: {{ .Release.Namespace }}
+spec:
+  dnsNames:
+  - {{ template "amazon-cloudwatch-observability.name" .}}-webhook-service.{{ .Release.Namespace }}
+  - {{ template "amazon-cloudwatch-observability.name" .}}-webhook-service.{{ .Release.Namespace }}.svc
+  - {{ template "amazon-cloudwatch-observability.name" .}}-webhook-service.{{ .Release.Namespace }}.svc.cluster.local
+  issuerRef:
+    {{- if .Values.admissionWebhooks.certManager.issuerRef }}
+    {{- toYaml .Values.admissionWebhooks.certManager.issuerRef | nindent 4 }}
+    {{- else }}
+    kind: Issuer
+    name: {{ template "amazon-cloudwatch-observability.name" . }}-selfsigned-issuer
+    {{- end }}
+  secretName: {{ template "amazon-cloudwatch-observability.certificateSecretName" . }}
+  subject:
+    organizationalUnits:
+    - {{ template "amazon-cloudwatch-observability.name" . }}
+{{- if not .Values.admissionWebhooks.certManager.issuerRef }}
+---
+apiVersion: cert-manager.io/v1
+kind: Issuer
+metadata:
+  {{- if .Values.admissionWebhooks.certManager.issuerAnnotations }}
+  annotations:
+  {{- toYaml .Values.admissionWebhooks.certManager.issuerAnnotations | nindent 4 }}
+  {{- end }}
+  labels:
+    {{- include "amazon-cloudwatch-observability.labels" . | nindent 4}}
+  name: {{ template "amazon-cloudwatch-observability.name" . }}-selfsigned-issuer
+  namespace: {{ .Release.Namespace }}
+spec:
+  selfSigned: { }
+{{- end }}
+{{- end }}

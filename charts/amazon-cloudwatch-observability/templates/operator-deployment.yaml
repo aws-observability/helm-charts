@@ -1,0 +1,51 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    {{- include "amazon-cloudwatch-observability.labels" . | nindent 4 }}
+    control-plane: controller-manager
+  name: {{ template "amazon-cloudwatch-observability.name" . }}-controller-manager
+  namespace: {{ .Release.Namespace }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: {{ template "amazon-cloudwatch-observability.name" . }}
+      control-plane: controller-manager
+  template:
+    metadata:
+      annotations:
+        {{- if .Values.manager.podAnnotations }}
+        {{- include "amazon-cloudwatch-observability.podAnnotations" . | nindent 8 }}
+        {{- end }}
+      labels:
+        app.kubernetes.io/name: {{ template "amazon-cloudwatch-observability.name" . }}
+        control-plane: controller-manager
+        {{- include "amazon-cloudwatch-observability.podLabels" . | nindent 8 }}
+    spec:
+      containers:
+      - image: {{ template "cloudwatch-agent-operator.image" . }}
+        args:
+        - {{ printf "--auto-annotation-config=%s" (.Values.manager.autoAnnotateAutoInstrumentation | toJson) | quote }}
+        - "--auto-instrumentation-java-image={{ .Values.manager.autoInstrumentationImage.java.repository }}:{{ .Values.manager.autoInstrumentationImage.java.tag }}"
+        - "--auto-instrumentation-python-image={{ .Values.manager.autoInstrumentationImage.python.repository }}:{{ .Values.manager.autoInstrumentationImage.python.tag }}"
+        - "--feature-gates=operator.autoinstrumentation.multi-instrumentation,operator.autoinstrumentation.multi-instrumentation.skip-container-validation"
+        command:
+        - /manager
+        name: manager
+        ports:
+        - containerPort: {{ .Values.manager.ports.containerPort }}
+          name: webhook-server
+          protocol: TCP
+        resources: {{ toYaml .Values.manager.resources | nindent 12 }}
+        volumeMounts:
+        - mountPath: /tmp/k8s-webhook-server/serving-certs
+          name: cert
+          readOnly: true
+      serviceAccountName: {{ template "amazon-cloudwatch-observability.managerServiceAccountName" . }}
+      terminationGracePeriodSeconds: 10
+      volumes:
+      - name: cert
+        secret:
+          defaultMode: 420
+          secretName: {{ template "amazon-cloudwatch-observability.certificateSecretName" . }}

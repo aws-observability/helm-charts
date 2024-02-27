@@ -1,0 +1,80 @@
+{{- if .Values.agent.enabled }}
+{{- if empty .Values.region }}
+{{- fail "region is a required field" }}
+{{- end }}
+apiVersion: cloudwatch.aws.amazon.com/v1alpha1
+kind: AmazonCloudWatchAgent
+metadata:
+  name: {{ template "cloudwatch-agent.name" . }}
+  namespace: {{ .Release.Namespace }}
+spec:
+  image: {{ template "cloudwatch-agent.image" . }}
+  mode: daemonset
+  serviceAccount: {{ template "cloudwatch-agent.serviceAccountName" . }}
+  {{- if .Values.agent.config }}
+  config: {{ template "cloudwatch-agent.supplied-config" . }}
+  {{- else }}
+  config: {{ template "cloudwatch-agent.modify-default-config" . }}
+  {{- end }}
+  resources:
+    requests:
+      memory: "128Mi"
+      cpu: "250m"
+    limits:
+      memory: "512Mi"
+      cpu: "500m"
+  volumeMounts:
+  - mountPath: /rootfs
+    name: rootfs
+    readOnly: true
+  - mountPath: /var/run/docker.sock
+    name: dockersock
+    readOnly: true
+  - mountPath: /run/containerd/containerd.sock
+    name: containerdsock
+  - mountPath: /var/lib/docker
+    name: varlibdocker
+    readOnly: true
+  - mountPath: /sys
+    name: sys
+    readOnly: true
+  - mountPath: /dev/disk
+    name: devdisk
+    readOnly: true
+  volumes:
+  - name: rootfs
+    hostPath:
+      path: /
+  - hostPath:
+      path: /var/run/docker.sock
+    name: dockersock
+  - hostPath:
+      path: /var/lib/docker
+    name: varlibdocker
+  - hostPath:
+      path: /run/containerd/containerd.sock
+    name: containerdsock
+  - hostPath:
+      path: /sys
+    name: sys
+  - hostPath:
+      path: /dev/disk/
+    name: devdisk
+  env:
+  - name: K8S_NODE_NAME
+    valueFrom:
+      fieldRef:
+        fieldPath: spec.nodeName
+  - name: HOST_IP
+    valueFrom:
+      fieldRef:
+        fieldPath: status.hostIP
+  - name: HOST_NAME
+    valueFrom:
+      fieldRef:
+        fieldPath: spec.nodeName
+  - name: K8S_NAMESPACE
+    valueFrom:
+      fieldRef:
+        fieldPath: metadata.namespace
+{{- end }}
