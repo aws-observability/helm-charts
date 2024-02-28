@@ -1,0 +1,167 @@
+# Default values for amazon-cloudwatch-observability.
+# This is a YAML-formatted file.
+# Declare variables to be passed into your templates.
+
+replicaCount: 1
+
+## Provide a name in place of cloudwatchagent-operator.
+##
+nameOverride: ""
+
+## Reference one or more secrets to be used when pulling images from authenticated repositories.
+imagePullSecrets: [ ]
+
+## Provide the ClusterName
+clusterName:
+
+## Provide the Region
+region:
+
+containerLogs:
+  enabled: true
+  fluentBit:
+    image:
+      repository: aws-for-fluent-bit
+      tag: 2.31.12.20230911
+      repositoryDomainMap:
+        public: public.ecr.aws/aws-observability
+        cn-north-1: 128054284489.dkr.ecr.cn-north-1.amazonaws.com.cn
+        cn-northwest-1: 128054284489.dkr.ecr.cn-northwest-1.amazonaws.com.cn
+        us-gov-east-1: 161423150738.dkr.ecr.us-gov-east-1.amazonaws.com
+        us-gov-west-1: 161423150738.dkr.ecr.us-gov-west-1.amazonaws.com
+
+## Provide CloudWatchAgent Operator manager container image and resources.
+##
+manager:
+  name:
+  image:
+    repository: cloudwatch-agent-operator
+    tag: 1.0.2
+    repositoryDomainMap:
+      public: public.ecr.aws/cloudwatch-agent
+      cn-north-1: 934860584483.dkr.ecr.cn-north-1.amazonaws.com.cn
+      cn-northwest-1: 934860584483.dkr.ecr.cn-northwest-1.amazonaws.com.cn
+      us-gov-east-1: 743662458514.dkr.ecr.us-gov-east-1.amazonaws.com
+      us-gov-west-1: 743662458514.dkr.ecr.us-gov-west-1.amazonaws.com
+  autoInstrumentationImage:
+    java:
+      repository: public.ecr.aws/aws-observability/adot-autoinstrumentation-java
+      tag: v1.31.1
+    python:
+      repository: ghcr.io/open-telemetry/opentelemetry-operator/autoinstrumentation-python
+      tag: 0.43b0
+  autoAnnotateAutoInstrumentation:
+    java:
+      namespaces: [ ]
+      deployments: [ ]
+      daemonsets: [ ]
+      statefulsets: [ ]
+    python:
+      namespaces: [ ]
+      deployments: [ ]
+      daemonsets: [ ]
+      statefulsets: [ ]
+  ports:
+    containerPort: 9443
+    metricsPort: 8080
+    webhookPort: 9443
+    healthzPort: 8081
+  resources:
+    requests:
+      cpu: 100m
+      memory: 64Mi
+  ## Adds additional environment variables
+  ## e.g ENV_VAR: env_value
+  env:
+    ENABLE_WEBHOOKS: "true"
+
+  # -- Create the manager ServiceAccount
+  serviceAccount:
+    create: true
+    annotations: { }
+
+  podAnnotations: { }
+  podLabels: { }
+
+  service:
+    name:
+
+## Admission webhooks make sure only requests with correctly formatted rules will get into the Operator.
+admissionWebhooks:
+  create: true
+  failurePolicy: Ignore
+  secretName: ""
+
+  ## Defines the sidecar injection logic in Pods.
+  ## - Ignore, the injection is fail-open. The pod will be created, but the sidecar won't be injected.
+  ## - Fail, the injection is fail-close. If the webhook pod is not ready, pods cannot be created.
+  pods:
+    failurePolicy: Ignore
+
+  ## Adds a prefix to the mutating webhook name.
+  ## This can be used to order this mutating webhook with all your cluster's mutating webhooks.
+  namePrefix: ""
+
+  ## Customize webhook timeout duration
+  timeoutSeconds: 10
+
+  ## Provide selectors for your objects
+  namespaceSelector: { }
+  objectSelector: { }
+
+  ## TLS Certificate Option 1: Use Helm to automatically generate self-signed certificate.
+  ## autoGenerateCert must be enabled. This is the default option.
+  ## If true, Helm will automatically create a self-signed cert and secret for you.
+  autoGenerateCert:
+    enabled: true
+    expiryDays: 3650 # 10 years
+
+  ## TLS Certificate Option 2: Use certManager to generate self-signed certificate.
+  ## certManager must be enabled. If enabled, it takes precedence over option 1.
+  certManager:
+    enabled: false
+    ## Provide the issuer kind and name to do the cert auth job.
+    ## By default, OpenTelemetry Operator will use self-signer issuer.
+    issuerRef: { }
+    # kind:
+    # name:
+    ## Annotations for the cert and issuer if cert-manager is enabled.
+    certificateAnnotations: { }
+    issuerAnnotations: { }
+
+  ## Secret annotations
+  secretAnnotations: { }
+  ## Secret labels
+  secretLabels: { }
+
+agent:
+  name:
+  image:
+    repository: cloudwatch-agent
+    tag: 1.300031.1b317
+    repositoryDomainMap:
+      public: public.ecr.aws/cloudwatch-agent
+      cn-north-1: 934860584483.dkr.ecr.cn-north-1.amazonaws.com.cn
+      cn-northwest-1: 934860584483.dkr.ecr.cn-northwest-1.amazonaws.com.cn
+      us-gov-east-1: 743662458514.dkr.ecr.us-gov-east-1.amazonaws.com
+      us-gov-west-1: 743662458514.dkr.ecr.us-gov-west-1.amazonaws.com
+  enabled: true
+  serviceAccount:
+    name: # override agent service account name
+  config: # optional config that can be provided to override the defaultConfig
+  defaultConfig:
+    {
+      "logs": {
+        "metrics_collected": {
+          "kubernetes": {
+            "enhanced_container_insights": true
+          },
+          "app_signals": { }
+        }
+      },
+      "traces": {
+        "traces_collected": {
+          "app_signals": { }
+        }
+      }
+    }

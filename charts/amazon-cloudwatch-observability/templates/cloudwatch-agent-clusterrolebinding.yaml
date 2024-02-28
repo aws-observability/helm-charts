@@ -1,0 +1,14 @@
+{{ if .Values.agent.enabled }}
+kind: ClusterRoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: {{ template "cloudwatch-agent.name" . }}-role-binding
+roleRef:
+  kind: ClusterRole
+  name: {{ template "cloudwatch-agent.name" . }}-role
+  apiGroup: rbac.authorization.k8s.io
+subjects:
+- kind: ServiceAccount
+  name: {{ template "cloudwatch-agent.serviceAccountName" . }}
+  namespace: {{ .Release.Namespace }}
+{{- end }}
