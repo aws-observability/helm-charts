@@ -4,6 +4,8 @@ kind: CustomResourceDefinition
 metadata:
   annotations:
     controller-gen.kubebuilder.io/version: v0.12.0
+  labels:
+    app.kubernetes.io/name: amazon-cloudwatch-agent-operator
   name: instrumentations.cloudwatch.aws.amazon.com
 spec:
   group: cloudwatch.aws.amazon.com

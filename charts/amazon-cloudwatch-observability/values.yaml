@@ -11,18 +11,22 @@ nameOverride: ""
 ## Reference one or more secrets to be used when pulling images from authenticated repositories.
 imagePullSecrets: [ ]
 
-## Provide the ClusterName
+## Provide the ClusterName (optional parameter, if not provided, a generated name will be used)
 clusterName:
 
-## Provide the Region
+## Provide the Region (this is a required parameter)
 region:
+
+gpuNodeLabelKey: node.kubernetes.io/instance-type
+## NVIDIA GPU instance types
+gpuInstances: [ p2.xlarge, p2.8xlarge, p2.16xlarge, p3.2xlarge, p3.8xlarge, p3.16xlarge, p3dn.24xlarge, p4d.24xlarge, p4de.24xlarge, p5.48xlarge, g3s.xlarge, g3.4xlarge, g3.8xlarge, g3.16xlarge, g4dn.xlarge, g4dn.2xlarge, g4dn.4xlarge, g4dn.8xlarge, g4dn.16xlarge, g4dn.12xlarge, g4dn.metal, g4ad.xlarge, g4ad.2xlarge, g4ad.4xlarge, g4ad.8xlarge, g4ad.16xlarge, g5.xlarge, g5.2xlarge, g5.4xlarge, g5.8xlarge, g5.16xlarge, g5.12xlarge, g5.24xlarge, g5.48xlarge, g5g.xlarge, g5g.2xlarge, g5g.4xlarge, g5g.8xlarge, g5g.16xlarge, g5g.metal ]
 
 containerLogs:
   enabled: true
   fluentBit:
     image:
       repository: aws-for-fluent-bit
-      tag: 2.31.12.20230911
+      tag: 2.32.0.20240304
       repositoryDomainMap:
         public: public.ecr.aws/aws-observability
         cn-north-1: 128054284489.dkr.ecr.cn-north-1.amazonaws.com.cn
@@ -36,7 +40,7 @@ manager:
   name:
   image:
     repository: cloudwatch-agent-operator
-    tag: 1.0.2
+    tag: 1.0.4
     repositoryDomainMap:
       public: public.ecr.aws/cloudwatch-agent
       cn-north-1: 934860584483.dkr.ecr.cn-north-1.amazonaws.com.cn
@@ -45,11 +49,13 @@ manager:
       us-gov-west-1: 743662458514.dkr.ecr.us-gov-west-1.amazonaws.com
   autoInstrumentationImage:
     java:
-      repository: public.ecr.aws/aws-observability/adot-autoinstrumentation-java
+      repositoryDomain: public.ecr.aws/aws-observability
+      repository: adot-autoinstrumentation-java
       tag: v1.31.1
     python:
-      repository: ghcr.io/open-telemetry/opentelemetry-operator/autoinstrumentation-python
-      tag: 0.43b0
+      repositoryDomain: public.ecr.aws/aws-observability
+      repository: adot-autoinstrumentation-python
+      tag: v0.0.1
   autoAnnotateAutoInstrumentation:
     java:
       namespaces: [ ]
@@ -138,7 +144,7 @@ agent:
   name:
   image:
     repository: cloudwatch-agent
-    tag: 1.300031.1b317
+    tag: 1.300034.0b498
     repositoryDomainMap:
       public: public.ecr.aws/cloudwatch-agent
       cn-north-1: 934860584483.dkr.ecr.cn-north-1.amazonaws.com.cn
@@ -146,6 +152,25 @@ agent:
       us-gov-east-1: 743662458514.dkr.ecr.us-gov-east-1.amazonaws.com
       us-gov-west-1: 743662458514.dkr.ecr.us-gov-west-1.amazonaws.com
   enabled: true
+  ## TLS Certificate Option 1: Use Helm to automatically generate self-signed certificate.
+  ## autoGenerateCert must be enabled. This is the default option.
+  ## If true, Helm will automatically create a self-signed cert and secret for you.
+  autoGenerateCert:
+    enabled: true
+    expiryDays: 3650 # 10 years
+
+  ## TLS Certificate Option 2: Use certManager to generate self-signed certificate.
+  ## certManager must be enabled. If enabled, it takes precedence over option 1.
+  certManager:
+    enabled:  false
+    ## Provide the issuer kind and name to do the cert auth job.
+    ## By default, OpenTelemetry Operator will use self-signer issuer.
+    issuerRef: { }
+    # kind:
+    # name:
+    ## Annotations for the cert and issuer if cert-manager is enabled.
+    certificateAnnotations: { }
+    issuerAnnotations: { }
   serviceAccount:
     name: # override agent service account name
   config: # optional config that can be provided to override the defaultConfig
@@ -165,3 +190,25 @@ agent:
         }
       }
     }
+
+dcgmExporter:
+  name:
+  image:
+    repository: dcgm-exporter
+    tag: 3.3.3-3.3.1-ubuntu22.04
+    repositoryDomainMap:
+      public: nvcr.io/nvidia/k8s
+      cn-north-1: 934860584483.dkr.ecr.cn-north-1.amazonaws.com.cn
+      cn-northwest-1: 934860584483.dkr.ecr.cn-northwest-1.amazonaws.com.cn
+      us-gov-east-1: 743662458514.dkr.ecr.us-gov-east-1.amazonaws.com
+      us-gov-west-1: 743662458514.dkr.ecr.us-gov-west-1.amazonaws.com
+  configmap: dcgm-exporter-config-map
+  arguments: ["--web-config-file=/etc/dcgm-exporter/web-config.yaml"]
+  service:
+    enable: true
+    type: ClusterIP
+    port: 9400
+    address: ":9400"
+  kubeletPath: "/var/lib/kubelet/pod-resources"
+  serviceAccount:
+    name: # override exporter service account name
