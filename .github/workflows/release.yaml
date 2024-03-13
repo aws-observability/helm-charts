@@ -2,15 +2,21 @@ name: Release Helm Charts
 
 on:
   workflow_dispatch:
+    inputs:
+      commit_sha:
+        required: true
+        type: string
+        default: ""
+        description: "Release commit SHA"
 
 jobs:
   release:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v2
+        uses: actions/checkout@v4
         with:
-          fetch-depth: 0
+          ref: "${{ github.event.inputs.commit_sha }}"
 
       - name: Configure Git
         run: |
