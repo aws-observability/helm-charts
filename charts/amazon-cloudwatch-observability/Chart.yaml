@@ -6,7 +6,7 @@ description: A Helm chart for Amazon CloudWatch Observability
 type: application
 home: https://aws.amazon.com/cloudwatch/
 sources:
-- https://github.com/aws/amazon-cloudwatch-agent-operator
+- https://github.com/aws-observability/helm-charts/tree/main/charts/amazon-cloudwatch-observability
 maintainers:
 - name: straussb
 - name: lisaguo
