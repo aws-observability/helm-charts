@@ -1,0 +1,79 @@
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: {{ include "dcgm-exporter.name" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    k8s-app: {{ include "dcgm-exporter.name" . }}
+    version: v1
+spec:
+  selector:
+    matchLabels:
+      k8s-app: {{ include "dcgm-exporter.name" . }}
+  template:
+    metadata:
+      labels:
+        k8s-app: {{ include "dcgm-exporter.name" . }}
+        version: v1
+    spec:
+      serviceAccountName: {{ template "dcgm-exporter.serviceAccountName" . }}
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+            - matchExpressions:
+              - key: {{ .Values.gpuNodeLabelKey }}
+                operator: In
+                values: {{ .Values.gpuInstances | toYaml | nindent 16 }}
+      containers:
+      - name: dcgm-exporter
+        image: {{ template "dcgm-exporter.image" . }}
+        args:
+        {{- range $.Values.dcgmExporter.arguments }}
+        - {{ . }}
+        {{- end }}
+        resources:
+          requests:
+            cpu: 250m
+            memory: 128Mi
+          limits:
+            cpu: 500m
+            memory: 250Mi
+        env:
+        - name: "DCGM_EXPORTER_KUBERNETES"
+          value: "true"
+        - name: "DCGM_EXPORTER_LISTEN"
+          value: "{{ .Values.dcgmExporter.service.address }}"
+        - name: "DCGM_EXPORTER_COLLECTORS"
+          value: "/etc/dcgm-exporter/dcp-metrics-included.csv"
+        - name: NODE_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: spec.nodeName
+        ports:
+        - name: "metrics"
+          containerPort: {{ .Values.dcgmExporter.service.port }}
+        volumeMounts:
+        - name: "pod-gpu-resources"
+          readOnly: true
+          mountPath: "/var/lib/kubelet/pod-resources"
+        - name: "dcgm-config"
+          mountPath: /etc/dcgm-exporter/
+        - mountPath: /etc/amazon-cloudwatch-observability-dcgm-cert
+          name: dcgmtls
+          readOnly: true
+      volumes:
+      - name: dcgmtls
+        secret:
+          secretName: amazon-cloudwatch-observability-agent-cert
+          items:
+            - key: tls.crt
+              path: server.crt
+            - key:  tls.key
+              path: server.key
+      - name: "pod-gpu-resources"
+        hostPath:
+          path: /var/lib/kubelet/pod-resources
+      - name: "dcgm-config"
+        configMap:
+          name: {{ .Values.dcgmExporter.configmap }}

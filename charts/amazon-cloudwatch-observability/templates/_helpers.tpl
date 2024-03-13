@@ -6,34 +6,45 @@ Expand the name of the chart.
 {{- end }}
 
 {{/*
+Function to generate a random name and store it in .Release
+*/}}
+{{- define "generate_static_name_randomiser" -}}
+{{- if not (index .Release "randomiser") -}}
+{{- $_ := set .Release "randomiser" dict -}}
+{{- end -}}
+{{- $key := printf "%s_%s" .Release.Name "randomiser" -}}
+{{- if not (index .Release.randomiser $key) -}}
+{{- $_ := set .Release.randomiser $key (randAlphaNum 3) -}}
+{{- end -}}
+{{- index .Release.randomiser $key -}}
+{{- end -}}
+
+{{/*
 Name of k8s cluster
 */}}
 {{- define "kubernetes-cluster.name" -}}
-{{- if empty .Values.clusterName }}
-{{- default "" (printf "k8s-cluster-%s" (sha256sum .Release.Name | trunc 7)) }}
-{{- else }}
-{{- default "" .Values.clusterName }}
-{{- end }}
+{{- default (printf "k8s-cluster-%s-%s" (sha256sum .Release.Name | trunc 7) (include "generate_static_name_randomiser" .)) .Values.clusterName }}
 {{- end }}
 
 {{/*
 Helper function to modify cloudwatch-agent config
 */}}
 {{- define "cloudwatch-agent.config-modifier" -}}
-{{- $configCopy := deepCopy .Values.agent.config }}
+{{- $configCopy := deepCopy .Config }}
 
 {{- $agent := pluck "agent" $configCopy | first }}
 {{- if and (empty $agent) (empty $agent.region) }}
-{{- $agent := set $agent "region" .Values.region }}
+{{- $agentRegion := dict "region" .Values.region }}
+{{- $agent := set $configCopy "agent" $agentRegion }}
 {{- end }}
 
 {{- $appSignals := pluck "app_signals" $configCopy.logs.metrics_collected | first }}
-{{- if empty $appSignals.hosted_in }}
+{{- if and (hasKey $configCopy.logs.metrics_collected "app_signals") (empty $appSignals.hosted_in) }}
 {{- $appSignals := set $appSignals "hosted_in" (include "kubernetes-cluster.name" .) }}
 {{- end }}
 
 {{- $containerInsights := pluck "kubernetes" $configCopy.logs.metrics_collected | first }}
-{{- if empty $containerInsights.cluster_name }}
+{{- if and (hasKey $configCopy.logs.metrics_collected "kubernetes") (empty $containerInsights.cluster_name) }}
 {{- $containerInsights := set $containerInsights "cluster_name" (include "kubernetes-cluster.name" .) }}
 {{- end }}
 
@@ -43,26 +54,12 @@ Helper function to modify cloudwatch-agent config
 {{/*
 Helper function to modify customer supplied agent config if ContainerInsights or ApplicationSignals is enabled
 */}}
-{{- define "cloudwatch-agent.supplied-config" -}}
-{{- if or (hasKey .Values.agent.config.logs "app_signals") (and (hasKey .Values.agent.config.logs "metrics_collected") (hasKey .Values.agent.config.logs.metrics_collected "kubernetes")) }}
+{{- define "cloudwatch-agent.modify-config" -}}
+{{- if and (hasKey .Config "logs") (or (and (hasKey .Config.logs "metrics_collected") (hasKey .Config.logs.metrics_collected "app_signals")) (and (hasKey .Config.logs "metrics_collected") (hasKey .Config.logs.metrics_collected "kubernetes"))) }}
 {{- include "cloudwatch-agent.config-modifier" . }}
 {{- else }}
-{{- default "" .Values.agent.config | toJson | quote }}
+{{- default "" .Config | toJson | quote }}
 {{- end }}
-{{- end }}
-
-{{/*
-Helper function to modify default agent config
-*/}}
-{{- define "cloudwatch-agent.modify-default-config" -}}
-{{- $configCopy := deepCopy .Values.agent.defaultConfig }}
-{{- $agentRegion := dict "region" .Values.region }}
-{{- $agent := set $configCopy "agent" $agentRegion }}
-{{- $appSignals := pluck "app_signals" $configCopy.logs.metrics_collected | first }}
-{{- $appSignals := set $appSignals "hosted_in" (include "kubernetes-cluster.name" .) }}
-{{- $containerInsights := pluck "kubernetes" $configCopy.logs.metrics_collected | first }}
-{{- $containerInsights := set $containerInsights "cluster_name" (include "kubernetes-cluster.name" .) }}
-{{- default ""  $configCopy | toJson | quote }}
 {{- end }}
 
 {{/*
@@ -70,6 +67,13 @@ Name for cloudwatch-agent
 */}}
 {{- define "cloudwatch-agent.name" -}}
 {{- default "cloudwatch-agent" .Values.agent.name }}
+{{- end }}
+
+{{/*
+Name for dcgm-exporter
+*/}}
+{{- define "dcgm-exporter.name" -}}
+{{- default "dcgm-exporter" .Values.dcgmExporter.name }}
 {{- end }}
 
 {{/*
@@ -88,6 +92,7 @@ Get the current recommended cloudwatch agent image for a region
 Get the current recommended cloudwatch agent operator image for a region
 */}}
 {{- define "cloudwatch-agent-operator.image" -}}
+{{- $region := .Values.region | required ".Values.region is required." -}}
 {{- $imageDomain := "" -}}
 {{- $imageDomain = index .Values.manager.image.repositoryDomainMap .Values.region -}}
 {{- if not $imageDomain -}}
@@ -100,12 +105,40 @@ Get the current recommended cloudwatch agent operator image for a region
 Get the current recommended fluent-bit image for a region
 */}}
 {{- define "fluent-bit.image" -}}
+{{- $region := .Values.region | required ".Values.region is required." -}}
 {{- $imageDomain := "" -}}
 {{- $imageDomain = index .Values.containerLogs.fluentBit.image.repositoryDomainMap .Values.region -}}
 {{- if not $imageDomain -}}
 {{- $imageDomain = .Values.containerLogs.fluentBit.image.repositoryDomainMap.public -}}
 {{- end -}}
 {{- printf "%s/%s:%s" $imageDomain .Values.containerLogs.fluentBit.image.repository .Values.containerLogs.fluentBit.image.tag -}}
+{{- end -}}
+
+{{/*
+Get the current recommended dcgm-exporter image for a region
+*/}}
+{{- define "dcgm-exporter.image" -}}
+{{- $region := .Values.region | required ".Values.region is required." -}}
+{{- $imageDomain := "" -}}
+{{- $imageDomain = index .Values.dcgmExporter.image.repositoryDomainMap .Values.region -}}
+{{- if not $imageDomain -}}
+{{- $imageDomain = .Values.dcgmExporter.image.repositoryDomainMap.public -}}
+{{- end -}}
+{{- printf "%s/%s:%s" $imageDomain .Values.dcgmExporter.image.repository .Values.dcgmExporter.image.tag -}}
+{{- end -}}
+
+{{/*
+Get the current recommended auto instrumentation java image
+*/}}
+{{- define "auto-instrumentation-java.image" -}}
+{{- printf "%s/%s:%s" .Values.manager.autoInstrumentationImage.java.repositoryDomain .Values.manager.autoInstrumentationImage.java.repository .Values.manager.autoInstrumentationImage.java.tag -}}
+{{- end -}}
+
+{{/*
+Get the current recommended auto instrumentation python image
+*/}}
+{{- define "auto-instrumentation-python.image" -}}
+{{- printf "%s/%s:%s" .Values.manager.autoInstrumentationImage.python.repositoryDomain .Values.manager.autoInstrumentationImage.python.repository .Values.manager.autoInstrumentationImage.python.tag -}}
 {{- end -}}
 
 {{/*
@@ -147,6 +180,13 @@ Create the name of the service account to use
 {{- else }}
 {{- default "default" .Values.agent.serviceAccount.name }}
 {{- end }}
+{{- end }}
+
+{{/*
+Create the name of the service account to use for dcgm exporter
+*/}}
+{{- define "dcgm-exporter.serviceAccountName" -}}
+{{- default "dcgm-exporter-service-acct" .Values.dcgmExporter.serviceAccount.name }}
 {{- end }}
 
 {{- define "amazon-cloudwatch-observability.podAnnotations" -}}

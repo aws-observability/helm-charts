@@ -43,3 +43,46 @@ spec:
   selfSigned: { }
 {{- end }}
 {{- end }}
+{{- if ( .Values.agent.certManager.enabled) -}}
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  labels:
+    {{- include "amazon-cloudwatch-observability.labels" . | nindent 4}}
+  name: "amazon-cloudwatch-observability-agent-cert"
+  namespace: {{ .Release.Namespace }}
+spec:
+  dnsNames:
+    - "dcgm-exporter-service"
+    - "dcgm-exporter-service.amazon-cloudwatch.svc"
+  issuerRef:
+    kind: Issuer
+    name: "agent-ca"
+  secretName: "amazon-cloudwatch-observability-agent-cert"
+{{- if not .Values.agent.certManager.issuerRef }}
+---
+apiVersion: cert-manager.io/v1
+kind: Issuer
+metadata:
+  {{- if .Values.agent.certManager.issuerAnnotations }}
+  annotations:
+  {{- toYaml .Values.agent.certManager.issuerAnnotations | nindent 4 }}
+  {{- end }}
+  labels:
+    {{- include "amazon-cloudwatch-observability.labels" . | nindent 4}}
+  name: "agent-ca"
+  namespace: {{ .Release.Namespace }}
+spec:
+  selfSigned: { }
+{{- end }}
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  labels:
+    {{- include "amazon-cloudwatch-observability.labels" . | nindent 4}}
+  name: "amazon-cloudwatch-observability-agent-cert"
+  namespace: {{ .Release.Namespace }}
+{{- end }}
+
