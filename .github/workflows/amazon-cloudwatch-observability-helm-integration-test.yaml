@@ -5,7 +5,7 @@ name: Run Integration Test for Amazon CloudWatch Observability Helm Chart
 on:
   push:
     branches:
-      - main
+      - helm-tests*
   workflow_dispatch:
 
 concurrency:
