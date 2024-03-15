@@ -19,7 +19,7 @@ variable "test_dir" {
 
 variable "helm_dir" {
   type    = string
-  default = "../../../charts/amazon-cloudwatch-observability"
+  default = "../../../../charts/amazon-cloudwatch-observability"
 }
 
 variable "kube_dir" {
