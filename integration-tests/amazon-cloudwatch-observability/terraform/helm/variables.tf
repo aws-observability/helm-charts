@@ -14,7 +14,7 @@ variable "k8s_version" {
 # eks addon and helm tests are similar
 variable "test_dir" {
   type    = string
-  default = "../validator"
+  default = "../../validator"
 }
 
 variable "helm_dir" {
