@@ -2,11 +2,11 @@
 apiVersion: v1
 kind: Service
 metadata:
-  name: neuron-monitor-service
+  name: {{ include "neuron-monitor.name" . }}-service
   namespace: {{ .Release.Namespace }}
   labels:
     {{- include "amazon-cloudwatch-observability.labels" . | nindent 4 }}
-    k8s-app: neuron-monitor-service
+    k8s-app: {{ include "neuron-monitor.name" . }}-service
   annotations:
     prometheus.io/scrape: "true"
 spec:

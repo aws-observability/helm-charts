@@ -57,7 +57,7 @@ spec:
   - mountPath: /dev/disk
     name: devdisk
     readOnly: true
-  - mountPath: /etc/amazon-cloudwatch-observability-agent-cert/
+  - mountPath: /etc/amazon-cloudwatch-observability-agent-cert
     name: agenttls
     readOnly: true
   - mountPath: /var/lib/kubelet/pod-resources

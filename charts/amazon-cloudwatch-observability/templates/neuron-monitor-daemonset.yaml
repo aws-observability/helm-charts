@@ -1,19 +1,19 @@
 apiVersion: apps/v1
 kind: DaemonSet
 metadata:
-  name: neuron-monitor
+  name: {{ include "neuron-monitor.name" . }}
   namespace: {{ .Release.Namespace }}
   labels:
-    k8s-app: neuron-monitor
+    k8s-app: {{ include "neuron-monitor.name" . }}
     version: v1
 spec:
   selector:
     matchLabels:
-      k8s-app: neuron-monitor
+      k8s-app: {{ include "neuron-monitor.name" . }}
   template:
     metadata:
       labels:
-        k8s-app: neuron-monitor
+        k8s-app: {{ include "neuron-monitor.name" . }}
         version: v1
     spec:
       affinity:
@@ -29,14 +29,21 @@ spec:
                     operator: In
                     values: {{ .Values.neuronInstances | toYaml | nindent 20 }}
       containers:
-        - name: neuron-monitor-prometheus
+        - name: {{ include "neuron-monitor.name" . }}-prometheus
           image: {{ .Values.neuronMonitor.image.repository }}:{{ .Values.neuronMonitor.image.tag }}
           ports:
             - containerPort: {{ .Values.neuronMonitor.service.port }}
           command:
-            - sh
-            - -c
-            - /opt/aws/neuron/bin/neuron-monitor -c /etc/neuron-monitor-config/monitor.json  | /opt/aws/neuron/bin/neuron-monitor-prometheus.py --port ${PROMETHEUS_PORT:-8000} --cert-file /etc/amazon-cloudwatch-observability-neuron-cert/server.crt --key-file /etc/amazon-cloudwatch-observability-neuron-cert/server.key
+             - "/opt/bin/entrypoint.sh"
+          args:
+            - "--port"
+            - "8000"
+            - "--cert-file"
+            - "/etc/amazon-cloudwatch-observability-neuron-cert/server.crt"
+            - "--key-file"
+            - "/etc/amazon-cloudwatch-observability-neuron-cert/server.key"
+            - "--neuron-monitor-config"
+            - "/etc/neuron-monitor-config/monitor.json"
           resources:
             limits:
               cpu: 500m
@@ -58,7 +65,7 @@ spec:
               name: neurontls
               readOnly: true
             - mountPath: /etc/neuron-monitor-config/
-              name: neuron-monitor-config
+              name: {{ include "neuron-monitor.name" . }}-config
               readOnly: true
       volumes:
         - name: neurontls
@@ -69,7 +76,7 @@ spec:
                 path: server.crt
               - key: tls.key
                 path: server.key
-        - name: neuron-monitor-config
+        - name: {{ include "neuron-monitor.name" . }}-config
           configMap:
             name: {{ .Values.neuronMonitor.configmap }}
 
