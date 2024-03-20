@@ -17,9 +17,12 @@ clusterName:
 ## Provide the Region (this is a required parameter)
 region:
 
-gpuNodeLabelKey: node.kubernetes.io/instance-type
+nodeLabelKey: node.kubernetes.io/instance-type
 ## NVIDIA GPU instance types
 gpuInstances: [ p2.xlarge, p2.8xlarge, p2.16xlarge, p3.2xlarge, p3.8xlarge, p3.16xlarge, p3dn.24xlarge, p4d.24xlarge, p4de.24xlarge, p5.48xlarge, g3s.xlarge, g3.4xlarge, g3.8xlarge, g3.16xlarge, g4dn.xlarge, g4dn.2xlarge, g4dn.4xlarge, g4dn.8xlarge, g4dn.16xlarge, g4dn.12xlarge, g4dn.metal, g4ad.xlarge, g4ad.2xlarge, g4ad.4xlarge, g4ad.8xlarge, g4ad.16xlarge, g5.xlarge, g5.2xlarge, g5.4xlarge, g5.8xlarge, g5.16xlarge, g5.12xlarge, g5.24xlarge, g5.48xlarge, g5g.xlarge, g5g.2xlarge, g5g.4xlarge, g5g.8xlarge, g5g.16xlarge, g5g.metal ]
+
+## Tranium/Infrentia instance types
+neuronInstances: [ trn1.2xlarge, trn1.32xlarge, trn1n.32xlarge, inf1.xlarge, inf1.2xlarge, inf1.6xlarge, inf1.24xlarge, inf2.xlarge, inf2.8xlarge, inf2.24xlarge, inf2.48xlarge ]
 
 containerLogs:
   enabled: true
@@ -210,5 +213,24 @@ dcgmExporter:
     port: 9400
     address: ":9400"
   kubeletPath: "/var/lib/kubelet/pod-resources"
+  serviceAccount:
+    name: # override exporter service account name
+
+neuronMonitor:
+  name:
+  image:
+    repository: 654654461386.dkr.ecr.us-west-2.amazonaws.com/alpha-neuron-monitor
+    tag: sdk2.17.0-ubuntu20.04-neuronmonitorbuilder-development-6191385556-0
+  configmap: neuron-monitor-config-map
+  service:
+    enable: true
+    type: ClusterIP
+    port: 8000
+    address: ":8000"
+  securityContext:
+    runAsNonRoot: false
+    runAsUser: 0
+    capabilities:
+      add: ["SYS_ADMIN"]
   serviceAccount:
     name: # override exporter service account name

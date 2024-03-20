@@ -1,0 +1,38 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Values.neuronMonitor.configmap }}
+  namespace: {{ .Release.Namespace }}
+data:
+  monitor.json: |
+    {
+      "period": "5s",
+      "neuron_runtimes": [
+        {
+          "tag_filter": ".*",
+          "metrics": [
+            {
+              "type": "neuroncore_counters"
+            },
+            {
+              "type": "memory_used"
+            },
+            {
+              "type": "neuron_runtime_vcpu_usage"
+            },
+            {
+              "type": "execution_stats"
+            }
+          ]
+        }
+      ],
+      "system_metrics": [
+        {
+          "type": "memory_info"
+        },
+        {
+          "period": "5s",
+          "type": "neuron_hw_counters"
+        }
+      ]
+    }

@@ -1,0 +1,82 @@
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: neuron-monitor
+  namespace: {{ .Release.Namespace }}
+  labels:
+    k8s-app: neuron-monitor
+    version: v1
+spec:
+  selector:
+    matchLabels:
+      k8s-app: neuron-monitor
+  template:
+    metadata:
+      labels:
+        k8s-app: neuron-monitor
+        version: v1
+    spec:
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: kubernetes.io/os
+                    operator: In
+                    values:
+                      - linux
+                  - key: {{ .Values.nodeLabelKey }}
+                    operator: In
+                    values: {{ .Values.neuronInstances | toYaml | nindent 20 }}
+      containers:
+        - name: neuron-monitor-prometheus
+          image: {{ .Values.neuronMonitor.image.repository }}:{{ .Values.neuronMonitor.image.tag }}
+          ports:
+            - containerPort: {{ .Values.neuronMonitor.service.port }}
+          command:
+            - sh
+            - -c
+            - /opt/aws/neuron/bin/neuron-monitor -c /etc/neuron-monitor-config/monitor.json  | /opt/aws/neuron/bin/neuron-monitor-prometheus.py --port ${PROMETHEUS_PORT:-8000} --cert-file /etc/amazon-cloudwatch-observability-neuron-cert/server.crt --key-file /etc/amazon-cloudwatch-observability-neuron-cert/server.key
+          resources:
+            limits:
+              cpu: 500m
+              memory: 256Mi
+            requests:
+              cpu: 256m
+              memory: 128Mi
+          securityContext:
+            privileged: true
+          env:
+            - name: NODE_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
+            - name: PATH
+              value: /usr/local/bin:/usr/bin:/bin:/opt/aws/neuron/bin
+          volumeMounts:
+            - mountPath: /etc/amazon-cloudwatch-observability-neuron-cert/
+              name: neurontls
+              readOnly: true
+            - mountPath: /etc/neuron-monitor-config/
+              name: neuron-monitor-config
+              readOnly: true
+      volumes:
+        - name: neurontls
+          secret:
+            secretName: amazon-cloudwatch-observability-agent-cert
+            items:
+              - key: tls.crt
+                path: server.crt
+              - key: tls.key
+                path: server.key
+        - name: neuron-monitor-config
+          configMap:
+            name: {{ .Values.neuronMonitor.configmap }}
+
+      serviceAccountName: {{ template "neuron-monitor.serviceAccountName" . }}
+
+      tolerations:
+        - effect: NoSchedule
+          operator: Exists
+        - effect: NoExecute
+          operator: Exists
