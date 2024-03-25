@@ -12,10 +12,10 @@ nameOverride: ""
 imagePullSecrets: [ ]
 
 ## Provide the ClusterName (optional parameter, if not provided, a generated name will be used)
-clusterName:
+clusterName: my-trn1-cluster
 
 ## Provide the Region (this is a required parameter)
-region:
+region: us-east-1
 
 nodeLabelKey: node.kubernetes.io/instance-type
 ## NVIDIA GPU instance types
@@ -219,8 +219,8 @@ dcgmExporter:
 neuronMonitor:
   name:
   image:
-    repository: alpha-neuron-monitor
-    tag: sdk2.17.0-ubuntu20.04-neuronmonitorbuilder-development-6191385556-0
+    repository: test-neuron-monitor
+    tag: 1.0.0
     repositoryDomainMap:
       public: 654654461386.dkr.ecr.us-west-2.amazonaws.com
   configmap: neuron-monitor-config-map

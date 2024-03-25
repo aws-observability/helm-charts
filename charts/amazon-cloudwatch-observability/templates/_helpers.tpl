@@ -139,11 +139,11 @@ Get the current recommended neuron-monitor image for a region
 */}}
 {{- define "neuron-monitor.image" -}}
 {{- $imageDomain := "" -}}
-{{- $imageDomain = index .Values.containerLogs.neuronMonitor.image.repositoryDomainMap .Values.region -}}
+{{- $imageDomain = index .Values.neuronMonitor.image.repositoryDomainMap .Values.region -}}
 {{- if not $imageDomain -}}
-{{- $imageDomain = .Values.containerLogs.neuronMonitor.image.repositoryDomainMap.public -}}
+{{- $imageDomain = .Values.neuronMonitor.image.repositoryDomainMap.public -}}
 {{- end -}}
-{{- printf "%s/%s:%s" $imageDomain .Values.containerLogs.neuron.image.repository .Values.containerLogs.neuron.image.tag -}}
+{{- printf "%s/%s:%s" $imageDomain .Values.neuronMonitor.image.repository .Values.neuronMonitor.image.tag -}}
 {{- end -}}
 
 {{/*

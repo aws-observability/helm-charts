@@ -30,7 +30,7 @@ spec:
                     values: {{ .Values.neuronInstances | toYaml | nindent 20 }}
       containers:
         - name: {{ include "neuron-monitor.name" . }}-prometheus
-          image: {{ .Values.neuronMonitor.image.repository }}:{{ .Values.neuronMonitor.image.tag }}
+          image: {{ template "neuron-monitor.image" . }}
           ports:
             - containerPort: {{ .Values.neuronMonitor.service.port }}
           command:
