@@ -1,0 +1,48 @@
+{{- if .Values.agent.enabled }}
+{{- $region := .Values.region | required ".Values.region is required." -}}
+apiVersion: cloudwatch.aws.amazon.com/v1alpha1
+kind: AmazonCloudWatchAgent
+metadata:
+  name: {{ template "cloudwatch-agent.name" . }}-windows
+  namespace: {{ .Release.Namespace }}
+spec:
+  podSecurityContext:
+    windowsOptions:
+      hostProcess: true
+      runAsUserName: "NT AUTHORITY\\System"
+  hostNetwork: true
+  image: {{ template "cloudwatch-agent.image" . }}
+  mode: daemonset
+  serviceAccount: {{ template "cloudwatch-agent.serviceAccountName" . }}
+  nodeSelector:
+    kubernetes.io/os: windows
+  config: {{ .Values.agent.windowsDefaultConfig | toJson | quote }}
+  resources:
+    requests:
+      memory: "128Mi"
+      cpu: "250m"
+    limits:
+      memory: "512Mi"
+      cpu: "500m"
+  env:
+  - name: K8S_NODE_NAME
+    valueFrom:
+      fieldRef:
+        fieldPath: spec.nodeName
+  - name: HOST_IP
+    valueFrom:
+      fieldRef:
+        fieldPath: status.hostIP
+  - name: HOST_NAME
+    valueFrom:
+      fieldRef:
+        fieldPath: spec.nodeName
+  - name: K8S_NAMESPACE
+    valueFrom:
+      fieldRef:
+        fieldPath: metadata.namespace
+  - name: RUN_IN_CONTAINER
+    value: "True"
+  - name: RUN_AS_HOST_PROCESS_CONTAINER
+    value: "True"
+{{- end }}

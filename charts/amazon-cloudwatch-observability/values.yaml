@@ -27,6 +27,7 @@ containerLogs:
     image:
       repository: aws-for-fluent-bit
       tag: 2.32.0.20240304
+      tagWindows: 2.31.12-windowsservercore
       repositoryDomainMap:
         public: public.ecr.aws/aws-observability
         cn-north-1: 128054284489.dkr.ecr.cn-north-1.amazonaws.com.cn
@@ -187,6 +188,16 @@ agent:
       "traces": {
         "traces_collected": {
           "app_signals": { }
+        }
+      }
+    }
+  windowsDefaultConfig:
+    {
+      "logs": {
+        "metrics_collected": {
+          "kubernetes": {
+            "enhanced_container_insights": true
+          },
         }
       }
     }

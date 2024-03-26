@@ -15,7 +15,7 @@ spec:
   template:
     metadata:
       annotations:
-        checksum/config: {{ include (print $.Template.BasePath "/fluent-bit-configmap.yaml") . | sha256sum }}
+        checksum/config: {{ include (print $.Template.BasePath "/linux/fluent-bit-configmap.yaml") . | sha256sum }}
       labels:
         k8s-app: fluent-bit
         version: v1
@@ -98,3 +98,5 @@ spec:
         hostPath:
           path: /var/log/dmesg
       serviceAccountName: {{ template "cloudwatch-agent.serviceAccountName" . }}
+      nodeSelector:
+        kubernetes.io/os: linux

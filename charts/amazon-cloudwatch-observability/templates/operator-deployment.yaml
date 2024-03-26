@@ -49,3 +49,5 @@ spec:
         secret:
           defaultMode: 420
           secretName: {{ template "amazon-cloudwatch-observability.certificateSecretName" . }}
+      nodeSelector:
+        kubernetes.io/os: linux
