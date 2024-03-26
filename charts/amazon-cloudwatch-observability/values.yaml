@@ -12,10 +12,10 @@ nameOverride: ""
 imagePullSecrets: [ ]
 
 ## Provide the ClusterName (optional parameter, if not provided, a generated name will be used)
-clusterName: my-trn1-cluster
+clusterName:
 
 ## Provide the Region (this is a required parameter)
-region: us-east-1
+region:
 
 nodeLabelKey: node.kubernetes.io/instance-type
 ## NVIDIA GPU instance types

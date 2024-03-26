@@ -81,9 +81,3 @@ spec:
             name: {{ .Values.neuronMonitor.configmap }}
 
       serviceAccountName: {{ template "neuron-monitor.serviceAccountName" . }}
-
-      tolerations:
-        - effect: NoSchedule
-          operator: Exists
-        - effect: NoExecute
-          operator: Exists
