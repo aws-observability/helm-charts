@@ -1,0 +1,75 @@
+{{- $region := .Values.region | required ".Values.region is required." -}}
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: fluent-bit-windows
+  namespace: {{ .Release.Namespace }}
+  labels:
+    k8s-app: fluent-bit
+    version: v1
+    kubernetes.io/cluster-service: "true"
+spec:
+  selector:
+    matchLabels:
+      k8s-app: fluent-bit
+  template:
+    metadata:
+      annotations:
+        checksum/config: {{ include (print $.Template.BasePath "/windows/fluent-bit-windows-configmap.yaml") . | sha256sum }}
+      labels:
+        k8s-app: fluent-bit
+        version: v1
+        kubernetes.io/cluster-service: "true"
+    spec:
+      securityContext:
+        windowsOptions:
+          hostProcess: true
+          runAsUserName: "NT AUTHORITY\\System"
+      hostNetwork: true
+      nodeSelector:
+        kubernetes.io/os: windows
+      containers:
+      - name: fluent-bit
+        image: {{ template "fluent-bit-windows.image" . }}
+        imagePullPolicy: Always
+        command: ["powershell.exe", "-Command", "New-Item -ItemType Directory -Path C:\\var\\fluent-bit\\state -Force;", "%CONTAINER_SANDBOX_MOUNT_POINT%/fluent-bit/bin/fluent-bit.exe", "-e", "%CONTAINER_SANDBOX_MOUNT_POINT%/fluent-bit/kinesis.dll", "-e", "%CONTAINER_SANDBOX_MOUNT_POINT%/fluent-bit/firehose.dll", "-e", "%CONTAINER_SANDBOX_MOUNT_POINT%/fluent-bit/cloudwatch.dll", "-c", "%CONTAINER_SANDBOX_MOUNT_POINT%/fluent-bit/configuration/fluent-bit.conf"]
+        env:
+        - name: AWS_REGION
+          value: {{ .Values.region }}
+        - name: CLUSTER_NAME
+          value: {{ .Values.clusterName | quote }}
+        - name: READ_FROM_HEAD
+          value: "Off"
+        - name: HOST_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: spec.nodeName
+        - name: HOSTNAME
+          valueFrom:
+            fieldRef:
+              apiVersion: v1
+              fieldPath: metadata.name
+        - name: CI_VERSION
+          value: "k8s/1.3.17"
+        resources:
+          limits:
+          {{- if .Values.containerLogs.enabled }}
+            cpu: 500m
+            memory: 600Mi
+          {{ else }}
+            cpu: 300m
+            memory: 300Mi
+          {{ end }}
+          requests:
+            cpu: 300m
+            memory: 300Mi
+        volumeMounts:
+          - name: fluent-bit-config
+            mountPath: fluent-bit\configuration\
+      volumes:
+        - name: fluent-bit-config
+          configMap:
+            name: fluent-bit-windows-config
+      terminationGracePeriodSeconds: 10
+      dnsPolicy: ClusterFirstWithHostNet
+      serviceAccountName: {{ template "cloudwatch-agent.serviceAccountName" . }}
