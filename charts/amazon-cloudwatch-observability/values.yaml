@@ -145,7 +145,7 @@ agent:
   name:
   image:
     repository: cloudwatch-agent
-    tag: 1.300034.0b498
+    tag: 1.300035.0b547
     repositoryDomainMap:
       public: public.ecr.aws/cloudwatch-agent
       cn-north-1: 934860584483.dkr.ecr.cn-north-1.amazonaws.com.cn
