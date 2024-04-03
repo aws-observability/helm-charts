@@ -12,10 +12,10 @@ nameOverride: ""
 imagePullSecrets: [ ]
 
 ## Provide the ClusterName (this is a required parameter)
-clusterName: helm-test
+clusterName:
 
 ## Provide the Region (this is a required parameter)
-region: us-west-2
+region:
 
 gpuNodeLabelKey: node.kubernetes.io/instance-type
 ## NVIDIA GPU instance types
