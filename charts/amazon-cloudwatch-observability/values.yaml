@@ -41,7 +41,7 @@ manager:
   name:
   image:
     repository: cloudwatch-agent-operator
-    tag: 1.1.0
+    tag: 1.2.0
     repositoryDomainMap:
       public: public.ecr.aws/cloudwatch-agent
       cn-north-1: 934860584483.dkr.ecr.cn-north-1.amazonaws.com.cn
