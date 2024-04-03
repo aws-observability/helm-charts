@@ -26,6 +26,8 @@ metadata:
 spec:
   image: {{ template "cloudwatch-agent.image" . }}
   mode: daemonset
+  nodeSelector:
+    kubernetes.io/os: linux
   serviceAccount: {{ template "cloudwatch-agent.serviceAccountName" . }}
   {{- if .Values.agent.config }}
   config: {{ include "cloudwatch-agent.modify-config" (merge (dict "Config" .Values.agent.config) . ) }}
