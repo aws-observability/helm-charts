@@ -6,20 +6,6 @@ Expand the name of the chart.
 {{- end }}
 
 {{/*
-Function to generate a random name and store it in .Release
-*/}}
-{{- define "generate_static_name_randomiser" -}}
-{{- if not (index .Release "randomiser") -}}
-{{- $_ := set .Release "randomiser" dict -}}
-{{- end -}}
-{{- $key := printf "%s_%s" .Release.Name "randomiser" -}}
-{{- if not (index .Release.randomiser $key) -}}
-{{- $_ := set .Release.randomiser $key (randAlphaNum 3) -}}
-{{- end -}}
-{{- index .Release.randomiser $key -}}
-{{- end -}}
-
-{{/*
 Helper function to modify cloudwatch-agent config
 */}}
 {{- define "cloudwatch-agent.config-modifier" -}}
