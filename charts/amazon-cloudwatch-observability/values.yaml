@@ -11,11 +11,11 @@ nameOverride: ""
 ## Reference one or more secrets to be used when pulling images from authenticated repositories.
 imagePullSecrets: [ ]
 
-## Provide the ClusterName (optional parameter, if not provided, a generated name will be used)
-clusterName:
+## Provide the ClusterName (this is a required parameter)
+clusterName: helm-test
 
 ## Provide the Region (this is a required parameter)
-region:
+region: us-west-2
 
 gpuNodeLabelKey: node.kubernetes.io/instance-type
 ## NVIDIA GPU instance types

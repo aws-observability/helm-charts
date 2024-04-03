@@ -1,4 +1,5 @@
 {{- if .Values.agent.enabled }}
+{{- $clusterName := .Values.clusterName | required ".Values.clusterName is required." -}}
 {{- $region := .Values.region | required ".Values.region is required." -}}
 apiVersion: cloudwatch.aws.amazon.com/v1alpha1
 kind: AmazonCloudWatchAgent
