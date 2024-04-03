@@ -11,7 +11,7 @@ nameOverride: ""
 ## Reference one or more secrets to be used when pulling images from authenticated repositories.
 imagePullSecrets: [ ]
 
-## Provide the ClusterName (optional parameter, if not provided, a generated name will be used)
+## Provide the ClusterName (this is a required parameter)
 clusterName:
 
 ## Provide the Region (this is a required parameter)

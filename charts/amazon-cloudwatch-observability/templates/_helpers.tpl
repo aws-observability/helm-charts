@@ -6,27 +6,6 @@ Expand the name of the chart.
 {{- end }}
 
 {{/*
-Function to generate a random name and store it in .Release
-*/}}
-{{- define "generate_static_name_randomiser" -}}
-{{- if not (index .Release "randomiser") -}}
-{{- $_ := set .Release "randomiser" dict -}}
-{{- end -}}
-{{- $key := printf "%s_%s" .Release.Name "randomiser" -}}
-{{- if not (index .Release.randomiser $key) -}}
-{{- $_ := set .Release.randomiser $key (randAlphaNum 3) -}}
-{{- end -}}
-{{- index .Release.randomiser $key -}}
-{{- end -}}
-
-{{/*
-Name of k8s cluster
-*/}}
-{{- define "kubernetes-cluster.name" -}}
-{{- default (printf "k8s-cluster-%s-%s" (sha256sum .Release.Name | trunc 7) (include "generate_static_name_randomiser" .)) .Values.clusterName }}
-{{- end }}
-
-{{/*
 Helper function to modify cloudwatch-agent config
 */}}
 {{- define "cloudwatch-agent.config-modifier" -}}
@@ -40,12 +19,14 @@ Helper function to modify cloudwatch-agent config
 
 {{- $appSignals := pluck "app_signals" $configCopy.logs.metrics_collected | first }}
 {{- if and (hasKey $configCopy.logs.metrics_collected "app_signals") (empty $appSignals.hosted_in) }}
-{{- $appSignals := set $appSignals "hosted_in" (include "kubernetes-cluster.name" .) }}
+{{- $clusterName := .Values.clusterName | required ".Values.clusterName is required." -}}
+{{- $appSignals := set $appSignals "hosted_in" .Values.clusterName }}
 {{- end }}
 
 {{- $containerInsights := pluck "kubernetes" $configCopy.logs.metrics_collected | first }}
 {{- if and (hasKey $configCopy.logs.metrics_collected "kubernetes") (empty $containerInsights.cluster_name) }}
-{{- $containerInsights := set $containerInsights "cluster_name" (include "kubernetes-cluster.name" .) }}
+{{- $clusterName := .Values.clusterName | required ".Values.clusterName is required." -}}
+{{- $containerInsights := set $containerInsights "cluster_name" .Values.clusterName }}
 {{- end }}
 
 {{- default ""  $configCopy | toJson | quote }}
