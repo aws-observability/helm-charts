@@ -206,7 +206,7 @@ Create the name of the service account to use for dcgm exporter
 Create the name of the service account to use for neuron monitor
 */}}
 {{- define "neuron-monitor.serviceAccountName" -}}
-{{- default "neuron-monitor-svc-acc" .Values.neuronMonitor.serviceAccount.name }}
+{{- default "neuron-monitor-service-acct" .Values.neuronMonitor.serviceAccount.name }}
 {{- end }}
 
 {{- define "amazon-cloudwatch-observability.podAnnotations" -}}
