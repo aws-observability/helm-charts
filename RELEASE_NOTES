@@ -1,0 +1,5 @@
+=======================================================================
+amazon-cloudwatch-observability v1.4.0 (2024-03-12)
+========================================================================
+Enhancements:
+* Adding support for dcgm exporter daemonset for Nvidia GPU metrics (#4)

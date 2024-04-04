@@ -11,7 +11,7 @@ nameOverride: ""
 ## Reference one or more secrets to be used when pulling images from authenticated repositories.
 imagePullSecrets: [ ]
 
-## Provide the ClusterName (optional parameter, if not provided, a generated name will be used)
+## Provide the ClusterName (this is a required parameter)
 clusterName:
 
 ## Provide the Region (this is a required parameter)
@@ -44,7 +44,7 @@ manager:
   name:
   image:
     repository: cloudwatch-agent-operator
-    tag: 1.1.0
+    tag: 1.2.0
     repositoryDomainMap:
       public: public.ecr.aws/cloudwatch-agent
       cn-north-1: 934860584483.dkr.ecr.cn-north-1.amazonaws.com.cn

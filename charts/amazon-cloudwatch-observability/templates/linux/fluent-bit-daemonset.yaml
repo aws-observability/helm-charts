@@ -1,3 +1,4 @@
+{{- $clusterName := .Values.clusterName | required ".Values.clusterName is required." -}}
 {{- $region := .Values.region | required ".Values.region is required." -}}
 apiVersion: apps/v1
 kind: DaemonSet
@@ -29,7 +30,7 @@ spec:
         - name: AWS_REGION
           value: {{ .Values.region }}
         - name: CLUSTER_NAME
-          value: {{ (include "kubernetes-cluster.name" .) | quote }}
+          value: {{ .Values.clusterName | quote }}
         - name: READ_FROM_HEAD
           value: "Off"
         - name: READ_FROM_TAIL
