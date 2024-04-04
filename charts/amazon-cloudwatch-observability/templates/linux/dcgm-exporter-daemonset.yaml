@@ -22,7 +22,7 @@ spec:
           requiredDuringSchedulingIgnoredDuringExecution:
             nodeSelectorTerms:
             - matchExpressions:
-              - key: {{ .Values.gpuNodeLabelKey }}
+              - key: {{ .Values.nodeLabelKey }}
                 operator: In
                 values: {{ .Values.gpuInstances | toYaml | nindent 16 }}
       containers:

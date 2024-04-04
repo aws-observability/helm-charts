@@ -1,6 +1,6 @@
 {{- if .Values.agent.enabled }}
 {{- if and (.Values.agent.autoGenerateCert.enabled) (not .Values.agent.certManager.enabled) -}}
-{{- $altNames := list ( printf "%s-service" (include "dcgm-exporter.name" .) ) ( printf "%s-service.%s.svc" (include "dcgm-exporter.name" .) .Release.Namespace ) -}}
+{{- $altNames := list ( printf "%s-service" (include "dcgm-exporter.name" .) ) ( printf "%s-service" (include "neuron-monitor.name" .) ) ( printf "%s-service.%s.svc" (include "dcgm-exporter.name" .) .Release.Namespace ) ( printf "%s-service.%s.svc" (include "neuron-monitor.name" .) .Release.Namespace ) -}}
 {{- $ca := genCA ("agent-ca")  ( .Values.agent.autoGenerateCert.expiryDays | int ) -}}
 {{- $cert := genSignedCert ("agent") nil $altNames ( .Values.admissionWebhooks.autoGenerateCert.expiryDays | int ) $ca -}}
 apiVersion: v1
@@ -63,7 +63,13 @@ spec:
   - mountPath: /etc/amazon-cloudwatch-observability-agent-cert
     name: agenttls
     readOnly: true
+  - mountPath: /var/lib/kubelet/pod-resources
+    name: kubelet-podresources
   volumes:
+  - name: kubelet-podresources
+    hostPath:
+      path: /var/lib/kubelet/pod-resources
+      type: Directory
   - name: rootfs
     hostPath:
       path: /

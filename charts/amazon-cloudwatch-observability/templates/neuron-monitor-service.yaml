@@ -1,0 +1,22 @@
+{{- if .Values.neuronMonitor.service.enable }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "neuron-monitor.name" . }}-service
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "amazon-cloudwatch-observability.labels" . | nindent 4 }}
+    k8s-app: {{ include "neuron-monitor.name" . }}-service
+  annotations:
+    prometheus.io/scrape: "true"
+spec:
+  type: {{ .Values.neuronMonitor.service.type }}
+  ports:
+  - name: "metrics"
+    port: {{ .Values.neuronMonitor.service.port }}
+    targetPort: {{ .Values.neuronMonitor.service.port }}
+    protocol: TCP
+  selector:
+    k8s-app: {{ include "neuron-monitor.name" . }}
+  internalTrafficPolicy: Local
+{{- end }}
