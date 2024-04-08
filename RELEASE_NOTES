@@ -1,4 +1,12 @@
 =======================================================================
+amazon-cloudwatch-observability v1.5.0 (2024-04-08)
+========================================================================
+Enhancements:
+* Adding support for Windows for Container Insights (#10)
+* Adding support for Neuron Montor Daemonet for Container Insights (#9)
+* Making cluster-name a mandatory field (#12)
+
+=======================================================================
 amazon-cloudwatch-observability v1.4.0 (2024-03-12)
 ========================================================================
 Enhancements:
