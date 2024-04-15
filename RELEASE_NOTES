@@ -1,4 +1,11 @@
 =======================================================================
+amazon-cloudwatch-observability v1.5.2 (2024-04-16)
+========================================================================
+Enhancements:
+* Updating the agent image version to support Elastic Fabric Adapter (EFA) for Container Insights
+* Updating Python SDK and Operator image versions
+
+=======================================================================
 amazon-cloudwatch-observability v1.5.0 (2024-04-08)
 ========================================================================
 Enhancements:
