@@ -1,5 +1,5 @@
-apiVersion: apps/v1
-kind: DaemonSet
+apiVersion: cloudwatch.aws.amazon.com/v1alpha1
+kind: DcgmExporter
 metadata:
   name: {{ include "dcgm-exporter.name" . }}
   namespace: {{ .Release.Namespace }}
@@ -7,75 +7,67 @@ metadata:
     k8s-app: {{ include "dcgm-exporter.name" . }}
     version: v1
 spec:
-  selector:
-    matchLabels:
-      k8s-app: {{ include "dcgm-exporter.name" . }}
-  template:
-    metadata:
-      labels:
-        k8s-app: {{ include "dcgm-exporter.name" . }}
-        version: v1
-    spec:
-      serviceAccountName: {{ template "dcgm-exporter.serviceAccountName" . }}
-      affinity:
-        nodeAffinity:
-          requiredDuringSchedulingIgnoredDuringExecution:
-            nodeSelectorTerms:
-            - matchExpressions:
-              - key: {{ .Values.nodeLabelKey }}
-                operator: In
-                values: {{ .Values.gpuInstances | toYaml | nindent 16 }}
-      containers:
-      - name: dcgm-exporter
-        image: {{ template "dcgm-exporter.image" . }}
-        args:
-        {{- range $.Values.dcgmExporter.arguments }}
-        - {{ . }}
-        {{- end }}
-        resources:
-          requests:
-            cpu: 250m
-            memory: 128Mi
-          limits:
-            cpu: 500m
-            memory: 250Mi
-        env:
-        - name: "DCGM_EXPORTER_KUBERNETES"
-          value: "true"
-        - name: "DCGM_EXPORTER_LISTEN"
-          value: "{{ .Values.dcgmExporter.service.address }}"
-        - name: "DCGM_EXPORTER_COLLECTORS"
-          value: "/etc/dcgm-exporter/dcp-metrics-included.csv"
-        - name: NODE_NAME
-          valueFrom:
-            fieldRef:
-              fieldPath: spec.nodeName
-        ports:
-        - name: "metrics"
-          containerPort: {{ .Values.dcgmExporter.service.port }}
-        volumeMounts:
-        - name: "pod-gpu-resources"
-          readOnly: true
-          mountPath: "/var/lib/kubelet/pod-resources"
-        - name: "dcgm-config"
-          mountPath: /etc/dcgm-exporter/
-        - mountPath: /etc/amazon-cloudwatch-observability-dcgm-cert
-          name: dcgmtls
-          readOnly: true
-      volumes:
-      - name: dcgmtls
-        secret:
-          secretName: amazon-cloudwatch-observability-agent-cert
-          items:
-            - key: tls.crt
-              path: server.crt
-            - key:  tls.key
-              path: server.key
-      - name: "pod-gpu-resources"
-        hostPath:
-          path: /var/lib/kubelet/pod-resources
-      - name: "dcgm-config"
-        configMap:
-          name: {{ .Values.dcgmExporter.configmap }}
-      nodeSelector:
-        kubernetes.io/os: linux
+  image: {{ template "dcgm-exporter.image" . }}
+  nodeSelector:
+    kubernetes.io/os: linux
+  serviceAccount: {{ template "dcgm-exporter.serviceAccountName" . }}
+  affinity:
+    nodeAffinity:
+      requiredDuringSchedulingIgnoredDuringExecution:
+        nodeSelectorTerms:
+        - matchExpressions:
+          - key: {{ .Values.nodeLabelKey }}
+            operator: In
+            values: {{ .Values.gpuInstances | toYaml | nindent 16 }}
+  resources:
+    requests:
+      cpu: 250m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 250Mi
+  env:
+  - name: "DCGM_EXPORTER_KUBERNETES"
+    value: "true"
+  - name: "DCGM_EXPORTER_LISTEN"
+    value: "{{ .Values.dcgmExporter.service.address }}"
+  - name: NODE_NAME
+    valueFrom:
+      fieldRef:
+        fieldPath: spec.nodeName
+  ports:
+  - name: "metrics"
+    port: {{ .Values.dcgmExporter.service.port }}
+  volumeMounts:
+  - name: "pod-gpu-resources"
+    readOnly: true
+    mountPath: "/var/lib/kubelet/pod-resources"
+  - mountPath: /etc/amazon-cloudwatch-observability-dcgm-cert
+    name: dcgmtls
+    readOnly: true
+  volumes:
+  - name: dcgmtls
+    secret:
+      secretName: amazon-cloudwatch-observability-agent-cert
+      items:
+        - key: tls.crt
+          path: server.crt
+        - key:  tls.key
+          path: server.key
+  - name: "pod-gpu-resources"
+    hostPath:
+      path: /var/lib/kubelet/pod-resources
+  metricsConfig: |
+    DCGM_FI_DEV_GPU_UTIL,      gauge, GPU utilization (in %).
+    DCGM_FI_DEV_MEM_COPY_UTIL, gauge, Memory utilization (in %).
+    DCGM_FI_DEV_FB_FREE, gauge, Framebuffer memory free (in MiB).
+    DCGM_FI_DEV_FB_USED, gauge, Framebuffer memory used (in MiB).
+    DCGM_FI_DEV_FB_TOTAL, gauge, Framebuffer memory used (in MiB).
+    DCGM_FI_DEV_FB_USED_PERCENT, gauge, Percentage used of Frame Buffer: Used/(Total - Reserved).
+    DCGM_FI_DEV_MEMORY_TEMP, gauge, Memory temperature (in C).
+    DCGM_FI_DEV_GPU_TEMP,    gauge, GPU temperature (in C).
+    DCGM_FI_DEV_POWER_USAGE,              gauge, Power draw (in W).
+  tlsConfig: |
+    tls_server_config:
+      cert_file: /etc/amazon-cloudwatch-observability-dcgm-cert/server.crt
+      key_file: /etc/amazon-cloudwatch-observability-dcgm-cert/server.key
