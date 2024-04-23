@@ -1,3 +1,4 @@
+{{- if .Values.containerLogs.enabled }}
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -14,7 +15,6 @@ data:
         net.dns.resolver            LEGACY
         Parsers_File                parsers.conf
 
-{{- if .Values.containerLogs.enabled }}
     @INCLUDE application-log.conf
     @INCLUDE dataplane-log.conf
     @INCLUDE host-log.conf

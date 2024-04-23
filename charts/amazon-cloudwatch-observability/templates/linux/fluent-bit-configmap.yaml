@@ -1,3 +1,4 @@
+{{- if .Values.containerLogs.enabled }}
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -18,7 +19,6 @@ data:
         storage.checksum          off
         storage.backlog.mem_limit 5M
 
-{{- if .Values.containerLogs.enabled }}
     @INCLUDE application-log.conf
     @INCLUDE dataplane-log.conf
     @INCLUDE host-log.conf
