@@ -5,9 +5,12 @@ name: Run Integration Test for Amazon CloudWatch Observability Helm Chart
 on:
   push:
     branches:
-      - helm-tests*
+      - main
+  pull_request:
+    types: [ opened, reopened, synchronize, ready_for_review ]
+    branches:
+      - main
   workflow_dispatch:
-
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref_name }}
   cancel-in-progress: true
