@@ -1,4 +1,11 @@
 =======================================================================
+amazon-cloudwatch-observability v1.5.4 (2024-04-23)
+========================================================================
+Enhancements:
+* Do not create fluent bit resources if containerLogs is disabled (#23)
+* Upgrade python sdk to v0.1.1 (#22)
+
+=======================================================================
 amazon-cloudwatch-observability v1.5.2 (2024-04-16)
 ========================================================================
 Enhancements:
