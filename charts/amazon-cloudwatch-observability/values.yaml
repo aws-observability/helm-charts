@@ -59,7 +59,7 @@ manager:
     python:
       repositoryDomain: public.ecr.aws/aws-observability
       repository: adot-autoinstrumentation-python
-      tag: v0.1.0
+      tag: v0.1.1
   autoAnnotateAutoInstrumentation:
     java:
       namespaces: [ ]
