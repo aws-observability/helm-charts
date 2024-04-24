@@ -7460,6 +7460,11 @@ spec:
                     type: object
                   type: array
                   x-kubernetes-list-type: atomic
+                workingDir:
+                  description: WorkingDir represents Container's working directory.
+                    If not specified, the container runtime's default will be used,
+                    which might be configured in the container image. Cannot be updated.
+                  type: string
               type: object
             status:
               description: AmazonCloudWatchAgentStatus defines the observed state of

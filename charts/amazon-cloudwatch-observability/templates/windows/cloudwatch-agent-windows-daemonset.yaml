@@ -13,6 +13,7 @@ spec:
       runAsUserName: "NT AUTHORITY\\System"
   hostNetwork: true
   image: {{ template "cloudwatch-agent.image" . }}
+  workingDir: "%CONTAINER_SANDBOX_MOUNT_POINT%\\Program Files\\Amazon\\AmazonCloudWatchAgent"
   mode: daemonset
   serviceAccount: {{ template "cloudwatch-agent.serviceAccountName" . }}
   nodeSelector:
