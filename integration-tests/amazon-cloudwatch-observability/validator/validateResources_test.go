@@ -63,7 +63,7 @@ func TestOperatorOnEKs(t *testing.T) {
 	//Validating the number of pods and status
 	pods, err := ListPods(nameSpace, clientSet)
 	assert.NoError(t, err)
-	assert.Len(t, pods.Items, 5)
+	assert.Len(t, pods.Items, 3)
 	for _, pod := range pods.Items {
 		fmt.Println("pod name: " + pod.Name + " namespace:" + pod.Namespace)
 		assert.Contains(t, []v1.PodPhase{v1.PodRunning, v1.PodPending}, pod.Status.Phase)
@@ -127,7 +127,7 @@ func TestOperatorOnEKs(t *testing.T) {
 		// - fluent-bit-windows
 		// - dcgm-exporter (this can be removed in the future)
 		// - neuron-monitor
-		if match, _ := regexp.MatchString(agentName+"|fluent-bit|dcgm-exporter", daemonSet.Name); !match {
+		if match, _ := regexp.MatchString(agentName+"|fluent-bit|dcgm-exporter|neuron-monitor", daemonSet.Name); !match {
 			assert.Fail(t, "DaemonSet is not created correctly")
 		}
 	}
