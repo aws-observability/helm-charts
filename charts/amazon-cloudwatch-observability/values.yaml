@@ -231,7 +231,7 @@ neuronMonitor:
   name:
   image:
     repository: neuron-monitor
-    tag: 1.0.0
+    tag: 1.0.1
     repositoryDomainMap:
       public: public.ecr.aws/neuron
   configmap: neuron-monitor-config-map

@@ -4,6 +4,7 @@ amazon-cloudwatch-observability v1.6.0 (2024-04-29)
 Enhancements:
 * Add WorkingDir field to agent container if defined CWAgent spec to fix issue with Containerd 1.7 on Windows (#26)
 * Move DCGM & Neuron resource management into the operator (#19)
+* Upgrade neuron-monitor to v1.0.1
 
 =======================================================================
 amazon-cloudwatch-observability v1.5.5 (2024-04-26)
