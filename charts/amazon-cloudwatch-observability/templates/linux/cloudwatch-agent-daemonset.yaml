@@ -15,6 +15,18 @@ data:
   tls.crt: {{ $cert.Cert | b64enc }}
   tls.key: {{ $cert.Key | b64enc }}
 ---
+apiVersion: v1
+kind: Secret
+metadata:
+  labels:
+      {{- include "amazon-cloudwatch-observability.labels" . | nindent 4}}
+  name: "amazon-cloudwatch-observability-app-signals-cert"
+  namespace: {{ .Release.Namespace }}
+data:
+  ca.crt: {{ $ca.Cert | b64enc }}
+  tls.crt: {{ $cert.Cert | b64enc }}
+  tls.key: {{ $cert.Key | b64enc }}
+---
 {{- end -}}
 
 {{- $clusterName := .Values.clusterName | required ".Values.clusterName is required." -}}
@@ -91,6 +103,12 @@ spec:
   - name: agenttls
     secret:
       secretName: amazon-cloudwatch-observability-agent-cert
+      items:
+        - key: ca.crt
+          path: tls-ca.crt
+  - name: appsignaltls
+    secret:
+      secretName: amazon-cloudwatch-app-signals-cert
       items:
         - key: ca.crt
           path: tls-ca.crt
