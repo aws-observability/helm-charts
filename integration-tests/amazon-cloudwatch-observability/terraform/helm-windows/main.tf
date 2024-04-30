@@ -234,6 +234,6 @@ resource "null_resource" "validator" {
     null_resource.deployment_wait
   ]
   provisioner "local-exec" {
-    command = "go test ${var.test_dir} -v --tags=windowslinux"
+    command = "go test ${var.test_dir} -v"
   }
 }
