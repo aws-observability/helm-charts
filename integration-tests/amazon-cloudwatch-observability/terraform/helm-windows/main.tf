@@ -11,7 +11,7 @@ module "basic_components" {
 
 locals {
   aws_eks  = "aws eks --region ${var.region}"
-  cluster_name = var.cluster_name != "" ? var.cluster_name : "cwagent-operator-helm-integ"
+  cluster_name = var.cluster_name != "" ? var.cluster_name : "cwagent-helm-chart-integ"
 }
 
 data "aws_eks_cluster_auth" "this" {

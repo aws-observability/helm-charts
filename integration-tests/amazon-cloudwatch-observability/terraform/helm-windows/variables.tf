@@ -8,18 +8,18 @@ variable "region" {
 
 variable "k8s_version" {
   type    = string
-  default = "1.25"
+  default = "1.29"
 }
 
 # eks addon and helm tests are similar
 variable "test_dir" {
   type    = string
-  default = "../../eks"
+  default = "../../validator"
 }
 
 variable "helm_dir" {
   type    = string
-  default = "../../../helm"
+  default = "../../../../charts/amazon-cloudwatch-observability"
 }
 
 variable "kube_dir" {
@@ -29,7 +29,7 @@ variable "kube_dir" {
 
 variable "cluster_name" {
   type    = string
-  default = "cwagent-operator-helm-integ"
+  default = "cwagent-helm-chart-integ"
 }
 
 variable "windows_os_version" {
