@@ -1,6 +1,9 @@
 // Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
 // SPDX-License-Identifier: Apache-2.0
 
+//go:build linuxonly || windowslinux
+// +build linuxonly windowslinux
+
 package validator
 
 import (
@@ -36,6 +39,10 @@ const (
 	serviceNameRegex     = agentName + "(-headless|-monitoring)?|" + agentNameWindows + "(-headless|-monitoring)?|" + addOnName + "-webhook-service|" + dcgmExporterName + "-service|" + neuronMonitor + "-service"
 )
 
+const (
+	podCount = podCountLinux + podCountWindows
+)
+
 func TestOperatorOnEKs(t *testing.T) {
 	userHomeDir, err := os.UserHomeDir()
 	if err != nil {
@@ -63,7 +70,7 @@ func TestOperatorOnEKs(t *testing.T) {
 	//Validating the number of pods and status
 	pods, err := ListPods(nameSpace, clientSet)
 	assert.NoError(t, err)
-	assert.Len(t, pods.Items, 3)
+	assert.Len(t, pods.Items, podCount)
 	for _, pod := range pods.Items {
 		fmt.Println("pod name: " + pod.Name + " namespace:" + pod.Namespace)
 		assert.Contains(t, []v1.PodPhase{v1.PodRunning, v1.PodPending}, pod.Status.Phase)
