@@ -43,10 +43,10 @@ containerLogs:
 manager:
   name:
   image:
-    repository: cloudwatch-agent-operator
-    tag: 1.3.1
+    repository: amazon-cloudwatch-agent-operator
+    tag: 1.3.2
     repositoryDomainMap:
-      public: public.ecr.aws/cloudwatch-agent
+      public: 576881538829.dkr.ecr.us-east-1.amazonaws.com
       cn-north-1: 934860584483.dkr.ecr.cn-north-1.amazonaws.com.cn
       cn-northwest-1: 934860584483.dkr.ecr.cn-northwest-1.amazonaws.com.cn
       us-gov-east-1: 743662458514.dkr.ecr.us-gov-east-1.amazonaws.com
@@ -60,6 +60,10 @@ manager:
       repositoryDomain: public.ecr.aws/aws-observability
       repository: adot-autoinstrumentation-python
       tag: v0.1.1
+    dotnet:
+      repositoryDomain: ghcr.io/open-telemetry/opentelemetry-operator
+      repository: autoinstrumentation-dotnet
+      tag: 1.6.0
   autoAnnotateAutoInstrumentation:
     java:
       namespaces: [ ]
@@ -67,6 +71,11 @@ manager:
       daemonsets: [ ]
       statefulsets: [ ]
     python:
+      namespaces: [ ]
+      deployments: [ ]
+      daemonsets: [ ]
+      statefulsets: [ ]
+    dotnet:
       namespaces: [ ]
       deployments: [ ]
       daemonsets: [ ]
