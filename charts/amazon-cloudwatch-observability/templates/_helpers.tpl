@@ -155,6 +155,13 @@ Get the current recommended auto instrumentation python image
 {{- end -}}
 
 {{/*
+Get the current recommended auto instrumentation dotnet image
+*/}}
+{{- define "auto-instrumentation-dotnet.image" -}}
+{{- printf "%s/%s:%s" .Values.manager.autoInstrumentationImage.dotnet.repositoryDomain .Values.manager.autoInstrumentationImage.dotnet.repository .Values.manager.autoInstrumentationImage.dotnet.tag -}}
+{{- end -}}
+
+{{/*
 Common labels
 */}}
 {{- define "amazon-cloudwatch-observability.labels" -}}

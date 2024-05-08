@@ -29,6 +29,7 @@ spec:
         - {{ printf "--auto-annotation-config=%s" (.Values.manager.autoAnnotateAutoInstrumentation | toJson) | quote }}
         - "--auto-instrumentation-java-image={{ template "auto-instrumentation-java.image" . }}"
         - "--auto-instrumentation-python-image={{ template "auto-instrumentation-python.image" . }}"
+        - "--auto-instrumentation-dotnet-image={{ template "auto-instrumentation-dotnet.image" . }}"
         - "--feature-gates=operator.autoinstrumentation.multi-instrumentation,operator.autoinstrumentation.multi-instrumentation.skip-container-validation"
         command:
         - /manager
