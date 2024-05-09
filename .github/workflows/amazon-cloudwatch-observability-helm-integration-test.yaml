@@ -15,10 +15,6 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref_name }}
   cancel-in-progress: true
 
-permissions:
-  id-token: write
-  contents: read
-
 env:
   TERRAFORM_AWS_ASSUME_ROLE: ${{ secrets.TERRAFORM_AWS_ASSUME_ROLE }}
   AWS_DEFAULT_REGION: us-west-2
@@ -27,6 +23,9 @@ jobs:
   HelmChartsIntegrationTest:
     name: HelmChartsIntegrationTest
     runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
     strategy:
       fail-fast: false
     steps:
@@ -83,6 +82,9 @@ jobs:
   HelmChartsIntegrationTestWindows-2022:
     name: HelmChartsIntegrationTestWindows-2022
     runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
     strategy:
       fail-fast: false
     steps:
@@ -139,6 +141,9 @@ jobs:
   HelmChartsIntegrationTestWindows-2019:
     name: HelmChartsIntegrationTestWindows-2019
     runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
     strategy:
       fail-fast: false
     steps:
