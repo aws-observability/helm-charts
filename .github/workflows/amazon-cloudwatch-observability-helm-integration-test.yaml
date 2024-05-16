@@ -37,7 +37,7 @@ jobs:
       - name: Generate testing id
         run: echo TESTING_ID="${{ github.run_id }}-${{ github.run_number }}" >> $GITHUB_ENV
 
-      - name: Configure AWS Credentials
+      - name: Configure AWS Credentials #test
         uses: aws-actions/configure-aws-credentials@v2
         with:
           role-to-assume: ${{ env.TERRAFORM_AWS_ASSUME_ROLE }}
