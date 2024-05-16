@@ -70,6 +70,6 @@ spec:
       terminationGracePeriodSeconds: 10
       dnsPolicy: ClusterFirstWithHostNet
       serviceAccountName: {{ template "cloudwatch-agent.serviceAccountName" . }}
-  tolerations:
-    - operator: Exists
+      tolerations:
+        - operator: Exists
 {{- end }}

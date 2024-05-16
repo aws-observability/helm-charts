@@ -97,6 +97,6 @@ spec:
       serviceAccountName: {{ template "cloudwatch-agent.serviceAccountName" . }}
       nodeSelector:
         kubernetes.io/os: linux
-  tolerations:
-    - operator: Exists
+      tolerations:
+        - operator: Exists
 {{- end }}
