@@ -97,6 +97,8 @@ spec:
       serviceAccountName: {{ template "cloudwatch-agent.serviceAccountName" . }}
       nodeSelector:
         kubernetes.io/os: linux
+      {{- with .Values.tolerations }}
       tolerations:
-        - operator: Exists
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
 {{- end }}

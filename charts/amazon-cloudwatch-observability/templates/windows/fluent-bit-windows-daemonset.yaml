@@ -70,6 +70,8 @@ spec:
       terminationGracePeriodSeconds: 10
       dnsPolicy: ClusterFirstWithHostNet
       serviceAccountName: {{ template "cloudwatch-agent.serviceAccountName" . }}
+      {{- with .Values.tolerations }}
       tolerations:
-        - operator: Exists
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
 {{- end }}
