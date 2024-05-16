@@ -24,7 +24,7 @@ gpuInstances: [ p2.xlarge, p2.8xlarge, p2.16xlarge, p3.2xlarge, p3.8xlarge, p3.1
 ## Tranium/Infrentia instance types
 neuronInstances: [ trn1.2xlarge, trn1.32xlarge, trn1n.32xlarge, inf1.xlarge, inf1.2xlarge, inf1.6xlarge, inf1.24xlarge, inf2.xlarge, inf2.8xlarge, inf2.24xlarge, inf2.48xlarge ]
 
-## Add default tolerations
+## Provide default tolerations
 tolerations:
   - operator: Exists
 
