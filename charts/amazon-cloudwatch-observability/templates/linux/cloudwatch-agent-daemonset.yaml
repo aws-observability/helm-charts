@@ -111,6 +111,6 @@ spec:
     valueFrom:
       fieldRef:
         fieldPath: metadata.namespace
-tolerations:
-  - operator: Exists
+  tolerations:
+    - operator: Exists
 {{- end }}
