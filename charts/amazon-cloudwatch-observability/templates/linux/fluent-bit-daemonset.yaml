@@ -98,7 +98,6 @@ spec:
       nodeSelector:
         kubernetes.io/os: linux
       {{- with .Values.tolerations }}
-      tolerations:
-        {{- toYaml . | nindent 8 }}
+      tolerations: {{- toYaml . | nindent 6}}
       {{- end }}
 {{- end }}

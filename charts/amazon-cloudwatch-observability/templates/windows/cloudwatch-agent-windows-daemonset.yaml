@@ -48,7 +48,6 @@ spec:
   - name: RUN_AS_HOST_PROCESS_CONTAINER
     value: "True"
   {{- with .Values.tolerations }}
-  tolerations:
-    {{- toYaml . | nindent 8 }}
+  tolerations: {{- toYaml . | nindent 2}}
   {{- end }}
 {{- end }}

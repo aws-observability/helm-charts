@@ -91,3 +91,6 @@ spec:
         }
       ]
     }
+  {{- with .Values.tolerations }}
+  tolerations: {{- toYaml . | nindent 2}}
+  {{- end }}
