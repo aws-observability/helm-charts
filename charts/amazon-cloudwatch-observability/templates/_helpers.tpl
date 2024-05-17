@@ -17,8 +17,8 @@ Helper function to modify cloudwatch-agent config
 {{- $agent := set $configCopy "agent" $agentRegion }}
 {{- end }}
 
-{{- $appSignals := pluck "app_signals" $configCopy.logs.metrics_collected | first }}
-{{- if and (hasKey $configCopy.logs.metrics_collected "app_signals") (empty $appSignals.hosted_in) }}
+{{- $appSignals := pluck "application_signals" $configCopy.logs.metrics_collected | first }}
+{{- if and (hasKey $configCopy.logs.metrics_collected "application_signals") (empty $appSignals.hosted_in) }}
 {{- $clusterName := .Values.clusterName | required ".Values.clusterName is required." -}}
 {{- $appSignals := set $appSignals "hosted_in" .Values.clusterName }}
 {{- end }}
@@ -36,7 +36,7 @@ Helper function to modify cloudwatch-agent config
 Helper function to modify customer supplied agent config if ContainerInsights or ApplicationSignals is enabled
 */}}
 {{- define "cloudwatch-agent.modify-config" -}}
-{{- if and (hasKey .Config "logs") (or (and (hasKey .Config.logs "metrics_collected") (hasKey .Config.logs.metrics_collected "app_signals")) (and (hasKey .Config.logs "metrics_collected") (hasKey .Config.logs.metrics_collected "kubernetes"))) }}
+{{- if and (hasKey .Config "logs") (or (and (hasKey .Config.logs "metrics_collected") (hasKey .Config.logs.metrics_collected "application_signals")) (and (hasKey .Config.logs "metrics_collected") (hasKey .Config.logs.metrics_collected "kubernetes"))) }}
 {{- include "cloudwatch-agent.config-modifier" . }}
 {{- else }}
 {{- default "" .Config | toJson | quote }}

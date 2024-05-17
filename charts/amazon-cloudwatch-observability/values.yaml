@@ -185,12 +185,12 @@ agent:
           "kubernetes": {
             "enhanced_container_insights": true
           },
-          "app_signals": { }
+          "application_signals": { }
         }
       },
       "traces": {
         "traces_collected": {
-          "app_signals": { }
+          "application_signals": { }
         }
       }
     }
