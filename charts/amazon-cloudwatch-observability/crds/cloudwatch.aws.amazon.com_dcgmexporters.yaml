@@ -1294,7 +1294,7 @@ spec:
                   TLS configuration.
                 type: string
               tolerations:
-                description: Toleration to schedule OpenTelemetry Collector pods.
+                description: Toleration to schedule DCGM Exporter pods.
                   This is only relevant to daemonset, statefulset, and deployment
                   mode
                 items:

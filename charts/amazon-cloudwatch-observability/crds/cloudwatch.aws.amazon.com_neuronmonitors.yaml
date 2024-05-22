@@ -1175,7 +1175,7 @@ spec:
                 description: MonitorConfig is the raw Json to be used as monitor configuration.
                 type: string
               tolerations:
-                description: Toleration to schedule OpenTelemetry Collector pods.
+                description: Toleration to schedule Neuron Monitor Exporter pods.
                   This is only relevant to daemonset, statefulset, and deployment
                   mode
                 items:
