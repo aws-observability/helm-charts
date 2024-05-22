@@ -51,3 +51,6 @@ spec:
           secretName: {{ template "amazon-cloudwatch-observability.certificateSecretName" . }}
       nodeSelector:
         kubernetes.io/os: linux
+      {{- with .Values.tolerations }}
+      tolerations: {{- toYaml . | nindent 6}}
+      {{- end }}
