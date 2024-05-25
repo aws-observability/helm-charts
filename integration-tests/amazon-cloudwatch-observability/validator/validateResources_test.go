@@ -40,7 +40,10 @@ const (
 )
 
 const (
-	podCount = podCountLinux + podCountWindows
+	deploymentCount = 1
+	podCount        = podCountLinux + podCountWindows
+	serviceCount    = serviceCountLinux + serviceCountWindows
+	daemonsetCount  = daemonsetCountLinux + daemonsetCountWindows
 )
 
 func TestOperatorOnEKs(t *testing.T) {
@@ -88,7 +91,7 @@ func TestOperatorOnEKs(t *testing.T) {
 	//Validating the services
 	services, err := ListServices(nameSpace, clientSet)
 	assert.NoError(t, err)
-	assert.Len(t, services.Items, 9)
+	assert.Len(t, services.Items, serviceCount)
 	for _, service := range services.Items {
 		fmt.Println("service name: " + service.Name + " namespace:" + service.Namespace)
 		// matches
@@ -112,7 +115,7 @@ func TestOperatorOnEKs(t *testing.T) {
 	for _, deployment := range deployments.Items {
 		fmt.Println("deployment name: " + deployment.Name + " namespace:" + deployment.Namespace)
 	}
-	assert.Len(t, deployments.Items, 1)
+	assert.Len(t, deployments.Items, deploymentCount)
 	// matches
 	// - amazon-cloudwatch-observability-controller-manager
 	assert.Equal(t, addOnName+"-controller-manager", deployments.Items[0].Name)
@@ -124,7 +127,7 @@ func TestOperatorOnEKs(t *testing.T) {
 	//Validating the Daemon Sets
 	daemonSets, err := ListDaemonSets(nameSpace, clientSet)
 	assert.NoError(t, err)
-	assert.Len(t, daemonSets.Items, 6)
+	assert.Len(t, daemonSets.Items, daemonsetCount)
 	for _, daemonSet := range daemonSets.Items {
 		fmt.Println("daemonSet name: " + daemonSet.Name + " namespace:" + daemonSet.Namespace)
 		// matches
