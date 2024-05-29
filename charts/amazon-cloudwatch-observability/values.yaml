@@ -28,6 +28,10 @@ neuronInstances: [ trn1.2xlarge, trn1.32xlarge, trn1n.32xlarge, inf1.xlarge, inf
 tolerations:
 - operator: Exists
 
+fluentBit:
+  tolerations: [] # Override the default tolerations
+  additionalNodeSelector: {} # Additional node selector key-value pairs
+
 containerLogs:
   enabled: true
   fluentBit:
@@ -423,6 +427,8 @@ manager:
 
   service:
     name:
+  tolerations: [] # Override the default tolerations
+  additionalNodeSelector: {} # Additional node selector key-value pairs
 
 ## Admission webhooks make sure only requests with correctly formatted rules will get into the Operator.
 admissionWebhooks:
@@ -532,6 +538,8 @@ agent:
         }
       }
     }
+  tolerations: [] # Override the default tolerations
+  additionalNodeSelector: {} # Additional node selector key-value pairs
 
 dcgmExporter:
   name:
@@ -554,6 +562,8 @@ dcgmExporter:
   kubeletPath: "/var/lib/kubelet/pod-resources"
   serviceAccount:
     name: # override exporter service account name
+  tolerations: [] # Override the default tolerations
+  additionalNodeSelector: {} # Additional node selector key-value pairs
 
 neuronMonitor:
   name:
@@ -575,3 +585,5 @@ neuronMonitor:
       add: ["SYS_ADMIN"]
   serviceAccount:
     name: # override exporter service account name
+  tolerations: [] # Override the default tolerations
+  additionalNodeAffinityTerms: [] # Additional required node affinity selector terms

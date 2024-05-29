@@ -30,6 +30,9 @@ spec:
       hostNetwork: true
       nodeSelector:
         kubernetes.io/os: windows
+        {{- with .Values.fluentBit.additionalNodeSelector }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
       containers:
       - name: fluent-bit
         image: {{ template "fluent-bit-windows.image" . }}
@@ -70,7 +73,7 @@ spec:
       terminationGracePeriodSeconds: 10
       dnsPolicy: ClusterFirstWithHostNet
       serviceAccountName: {{ template "cloudwatch-agent.serviceAccountName" . }}
-      {{- with .Values.tolerations }}
+      {{- with (.Values.fluentBit.tolerations | default .Values.tolerations ) }}
       tolerations: {{- toYaml . | nindent 6}}
       {{- end }}
 {{- end }}

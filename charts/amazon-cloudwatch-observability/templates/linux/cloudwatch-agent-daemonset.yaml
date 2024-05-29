@@ -29,6 +29,9 @@ spec:
   mode: daemonset
   nodeSelector:
     kubernetes.io/os: linux
+    {{- if .Values.agent.nodeSelector }}
+    {{- toYaml .Values.agent.nodeSelector | nindent 4 }}
+    {{- end }}
   serviceAccount: {{ template "cloudwatch-agent.serviceAccountName" . }}
   {{- if .Values.agent.config }}
   config: {{ include "cloudwatch-agent.modify-config" (merge (dict "Config" .Values.agent.config) . ) }}
@@ -111,7 +114,7 @@ spec:
     valueFrom:
       fieldRef:
         fieldPath: metadata.namespace
-  {{- with .Values.tolerations }}
+  {{- with (.Values.agent.tolerations | default .Values.tolerations ) }}
   tolerations: {{- toYaml . | nindent 2}}
   {{- end }}
 {{- end }}

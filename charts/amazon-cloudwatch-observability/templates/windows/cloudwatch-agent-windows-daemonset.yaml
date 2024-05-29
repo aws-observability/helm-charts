@@ -18,6 +18,9 @@ spec:
   serviceAccount: {{ template "cloudwatch-agent.serviceAccountName" . }}
   nodeSelector:
     kubernetes.io/os: windows
+    {{- with .Values.agent.additionalNodeSelector }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
   config: {{ .Values.agent.windowsDefaultConfig | toJson | quote }}
   resources:
     requests:
@@ -47,7 +50,7 @@ spec:
     value: "True"
   - name: RUN_AS_HOST_PROCESS_CONTAINER
     value: "True"
-  {{- with .Values.tolerations }}
+  {{- with (.Values.agent.tolerations | default .Values.tolerations ) }}
   tolerations: {{- toYaml . | nindent 2}}
   {{- end }}
 {{- end }}
