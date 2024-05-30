@@ -8,7 +8,7 @@ variable "region" {
 
 variable "k8s_version" {
   type    = string
-  default = "1.29"
+  default = "1.30"
 }
 
 # eks addon and helm tests are similar
