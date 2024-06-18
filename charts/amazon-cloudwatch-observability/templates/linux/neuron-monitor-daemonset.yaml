@@ -21,6 +21,9 @@ spec:
             - key: {{ .Values.nodeLabelKey }}
               operator: In
               values: {{ .Values.neuronInstances | toYaml | nindent 20 }}
+          {{- with .Values.neuronMonitor.additionalNodeAffinityTerms }}
+          {{- toYaml . | nindent 10 }}
+          {{- end }
   resources:
     limits:
       cpu: 500m
@@ -91,6 +94,6 @@ spec:
         }
       ]
     }
-  {{- with .Values.tolerations }}
+  {{- with (.Values.neuronMonitor.tolerations | default .Values.tolerations ) }}
   tolerations: {{- toYaml . | nindent 2}}
   {{- end }}
