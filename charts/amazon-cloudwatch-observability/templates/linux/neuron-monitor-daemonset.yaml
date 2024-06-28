@@ -35,6 +35,8 @@ spec:
         fieldPath: spec.nodeName
   - name: PATH
     value: /usr/local/bin:/usr/bin:/bin:/opt/aws/neuron/bin
+  - name: GOMEMLIMIT
+    value: 160MB
   ports:
   - name: "metrics"
     port: {{ .Values.neuronMonitor.service.port }}
