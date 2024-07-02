@@ -18,6 +18,8 @@ clusterName:
 region:
 
 nodeLabelKey: node.kubernetes.io/instance-type
+fargateLabelKey: eks.amazonaws.com/compute-type
+
 ## NVIDIA GPU instance types
 gpuInstances: [ p2.xlarge, p2.8xlarge, p2.16xlarge, p3.2xlarge, p3.8xlarge, p3.16xlarge, p3dn.24xlarge, p4d.24xlarge, p4de.24xlarge, p5.48xlarge, g3s.xlarge, g3.4xlarge, g3.8xlarge, g3.16xlarge, g4dn.xlarge, g4dn.2xlarge, g4dn.4xlarge, g4dn.8xlarge, g4dn.16xlarge, g4dn.12xlarge, g4dn.metal, g4ad.xlarge, g4ad.2xlarge, g4ad.4xlarge, g4ad.8xlarge, g4ad.16xlarge, g5.xlarge, g5.2xlarge, g5.4xlarge, g5.8xlarge, g5.16xlarge, g5.12xlarge, g5.24xlarge, g5.48xlarge, g5g.xlarge, g5g.2xlarge, g5g.4xlarge, g5g.8xlarge, g5g.16xlarge, g5g.metal, ml.p5.48xlarge, ml.p4d.24xlarge, ml.p4de.24xlarge, ml.p3.2xlarge, ml.p3.8xlarge, ml.p3.16xlarge, ml.p3dn.24xlarge, ml.p2.xlarge, ml.p2.8xlarge, ml.p2.16xlarge, ml.g3s.xlarge, ml.g3.4xlarge, ml.g3.8xlarge, ml.g3.16xlarge, ml.g4dn.xlarge, ml.g4dn.2xlarge, ml.g4dn.4xlarge, ml.g4dn.8xlarge, ml.g4dn.16xlarge, ml.g4dn.12xlarge, ml.g4dn.metal, ml.g4ad.xlarge, ml.g4ad.2xlarge, ml.g4ad.4xlarge, ml.g4ad.8xlarge, ml.g4ad.16xlarge, ml.g5.xlarge, ml.g5.2xlarge, ml.g5.4xlarge, ml.g5.8xlarge, ml.g5.16xlarge, ml.g5.12xlarge, ml.g5.24xlarge, ml.g5.48xlarge, ml.g5g.xlarge, ml.g5g.2xlarge, ml.g5g.4xlarge, ml.g5g.8xlarge, ml.g5g.16xlarge, ml.g5g.metal]
 
@@ -26,7 +28,8 @@ neuronInstances: [ trn1.2xlarge, trn1.32xlarge, trn1n.32xlarge, inf1.xlarge, inf
 
 ## Provide default tolerations
 tolerations:
-- operator: Exists
+  - operator: Exists
+
 
 containerLogs:
   enabled: true
@@ -60,14 +63,14 @@ containerLogs:
           Regex               ^(?<time>[^ ]* {1,2}[^ ]* [^ ]*) (?<host>[^ ]*) (?<ident>[a-zA-Z0-9_\/\.\-]*)(?:\[(?<pid>[0-9]+)\])?(?:[^\:]*\:)? *(?<message>.*)$
           Time_Key            time
           Time_Format         %b %d %H:%M:%S
-  
+        
         [PARSER]
           Name                container_firstline
           Format              regex
           Regex               (?<log>(?<="log":")\S(?!\.).*?)(?<!\\)".*(?<stream>(?<="stream":").*?)".*(?<time>\d{4}-\d{1,2}-\d{1,2}T\d{2}:\d{2}:\d{2}\.\w*).*(?=})
           Time_Key            time
           Time_Format         %Y-%m-%dT%H:%M:%S.%LZ
-    
+        
         [PARSER]
           Name                cwagent_firstline
           Format              regex
@@ -89,7 +92,7 @@ containerLogs:
             Rotate_Wait         30
             storage.type        filesystem
             Read_from_Head      ${READ_FROM_HEAD}
-      
+          
           [INPUT]
             Name                tail
             Tag                 application.*
@@ -100,7 +103,7 @@ containerLogs:
             Skip_Long_Lines     On
             Refresh_Interval    10
             Read_from_Head      ${READ_FROM_HEAD}
-      
+          
           [INPUT]
             Name                tail
             Tag                 application.*
@@ -111,7 +114,7 @@ containerLogs:
             Skip_Long_Lines     On
             Refresh_Interval    10
             Read_from_Head      ${READ_FROM_HEAD}
-      
+          
           [FILTER]
             Name                kubernetes
             Match               application.*
@@ -126,7 +129,7 @@ containerLogs:
             Use_Kubelet         On
             Kubelet_Port        10250
             Buffer_Size         0
-      
+          
           [OUTPUT]
             Name                cloudwatch_logs
             Match               application.*
@@ -145,7 +148,7 @@ containerLogs:
             DB                  /var/fluent-bit/state/systemd.db
             Path                /var/log/journal
             Read_From_Tail      ${READ_FROM_TAIL}
-      
+          
           [INPUT]
             Name                tail
             Tag                 dataplane.tail.*
@@ -158,7 +161,7 @@ containerLogs:
             Rotate_Wait         30
             storage.type        filesystem
             Read_from_Head      ${READ_FROM_HEAD}
-      
+          
           [FILTER]
             Name                modify
             Match               dataplane.systemd.*
@@ -166,12 +169,12 @@ containerLogs:
             Rename              _SYSTEMD_UNIT               systemd_unit
             Rename              MESSAGE                     message
             Remove_regex        ^((?!hostname|systemd_unit|message).)*$
-      
+          
           [FILTER]
             Name                aws
             Match               dataplane.*
             imds_version        v2
-      
+          
           [OUTPUT]
             Name                cloudwatch_logs
             Match               dataplane.*
@@ -235,7 +238,7 @@ containerLogs:
           Daemon                      off
           net.dns.resolver            LEGACY
           Parsers_File                parsers.conf
-          
+        
           @INCLUDE application-log.conf
           @INCLUDE dataplane-log.conf
           @INCLUDE host-log.conf
@@ -273,7 +276,7 @@ containerLogs:
             Rotate_Wait         30
             Refresh_Interval    10
             Read_from_Head      ${READ_FROM_HEAD}
-    
+          
           [INPUT]
             Name                tail
             Tag                 application.*
@@ -285,7 +288,7 @@ containerLogs:
             Rotate_Wait         30
             Refresh_Interval    10
             Read_from_Head      ${READ_FROM_HEAD}
-      
+          
           [INPUT]
             Name                tail
             Tag                 application.*
@@ -297,7 +300,7 @@ containerLogs:
             Rotate_Wait         30
             Refresh_Interval    10
             Read_from_Head      ${READ_FROM_HEAD}
-      
+          
           [OUTPUT]
             Name                cloudwatch_logs
             Match               application.*
@@ -318,7 +321,7 @@ containerLogs:
             Rotate_Wait         30
             Refresh_Interval    10
             Read_from_Head      ${READ_FROM_HEAD}
-    
+          
           [INPUT]
             Name                tail
             Tag                 dataplane.tail.C.ProgramData.Amazon.EKS.logs.vpc-bridge
@@ -337,7 +340,7 @@ containerLogs:
             Channels            EKS
             DB                  C:\\var\\fluent-bit\\state\\flb_eks_winlog.db
             Interval_Sec        60
-    
+          
           [FILTER]
             Name                aws
             Match               dataplane.*
@@ -347,7 +350,7 @@ containerLogs:
             Name                aws
             Match               winlog.*
             imds_version        v2
-      
+          
           [OUTPUT]
             Name                cloudwatch_logs
             Match               dataplane.*
@@ -371,12 +374,12 @@ containerLogs:
             Channels            System
             DB                  C:\\var\\fluent-bit\\state\\flb_system_winlog.db
             Interval_Sec        60
-      
+          
           [FILTER]
             Name                aws
             Match               winlog.*
             imds_version        v2
-      
+          
           [OUTPUT]
             Name                cloudwatch_logs
             Match               winlog.*

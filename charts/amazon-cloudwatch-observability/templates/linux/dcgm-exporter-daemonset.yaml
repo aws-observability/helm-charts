@@ -15,10 +15,14 @@ spec:
     nodeAffinity:
       requiredDuringSchedulingIgnoredDuringExecution:
         nodeSelectorTerms:
-        - matchExpressions:
-          - key: {{ .Values.nodeLabelKey }}
-            operator: In
-            values: {{ .Values.gpuInstances | toYaml | nindent 16 }}
+          - matchExpressions:
+              - key: {{ .Values.nodeLabelKey }}
+                operator: In
+                values: {{ .Values.gpuInstances | toYaml | nindent 16 }}
+              - key: {{ .Values.fargateLabelKey }}
+                operator: NotIn
+                values:
+                  - fargate
   resources:
     requests:
       cpu: 250m
@@ -27,36 +31,36 @@ spec:
       cpu: 500m
       memory: 250Mi
   env:
-  - name: "DCGM_EXPORTER_KUBERNETES"
-    value: "true"
-  - name: "DCGM_EXPORTER_LISTEN"
-    value: "{{ .Values.dcgmExporter.service.address }}"
-  - name: NODE_NAME
-    valueFrom:
-      fieldRef:
-        fieldPath: spec.nodeName
+    - name: "DCGM_EXPORTER_KUBERNETES"
+      value: "true"
+    - name: "DCGM_EXPORTER_LISTEN"
+      value: "{{ .Values.dcgmExporter.service.address }}"
+    - name: NODE_NAME
+      valueFrom:
+        fieldRef:
+          fieldPath: spec.nodeName
   ports:
-  - name: "metrics"
-    port: {{ .Values.dcgmExporter.service.port }}
+    - name: "metrics"
+      port: {{ .Values.dcgmExporter.service.port }}
   volumeMounts:
-  - name: "pod-gpu-resources"
-    readOnly: true
-    mountPath: "/var/lib/kubelet/pod-resources"
-  - mountPath: /etc/amazon-cloudwatch-observability-dcgm-cert
-    name: dcgmtls
-    readOnly: true
+    - name: "pod-gpu-resources"
+      readOnly: true
+      mountPath: "/var/lib/kubelet/pod-resources"
+    - mountPath: /etc/amazon-cloudwatch-observability-dcgm-cert
+      name: dcgmtls
+      readOnly: true
   volumes:
-  - name: dcgmtls
-    secret:
-      secretName: amazon-cloudwatch-observability-agent-cert
-      items:
-        - key: tls.crt
-          path: server.crt
-        - key:  tls.key
-          path: server.key
-  - name: "pod-gpu-resources"
-    hostPath:
-      path: /var/lib/kubelet/pod-resources
+    - name: dcgmtls
+      secret:
+        secretName: amazon-cloudwatch-observability-agent-cert
+        items:
+          - key: tls.crt
+            path: server.crt
+          - key:  tls.key
+            path: server.key
+    - name: "pod-gpu-resources"
+      hostPath:
+        path: /var/lib/kubelet/pod-resources
   metricsConfig: |
     DCGM_FI_DEV_GPU_UTIL,      gauge, GPU utilization (in %).
     DCGM_FI_DEV_MEM_COPY_UTIL, gauge, Memory utilization (in %).
