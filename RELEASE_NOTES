@@ -1,4 +1,15 @@
 =======================================================================
+amazon-cloudwatch-observability v1.8.0 (2024-07-02)
+========================================================================
+Bug Fixes:
+* Add GOMEMLIMIT environment variable for Neuron Monitor to fix OOM crash issue (#56)
+
+Enhancements:
+* Update Windows Fluent-Bit configuration to export Kubelet and kube-proxy service logs to host log group (#45)
+* Upgrade CWAgent Operator to v1.4.1
+* Upgrade CWAgent to v1.300041.0
+
+=======================================================================
 amazon-cloudwatch-observability v1.7.0 (2024-05-23)
 ========================================================================
 Enhancements:
