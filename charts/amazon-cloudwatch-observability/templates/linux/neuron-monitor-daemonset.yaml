@@ -33,17 +33,17 @@ spec:
       cpu: 256m
       memory: 128Mi
   env:
-    - name: NODE_NAME
-      valueFrom:
-        fieldRef:
-          fieldPath: spec.nodeName
-    - name: PATH
-      value: /usr/local/bin:/usr/bin:/bin:/opt/aws/neuron/bin
-    - name: GOMEMLIMIT
-      value: 160MiB
+  - name: NODE_NAME
+    valueFrom:
+      fieldRef:
+        fieldPath: spec.nodeName
+  - name: PATH
+    value: /usr/local/bin:/usr/bin:/bin:/opt/aws/neuron/bin
+  - name: GOMEMLIMIT
+    value: 160MiB
   ports:
-    - name: "metrics"
-      port: {{ .Values.neuronMonitor.service.port }}
+  - name: "metrics"
+    port: {{ .Values.neuronMonitor.service.port }}
   command:
     - "/opt/bin/entrypoint.sh"
   args:
@@ -53,18 +53,18 @@ spec:
   securityContext:
     privileged: true
   volumeMounts:
-    - mountPath: /etc/amazon-cloudwatch-observability-neuron-cert/
-      name: neurontls
-      readOnly: true
+  - mountPath: /etc/amazon-cloudwatch-observability-neuron-cert/
+    name: neurontls
+    readOnly: true
   volumes:
-    - name: neurontls
-      secret:
-        secretName: amazon-cloudwatch-observability-agent-cert
-        items:
-          - key: tls.crt
-            path: server.crt
-          - key: tls.key
-            path: server.key
+  - name: neurontls
+    secret:
+      secretName: amazon-cloudwatch-observability-agent-cert
+      items:
+        - key: tls.crt
+          path: server.crt
+        - key: tls.key
+          path: server.key
   monitorConfig: |
     {
       "period": "5s",
