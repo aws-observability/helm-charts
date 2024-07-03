@@ -30,6 +30,15 @@ spec:
   nodeSelector:
     kubernetes.io/os: linux
   serviceAccount: {{ template "cloudwatch-agent.serviceAccountName" . }}
+  affinity:
+    nodeAffinity:
+      requiredDuringSchedulingIgnoredDuringExecution:
+        nodeSelectorTerms:
+          - matchExpressions:
+              - key: {{ .Values.fargateLabelKey }}
+                operator: NotIn
+                values:
+                  - fargate
   {{- if .Values.agent.config }}
   config: {{ include "cloudwatch-agent.modify-config" (merge (dict "Config" .Values.agent.config) . ) }}
   {{- else }}

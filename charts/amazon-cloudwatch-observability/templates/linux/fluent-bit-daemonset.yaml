@@ -95,6 +95,15 @@ spec:
         hostPath:
           path: /var/log/dmesg
       serviceAccountName: {{ template "cloudwatch-agent.serviceAccountName" . }}
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: {{ .Values.fargateLabelKey }}
+                    operator: NotIn
+                    values:
+                      - fargate
       nodeSelector:
         kubernetes.io/os: linux
       {{- with .Values.tolerations }}

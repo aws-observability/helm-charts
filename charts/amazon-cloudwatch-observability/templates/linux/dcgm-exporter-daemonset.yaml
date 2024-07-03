@@ -15,10 +15,14 @@ spec:
     nodeAffinity:
       requiredDuringSchedulingIgnoredDuringExecution:
         nodeSelectorTerms:
-        - matchExpressions:
-          - key: {{ .Values.nodeLabelKey }}
-            operator: In
-            values: {{ .Values.gpuInstances | toYaml | nindent 16 }}
+          - matchExpressions:
+              - key: {{ .Values.nodeLabelKey }}
+                operator: In
+                values: {{ .Values.gpuInstances | toYaml | nindent 16 }}
+              - key: {{ .Values.fargateLabelKey }}
+                operator: NotIn
+                values:
+                  - fargate
   resources:
     requests:
       cpu: 250m

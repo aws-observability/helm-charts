@@ -14,13 +14,17 @@ spec:
       requiredDuringSchedulingIgnoredDuringExecution:
         nodeSelectorTerms:
           - matchExpressions:
-            - key: kubernetes.io/os
-              operator: In
-              values:
-                - linux
-            - key: {{ .Values.nodeLabelKey }}
-              operator: In
-              values: {{ .Values.neuronInstances | toYaml | nindent 20 }}
+              - key: kubernetes.io/os
+                operator: In
+                values:
+                  - linux
+              - key: {{ .Values.nodeLabelKey }}
+                operator: In
+                values: {{ .Values.neuronInstances | toYaml | nindent 20 }}
+              - key: {{ .Values.fargateLabelKey }}
+                operator: NotIn
+                values:
+                  - fargate
   resources:
     limits:
       cpu: 500m
@@ -41,7 +45,7 @@ spec:
   - name: "metrics"
     port: {{ .Values.neuronMonitor.service.port }}
   command:
-  - "/opt/bin/entrypoint.sh"
+    - "/opt/bin/entrypoint.sh"
   args:
     port: "{{ .Values.neuronMonitor.service.port }}"
     cert-file: "/etc/amazon-cloudwatch-observability-neuron-cert/server.crt"
