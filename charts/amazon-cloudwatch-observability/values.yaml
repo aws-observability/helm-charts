@@ -408,6 +408,10 @@ manager:
       repositoryDomain: public.ecr.aws/aws-observability
       repository: adot-autoinstrumentation-python
       tag: v0.2.0
+    nodejs:
+      repositoryDomain: ghcr.io/open-telemetry/opentelemetry-operator
+      repository: autoinstrumentation-nodejs
+      tag: 0.51.0
   autoAnnotateAutoInstrumentation:
     java:
       namespaces: [ ]
@@ -415,6 +419,11 @@ manager:
       daemonsets: [ ]
       statefulsets: [ ]
     python:
+      namespaces: [ ]
+      deployments: [ ]
+      daemonsets: [ ]
+      statefulsets: [ ]
+    nodejs:
       namespaces: [ ]
       deployments: [ ]
       daemonsets: [ ]
