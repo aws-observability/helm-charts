@@ -446,6 +446,13 @@ manager:
   service:
     name:
 
+## Default resource limits for init containers.
+initContainers:
+  resources:
+    limits:
+      cpu: 100m
+      memory: 64Mi
+
 ## Admission webhooks make sure only requests with correctly formatted rules will get into the Operator.
 admissionWebhooks:
   create: true
