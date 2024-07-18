@@ -47,13 +47,9 @@ spec:
               fieldPath: metadata.name
         - name: CI_VERSION
           value: "k8s/1.3.17"
-        resources:
-          limits:
-            cpu: 500m
-            memory: 250Mi
-          requests:
-            cpu: 50m
-            memory: 25Mi
+        {{- with .Values.containerLogs.fluentBit.resources }}
+        resources: {{- toYaml . | nindent 6}}
+        {{- end }}
         volumeMounts:
         # Please don't change below read-only permissions
         - name: fluentbitstate
