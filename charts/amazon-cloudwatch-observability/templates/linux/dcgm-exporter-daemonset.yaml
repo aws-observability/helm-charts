@@ -23,13 +23,9 @@ spec:
                 operator: NotIn
                 values:
                   - fargate
-  resources:
-    requests:
-      cpu: 250m
-      memory: 128Mi
-    limits:
-      cpu: 500m
-      memory: 250Mi
+  {{- with .Values.dcgmExporter.resources }}
+  resources: {{- toYaml . | nindent 2}}
+  {{- end }}
   env:
   - name: "DCGM_EXPORTER_KUBERNETES"
     value: "true"

@@ -43,6 +43,13 @@ containerLogs:
         cn-northwest-1: 128054284489.dkr.ecr.cn-northwest-1.amazonaws.com.cn
         us-gov-east-1: 161423150738.dkr.ecr.us-gov-east-1.amazonaws.com
         us-gov-west-1: 161423150738.dkr.ecr.us-gov-west-1.amazonaws.com
+    resources:
+      limits:
+        cpu: 500m
+        memory: 250Mi
+      requests:
+        cpu: 50m
+        memory: 25Mi
     config:
       service: |
         [SERVICE]
@@ -510,6 +517,13 @@ agent:
       us-gov-east-1: 743662458514.dkr.ecr.us-gov-east-1.amazonaws.com
       us-gov-west-1: 743662458514.dkr.ecr.us-gov-west-1.amazonaws.com
   enabled: true
+  resources:
+    requests:
+      memory: "128Mi"
+      cpu: "250m"
+    limits:
+      memory: "512Mi"
+      cpu: "500m"
   ## TLS Certificate Option 1: Use Helm to automatically generate self-signed certificate.
   ## autoGenerateCert must be enabled. This is the default option.
   ## If true, Helm will automatically create a self-signed cert and secret for you.
@@ -570,6 +584,13 @@ dcgmExporter:
       cn-northwest-1: 934860584483.dkr.ecr.cn-northwest-1.amazonaws.com.cn
       us-gov-east-1: 743662458514.dkr.ecr.us-gov-east-1.amazonaws.com
       us-gov-west-1: 743662458514.dkr.ecr.us-gov-west-1.amazonaws.com
+  resources:
+    requests:
+      cpu: 250m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 250Mi
   configmap: dcgm-exporter-config-map
   arguments: ["--web-config-file=/etc/dcgm-exporter/web-config.yaml" ]
   service:
@@ -588,6 +609,13 @@ neuronMonitor:
     tag: 1.0.1
     repositoryDomainMap:
       public: public.ecr.aws/neuron
+  resources:
+    limits:
+      cpu: 500m
+      memory: 256Mi
+    requests:
+      cpu: 256m
+      memory: 128Mi
   configmap: neuron-monitor-config-map
   service:
     enable: true
