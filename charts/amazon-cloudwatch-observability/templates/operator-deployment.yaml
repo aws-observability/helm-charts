@@ -26,7 +26,7 @@ spec:
       containers:
       - image: {{ template "cloudwatch-agent-operator.image" . }}
         args:
-        - {{ printf "--auto-instrumentation-config=%s" (.Values.initContainers.resources.limits | toJson) | quote }}
+        - {{ printf "--auto-instrumentation-config=%s" (.Values.manager.autoInstrumentationResources.limits | toJson) | quote }}
         - {{ printf "--auto-annotation-config=%s" (.Values.manager.autoAnnotateAutoInstrumentation | toJson) | quote }}
         - "--auto-instrumentation-java-image={{ template "auto-instrumentation-java.image" . }}"
         - "--auto-instrumentation-python-image={{ template "auto-instrumentation-python.image" . }}"
