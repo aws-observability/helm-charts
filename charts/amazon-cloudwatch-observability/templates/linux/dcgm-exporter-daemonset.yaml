@@ -24,7 +24,7 @@ spec:
                 values:
                   - fargate
   {{- with .Values.dcgmExporter.resources }}
-  resources: {{- toYaml . | nindent 2}}
+  resources: {{- toYaml . | nindent 4}}
   {{- end }}
   env:
   - name: "DCGM_EXPORTER_KUBERNETES"

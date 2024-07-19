@@ -26,7 +26,7 @@ spec:
                 values:
                   - fargate
   {{- with .Values.neuronMonitor.resources }}
-  resources: {{- toYaml . | nindent 2}}
+  resources: {{- toYaml . | nindent 4}}
   {{- end }}
   env:
   - name: NODE_NAME
