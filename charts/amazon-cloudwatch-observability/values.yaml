@@ -410,8 +410,12 @@ manager:
       us-gov-west-1: 743662458514.dkr.ecr.us-gov-west-1.amazonaws.com
   autoInstrumentationResources:
     limits:
-      cpu: ""
-      memory: ""
+      java:
+        cpu: ""
+        memory: ""
+      python:
+        cpu: ""
+        memory: ""
   autoInstrumentationImage:
     java:
       repositoryDomain: public.ecr.aws/aws-observability
