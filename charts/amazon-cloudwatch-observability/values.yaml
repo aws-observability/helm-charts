@@ -408,10 +408,6 @@ manager:
       cn-northwest-1: 934860584483.dkr.ecr.cn-northwest-1.amazonaws.com.cn
       us-gov-east-1: 743662458514.dkr.ecr.us-gov-east-1.amazonaws.com
       us-gov-west-1: 743662458514.dkr.ecr.us-gov-west-1.amazonaws.com
-  autoInstrumentationResources:
-    limits:
-      cpu: ""
-      memory: ""
   autoInstrumentationImage:
     java:
       repositoryDomain: public.ecr.aws/aws-observability
