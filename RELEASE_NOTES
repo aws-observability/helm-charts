@@ -1,4 +1,17 @@
 =======================================================================
+amazon-cloudwatch-observability v1.9.0 (2024-07-22)
+========================================================================
+Bug Fixes:
+* Add nodeAffinity rule to not spin up resources on Fargate instances (#58)
+* Increase the default memory limit of DCGM Exporter to 500Mi to fix OOM crashing issue (#67)
+
+Enhancements:
+* Support parameterized resources configuration (#63)
+* Upgrade Java SDK to v1.32.3
+* Upgrade Python SDK to v0.3.0
+* Upgrade CWAgent to v1.300042.1
+
+=======================================================================
 amazon-cloudwatch-observability v1.8.0 (2024-07-02)
 ========================================================================
 Bug Fixes:
