@@ -45,7 +45,7 @@ spec:
   config: {{ include "cloudwatch-agent.modify-config" (merge (dict "Config" .Values.agent.defaultConfig) . ) }}
   {{- end }}
   {{- with .Values.agent.resources }}
-  resources: {{- toYaml . | nindent 2}}
+  resources: {{- toYaml . | nindent 4}}
   {{- end }}
   volumeMounts:
   - mountPath: /rootfs
