@@ -408,23 +408,23 @@ manager:
       cn-northwest-1: 934860584483.dkr.ecr.cn-northwest-1.amazonaws.com.cn
       us-gov-east-1: 743662458514.dkr.ecr.us-gov-east-1.amazonaws.com
       us-gov-west-1: 743662458514.dkr.ecr.us-gov-west-1.amazonaws.com
-  autoInstrumentationResources:
-    limits:
-      java:
-        cpu: ""
-        memory: ""
-      python:
-        cpu: ""
-        memory: ""
   autoInstrumentationImage:
     java:
       repositoryDomain: public.ecr.aws/aws-observability
       repository: adot-autoinstrumentation-java
       tag: v1.32.3
+      resources:
+        limits:
+          memory: "500m"
+          cpu: "64Mi"
     python:
       repositoryDomain: public.ecr.aws/aws-observability
       repository: adot-autoinstrumentation-python
       tag: v0.3.0
+      resources:
+        limits:
+          memory: "500m"
+          cpu: "32Mi"
   autoAnnotateAutoInstrumentation:
     java:
       namespaces: [ ]
