@@ -414,6 +414,9 @@ manager:
       repository: adot-autoinstrumentation-java
       tag: v1.32.3
       resources:
+        requests:
+          memory: "50m"
+          cpu: "64Mi"
         limits:
           memory: "500m"
           cpu: "64Mi"
@@ -422,6 +425,9 @@ manager:
       repository: adot-autoinstrumentation-python
       tag: v0.3.0
       resources:
+        requests:
+          memory: "50m"
+          cpu: "32Mi"
         limits:
           memory: "500m"
           cpu: "32Mi"
