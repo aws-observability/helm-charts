@@ -50,6 +50,7 @@ containerLogs:
       requests:
         cpu: 50m
         memory: 25Mi
+    priorityClassName: system-node-critical
     config:
       service: |
         [SERVICE]
