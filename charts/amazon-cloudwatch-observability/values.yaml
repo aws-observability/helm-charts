@@ -414,22 +414,22 @@ manager:
       repository: adot-autoinstrumentation-java
       tag: v1.32.3
       resources:
-        requests:
-          cpu: "50m"
-          memory: "64Mi"
         limits:
           cpu: "500m"
+          memory: "64Mi"
+        requests:
+          cpu: "50m"
           memory: "64Mi"
     python:
       repositoryDomain: public.ecr.aws/aws-observability
       repository: adot-autoinstrumentation-python
       tag: v0.3.0
       resources:
-        requests:
-          cpu: "50m"
-          memory: "32Mi"
         limits:
           cpu: "500m"
+          memory: "32Mi"
+        requests:
+          cpu: "50m"
           memory: "32Mi"
   autoAnnotateAutoInstrumentation:
     java:
