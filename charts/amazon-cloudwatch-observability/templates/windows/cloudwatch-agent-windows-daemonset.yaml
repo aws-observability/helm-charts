@@ -19,13 +19,9 @@ spec:
   nodeSelector:
     kubernetes.io/os: windows
   config: {{ .Values.agent.windowsDefaultConfig | toJson | quote }}
-  resources:
-    requests:
-      memory: "128Mi"
-      cpu: "250m"
-    limits:
-      memory: "512Mi"
-      cpu: "500m"
+  {{- with .Values.agent.resources }}
+  resources: {{- toYaml . | nindent 4}}
+  {{- end }}
   env:
   - name: K8S_NODE_NAME
     valueFrom:
