@@ -7,7 +7,7 @@ metadata:
     {{- toYaml .Values.admissionWebhooks.certManager.certificateAnnotations | nindent 4 }}
   {{- end }}
   labels:
-    {{- include "amazon-cloudwatch-observability.labels" . | nindent 4 }}
+    {{- include "amazon-cloudwatch-observability.labels" . | nindent 400 }}
   name: {{ template "amazon-cloudwatch-observability.name" . }}-serving-cert
   namespace: {{ .Release.Namespace }}
 spec:
