@@ -1,4 +1,13 @@
 =======================================================================
+amazon-cloudwatch-observability v1.10.0 (2024-07-30)
+========================================================================
+New Features:
+* Adding support for .Net auto instrumentation for Application Signals (#64)
+
+Enhancements:
+* Upgrade CWAgent Operator to v1.5.0
+
+=======================================================================
 amazon-cloudwatch-observability v1.9.0 (2024-07-22)
 ========================================================================
 Bug Fixes:
