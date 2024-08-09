@@ -8,9 +8,6 @@ replicaCount: 1
 ##
 nameOverride: ""
 
-## Reference one or more secrets to be used when pulling images from authenticated repositories.
-imagePullSecrets: [ ]
-
 ## Provide the ClusterName (this is a required parameter)
 clusterName:
 
@@ -401,7 +398,7 @@ manager:
   name:
   image:
     repository: cloudwatch-agent-operator
-    tag: 1.4.1
+    tag: 1.5.0
     repositoryDomainMap:
       public: public.ecr.aws/cloudwatch-agent
       cn-north-1: 934860584483.dkr.ecr.cn-north-1.amazonaws.com.cn
@@ -431,6 +428,17 @@ manager:
         requests:
           cpu: "50m"
           memory: "32Mi"
+    dotnet:
+      repositoryDomain: public.ecr.aws/aws-observability
+      repository: adot-autoinstrumentation-dotnet
+      tag: v1.1.0
+      resources:
+        limits:
+          cpu: "500m"
+          memory: "128Mi"
+        requests:
+          cpu: "50m"
+          memory: "128Mi"
   autoAnnotateAutoInstrumentation:
     java:
       namespaces: [ ]
@@ -438,6 +446,11 @@ manager:
       daemonsets: [ ]
       statefulsets: [ ]
     python:
+      namespaces: [ ]
+      deployments: [ ]
+      daemonsets: [ ]
+      statefulsets: [ ]
+    dotnet:
       namespaces: [ ]
       deployments: [ ]
       daemonsets: [ ]
@@ -579,6 +592,12 @@ agent:
           "kubernetes": {
             "enhanced_container_insights": true
           },
+          "application_signals": { }
+        }
+      },
+      "traces": {
+        "traces_collected": {
+          "application_signals": { }
         }
       }
     }
