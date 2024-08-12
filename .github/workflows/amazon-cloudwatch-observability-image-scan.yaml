@@ -26,7 +26,7 @@ jobs:
         id: image
         uses: mikefarah/yq@master
         with:
-          command: |
+          cmd:
             echo CONTAINER_IMAGE="$(yq '${{ matrix.yaml_root }}.repositoryDomainMap.public' charts/amazon-cloudwatch-observability/values.yaml)/$(yq '${{ matrix.yaml_root }}.repository' charts/amazon-cloudwatch-observability/values.yaml):$(yq '${{ matrix.yaml_root }}.tag' charts/amazon-cloudwatch-observability/values.yaml)" >> $GITHUB_OUTPUT
 
       - name: "Scan for vulnerabilities"
