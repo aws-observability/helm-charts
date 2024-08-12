@@ -22,9 +22,7 @@ jobs:
         uses: mikefarah/yq@master
         with:
           cmd:
-            export VALUES_YAML=charts/amazon-cloudwatch-observability/values.yaml &
-            export DCGM_EXPORTER_IMAGE=${yq '.dcgmExporter.image.repositoryDomainMap.public' $VALUES_YAML} \
-            /${yq '.dcgmExporter.image.repository' $VALUES_YAML}:${yq '.dcgmExporter.image.tag' $VALUES_YAML}
+            export DCGM_EXPORTER_IMAGE=$(yq '.dcgmExporter.image.repositoryDomainMap.public' charts/amazon-cloudwatch-observability/values.yaml)/$(yq '.dcgmExporter.image.repository' charts/amazon-cloudwatch-observability/values.yaml):$(yq '.dcgmExporter.image.tag' charts/amazon-cloudwatch-observability/values.yaml)
 
       - name: "[DCGM Exporter] Scan for vulnerabilities"
         uses: crazy-max/ghaction-container-scan@v3
