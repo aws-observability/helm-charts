@@ -11,22 +11,26 @@ on:
   workflow_dispatch:
 
 jobs:
-  ContainerScan:
+  ContainerImageScan:
+    strategy:
+      matrix:
+        yaml_root: [ ".manager.image", ".manager.autoInstrumentationImage.java", ".manager.autoInstrumentationImage.python", ".manager.autoInstrumentationImage.dotnet", "agent.image", ".dcgmExporter.image", ".neuronMonitor.image" ]
+
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
         with:
           fetch-depth: 0
 
-      - name: "Get values.yaml for parsing"
-        id: yaml-parse
+      - name: "Get image paths"
+        id: image
         uses: mikefarah/yq@master
         with:
-          cmd:
-            echo DCGM_EXPORTER_IMAGE="$(yq '.dcgmExporter.image.repositoryDomainMap.public' charts/amazon-cloudwatch-observability/values.yaml)/$(yq '.dcgmExporter.image.repository' charts/amazon-cloudwatch-observability/values.yaml):$(yq '.dcgmExporter.image.tag' charts/amazon-cloudwatch-observability/values.yaml)" >> $GITHUB_OUTPUT
+          command: |
+            echo CONTAINER_IMAGE="$(yq '${{ matrix.yaml_root }}.repositoryDomainMap.public' charts/amazon-cloudwatch-observability/values.yaml)/$(yq '${{ matrix.yaml_root }}.repository' charts/amazon-cloudwatch-observability/values.yaml):$(yq '${{ matrix.yaml_root }}.tag' charts/amazon-cloudwatch-observability/values.yaml)" >> $GITHUB_OUTPUT
 
-      - name: "[DCGM Exporter] Scan for vulnerabilities"
+      - name: "Scan for vulnerabilities"
         uses: crazy-max/ghaction-container-scan@v3
         with:
-          image: ${{ steps.yaml-parse.outputs.DCGM_EXPORTER_IMAGE }}
+          image: ${{ steps.image.outputs.CONTAINER_IMAGE }}
           severity_threshold: HIGH
