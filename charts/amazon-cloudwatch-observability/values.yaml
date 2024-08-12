@@ -410,6 +410,16 @@ manager:
       repositoryDomain: public.ecr.aws/aws-observability
       repository: adot-autoinstrumentation-java
       tag: v1.32.3
+    python:
+      repositoryDomain: public.ecr.aws/aws-observability
+      repository: adot-autoinstrumentation-python
+      tag: v0.3.0
+    dotnet:
+      repositoryDomain: public.ecr.aws/aws-observability
+      repository: adot-autoinstrumentation-dotnet
+      tag: v1.1.0
+  autoInstrumentationResources:
+    java:
       resources:
         limits:
           cpu: "500m"
@@ -418,9 +428,6 @@ manager:
           cpu: "50m"
           memory: "64Mi"
     python:
-      repositoryDomain: public.ecr.aws/aws-observability
-      repository: adot-autoinstrumentation-python
-      tag: v0.3.0
       resources:
         limits:
           cpu: "500m"
@@ -429,9 +436,6 @@ manager:
           cpu: "50m"
           memory: "32Mi"
     dotnet:
-      repositoryDomain: public.ecr.aws/aws-observability
-      repository: adot-autoinstrumentation-dotnet
-      tag: v1.1.0
       resources:
         limits:
           cpu: "500m"
