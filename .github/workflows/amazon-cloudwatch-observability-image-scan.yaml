@@ -10,12 +10,17 @@ on:
       - main
   workflow_dispatch:
 
+permissions:
+  id-token: write
+  contents: read
+
 env:
   TERRAFORM_AWS_ASSUME_ROLE: ${{ secrets.TERRAFORM_AWS_ASSUME_ROLE }}
   AWS_DEFAULT_REGION: us-west-2
 
 jobs:
   ContainerImageScan:
+    runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
@@ -59,7 +64,6 @@ jobs:
           }
         ]
 
-    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
         with:
