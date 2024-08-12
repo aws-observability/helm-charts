@@ -19,13 +19,14 @@ jobs:
           fetch-depth: 0
 
       - name: "Get values.yaml for parsing"
+        id: yaml-parse
         uses: mikefarah/yq@master
         with:
           cmd:
-            export DCGM_EXPORTER_IMAGE=$(yq '.dcgmExporter.image.repositoryDomainMap.public' charts/amazon-cloudwatch-observability/values.yaml)/$(yq '.dcgmExporter.image.repository' charts/amazon-cloudwatch-observability/values.yaml):$(yq '.dcgmExporter.image.tag' charts/amazon-cloudwatch-observability/values.yaml)
+            echo DCGM_EXPORTER_IMAGE="$(yq '.dcgmExporter.image.repositoryDomainMap.public' charts/amazon-cloudwatch-observability/values.yaml)/$(yq '.dcgmExporter.image.repository' charts/amazon-cloudwatch-observability/values.yaml):$(yq '.dcgmExporter.image.tag' charts/amazon-cloudwatch-observability/values.yaml)" >> $GITHUB_OUTPUT
 
       - name: "[DCGM Exporter] Scan for vulnerabilities"
         uses: crazy-max/ghaction-container-scan@v3
         with:
-          image: $DCGM_EXPORTER_IMAGE
+          image: ${{ steps.yaml-parse.outputs.DCGM_EXPORTER_IMAGE }}
           severity_threshold: HIGH
