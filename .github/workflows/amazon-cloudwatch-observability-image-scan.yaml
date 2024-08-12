@@ -13,6 +13,7 @@ on:
 jobs:
   ContainerImageScan:
     strategy:
+      fail-fast: false
       matrix:
         yaml: [
           {
@@ -59,6 +60,15 @@ jobs:
       - uses: actions/checkout@v3
         with:
           fetch-depth: 0
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          role-to-assume: ${{ env.TERRAFORM_AWS_ASSUME_ROLE }}
+          aws-region: ${{ env.AWS_DEFAULT_REGION }}
+
+      - name: Login ECR
+        uses: aws-actions/amazon-ecr-login@v1
 
       - name: "Get image paths"
         id: image
