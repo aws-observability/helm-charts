@@ -420,29 +420,26 @@ manager:
       tag: v1.1.0
   autoInstrumentationResources:
     java:
-      resources:
-        limits:
-          cpu: "500m"
-          memory: "64Mi"
-        requests:
-          cpu: "50m"
-          memory: "64Mi"
+      limits:
+        cpu: "500m"
+        memory: "64Mi"
+      requests:
+        cpu: "50m"
+        memory: "64Mi"
     python:
-      resources:
-        limits:
-          cpu: "500m"
-          memory: "32Mi"
-        requests:
-          cpu: "50m"
-          memory: "32Mi"
+      limits:
+        cpu: "500m"
+        memory: "32Mi"
+      requests:
+        cpu: "50m"
+        memory: "32Mi"
     dotnet:
-      resources:
-        limits:
-          cpu: "500m"
-          memory: "128Mi"
-        requests:
-          cpu: "50m"
-          memory: "128Mi"
+      limits:
+        cpu: "500m"
+        memory: "128Mi"
+      requests:
+        cpu: "50m"
+        memory: "128Mi"
   autoAnnotateAutoInstrumentation:
     java:
       namespaces: [ ]
