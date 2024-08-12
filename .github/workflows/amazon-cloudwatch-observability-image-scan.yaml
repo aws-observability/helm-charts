@@ -14,7 +14,45 @@ jobs:
   ContainerImageScan:
     strategy:
       matrix:
-        yaml_root: [ ".manager.image", ".manager.autoInstrumentationImage.java", ".manager.autoInstrumentationImage.python", ".manager.autoInstrumentationImage.dotnet", "agent.image", ".dcgmExporter.image", ".neuronMonitor.image" ]
+        yaml: [
+          {
+            "domain": ".manager.image.repositoryDomainMap.public",
+            "repository": ".manager.image.repository",
+            "tag": ".manager.image.tag"
+          },
+          {
+            "domain": ".manager.autoInstrumentationImage.java.repositoryDomain",
+            "repository": ".manager.autoInstrumentationImage.java.repository",
+            "tag": ".manager.autoInstrumentationImage.java.tag"
+          },
+          {
+            "domain": ".manager.autoInstrumentationImage.python.repositoryDomain",
+            "repository": ".manager.autoInstrumentationImage.python.repository",
+            "tag": ".manager.autoInstrumentationImage.python.tag"
+          },
+          {
+            "domain": ".manager.autoInstrumentationImage.dotnet.repositoryDomain",
+            "repository": ".manager.autoInstrumentationImage.dotnet.repository",
+            "tag": ".manager.autoInstrumentationImage.dotnet.tag"
+          },
+          {
+            "domain": ".agent.image.repositoryDomainMap.public",
+            "repository": ".agent.image.repository",
+            "tag": ".agent.image.tag"
+          },
+
+          {
+            "domain": ".dcgmExporter.image.repositoryDomainMap.public",
+            "repository": ".dcgmExporter.image.repository",
+            "tag": ".dcgmExporter.image.tag"
+          },
+
+          {
+            "domain": ".neuronMonitor.image.repositoryDomainMap.public",
+            "repository": ".neuronMonitor.image.repository",
+            "tag": ".neuronMonitor.image.tag"
+          }
+        ]
 
     runs-on: ubuntu-latest
     steps:
@@ -27,7 +65,7 @@ jobs:
         uses: mikefarah/yq@master
         with:
           cmd:
-            echo CONTAINER_IMAGE="$(yq '${{ matrix.yaml_root }}.repositoryDomainMap.public' charts/amazon-cloudwatch-observability/values.yaml)/$(yq '${{ matrix.yaml_root }}.repository' charts/amazon-cloudwatch-observability/values.yaml):$(yq '${{ matrix.yaml_root }}.tag' charts/amazon-cloudwatch-observability/values.yaml)" >> $GITHUB_OUTPUT
+            echo CONTAINER_IMAGE="$(yq '${{ matrix.yaml.domain }}' charts/amazon-cloudwatch-observability/values.yaml)/$(yq '${{ matrix.yaml.repository }}' charts/amazon-cloudwatch-observability/values.yaml):$(yq '${{ matrix.yaml.tag }}' charts/amazon-cloudwatch-observability/values.yaml)" >> $GITHUB_OUTPUT
 
       - name: "Scan for vulnerabilities"
         uses: crazy-max/ghaction-container-scan@v3
