@@ -4,6 +4,11 @@ on:
   schedule:
     - cron: 0 13 * * 1 # Every Monday at 1PM UTC (9AM EST)
   workflow_dispatch:
+  # Used for testing, remove once confirmed working
+  pull_request:
+    types: [ opened, reopened, synchronize, ready_for_review ]
+    branches:
+      - main
 
 permissions:
   id-token: write
@@ -59,15 +64,26 @@ jobs:
           role-to-assume: ${{ env.TERRAFORM_AWS_ASSUME_ROLE }}
           aws-region: ${{ env.AWS_DEFAULT_REGION }}
 
-      - name: "Get image paths"
-        id: image
+      - name: "Get image registry"
+        id: registry
         uses: mikefarah/yq@master
         with:
-          cmd:
-            echo CONTAINER_IMAGE="$(yq '${{ matrix.container_images.registry }}' charts/amazon-cloudwatch-observability/values.yaml)/$(yq '${{ matrix.container_images.repository }}' charts/amazon-cloudwatch-observability/values.yaml):$(yq '${{ matrix.container_images.tag }}' charts/amazon-cloudwatch-observability/values.yaml)" >> $GITHUB_OUTPUT
+          cmd: yq '${{ matrix.container_images.registry }}' charts/amazon-cloudwatch-observability/values.yaml
+
+      - name: "Get image repository"
+        id: repository
+        uses: mikefarah/yq@master
+        with:
+          cmd: yq '${{ matrix.container_images.repository }}' charts/amazon-cloudwatch-observability/values.yaml
+
+      - name: "Get image tag"
+        id: tag
+        uses: mikefarah/yq@master
+        with:
+          cmd: yq '${{ matrix.container_images.tag }}' charts/amazon-cloudwatch-observability/values.yaml
 
       - name: "Scan for vulnerabilities"
         uses: crazy-max/ghaction-container-scan@v3
         with:
-          image: ${{ steps.image.outputs.CONTAINER_IMAGE }}
+          image: ${{ steps.registry.outputs.result }}/${{ steps.repository.outputs.result }}:${{ steps.tag.outputs.result }}
           severity_threshold: HIGH
