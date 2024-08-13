@@ -4,11 +4,6 @@ on:
   schedule:
     - cron: 0 13 * * 1 # Every Monday at 1PM UTC (9AM EST)
   workflow_dispatch:
-  # Used for testing, remove once confirmed working
-  pull_request:
-    types: [ opened, reopened, synchronize, ready_for_review ]
-    branches:
-      - main
 
 permissions:
   id-token: write
@@ -63,9 +58,6 @@ jobs:
         with:
           role-to-assume: ${{ env.TERRAFORM_AWS_ASSUME_ROLE }}
           aws-region: ${{ env.AWS_DEFAULT_REGION }}
-
-#      - name: Login ECR
-#        uses: aws-actions/amazon-ecr-login@v1
 
       - name: "Get image paths"
         id: image
