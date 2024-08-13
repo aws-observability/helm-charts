@@ -2,8 +2,13 @@ name: Run Image Scan for Amazon CloudWatch Observability Helm Chart
 
 on:
   schedule:
-    - cron: 0 13 * * 1 # Every Monday at 1PM UTC (9AM EST)
+    - cron: 0 13 * * MON # Every Monday at 1PM UTC (9AM EST)
   workflow_dispatch:
+  # Used for testing, remove once confirmed working
+  pull_request:
+    types: [ opened, reopened, synchronize, ready_for_review ]
+    branches:
+      - main
 
 permissions:
   id-token: write
@@ -53,11 +58,11 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Configure AWS Credentials
-        uses: aws-actions/configure-aws-credentials@v2
-        with:
-          role-to-assume: ${{ env.TERRAFORM_AWS_ASSUME_ROLE }}
-          aws-region: ${{ env.AWS_DEFAULT_REGION }}
+#      - name: Configure AWS Credentials
+#        uses: aws-actions/configure-aws-credentials@v2
+#        with:
+#          role-to-assume: ${{ env.TERRAFORM_AWS_ASSUME_ROLE }}
+#          aws-region: ${{ env.AWS_DEFAULT_REGION }}
 
       - name: "Get image registry"
         id: registry
