@@ -36,9 +36,9 @@ jobs:
             repository: ".manager.autoInstrumentationImage.dotnet.repository"
             tag: ".manager.autoInstrumentationImage.dotnet.tag"
 
-          - registry: ".agent.image.repositoryDomainMap.public",
-            repository: ".agent.image.repository",
-            tag": ".agent.image.tag"
+          - registry: ".agent.image.repositoryDomainMap.public"
+            repository: ".agent.image.repository"
+            tag: ".agent.image.tag"
 
           - registry: ".dcgmExporter.image.repositoryDomainMap.public"
             repository: ".dcgmExporter.image.repository"
