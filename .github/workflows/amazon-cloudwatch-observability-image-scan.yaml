@@ -1,0 +1,84 @@
+name: Run Image Scan for Amazon CloudWatch Observability Helm Chart
+
+on:
+  schedule:
+    - cron: 0 13 * * MON # Every Monday at 1PM UTC (9AM EST)
+  workflow_dispatch:
+
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  TERRAFORM_AWS_ASSUME_ROLE: ${{ secrets.TERRAFORM_AWS_ASSUME_ROLE }}
+  AWS_DEFAULT_REGION: us-west-2
+
+jobs:
+  ContainerImageScan:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        container_images:
+          - registry: ".manager.image.repositoryDomainMap.public"
+            repository: ".manager.image.repository"
+            tag: ".manager.image.tag"
+
+          - registry: ".manager.autoInstrumentationImage.java.repositoryDomain"
+            repository: ".manager.autoInstrumentationImage.java.repository"
+            tag: ".manager.autoInstrumentationImage.java.tag"
+
+          - registry: ".manager.autoInstrumentationImage.python.repositoryDomain"
+            repository: ".manager.autoInstrumentationImage.python.repository"
+            tag: ".manager.autoInstrumentationImage.python.tag"
+
+          - registry: ".manager.autoInstrumentationImage.dotnet.repositoryDomain"
+            repository: ".manager.autoInstrumentationImage.dotnet.repository"
+            tag: ".manager.autoInstrumentationImage.dotnet.tag"
+
+          - registry: ".agent.image.repositoryDomainMap.public"
+            repository: ".agent.image.repository"
+            tag: ".agent.image.tag"
+
+          - registry: ".dcgmExporter.image.repositoryDomainMap.public"
+            repository: ".dcgmExporter.image.repository"
+            tag: ".dcgmExporter.image.tag"
+
+          - registry: ".neuronMonitor.image.repositoryDomainMap.public"
+            repository: ".neuronMonitor.image.repository"
+            tag: ".neuronMonitor.image.tag"
+
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          role-to-assume: ${{ env.TERRAFORM_AWS_ASSUME_ROLE }}
+          aws-region: ${{ env.AWS_DEFAULT_REGION }}
+
+      - name: "Get image registry"
+        id: registry
+        uses: mikefarah/yq@master
+        with:
+          cmd: yq '${{ matrix.container_images.registry }}' charts/amazon-cloudwatch-observability/values.yaml
+
+      - name: "Get image repository"
+        id: repository
+        uses: mikefarah/yq@master
+        with:
+          cmd: yq '${{ matrix.container_images.repository }}' charts/amazon-cloudwatch-observability/values.yaml
+
+      - name: "Get image tag"
+        id: tag
+        uses: mikefarah/yq@master
+        with:
+          cmd: yq '${{ matrix.container_images.tag }}' charts/amazon-cloudwatch-observability/values.yaml
+
+      - name: "Scan for vulnerabilities"
+        uses: crazy-max/ghaction-container-scan@v3
+        with:
+          image: ${{ steps.registry.outputs.result }}/${{ steps.repository.outputs.result }}:${{ steps.tag.outputs.result }}
+          severity_threshold: HIGH
