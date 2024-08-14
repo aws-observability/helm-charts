@@ -39,6 +39,7 @@ spec:
                 operator: NotIn
                 values:
                   - fargate
+  hostNetwork: true
   {{- if .Values.agent.config }}
   config: {{ include "cloudwatch-agent.modify-config" (merge (dict "Config" .Values.agent.config) . ) }}
   {{- else }}
