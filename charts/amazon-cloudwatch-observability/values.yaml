@@ -417,7 +417,7 @@ manager:
     dotnet:
       repositoryDomain: public.ecr.aws/aws-observability
       repository: adot-autoinstrumentation-dotnet
-      tag: v1.1.0
+      tag: v1.2.0
   autoInstrumentationResources:
     java:
       limits:
@@ -533,7 +533,7 @@ agent:
   name:
   image:
     repository: cloudwatch-agent
-    tag: 1.300042.1b746
+    tag: 1.300044.0b793
     repositoryDomainMap:
       public: public.ecr.aws/cloudwatch-agent
       cn-north-1: 934860584483.dkr.ecr.cn-north-1.amazonaws.com.cn
