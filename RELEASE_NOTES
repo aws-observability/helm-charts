@@ -2,7 +2,11 @@
 amazon-cloudwatch-observability v1.11.0 (2024-08-15)
 ========================================================================
 Enhancements:
+* Restructure resources configurations for auto instrumentation components (#80)
 * Upgrade CWAgent to v1.300044.0
+* Upgrade CWAgent Operator to v1.6.0
+* Upgrade .Net SDK to v1.2.0
+* Upgrade FluentBit for Linux to 2.32.2.20240627
 
 =======================================================================
 amazon-cloudwatch-observability v1.10.0 (2024-07-30)

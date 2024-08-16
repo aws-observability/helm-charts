@@ -417,7 +417,7 @@ manager:
     dotnet:
       repositoryDomain: public.ecr.aws/aws-observability
       repository: adot-autoinstrumentation-dotnet
-      tag: v1.1.0
+      tag: v1.2.0
   autoInstrumentationResources:
     java:
       limits:
