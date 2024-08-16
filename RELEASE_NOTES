@@ -1,5 +1,5 @@
 =======================================================================
-amazon-cloudwatch-observability v1.11.0 (2024-08-15)
+amazon-cloudwatch-observability v2.0.0 (2024-08-15)
 ========================================================================
 Enhancements:
 * Allow configurable resource requests and limits through command arguments for AppSignals (#65)
