@@ -545,6 +545,12 @@ admissionWebhooks:
   ## Secret labels
   secretLabels: { }
 
+## Agent workloads list
+agentWorkloads:
+  - name: cloudwatch-agent-with-container-insights-and-application-signals
+    ## Supported modes are daemonset, statefulset and deployment
+    mode: daemonset
+
 agent:
   name:
   image:

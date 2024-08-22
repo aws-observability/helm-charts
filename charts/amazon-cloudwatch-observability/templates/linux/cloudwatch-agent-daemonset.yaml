@@ -1,15 +1,16 @@
 {{- if .Values.agent.enabled }}
-{{- if and (.Values.agent.autoGenerateCert.enabled) (not .Values.agent.certManager.enabled) -}}
-{{- $altNames := list ( printf "%s-service" (include "dcgm-exporter.name" .) ) ( printf "%s-service" (include "neuron-monitor.name" .) ) ( printf "%s-service.%s.svc" (include "dcgm-exporter.name" .) .Release.Namespace ) ( printf "%s-service.%s.svc" (include "neuron-monitor.name" .) .Release.Namespace ) -}}
-{{- $ca := genCA ("agent-ca")  ( .Values.agent.autoGenerateCert.expiryDays | int ) -}}
-{{- $cert := genSignedCert ("agent") nil $altNames ( .Values.admissionWebhooks.autoGenerateCert.expiryDays | int ) $ca -}}
+{{- range $i, $customAgent := .Values.agentWorkloads }}
+{{- if and ($.Values.agent.autoGenerateCert.enabled) (not $.Values.agent.certManager.enabled) -}}
+{{- $altNames := list ( printf "%s-service" (include "dcgm-exporter.name" $) ) ( printf "%s-service" (include "neuron-monitor.name" $) ) ( printf "%s-service.%s.svc" (include "dcgm-exporter.name" $) $.Release.Namespace ) ( printf "%s-service.%s.svc" (include "neuron-monitor.name" $) $.Release.Namespace ) -}}
+{{- $ca := genCA ("agent-ca")  ( $.Values.agent.autoGenerateCert.expiryDays | int ) -}}
+{{- $cert := genSignedCert ("agent") nil $altNames ( $.Values.admissionWebhooks.autoGenerateCert.expiryDays | int ) $ca -}}
 apiVersion: v1
 kind: Secret
 metadata:
   labels:
-      {{- include "amazon-cloudwatch-observability.labels" . | nindent 4}}
+      {{- include "amazon-cloudwatch-observability.labels" $ | nindent 4}}
   name: "amazon-cloudwatch-observability-agent-cert"
-  namespace: {{ .Release.Namespace }}
+  namespace: {{ $.Release.Namespace }}
 data:
   ca.crt: {{ $ca.Cert | b64enc }}
   tls.crt: {{ $cert.Cert | b64enc }}
@@ -17,35 +18,35 @@ data:
 ---
 {{- end -}}
 
-{{- $clusterName := .Values.clusterName | required ".Values.clusterName is required." -}}
-{{- $region := .Values.region | required ".Values.region is required." -}}
+{{- $clusterName := $.Values.clusterName | required "$.Values.clusterName is required." -}}
+{{- $region := $.Values.region | required "$.Values.region is required." -}}
 apiVersion: cloudwatch.aws.amazon.com/v1alpha1
 kind: AmazonCloudWatchAgent
 metadata:
-  name: {{ template "cloudwatch-agent.name" . }}
-  namespace: {{ .Release.Namespace }}
+  name: {{ $customAgent.name | default (include "cloudwatch-agent.name" $) }}
+  namespace: {{ $.Release.Namespace }}
 spec:
-  image: {{ template "cloudwatch-agent.image" . }}
-  mode: daemonset
+  image: {{ template "cloudwatch-agent.image" $ }}
+  mode: {{ $customAgent.mode | default "daemonset" }}
   nodeSelector:
     kubernetes.io/os: linux
-  serviceAccount: {{ template "cloudwatch-agent.serviceAccountName" . }}
+  serviceAccount: {{ template "cloudwatch-agent.serviceAccountName" $ }}
   affinity:
     nodeAffinity:
       requiredDuringSchedulingIgnoredDuringExecution:
         nodeSelectorTerms:
           - matchExpressions:
-              - key: {{ .Values.fargateLabelKey }}
+              - key: {{ $.Values.fargateLabelKey }}
                 operator: NotIn
                 values:
                   - fargate
   hostNetwork: true
-  {{- if .Values.agent.config }}
-  config: {{ include "cloudwatch-agent.modify-config" (merge (dict "Config" .Values.agent.config) . ) }}
+  {{- if $.Values.agent.config }}
+  config: {{ include "cloudwatch-agent.modify-config" (merge (dict "Config" $.Values.agent.config) $ ) }}
   {{- else }}
-  config: {{ include "cloudwatch-agent.modify-config" (merge (dict "Config" .Values.agent.defaultConfig) . ) }}
+  config: {{ include "cloudwatch-agent.modify-config" (merge (dict "Config" $.Values.agent.defaultConfig) $ ) }}
   {{- end }}
-  {{- with .Values.agent.resources }}
+  {{- with $.Values.agent.resources }}
   resources: {{- toYaml . | nindent 4}}
   {{- end }}
   volumeMounts:
@@ -117,7 +118,9 @@ spec:
     valueFrom:
       fieldRef:
         fieldPath: metadata.namespace
-  {{- with .Values.tolerations }}
+  {{- with $.Values.tolerations }}
   tolerations: {{- toYaml . | nindent 2}}
   {{- end }}
+---
+{{- end }}
 {{- end }}
