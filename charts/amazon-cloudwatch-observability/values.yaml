@@ -25,7 +25,7 @@ neuronInstances: [ trn1.2xlarge, trn1.32xlarge, trn1n.32xlarge, inf1.xlarge, inf
 
 ## Provide default tolerations
 tolerations:
-- operator: Exists
+  - operator: Exists
 
 containerLogs:
   enabled: true
@@ -414,6 +414,10 @@ manager:
       repositoryDomain: public.ecr.aws/aws-observability
       repository: adot-autoinstrumentation-python
       tag: v0.3.0
+    nodejs:
+      repositoryDomain: 637423224110.dkr.ecr.us-east-1.amazonaws.com/aws-observability
+      repository: adot-autoinstrumentation-node-staging
+      tag: latest
     dotnet:
       repositoryDomain: public.ecr.aws/aws-observability
       repository: adot-autoinstrumentation-dotnet
@@ -447,6 +451,11 @@ manager:
       daemonsets: [ ]
       statefulsets: [ ]
     python:
+      namespaces: [ ]
+      deployments: [ ]
+      daemonsets: [ ]
+      statefulsets: [ ]
+    nodejs:
       namespaces: [ ]
       deployments: [ ]
       daemonsets: [ ]
