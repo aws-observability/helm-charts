@@ -68,12 +68,25 @@ Name for neuron-monitor
 Get the current recommended cloudwatch agent image for a region
 */}}
 {{- define "cloudwatch-agent.image" -}}
+{{- $customImage := deepCopy .Image }}
+
+{{- $repository := .Values.agent.image.repository -}}
+{{ if $customImage.repository }}
+{{- $repository = $customImage.repository -}}
+{{ end}}
+
+{{- $tag := .Values.agent.image.tag -}}
+{{ if $customImage.tag }}
+{{- $tag =  $customImage.tag -}}
+{{ end}}
+
+
 {{- $imageDomain := "" -}}
 {{- $imageDomain = index .Values.agent.image.repositoryDomainMap .Values.region -}}
 {{- if not $imageDomain -}}
 {{- $imageDomain = .Values.agent.image.repositoryDomainMap.public -}}
 {{- end -}}
-{{- printf "%s/%s:%s" $imageDomain .Values.agent.image.repository .Values.agent.image.tag -}}
+{{- printf "%s/%s:%s" $imageDomain $repository $tag -}}
 {{- end -}}
 
 {{/*

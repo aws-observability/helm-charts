@@ -550,6 +550,30 @@ agentWorkloads:
   - name: cloudwatch-agent-with-container-insights-and-application-signals
     ## Supported modes are daemonset, statefulset and deployment
     mode: daemonset
+    replicas:
+    image:
+#      repository:
+      tag:
+    resources:
+      requests:
+        memory:
+        cpu:
+      limits:
+        memory:
+        cpu:
+    autoGenerateCert:
+      enabled: true
+      expiryDays:
+    certManager:
+      enabled: false
+      issuerRef: { }
+      # kind:
+      # name:
+      certificateAnnotations: { }
+      issuerAnnotations: { }
+    serviceAccount:
+      name:
+    config:
 
 agent:
   name:

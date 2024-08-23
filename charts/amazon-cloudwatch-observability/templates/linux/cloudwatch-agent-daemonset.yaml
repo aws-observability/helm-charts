@@ -26,11 +26,11 @@ metadata:
   name: {{ $customAgent.name | default (include "cloudwatch-agent.name" $) }}
   namespace: {{ $.Release.Namespace }}
 spec:
-  image: {{ template "cloudwatch-agent.image" $ }}
+  image: {{ include "cloudwatch-agent.modify-image" (merge (dict "Image" $customAgent.image) $ ) }}
   mode: {{ $customAgent.mode | default "daemonset" }}
   nodeSelector:
     kubernetes.io/os: linux
-  serviceAccount: {{ template "cloudwatch-agent.serviceAccountName" $ }}
+  serviceAccount: {{ $customAgent.serviceAccount.name | default (include "cloudwatch-agent.serviceAccountName" $) }}
   affinity:
     nodeAffinity:
       requiredDuringSchedulingIgnoredDuringExecution:
@@ -41,14 +41,18 @@ spec:
                 values:
                   - fargate
   hostNetwork: true
-  {{- if $.Values.agent.config }}
-  config: {{ include "cloudwatch-agent.modify-config" (merge (dict "Config" $.Values.agent.config) $ ) }}
+  {{- if $customAgent.config }}
+  config: {{ include "cloudwatch-agent.modify-config" (merge (dict "Config" $customAgent.config) $ ) }}
   {{- else }}
   config: {{ include "cloudwatch-agent.modify-config" (merge (dict "Config" $.Values.agent.defaultConfig) $ ) }}
   {{- end }}
-  {{- with $.Values.agent.resources }}
-  resources: {{- toYaml . | nindent 4}}
-  {{- end }}
+  resources:
+    requests:
+      memory: {{ $customAgent.resources.requests.memory | default $.Values.agent.resources.requests.memory }}
+      cpu: {{ $customAgent.resources.requests.cpu | default default $.Values.agent.resources.requests.cpu }}
+    limits:
+      memory: {{ $customAgent.resources.limits.memory | default default $.Values.agent.resources.limits.memory }}
+      cpu: {{ $customAgent.resources.limits.cpu | default default $.Values.agent.resources.limits.cpu }}
   volumeMounts:
   - mountPath: /rootfs
     name: rootfs
