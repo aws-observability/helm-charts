@@ -62,23 +62,10 @@ jobs:
           command: |
             cd integration-tests/amazon-cloudwatch-observability/terraform/helm
             terraform init
-            if terraform apply -auto-approve \
-                -var="kube_dir=${{ github.workspace }}/../../../.kube"; then
-              terraform destroy -auto-approve
-            else
-              terraform destroy -auto-approve && exit 1
-            fi
+            terraform apply -auto-approve \
+              -var="kube_dir=${{ github.workspace }}/../../../.kube"
 
-      - name: Terraform destroy
-        if: ${{ cancelled() || failure() }}
-        uses: nick-fields/retry@v2
-        with:
-          max_attempts: 3
-          timeout_minutes: 8
-          retry_wait_seconds: 5
-          command: |
-            cd integration-tests/amazon-cloudwatch-observability/terraform/helm
-            terraform destroy --auto-approve
+
 
   HelmChartsIntegrationTestWindows-2022:
     name: HelmChartsIntegrationTestWindows-2022
