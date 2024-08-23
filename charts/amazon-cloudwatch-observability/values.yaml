@@ -25,7 +25,7 @@ neuronInstances: [ trn1.2xlarge, trn1.32xlarge, trn1n.32xlarge, inf1.xlarge, inf
 
 ## Provide default tolerations
 tolerations:
-  - operator: Exists
+- operator: Exists
 
 containerLogs:
   enabled: true
