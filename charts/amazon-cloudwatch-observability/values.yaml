@@ -451,6 +451,11 @@ manager:
       requests:
         cpu: "50m"
         memory: "128Mi"
+      tag: v0.2.0
+    nodejs:
+      repositoryDomain: ghcr.io/open-telemetry/opentelemetry-operator
+      repository: autoinstrumentation-nodejs
+      tag: 0.51.0
   autoAnnotateAutoInstrumentation:
     java:
       namespaces: [ ]
