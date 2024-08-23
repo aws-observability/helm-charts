@@ -159,12 +159,15 @@ Get the current recommended auto instrumentation nodejs image
 */}}
 {{- define "auto-instrumentation-nodejs.image" -}}
 {{- printf "%s/%s:%s" .Values.manager.autoInstrumentationImage.nodejs.repositoryDomain .Values.manager.autoInstrumentationImage.nodejs.repository .Values.manager.autoInstrumentationImage.nodejs.tag -}}
+{{- end -}}
+
 {{/*
 Get the current recommended auto instrumentation dotnet image
 */}}
 {{- define "auto-instrumentation-dotnet.image" -}}
 {{- printf "%s/%s:%s" .Values.manager.autoInstrumentationImage.dotnet.repositoryDomain .Values.manager.autoInstrumentationImage.dotnet.repository .Values.manager.autoInstrumentationImage.dotnet.tag -}}
 {{- end -}}
+
 
 {{/*
 Common labels
