@@ -444,6 +444,13 @@ manager:
       requests:
         cpu: "50m"
         memory: "128Mi"
+    nodejs:
+      limits:
+        cpu: "500m"
+        memory: "128Mi"
+      requests:
+        cpu: "50m"
+        memory: "128Mi"
   autoAnnotateAutoInstrumentation:
     java:
       namespaces: [ ]
