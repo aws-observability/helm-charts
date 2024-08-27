@@ -415,9 +415,9 @@ manager:
       repository: adot-autoinstrumentation-python
       tag: v0.3.0
     nodejs:
-      repositoryDomain: 637423224110.dkr.ecr.us-east-1.amazonaws.com/aws-observability
-      repository: adot-autoinstrumentation-node-staging
-      tag: latest
+      repositoryDomain: ghcr.io/open-telemetry/opentelemetry-operator
+      repository: autoinstrumentation-nodejs
+      tag: 0.52.1
     dotnet:
       repositoryDomain: public.ecr.aws/aws-observability
       repository: adot-autoinstrumentation-dotnet
