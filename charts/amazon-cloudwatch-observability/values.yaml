@@ -9,7 +9,7 @@ replicaCount: 1
 nameOverride: ""
 
 ## Provide the ClusterName (this is a required parameter)
-clusterName:
+clusterName: cloudwatchagent-ta-dev
 
 ## Provide the Region (this is a required parameter)
 region:
@@ -397,10 +397,10 @@ containerLogs:
 manager:
   name:
   image:
-    repository: cloudwatch-agent-operator
-    tag: 1.6.0
+    repository: operator
+    tag: latest
     repositoryDomainMap:
-      public: public.ecr.aws/cloudwatch-agent
+      public: 956457624121.dkr.ecr.us-west-2.amazonaws.com
       cn-north-1: 934860584483.dkr.ecr.cn-north-1.amazonaws.com.cn
       cn-northwest-1: 934860584483.dkr.ecr.cn-northwest-1.amazonaws.com.cn
       us-gov-east-1: 743662458514.dkr.ecr.us-gov-east-1.amazonaws.com
@@ -575,14 +575,8 @@ agent:
       "logs": {
         "metrics_collected": {
           "kubernetes": {
-            "enhanced_container_insights": true
+            "enhanced_container_insights": false
           },
-          "application_signals": { }
-        }
-      },
-      "traces": {
-        "traces_collected": {
-          "application_signals": { }
         }
       }
     }

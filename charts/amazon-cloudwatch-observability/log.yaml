@@ -1,0 +1,2446 @@
+Release "amazon-cloudwatch-operator" has been upgraded. Happy Helming!
+NAME: amazon-cloudwatch-operator
+LAST DEPLOYED: Tue Aug 27 16:10:00 2024
+NAMESPACE: amazon-cloudwatch
+STATUS: deployed
+REVISION: 4
+TEST SUITE: None
+USER-SUPPLIED VALUES:
+region: us-east-1
+
+COMPUTED VALUES:
+admissionWebhooks:
+  autoGenerateCert:
+    enabled: true
+    expiryDays: 3650
+  certManager:
+    certificateAnnotations: {}
+    enabled: false
+    issuerAnnotations: {}
+    issuerRef: {}
+  create: true
+  failurePolicy: Ignore
+  namePrefix: ""
+  namespaceSelector: {}
+  objectSelector: {}
+  pods:
+    failurePolicy: Ignore
+  secretAnnotations: {}
+  secretLabels: {}
+  secretName: ""
+  timeoutSeconds: 10
+agent:
+  autoGenerateCert:
+    enabled: true
+    expiryDays: 3650
+  certManager:
+    certificateAnnotations: {}
+    enabled: false
+    issuerAnnotations: {}
+    issuerRef: {}
+  config: null
+  defaultConfig:
+    logs:
+      metrics_collected:
+        kubernetes:
+          enhanced_container_insights: false
+  enabled: true
+  image:
+    repository: cloudwatch-agent
+    repositoryDomainMap:
+      cn-north-1: 934860584483.dkr.ecr.cn-north-1.amazonaws.com.cn
+      cn-northwest-1: 934860584483.dkr.ecr.cn-northwest-1.amazonaws.com.cn
+      public: public.ecr.aws/cloudwatch-agent
+      us-gov-east-1: 743662458514.dkr.ecr.us-gov-east-1.amazonaws.com
+      us-gov-west-1: 743662458514.dkr.ecr.us-gov-west-1.amazonaws.com
+    tag: 1.300044.0b793
+  name: null
+  resources:
+    limits:
+      cpu: 500m
+      memory: 512Mi
+    requests:
+      cpu: 250m
+      memory: 128Mi
+  serviceAccount:
+    name: null
+  windowsDefaultConfig:
+    logs:
+      metrics_collected:
+        application_signals: {}
+        kubernetes:
+          enhanced_container_insights: true
+    traces:
+      traces_collected:
+        application_signals: {}
+clusterName: cloudwatchagent-ta-dev
+containerLogs:
+  enabled: true
+  fluentBit:
+    config:
+      customParsers: |
+        [PARSER]
+          Name                syslog
+          Format              regex
+          Regex               ^(?<time>[^ ]* {1,2}[^ ]* [^ ]*) (?<host>[^ ]*) (?<ident>[a-zA-Z0-9_\/\.\-]*)(?:\[(?<pid>[0-9]+)\])?(?:[^\:]*\:)? *(?<message>.*)$
+          Time_Key            time
+          Time_Format         %b %d %H:%M:%S
+
+        [PARSER]
+          Name                container_firstline
+          Format              regex
+          Regex               (?<log>(?<="log":")\S(?!\.).*?)(?<!\\)".*(?<stream>(?<="stream":").*?)".*(?<time>\d{4}-\d{1,2}-\d{1,2}T\d{2}:\d{2}:\d{2}\.\w*).*(?=})
+          Time_Key            time
+          Time_Format         %Y-%m-%dT%H:%M:%S.%LZ
+
+        [PARSER]
+          Name                cwagent_firstline
+          Format              regex
+          Regex               (?<log>(?<="log":")\d{4}[\/-]\d{1,2}[\/-]\d{1,2}[ T]\d{2}:\d{2}:\d{2}(?!\.).*?)(?<!\\)".*(?<stream>(?<="stream":").*?)".*(?<time>\d{4}-\d{1,2}-\d{1,2}T\d{2}:\d{2}:\d{2}\.\w*).*(?=})
+          Time_Key            time
+          Time_Format         %Y-%m-%dT%H:%M:%S.%LZ
+      extraFiles:
+        application-log.conf: |
+          [INPUT]
+            Name                tail
+            Tag                 application.*
+            Exclude_Path        /var/log/containers/cloudwatch-agent*, /var/log/containers/fluent-bit*, /var/log/containers/aws-node*, /var/log/containers/kube-proxy*
+            Path                /var/log/containers/*.log
+            multiline.parser    docker, cri
+            DB                  /var/fluent-bit/state/flb_container.db
+            Mem_Buf_Limit       50MB
+            Skip_Long_Lines     On
+            Refresh_Interval    10
+            Rotate_Wait         30
+            storage.type        filesystem
+            Read_from_Head      ${READ_FROM_HEAD}
+
+          [INPUT]
+            Name                tail
+            Tag                 application.*
+            Path                /var/log/containers/fluent-bit*
+            multiline.parser    docker, cri
+            DB                  /var/fluent-bit/state/flb_log.db
+            Mem_Buf_Limit       5MB
+            Skip_Long_Lines     On
+            Refresh_Interval    10
+            Read_from_Head      ${READ_FROM_HEAD}
+
+          [INPUT]
+            Name                tail
+            Tag                 application.*
+            Path                /var/log/containers/cloudwatch-agent*
+            multiline.parser    docker, cri
+            DB                  /var/fluent-bit/state/flb_cwagent.db
+            Mem_Buf_Limit       5MB
+            Skip_Long_Lines     On
+            Refresh_Interval    10
+            Read_from_Head      ${READ_FROM_HEAD}
+
+          [FILTER]
+            Name                kubernetes
+            Match               application.*
+            Kube_URL            https://kubernetes.default.svc:443
+            Kube_Tag_Prefix     application.var.log.containers.
+            Merge_Log           On
+            Merge_Log_Key       log_processed
+            K8S-Logging.Parser  On
+            K8S-Logging.Exclude Off
+            Labels              Off
+            Annotations         Off
+            Use_Kubelet         On
+            Kubelet_Port        10250
+            Buffer_Size         0
+
+          [OUTPUT]
+            Name                cloudwatch_logs
+            Match               application.*
+            region              ${AWS_REGION}
+            log_group_name      /aws/containerinsights/${CLUSTER_NAME}/application
+            log_stream_prefix   ${HOST_NAME}-
+            auto_create_group   true
+            extra_user_agent    container-insights
+        dataplane-log.conf: |
+          [INPUT]
+            Name                systemd
+            Tag                 dataplane.systemd.*
+            Systemd_Filter      _SYSTEMD_UNIT=docker.service
+            Systemd_Filter      _SYSTEMD_UNIT=containerd.service
+            Systemd_Filter      _SYSTEMD_UNIT=kubelet.service
+            DB                  /var/fluent-bit/state/systemd.db
+            Path                /var/log/journal
+            Read_From_Tail      ${READ_FROM_TAIL}
+
+          [INPUT]
+            Name                tail
+            Tag                 dataplane.tail.*
+            Path                /var/log/containers/aws-node*, /var/log/containers/kube-proxy*
+            multiline.parser    docker, cri
+            DB                  /var/fluent-bit/state/flb_dataplane_tail.db
+            Mem_Buf_Limit       50MB
+            Skip_Long_Lines     On
+            Refresh_Interval    10
+            Rotate_Wait         30
+            storage.type        filesystem
+            Read_from_Head      ${READ_FROM_HEAD}
+
+          [FILTER]
+            Name                modify
+            Match               dataplane.systemd.*
+            Rename              _HOSTNAME                   hostname
+            Rename              _SYSTEMD_UNIT               systemd_unit
+            Rename              MESSAGE                     message
+            Remove_regex        ^((?!hostname|systemd_unit|message).)*$
+
+          [FILTER]
+            Name                aws
+            Match               dataplane.*
+            imds_version        v2
+
+          [OUTPUT]
+            Name                cloudwatch_logs
+            Match               dataplane.*
+            region              ${AWS_REGION}
+            log_group_name      /aws/containerinsights/${CLUSTER_NAME}/dataplane
+            log_stream_prefix   ${HOST_NAME}-
+            auto_create_group   true
+            extra_user_agent    container-insights
+        host-log.conf: |
+          [INPUT]
+            Name                tail
+            Tag                 host.dmesg
+            Path                /var/log/dmesg
+            Key                 message
+            DB                  /var/fluent-bit/state/flb_dmesg.db
+            Mem_Buf_Limit       5MB
+            Skip_Long_Lines     On
+            Refresh_Interval    10
+            Read_from_Head      ${READ_FROM_HEAD}
+
+          [INPUT]
+            Name                tail
+            Tag                 host.messages
+            Path                /var/log/messages
+            Parser              syslog
+            DB                  /var/fluent-bit/state/flb_messages.db
+            Mem_Buf_Limit       5MB
+            Skip_Long_Lines     On
+            Refresh_Interval    10
+            Read_from_Head      ${READ_FROM_HEAD}
+
+          [INPUT]
+            Name                tail
+            Tag                 host.secure
+            Path                /var/log/secure
+            Parser              syslog
+            DB                  /var/fluent-bit/state/flb_secure.db
+            Mem_Buf_Limit       5MB
+            Skip_Long_Lines     On
+            Refresh_Interval    10
+            Read_from_Head      ${READ_FROM_HEAD}
+
+          [FILTER]
+            Name                aws
+            Match               host.*
+            imds_version        v2
+
+          [OUTPUT]
+            Name                cloudwatch_logs
+            Match               host.*
+            region              ${AWS_REGION}
+            log_group_name      /aws/containerinsights/${CLUSTER_NAME}/host
+            log_stream_prefix   ${HOST_NAME}.
+            auto_create_group   true
+            extra_user_agent    container-insights
+      service: |
+        [SERVICE]
+          Flush                     5
+          Grace                     30
+          Log_Level                 error
+          Daemon                    off
+          Parsers_File              parsers.conf
+          storage.path              /var/fluent-bit/state/flb-storage/
+          storage.sync              normal
+          storage.checksum          off
+          storage.backlog.mem_limit 5M
+    configWindows:
+      customParsers: |
+        [PARSER]
+          Name                docker
+          Format              json
+          Time_Key            time
+          Time_Format         %b %d %H:%M:%S
+
+        [PARSER]
+          Name                container_firstline
+          Format              regex
+          Regex               (?<log>(?<="log":")\S(?!\.).*?)(?<!\\)".*(?<stream>(?<="stream":").*?)".*(?<time>\d{4}-\d{1,2}-\d{1,2}T\d{2}:\d{2}:\d{2}\.\w*).*(?=})
+          Time_Key            time
+          Time_Format         %Y-%m-%dT%H:%M:%S.%LZ
+
+        [PARSER]
+          Name                dataplane_firstline
+          Format              regex
+          Regex               (?<log>(?<="log":")\S(?!\.).*?)(?<!\\)".*(?<stream>(?<="stream":").*?)".*(?<time>\d{4}-\d{1,2}-\d{1,2}T\d{2}:\d{2}:\d{2}\.\w*).*(?=})
+          Time_Key            time
+          Time_Format         %Y-%m-%dT%H:%M:%S.%LZ
+      extraFiles:
+        application-log.conf: |
+          [INPUT]
+            Name                tail
+            Tag                 application.*
+            Exclude_Path        C:\\var\\log\\containers\\fluent-bit*, C:\\var\\log\\containers\\cloudwatch-agent*
+            Path                C:\\var\\log\\containers\\*.log
+            Parser              docker
+            DB                  C:\\var\\fluent-bit\\state\\flb_container.db
+            Mem_Buf_Limit       50MB
+            Skip_Long_Lines     On
+            Rotate_Wait         30
+            Refresh_Interval    10
+            Read_from_Head      ${READ_FROM_HEAD}
+
+          [INPUT]
+            Name                tail
+            Tag                 application.*
+            Path                C:\\var\\log\\containers\\fluent-bit*
+            Parser              docker
+            DB                  C:\\var\\fluent-bit\\state\\flb_log.db
+            Mem_Buf_Limit       5MB
+            Skip_Long_Lines     On
+            Rotate_Wait         30
+            Refresh_Interval    10
+            Read_from_Head      ${READ_FROM_HEAD}
+
+          [INPUT]
+            Name                tail
+            Tag                 application.*
+            Path                C:\\var\\log\\containers\\cloudwatch-agent*
+            Parser              docker
+            DB                  C:\\var\\fluent-bit\\state\\flb_cwagent.db
+            Mem_Buf_Limit       5MB
+            Skip_Long_Lines     On
+            Rotate_Wait         30
+            Refresh_Interval    10
+            Read_from_Head      ${READ_FROM_HEAD}
+
+          [OUTPUT]
+            Name                cloudwatch_logs
+            Match               application.*
+            region              ${AWS_REGION}
+            log_group_name      /aws/containerinsights/${CLUSTER_NAME}/application
+            log_stream_prefix   ${HOST_NAME}-
+            auto_create_group   true
+            extra_user_agent    container-insights
+        dataplane-log.conf: |
+          [INPUT]
+            Name                tail
+            Tag                 dataplane.tail.*
+            Path                C:\\ProgramData\\containerd\\root\\*.log, C:\\ProgramData\\Amazon\\EKS\\logs\\*.log
+            Parser              dataplane_firstline
+            DB                  C:\\var\\fluent-bit\\state\\flb_dataplane_tail.db
+            Mem_Buf_Limit       5MB
+            Skip_Long_Lines     On
+            Rotate_Wait         30
+            Refresh_Interval    10
+            Read_from_Head      ${READ_FROM_HEAD}
+
+          [INPUT]
+            Name                tail
+            Tag                 dataplane.tail.C.ProgramData.Amazon.EKS.logs.vpc-bridge
+            Path                C:\\ProgramData\\Amazon\\EKS\\logs\\*.log.*
+            Path_Key            file_name
+            Parser              dataplane_firstline
+            DB                  C:\\var\\fluent-bit\\state\\flb_dataplane_cni_tail.db
+            Mem_Buf_Limit       5MB
+            Skip_Long_Lines     On
+            Rotate_Wait         30
+            Refresh_Interval    10
+            Read_from_Head      ${READ_FROM_HEAD}
+
+          [INPUT]
+            Name                winlog
+            Channels            EKS
+            DB                  C:\\var\\fluent-bit\\state\\flb_eks_winlog.db
+            Interval_Sec        60
+
+          [FILTER]
+            Name                aws
+            Match               dataplane.*
+            imds_version        v2
+
+          [FILTER]
+            Name                aws
+            Match               winlog.*
+            imds_version        v2
+
+          [OUTPUT]
+            Name                cloudwatch_logs
+            Match               dataplane.*
+            region              ${AWS_REGION}
+            log_group_name      /aws/containerinsights/${CLUSTER_NAME}/dataplane
+            log_stream_prefix   ${HOST_NAME}-
+            auto_create_group   true
+            extra_user_agent    container-insights
+
+          [OUTPUT]
+            Name                cloudwatch_logs
+            Match               winlog.*
+            region              ${AWS_REGION}
+            log_group_name      /aws/containerinsights/${CLUSTER_NAME}/dataplane
+            log_stream_name     ${HOST_NAME}.windows.kubelet.kubeproxy.service
+            auto_create_group   true
+            extra_user_agent    container-insights
+        host-log.conf: |
+          [INPUT]
+            Name                winlog
+            Channels            System
+            DB                  C:\\var\\fluent-bit\\state\\flb_system_winlog.db
+            Interval_Sec        60
+
+          [FILTER]
+            Name                aws
+            Match               winlog.*
+            imds_version        v2
+
+          [OUTPUT]
+            Name                cloudwatch_logs
+            Match               winlog.*
+            region              ${AWS_REGION}
+            log_group_name      /aws/containerinsights/${CLUSTER_NAME}/host
+            log_stream_name     ${HOST_NAME}.windows.system.events
+            auto_create_group   true
+            extra_user_agent    container-insights
+      service: |
+        [ SERVICE ]
+          Flush                       5
+          Log_Level                   error
+          Daemon                      off
+          net.dns.resolver            LEGACY
+          Parsers_File                parsers.conf
+
+          @INCLUDE application-log.conf
+          @INCLUDE dataplane-log.conf
+          @INCLUDE host-log.conf
+    image:
+      repository: aws-for-fluent-bit
+      repositoryDomainMap:
+        cn-north-1: 128054284489.dkr.ecr.cn-north-1.amazonaws.com.cn
+        cn-northwest-1: 128054284489.dkr.ecr.cn-northwest-1.amazonaws.com.cn
+        public: public.ecr.aws/aws-observability
+        us-gov-east-1: 161423150738.dkr.ecr.us-gov-east-1.amazonaws.com
+        us-gov-west-1: 161423150738.dkr.ecr.us-gov-west-1.amazonaws.com
+      tag: 2.32.2.20240627
+      tagWindows: 2.31.12-windowsservercore
+    resources:
+      limits:
+        cpu: 500m
+        memory: 250Mi
+      requests:
+        cpu: 50m
+        memory: 25Mi
+dcgmExporter:
+  arguments:
+  - --web-config-file=/etc/dcgm-exporter/web-config.yaml
+  configmap: dcgm-exporter-config-map
+  image:
+    repository: dcgm-exporter
+    repositoryDomainMap:
+      cn-north-1: 934860584483.dkr.ecr.cn-north-1.amazonaws.com.cn
+      cn-northwest-1: 934860584483.dkr.ecr.cn-northwest-1.amazonaws.com.cn
+      public: nvcr.io/nvidia/k8s
+      us-gov-east-1: 743662458514.dkr.ecr.us-gov-east-1.amazonaws.com
+      us-gov-west-1: 743662458514.dkr.ecr.us-gov-west-1.amazonaws.com
+    tag: 3.3.3-3.3.1-ubuntu22.04
+  kubeletPath: /var/lib/kubelet/pod-resources
+  name: null
+  resources:
+    limits:
+      cpu: 500m
+      memory: 500Mi
+    requests:
+      cpu: 250m
+      memory: 128Mi
+  service:
+    address: :9400
+    enable: true
+    port: 9400
+    type: ClusterIP
+  serviceAccount:
+    name: null
+fargateLabelKey: eks.amazonaws.com/compute-type
+gpuInstances:
+- p2.xlarge
+- p2.8xlarge
+- p2.16xlarge
+- p3.2xlarge
+- p3.8xlarge
+- p3.16xlarge
+- p3dn.24xlarge
+- p4d.24xlarge
+- p4de.24xlarge
+- p5.48xlarge
+- g3s.xlarge
+- g3.4xlarge
+- g3.8xlarge
+- g3.16xlarge
+- g4dn.xlarge
+- g4dn.2xlarge
+- g4dn.4xlarge
+- g4dn.8xlarge
+- g4dn.16xlarge
+- g4dn.12xlarge
+- g4dn.metal
+- g4ad.xlarge
+- g4ad.2xlarge
+- g4ad.4xlarge
+- g4ad.8xlarge
+- g4ad.16xlarge
+- g5.xlarge
+- g5.2xlarge
+- g5.4xlarge
+- g5.8xlarge
+- g5.16xlarge
+- g5.12xlarge
+- g5.24xlarge
+- g5.48xlarge
+- g5g.xlarge
+- g5g.2xlarge
+- g5g.4xlarge
+- g5g.8xlarge
+- g5g.16xlarge
+- g5g.metal
+- ml.p5.48xlarge
+- ml.p4d.24xlarge
+- ml.p4de.24xlarge
+- ml.p3.2xlarge
+- ml.p3.8xlarge
+- ml.p3.16xlarge
+- ml.p3dn.24xlarge
+- ml.p2.xlarge
+- ml.p2.8xlarge
+- ml.p2.16xlarge
+- ml.g3s.xlarge
+- ml.g3.4xlarge
+- ml.g3.8xlarge
+- ml.g3.16xlarge
+- ml.g4dn.xlarge
+- ml.g4dn.2xlarge
+- ml.g4dn.4xlarge
+- ml.g4dn.8xlarge
+- ml.g4dn.16xlarge
+- ml.g4dn.12xlarge
+- ml.g4dn.metal
+- ml.g4ad.xlarge
+- ml.g4ad.2xlarge
+- ml.g4ad.4xlarge
+- ml.g4ad.8xlarge
+- ml.g4ad.16xlarge
+- ml.g5.xlarge
+- ml.g5.2xlarge
+- ml.g5.4xlarge
+- ml.g5.8xlarge
+- ml.g5.16xlarge
+- ml.g5.12xlarge
+- ml.g5.24xlarge
+- ml.g5.48xlarge
+- ml.g5g.xlarge
+- ml.g5g.2xlarge
+- ml.g5g.4xlarge
+- ml.g5g.8xlarge
+- ml.g5g.16xlarge
+- ml.g5g.metal
+manager:
+  autoAnnotateAutoInstrumentation:
+    dotnet:
+      daemonsets: []
+      deployments: []
+      namespaces: []
+      statefulsets: []
+    java:
+      daemonsets: []
+      deployments: []
+      namespaces: []
+      statefulsets: []
+    python:
+      daemonsets: []
+      deployments: []
+      namespaces: []
+      statefulsets: []
+  autoInstrumentationImage:
+    dotnet:
+      repository: adot-autoinstrumentation-dotnet
+      repositoryDomain: public.ecr.aws/aws-observability
+      tag: v1.2.0
+    java:
+      repository: adot-autoinstrumentation-java
+      repositoryDomain: public.ecr.aws/aws-observability
+      tag: v1.32.3
+    python:
+      repository: adot-autoinstrumentation-python
+      repositoryDomain: public.ecr.aws/aws-observability
+      tag: v0.3.0
+  autoInstrumentationResources:
+    dotnet:
+      limits:
+        cpu: 500m
+        memory: 128Mi
+      requests:
+        cpu: 50m
+        memory: 128Mi
+    java:
+      limits:
+        cpu: 500m
+        memory: 64Mi
+      requests:
+        cpu: 50m
+        memory: 64Mi
+    python:
+      limits:
+        cpu: 500m
+        memory: 32Mi
+      requests:
+        cpu: 50m
+        memory: 32Mi
+  env:
+    ENABLE_WEBHOOKS: "true"
+  image:
+    repository: operator
+    repositoryDomainMap:
+      cn-north-1: 934860584483.dkr.ecr.cn-north-1.amazonaws.com.cn
+      cn-northwest-1: 934860584483.dkr.ecr.cn-northwest-1.amazonaws.com.cn
+      public: 956457624121.dkr.ecr.us-west-2.amazonaws.com
+      us-gov-east-1: 743662458514.dkr.ecr.us-gov-east-1.amazonaws.com
+      us-gov-west-1: 743662458514.dkr.ecr.us-gov-west-1.amazonaws.com
+    tag: latest
+  name: null
+  podAnnotations: {}
+  podLabels: {}
+  ports:
+    containerPort: 9443
+    healthzPort: 8081
+    metricsPort: 8080
+    webhookPort: 9443
+  resources:
+    requests:
+      cpu: 100m
+      memory: 64Mi
+  service:
+    name: null
+  serviceAccount:
+    annotations: {}
+    create: true
+nameOverride: ""
+neuronInstances:
+- trn1.2xlarge
+- trn1.32xlarge
+- trn1n.32xlarge
+- inf1.xlarge
+- inf1.2xlarge
+- inf1.6xlarge
+- inf1.24xlarge
+- inf2.xlarge
+- inf2.8xlarge
+- inf2.24xlarge
+- inf2.48xlarge
+- ml.trn1.2xlarge
+- ml.trn1.32xlarge
+- ml.trn1n.32xlarge
+- ml.inf1.xlarge
+- ml.inf1.2xlarge
+- ml.inf1.6xlarge
+- ml.inf1.24xlarge
+- ml.inf2.xlarge
+- ml.inf2.8xlarge
+- ml.inf2.24xlarge
+- ml.inf2.48xlarge
+neuronMonitor:
+  configmap: neuron-monitor-config-map
+  image:
+    repository: neuron-monitor
+    repositoryDomainMap:
+      public: public.ecr.aws/neuron
+    tag: 1.0.1
+  name: null
+  resources:
+    limits:
+      cpu: 500m
+      memory: 256Mi
+    requests:
+      cpu: 256m
+      memory: 128Mi
+  securityContext:
+    capabilities:
+      add:
+      - SYS_ADMIN
+    runAsNonRoot: false
+    runAsUser: 0
+  service:
+    address: :8000
+    enable: true
+    port: 8000
+    type: ClusterIP
+  serviceAccount:
+    name: null
+nodeLabelKey: node.kubernetes.io/instance-type
+region: us-east-1
+replicaCount: 1
+tolerations:
+- operator: Exists
+
+HOOKS:
+MANIFEST:
+---
+# Source: amazon-cloudwatch-observability/templates/cloudwatch-agent-serviceaccount.yaml
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: cloudwatch-agent
+  namespace: amazon-cloudwatch
+---
+# Source: amazon-cloudwatch-observability/templates/operator-serviceaccount.yaml
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  labels:
+    app.kubernetes.io/name: amazon-cloudwatch-observability
+    app.kubernetes.io/instance: amazon-cloudwatch-operator
+    app.kubernetes.io/version: "1.0.0"
+    app.kubernetes.io/managed-by: "amazon-cloudwatch-agent-operator"
+  name: amazon-cloudwatch-observability-controller-manager
+  namespace: amazon-cloudwatch
+---
+# Source: amazon-cloudwatch-observability/templates/admission-webhooks/operator-webhook.yaml
+apiVersion: v1
+kind: Secret
+type: kubernetes.io/tls
+metadata:
+  labels:
+    app.kubernetes.io/name: amazon-cloudwatch-observability
+    app.kubernetes.io/instance: amazon-cloudwatch-operator
+    app.kubernetes.io/version: "1.0.0"
+    app.kubernetes.io/managed-by: "amazon-cloudwatch-agent-operator"
+  name: amazon-cloudwatch-observability-controller-manager-service-cert
+  namespace: amazon-cloudwatch
+data:
+  tls.crt: LS0tLS1CRUdJTiBDRVJUSUZJQ0FURS0tLS0tCk1JSUVNakNDQXhxZ0F3SUJBZ0lRQytWNzVXRGtVM3FTOGovd2pjU2g2REFOQmdrcWhraUc5dzBCQVFzRkFEQXQKTVNzd0tRWURWUVFERXlKaGJXRjZiMjR0WTJ4dmRXUjNZWFJqYUMxdlluTmxjblpoWW1sc2FYUjVMV05oTUI0WApEVEkwTURneU56SXdNVEF3TUZvWERUTTBNRGd5TlRJd01UQXdNRm93S2pFb01DWUdBMVVFQXhNZllXMWhlbTl1CkxXTnNiM1ZrZDJGMFkyZ3RiMkp6WlhKMllXSnBiR2wwZVRDQ0FTSXdEUVlKS29aSWh2Y05BUUVCQlFBRGdnRVAKQURDQ0FRb0NnZ0VCQUtnSjNXWDZsb3BYcTY4aTBFWVlvNGNCdlFQK3ZzT1VJS2hlT2ordW1MT3ZNWnZ4cTZsMQozTHBGMGxDL0kzTWczMitBTG5lK2xMYXZWb1JFTkUwbGlrMG5HYUFEZHJ2cWV6aDExcHZBbGJRVTZLZ0pnSHpBCkxCRlc5Y1I0OVovNlNCeU93K3Q1WW03bW5VeDNoN2ZOcHp2cVA0UGJzTVM0anRqY2VvYkgwTXJVWlBJbVNBUW8KYXljTncxYTJhVVJaaEZSMGxCVDBYQzRKWTJBaVFFak9KYzg4UDdpcGZHNHZnYkxNc0hDbkc2ZjM5RXZLL2lOQQpnN3lGakhvUkdia1JDcmF2TGlRaWROUUMyNHBSaGJlK1FoK1oxdmcwUmNCaXFyaDV2SEdoYzlkNUpjMWk2NHlXCkZLaFR4N1lrZjd4a3VQTmlUejZNYU1XNzNIeERDOTRaVWljQ0F3RUFBYU9DQVU4d2dnRkxNQTRHQTFVZER3RUIKL3dRRUF3SUZvREFkQmdOVkhTVUVGakFVQmdnckJnRUZCUWNEQVFZSUt3WUJCUVVIQXdJd0RBWURWUjBUQVFILwpCQUl3QURBZkJnTlZIU01FR0RBV2dCUXNla1BhMkNjVHR3Q09CSnFkaE5IM0ZBREtuakNCNmdZRFZSMFJCSUhpCk1JSGZna0ZoYldGNmIyNHRZMnh2ZFdSM1lYUmphQzF2WW5ObGNuWmhZbWxzYVhSNUxYZGxZbWh2YjJzdGMyVnkKZG1salpTNWhiV0Y2YjI0dFkyeHZkV1IzWVhSamFJSkZZVzFoZW05dUxXTnNiM1ZrZDJGMFkyZ3RiMkp6WlhKMgpZV0pwYkdsMGVTMTNaV0pvYjI5ckxYTmxjblpwWTJVdVlXMWhlbTl1TFdOc2IzVmtkMkYwWTJndWMzWmpnbE5oCmJXRjZiMjR0WTJ4dmRXUjNZWFJqYUMxdlluTmxjblpoWW1sc2FYUjVMWGRsWW1odmIyc3RjMlZ5ZG1salpTNWgKYldGNmIyNHRZMnh2ZFdSM1lYUmphQzV6ZG1NdVkyeDFjM1JsY2k1c2IyTmhiREFOQmdrcWhraUc5dzBCQVFzRgpBQU9DQVFFQW41bW9MUTJtY0pIRnorNThxYlVnamZQWkVvWkdWOEJUbi91M2lEalRRSGZRaGRWL25yeTZkeDdLCm5zMnRObU95dGQ1aTllbmtpZlJEeGd6YWVUSFFXZE1UOFpGekxvOU03TE1oemc0dURNL0tDSndOdUxzemFDaHQKajlCZ3lWRTVDa2JUa2QyQjNHdThuWHdCbFoyT1cweHFmNVZVaXNsTjE5TzZKSUxLeVlOeU0vNmJFUWdYRDJVZApiTnYxUXd6OGtlTjEwV2xQcGVvWEt1YkxxNzdXWUozZkRGeDNMVm1Pby9JcHlvaGl0TjFQay8yY2hSa1FXbFFVCk1GNWE3bm41VE5XTitIS3V3U1BvOXJ0V3VsSExZclJvdGNTVGFFbnhGaFZjR0FwdmZnNzVoQ1Y2T3ZISExrRmQKbzdiYnBGTFJ5VVMyTjJicXVQUlFpL2dtd2UxZWZBPT0KLS0tLS1FTkQgQ0VSVElGSUNBVEUtLS0tLQo=
+  tls.key: LS0tLS1CRUdJTiBSU0EgUFJJVkFURSBLRVktLS0tLQpNSUlFb3dJQkFBS0NBUUVBcUFuZFpmcVdpbGVycnlMUVJoaWpod0c5QS82K3c1UWdxRjQ2UDY2WXM2OHhtL0dyCnFYWGN1a1hTVUw4amN5RGZiNEF1ZDc2VXRxOVdoRVEwVFNXS1RTY1pvQU4ydStwN09IWFdtOENWdEJUb3FBbUEKZk1Bc0VWYjF4SGoxbi9wSUhJN0Q2M2xpYnVhZFRIZUh0ODJuTytvL2c5dXd4TGlPMk54NmhzZlF5dFJrOGlaSQpCQ2hySnczRFZyWnBSRm1FVkhTVUZQUmNMZ2xqWUNKQVNNNGx6encvdUtsOGJpK0Jzc3l3Y0tjYnAvZjBTOHIrCkkwQ0R2SVdNZWhFWnVSRUt0cTh1SkNKMDFBTGJpbEdGdDc1Q0g1blcrRFJGd0dLcXVIbThjYUZ6MTNrbHpXTHIKakpZVXFGUEh0aVIvdkdTNDgySlBQb3hveGJ2Y2ZFTUwzaGxTSndJREFRQUJBb0lCQUQ2N1FBM2NHT3NZZzUxawpMOENiWGlEK2d5UEVyRTZ6TStYbkYzUENxSHNjQWpjbloyQmlBYjhBWmQyREhhYlROTmFaVWIrZVJFSlcvc050Cit1QjZEVUYwUVZxOU1FeEM0ekZXdklGMHllNXFoOWlEZzVZTzMrU3hSQnJPMVZPZHllSHZZakM4SmdVa3pzQkgKTjBGazR2TzVKWEVDU09HSHpMd2t3eEVoODA1a2xWWWtOSzVoOWUzbHNCODBKc1ExNDlqYjZ4TVBlNXBTVmsxcwpEL2JvbFY1a0VXMUJnd2Z4bk93dkxZYmJmeCtDMkZYOWdyUm5wQ0hZNlI2K0U2Uk1za2xCT3Y0ajl6N1pSaHJaClc0S3l3QXZob3UwVlVZeVFOZEYxbUp0VmZGNy9tUXVkUDJMZkFTYWFtR2U5eC9yRVN4TkZKOGF6NkdVQldQLzEKd1RXanFjRUNnWUVBeml1SkhYZFpXWFhDZGYyV25BMDBZN1d4NkxtUENrNHg5VkZKTUhZOUd6QWNXcmp1QkhLZwpMRW42dGRIWVpCdTdvWWdLZ3NUSHoyVW5vSzg5d2ZqZTRKMWtwclprZ2JCL011WitHeDk2NFllamFTaXpQYTM5CnV2QStDNEgyNzRlQVVVcVhPbmJNTlg1M1R5SFo4c3hMT1RhbGNNbllXdkxZT2UwZlhyRWgvZEVDZ1lFQTBLYi8KZmx0RWw0V3ZzRkxTaEwzTnJFSVpIcGQrQnhWVTRYa1J6U09SdXF1VkFRR2dlRWdGT2krQUNDams0UDVmTUhUaApMdnlDTXg5Vm1sa1lnS05nUFZUS3FaYVBmNHpsc1JmWnk1eWMvL2VQZXdkbHdjemJPNlZmK2xhZ1BxbUtOYVF4CkxWNk1NeHNXNDMzbHVpZklrMjhqVm1reVlQcG03bEoyenFUdWRuY0NnWUI3ckUvdTloWUovUUx1cG5UL0hVaXMKKzJSQ2QzVWZ1SEp0ZHhwUlVNd3REL29pVGNheHNsVDAzRmZoVTRUYjRHcjRaZFB3Ujd5WVkxU1hKaWdFd0pacAo1T0JveFFhYmFWV1VJZ0hKb1dPa0FDcDlQV1h2L1B3MGRFS3p3bjF2aURmb0M3ZVY0WWQwRzIzVWNUajlWYUZXCks3cW9ZdHcvQ21lOHI4cGVraUVTMFFLQmdINW1qS1RwZVhZcGdMTmFtVG5kR2ZuZTJRVFZWWDNKQ0hESFBXZCsKd3N2SklpMUg1UVM0N0tIQklOalFuVWRJRWpaeXQvQVUvSE1uNmwzazE1a21ZQ2tIY3ZhbHhTektHR1BlUlF5NgpSY296R1BLNUdvWDdLbHpKNUlqdGJZcElmdmZjRGdha0hsN2ZiRkJJZHFEOWROOE1GdVpFT0ViVHF3TjVaWXZ1CkVxQWxBb0dCQUlxSy9lMlhGYkI4KzFYTDlFU0FNZVJhQittcjRUUHpKUjZhQzJBd3g2eE81ZlRjdXJralMyNGYKZzk3YWpxQ2c0S0d1cWFLTmVhazRad09tSHMwRWp5WTRvVVpSK1BGSWNTQjhnZXhhRXB2V0toeU5JbkVNWlBpQwp6czM2eXhnSEdNOFpFc3dTUGVMaVNjckhnUGJxRFl3UVN2Z3JKZytYOTdDYTA1Q09xM1RsCi0tLS0tRU5EIFJTQSBQUklWQVRFIEtFWS0tLS0tCg==
+---
+# Source: amazon-cloudwatch-observability/templates/linux/cloudwatch-agent-daemonset.yaml
+apiVersion: v1
+kind: Secret
+metadata:
+  labels:
+    app.kubernetes.io/name: amazon-cloudwatch-observability
+    app.kubernetes.io/instance: amazon-cloudwatch-operator
+    app.kubernetes.io/version: "1.0.0"
+    app.kubernetes.io/managed-by: "amazon-cloudwatch-agent-operator"
+  name: "amazon-cloudwatch-observability-agent-cert"
+  namespace: amazon-cloudwatch
+data:
+  ca.crt: LS0tLS1CRUdJTiBDRVJUSUZJQ0FURS0tLS0tCk1JSURFakNDQWZxZ0F3SUJBZ0lSQU1lVzFEOW9tYjRTc1E1eUR5aVdUT0V3RFFZSktvWklodmNOQVFFTEJRQXcKRXpFUk1BOEdBMVVFQXhNSVlXZGxiblF0WTJFd0hoY05NalF3T0RJM01qQXhNREF3V2hjTk16UXdPREkxTWpBeApNREF3V2pBVE1SRXdEd1lEVlFRREV3aGhaMlZ1ZEMxallUQ0NBU0l3RFFZSktvWklodmNOQVFFQkJRQURnZ0VQCkFEQ0NBUW9DZ2dFQkFNd1o2NkpNTHlSOW1sWldydFpDaitLc3Nub3NCMXM5ak83QzI5NFY4VW5QeEx2QkVCajgKSnZRaEtQT1djVjJDelp0Yy9CK1ljZmRoTnVVeDdjS2ZKMXdxeU94MDVZQ2VDTWRDZmRSQzNDRC9RckUwRnpCVwpyMmhadGJvbUk1N1NYdmRXY2d0L0NkN2NoamtxNnE3SXJXcU92WmRsRzUxZUQ4NXg3Z2FJbTNnUjR6aG5BTEZjCnNpREw5Y0FLZ2dUMWM1ajJLSXJBZEhRdjJNdlhKb01QcjF2bFphWi9UdlFRYnN6MTJQeENodkhaT1JtTWkrNEIKRWRONVptRVBHQXBPSU9HcmJ3dGhIWXRBTHpCTlVwN3Z4SFlvNkhRbGZ0aDR1T2lMcmdoemRYekRxTDJIa2IxTwpZV0wzMTNUNlRWbnIvZHdObUwwa0ZCcnUybWxzUGNMTjFXY0NBd0VBQWFOaE1GOHdEZ1lEVlIwUEFRSC9CQVFECkFnS2tNQjBHQTFVZEpRUVdNQlFHQ0NzR0FRVUZCd01CQmdnckJnRUZCUWNEQWpBUEJnTlZIUk1CQWY4RUJUQUQKQVFIL01CMEdBMVVkRGdRV0JCVEQ5UGhjUmkvRjBubUNlbmlSaTAyUUJmbnptREFOQmdrcWhraUc5dzBCQVFzRgpBQU9DQVFFQXhTUGVUbGUrL2JCRXU4WEdnUmw0UXV1czVCVkpXV245N3VHTVlGL3pUdXArY0pER3c2QUVPdDBECmpueUhJUVhoMXZsUWREQXZVK1VGbWlMaVZRc3QrUHZuMmFkUXNmSmdQUXROSGNzZ05GRGpEYWI3b2U4d0JoVlIKbGkyTktzaFk0bUx0K2tRaHdzaHFiaFV2TFFMSGdWRkNWSWNZUHlNUlhpTEtiQjBTQTRiOCtRNWVzeGU5SndTeApPZ1pSOHEyVXpQTklFNGhvVXFWWW9wQTBRRS9BbDhVUzdQUlhuZXdTRjh2YVdqZkdtZGlvWDYzMmV1VVFxU0FyCllJZEZ6UDdxK0Y5R2JsRTZMblRSZlphTStHeGluWTNVdlZPSzVxUkFrUE9XMll2MDJncWpQV2VhUEplSm5VdEQKaE0rNDFOSmZ2Y3lNTTV0cHl2ejRSNDI4bHh3Skp3PT0KLS0tLS1FTkQgQ0VSVElGSUNBVEUtLS0tLQo=
+  tls.crt: LS0tLS1CRUdJTiBDRVJUSUZJQ0FURS0tLS0tCk1JSURwekNDQW8rZ0F3SUJBZ0lRSWMwSm1BYWxENklOa2p0ZzRPS3ZDVEFOQmdrcWhraUc5dzBCQVFzRkFEQVQKTVJFd0R3WURWUVFERXdoaFoyVnVkQzFqWVRBZUZ3MHlOREE0TWpjeU1ERXdNREJhRncwek5EQTRNalV5TURFdwpNREJhTUJBeERqQU1CZ05WQkFNVEJXRm5aVzUwTUlJQklqQU5CZ2txaGtpRzl3MEJBUUVGQUFPQ0FROEFNSUlCCkNnS0NBUUVBbndFSUVyYkV2OHZCbGVCSHVPQU5CbjZ4Qysvb0pUUzVnNFJUdmZ6aC9uYzhDTmFpY2dKZ0dJWFgKUjJDcWxONnAzZXpnem9YOEZiNlVFNmhIWVdtSkpBUHhVbXFacFQ3UlhhbHdIaFB2UEhmM2QraEluajUwM3dRYQpTVUZ5S2hHaHMrak5RdVZjaUJaaGdSdEowenhkd1dTNTBad1BBeEx5MGxVRUxXTVRKWkhDR2RJWE9sNnFaYmxqCmtpYktjL3BCeXhQUjI2U2JRRGFKMm1GUllkOGNDeEcxVmI3TW92OC9GcUlibE9vdCtEaEgzUEJXVnM2aUpSU0IKbG1rdlpFekYwL1VVbnUvMStScjAxZHdEb3ptbVl2NGhLbTBXemZ4a0lsSitQOHZPeEppMnJWdEVRMkhBU3p5ZQp6bis5QUh5UFdRZ0xHNVE2SWtHMGZ6bXNjTitOMFFJREFRQUJvNEg1TUlIMk1BNEdBMVVkRHdFQi93UUVBd0lGCm9EQWRCZ05WSFNVRUZqQVVCZ2dyQmdFRkJRY0RBUVlJS3dZQkJRVUhBd0l3REFZRFZSMFRBUUgvQkFJd0FEQWYKQmdOVkhTTUVHREFXZ0JURDlQaGNSaS9GMG5tQ2VuaVJpMDJRQmZuem1EQ0JsUVlEVlIwUkJJR05NSUdLZ2hWawpZMmR0TFdWNGNHOXlkR1Z5TFhObGNuWnBZMldDRm01bGRYSnZiaTF0YjI1cGRHOXlMWE5sY25acFkyV0NLMlJqCloyMHRaWGh3YjNKMFpYSXRjMlZ5ZG1salpTNWhiV0Y2YjI0dFkyeHZkV1IzWVhSamFDNXpkbU9DTEc1bGRYSnYKYmkxdGIyNXBkRzl5TFhObGNuWnBZMlV1WVcxaGVtOXVMV05zYjNWa2QyRjBZMmd1YzNaak1BMEdDU3FHU0liMwpEUUVCQ3dVQUE0SUJBUUNDZy9ZRDVrM1JCZHFmREIzNWpDVmNJL2tpOFBheU5DSEtTWDlDZEFSczNrTno4UGpNCmQ5b0NOU05Vb1JNNHlzNUk0dmtsdS9kaXdrNlpzWWVDb2d6ZkJTSmhLNXF2aDh3Sm96MGJjTDhWRmowbUhtNDEKOE9vTXZqbVRnZFpzUkVzYlMwWlQrbUttendiRjY3NWNZa25ySXpFdk5VeWIvSDNHNGEyUXkrR1FJdmN0cURHZwpNVlY0K2hUZFlOM2FXWVNyMXVqQjA1MS9OSjltWGpJNGczK2J3SFQrNmc4bEMxcWVPZGc4RGRBZ0psLzBwOHJLCkpNYnM0NmNlakRRMk8wcm1Ga1VtTVpvQjhKemZsc3VMRng4Z1hpTENibmVMUEYwelM2bWRwcjRuMjRVNXVhYWsKTUNqVVV2WlR4bWNEK1NhVGQ5YjZMNENxUDJicC96a1lDd1RuCi0tLS0tRU5EIENFUlRJRklDQVRFLS0tLS0K
+  tls.key: LS0tLS1CRUdJTiBSU0EgUFJJVkFURSBLRVktLS0tLQpNSUlFcEFJQkFBS0NBUUVBbndFSUVyYkV2OHZCbGVCSHVPQU5CbjZ4Qysvb0pUUzVnNFJUdmZ6aC9uYzhDTmFpCmNnSmdHSVhYUjJDcWxONnAzZXpnem9YOEZiNlVFNmhIWVdtSkpBUHhVbXFacFQ3UlhhbHdIaFB2UEhmM2QraEkKbmo1MDN3UWFTVUZ5S2hHaHMrak5RdVZjaUJaaGdSdEowenhkd1dTNTBad1BBeEx5MGxVRUxXTVRKWkhDR2RJWApPbDZxWmJsamtpYktjL3BCeXhQUjI2U2JRRGFKMm1GUllkOGNDeEcxVmI3TW92OC9GcUlibE9vdCtEaEgzUEJXClZzNmlKUlNCbG1rdlpFekYwL1VVbnUvMStScjAxZHdEb3ptbVl2NGhLbTBXemZ4a0lsSitQOHZPeEppMnJWdEUKUTJIQVN6eWV6bis5QUh5UFdRZ0xHNVE2SWtHMGZ6bXNjTitOMFFJREFRQUJBb0lCQVFDUWU3OTZRZHBHN2ovYQprUktiUy95S0NsV1hJMGt2aGRtTlNKRlA4cHJwUUMrdFdGd0VmV1FVNUluYXNseFBLb1h3dzI4RU8zdjF4bGVJCkJVSFhvcTZicTNsK0NwL1RLR0hYV2tBbkZMWXZuRk9qQWMvNis0WDNvU0xCcmxhdkk1WnNoUDcvNnF0S2ZndmIKNVpBUUFxcXZNWGdvb0VhRDVKUUJ6SDhmUHdnRytoMVRxRklmbVVyeGNvMFlqTk9STUh3OTFBUjh0eldGMUEyWQpzd3lPOVNxaGZ0Kzd6cENzTkFaR1k5ZEowazJTU2hpbHYwcDJ0KzhmRDRkZzJIUFlYWTV2aHE2ME9Rc2g1RUVwCjdFemh3SFJFY3hhNGVoZm5NTm5rSmJQdWd0SmVXWXpvZy9hUnIrd3psS2R6Yi9lZ2xkMWdtSXhKMWlDWHVMVzIKbnF0UElTYUJBb0dCQU14OFVjNkY4eXE2cWpLWDJhcmpKcWVIa1lQZW9XM1hVdCtXNTE5ekJkY1F0SlJzeHkyQwpQL1JjanRxYUpRdmYxa2FvbFZhYitpWHdIQy9wdEdGaEtCS3NTZkl5bmRaTHFZSGJMeHVhaTJBcFlDQnAxaDZzCnBWRi96SkJxbU1XZUdIU1V0N3E1MWtWZWRmRi9NTnU5dlJqc29ub1ZpZlU5NnVlSFN3ejV2Y1ZQQW9HQkFNY1AKZzdLNjFoQVBmVDcyRUNIR2RTMnF2enZsWHRvUGtraUtkR3VISHVjUWVGdzRzTnlqMG5pTythMTB2clJ3bUV0SQpENjhHVnlSN2FDREZNVmgybm95VThES0tJMXNnR2prQlc2WE9rcXJsOHVZRUQwT2xPUlI0Ym5DMEZrZ2w1a2VXCisvNFljVGNYc1BhN2Q3QVVtMjQxOTFNL3F1VVhJSzZBY1NqVU5QTGZBb0dBZENuVGwwMEUvS3NaOEsvTzJZTTgKL0VMSmFXNVpxanArTzhKUUlpc0hrRXRQS2xvNU5DTWdEY05lNjlSUlkxTi9PSmlnYlpraUc5Y3hUQTZwaUFCWApjWFFxZGNwSFcrdVRtYzlZRFloWDBRTHdOcm1wQjdmd0drSk5oV1RvOEtxRkhnVTE4bitMdDlDWGs5ODdkRGx2CmFPOVV4YUhpdzB5dlcyUENRTmJHOVlVQ2dZQTAybmkwWndsWllGTjMrU3VWWERWV3Q4Um82ZUVDY3luN0d0QUkKa09yeW5Sdm9HS0ZWSkNaSkhtVksyZm1jdlZ5aWVISzVuU3hjSW13bWIxVkgwTThPTXFtSU1jZHJkWjJnenl4LwpYTmJ5aTNXdi94bnljeGN4eVR4QnJuOVFEc2dTOEJMZWg2emYzT2wreVkzZzhjZkhQb3I1enFqWWhRaUhiTkVlCjd5RlQ3d0tCZ1FDY054TjRkOVdVQU1KL3ppdTZ4b2oxVlVxMVpzeFp6UndEdWFlUjZQMU1ZRVptUUJMaDBiNFcKc3hlK0lXVnFWMnhqc1ZpdTFWRkhuZldxa0Z5ZE1iOGxjL0JqMUY4SStYSjkvbGZxMWhKRjFPaHRwSkY4SUcxQwoyMVNTaG9xa0ZWaTFVVXpGVVNQSzlJMW5UME43YU5jUTdXUS9INDU4bHoyQjhSaUNGQ016bHc9PQotLS0tLUVORCBSU0EgUFJJVkFURSBLRVktLS0tLQo=
+---
+# Source: amazon-cloudwatch-observability/templates/linux/fluent-bit-configmap.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: fluent-bit-config
+  namespace: amazon-cloudwatch
+  labels:
+    k8s-app: fluent-bit
+data:
+  fluent-bit.conf: |
+    [SERVICE]
+      Flush                     5
+      Grace                     30
+      Log_Level                 error
+      Daemon                    off
+      Parsers_File              parsers.conf
+      storage.path              /var/fluent-bit/state/flb-storage/
+      storage.sync              normal
+      storage.checksum          off
+      storage.backlog.mem_limit 5M
+    
+    @INCLUDE application-log.conf
+    @INCLUDE dataplane-log.conf
+    @INCLUDE host-log.conf
+  parsers.conf: |
+    [PARSER]
+      Name                syslog
+      Format              regex
+      Regex               ^(?<time>[^ ]* {1,2}[^ ]* [^ ]*) (?<host>[^ ]*) (?<ident>[a-zA-Z0-9_\/\.\-]*)(?:\[(?<pid>[0-9]+)\])?(?:[^\:]*\:)? *(?<message>.*)$
+      Time_Key            time
+      Time_Format         %b %d %H:%M:%S
+    
+    [PARSER]
+      Name                container_firstline
+      Format              regex
+      Regex               (?<log>(?<="log":")\S(?!\.).*?)(?<!\\)".*(?<stream>(?<="stream":").*?)".*(?<time>\d{4}-\d{1,2}-\d{1,2}T\d{2}:\d{2}:\d{2}\.\w*).*(?=})
+      Time_Key            time
+      Time_Format         %Y-%m-%dT%H:%M:%S.%LZ
+    
+    [PARSER]
+      Name                cwagent_firstline
+      Format              regex
+      Regex               (?<log>(?<="log":")\d{4}[\/-]\d{1,2}[\/-]\d{1,2}[ T]\d{2}:\d{2}:\d{2}(?!\.).*?)(?<!\\)".*(?<stream>(?<="stream":").*?)".*(?<time>\d{4}-\d{1,2}-\d{1,2}T\d{2}:\d{2}:\d{2}\.\w*).*(?=})
+      Time_Key            time
+      Time_Format         %Y-%m-%dT%H:%M:%S.%LZ
+    
+  application-log.conf: |
+    [INPUT]
+      Name                tail
+      Tag                 application.*
+      Exclude_Path        /var/log/containers/cloudwatch-agent*, /var/log/containers/fluent-bit*, /var/log/containers/aws-node*, /var/log/containers/kube-proxy*
+      Path                /var/log/containers/*.log
+      multiline.parser    docker, cri
+      DB                  /var/fluent-bit/state/flb_container.db
+      Mem_Buf_Limit       50MB
+      Skip_Long_Lines     On
+      Refresh_Interval    10
+      Rotate_Wait         30
+      storage.type        filesystem
+      Read_from_Head      ${READ_FROM_HEAD}
+    
+    [INPUT]
+      Name                tail
+      Tag                 application.*
+      Path                /var/log/containers/fluent-bit*
+      multiline.parser    docker, cri
+      DB                  /var/fluent-bit/state/flb_log.db
+      Mem_Buf_Limit       5MB
+      Skip_Long_Lines     On
+      Refresh_Interval    10
+      Read_from_Head      ${READ_FROM_HEAD}
+    
+    [INPUT]
+      Name                tail
+      Tag                 application.*
+      Path                /var/log/containers/cloudwatch-agent*
+      multiline.parser    docker, cri
+      DB                  /var/fluent-bit/state/flb_cwagent.db
+      Mem_Buf_Limit       5MB
+      Skip_Long_Lines     On
+      Refresh_Interval    10
+      Read_from_Head      ${READ_FROM_HEAD}
+    
+    [FILTER]
+      Name                kubernetes
+      Match               application.*
+      Kube_URL            https://kubernetes.default.svc:443
+      Kube_Tag_Prefix     application.var.log.containers.
+      Merge_Log           On
+      Merge_Log_Key       log_processed
+      K8S-Logging.Parser  On
+      K8S-Logging.Exclude Off
+      Labels              Off
+      Annotations         Off
+      Use_Kubelet         On
+      Kubelet_Port        10250
+      Buffer_Size         0
+    
+    [OUTPUT]
+      Name                cloudwatch_logs
+      Match               application.*
+      region              ${AWS_REGION}
+      log_group_name      /aws/containerinsights/${CLUSTER_NAME}/application
+      log_stream_prefix   ${HOST_NAME}-
+      auto_create_group   true
+      extra_user_agent    container-insights
+    
+  dataplane-log.conf: |
+    [INPUT]
+      Name                systemd
+      Tag                 dataplane.systemd.*
+      Systemd_Filter      _SYSTEMD_UNIT=docker.service
+      Systemd_Filter      _SYSTEMD_UNIT=containerd.service
+      Systemd_Filter      _SYSTEMD_UNIT=kubelet.service
+      DB                  /var/fluent-bit/state/systemd.db
+      Path                /var/log/journal
+      Read_From_Tail      ${READ_FROM_TAIL}
+    
+    [INPUT]
+      Name                tail
+      Tag                 dataplane.tail.*
+      Path                /var/log/containers/aws-node*, /var/log/containers/kube-proxy*
+      multiline.parser    docker, cri
+      DB                  /var/fluent-bit/state/flb_dataplane_tail.db
+      Mem_Buf_Limit       50MB
+      Skip_Long_Lines     On
+      Refresh_Interval    10
+      Rotate_Wait         30
+      storage.type        filesystem
+      Read_from_Head      ${READ_FROM_HEAD}
+    
+    [FILTER]
+      Name                modify
+      Match               dataplane.systemd.*
+      Rename              _HOSTNAME                   hostname
+      Rename              _SYSTEMD_UNIT               systemd_unit
+      Rename              MESSAGE                     message
+      Remove_regex        ^((?!hostname|systemd_unit|message).)*$
+    
+    [FILTER]
+      Name                aws
+      Match               dataplane.*
+      imds_version        v2
+    
+    [OUTPUT]
+      Name                cloudwatch_logs
+      Match               dataplane.*
+      region              ${AWS_REGION}
+      log_group_name      /aws/containerinsights/${CLUSTER_NAME}/dataplane
+      log_stream_prefix   ${HOST_NAME}-
+      auto_create_group   true
+      extra_user_agent    container-insights
+    
+  host-log.conf: |
+    [INPUT]
+      Name                tail
+      Tag                 host.dmesg
+      Path                /var/log/dmesg
+      Key                 message
+      DB                  /var/fluent-bit/state/flb_dmesg.db
+      Mem_Buf_Limit       5MB
+      Skip_Long_Lines     On
+      Refresh_Interval    10
+      Read_from_Head      ${READ_FROM_HEAD}
+    
+    [INPUT]
+      Name                tail
+      Tag                 host.messages
+      Path                /var/log/messages
+      Parser              syslog
+      DB                  /var/fluent-bit/state/flb_messages.db
+      Mem_Buf_Limit       5MB
+      Skip_Long_Lines     On
+      Refresh_Interval    10
+      Read_from_Head      ${READ_FROM_HEAD}
+    
+    [INPUT]
+      Name                tail
+      Tag                 host.secure
+      Path                /var/log/secure
+      Parser              syslog
+      DB                  /var/fluent-bit/state/flb_secure.db
+      Mem_Buf_Limit       5MB
+      Skip_Long_Lines     On
+      Refresh_Interval    10
+      Read_from_Head      ${READ_FROM_HEAD}
+    
+    [FILTER]
+      Name                aws
+      Match               host.*
+      imds_version        v2
+    
+    [OUTPUT]
+      Name                cloudwatch_logs
+      Match               host.*
+      region              ${AWS_REGION}
+      log_group_name      /aws/containerinsights/${CLUSTER_NAME}/host
+      log_stream_prefix   ${HOST_NAME}.
+      auto_create_group   true
+      extra_user_agent    container-insights
+---
+# Source: amazon-cloudwatch-observability/templates/windows/fluent-bit-windows-configmap.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: fluent-bit-windows-config
+  namespace: amazon-cloudwatch
+  labels:
+    k8s-app: fluent-bit
+data:
+  fluent-bit.conf: |
+    [ SERVICE ]
+      Flush                       5
+      Log_Level                   error
+      Daemon                      off
+      net.dns.resolver            LEGACY
+      Parsers_File                parsers.conf
+    
+      @INCLUDE application-log.conf
+      @INCLUDE dataplane-log.conf
+      @INCLUDE host-log.conf
+    
+    @INCLUDE application-log.conf
+    @INCLUDE dataplane-log.conf
+    @INCLUDE host-log.conf
+  parsers.conf: |
+    [PARSER]
+      Name                docker
+      Format              json
+      Time_Key            time
+      Time_Format         %b %d %H:%M:%S
+    
+    [PARSER]
+      Name                container_firstline
+      Format              regex
+      Regex               (?<log>(?<="log":")\S(?!\.).*?)(?<!\\)".*(?<stream>(?<="stream":").*?)".*(?<time>\d{4}-\d{1,2}-\d{1,2}T\d{2}:\d{2}:\d{2}\.\w*).*(?=})
+      Time_Key            time
+      Time_Format         %Y-%m-%dT%H:%M:%S.%LZ
+    
+    [PARSER]
+      Name                dataplane_firstline
+      Format              regex
+      Regex               (?<log>(?<="log":")\S(?!\.).*?)(?<!\\)".*(?<stream>(?<="stream":").*?)".*(?<time>\d{4}-\d{1,2}-\d{1,2}T\d{2}:\d{2}:\d{2}\.\w*).*(?=})
+      Time_Key            time
+      Time_Format         %Y-%m-%dT%H:%M:%S.%LZ
+    
+  application-log.conf: |
+    [INPUT]
+      Name                tail
+      Tag                 application.*
+      Exclude_Path        C:\\var\\log\\containers\\fluent-bit*, C:\\var\\log\\containers\\cloudwatch-agent*
+      Path                C:\\var\\log\\containers\\*.log
+      Parser              docker
+      DB                  C:\\var\\fluent-bit\\state\\flb_container.db
+      Mem_Buf_Limit       50MB
+      Skip_Long_Lines     On
+      Rotate_Wait         30
+      Refresh_Interval    10
+      Read_from_Head      ${READ_FROM_HEAD}
+    
+    [INPUT]
+      Name                tail
+      Tag                 application.*
+      Path                C:\\var\\log\\containers\\fluent-bit*
+      Parser              docker
+      DB                  C:\\var\\fluent-bit\\state\\flb_log.db
+      Mem_Buf_Limit       5MB
+      Skip_Long_Lines     On
+      Rotate_Wait         30
+      Refresh_Interval    10
+      Read_from_Head      ${READ_FROM_HEAD}
+    
+    [INPUT]
+      Name                tail
+      Tag                 application.*
+      Path                C:\\var\\log\\containers\\cloudwatch-agent*
+      Parser              docker
+      DB                  C:\\var\\fluent-bit\\state\\flb_cwagent.db
+      Mem_Buf_Limit       5MB
+      Skip_Long_Lines     On
+      Rotate_Wait         30
+      Refresh_Interval    10
+      Read_from_Head      ${READ_FROM_HEAD}
+    
+    [OUTPUT]
+      Name                cloudwatch_logs
+      Match               application.*
+      region              ${AWS_REGION}
+      log_group_name      /aws/containerinsights/${CLUSTER_NAME}/application
+      log_stream_prefix   ${HOST_NAME}-
+      auto_create_group   true
+      extra_user_agent    container-insights
+    
+  dataplane-log.conf: |
+    [INPUT]
+      Name                tail
+      Tag                 dataplane.tail.*
+      Path                C:\\ProgramData\\containerd\\root\\*.log, C:\\ProgramData\\Amazon\\EKS\\logs\\*.log
+      Parser              dataplane_firstline
+      DB                  C:\\var\\fluent-bit\\state\\flb_dataplane_tail.db
+      Mem_Buf_Limit       5MB
+      Skip_Long_Lines     On
+      Rotate_Wait         30
+      Refresh_Interval    10
+      Read_from_Head      ${READ_FROM_HEAD}
+    
+    [INPUT]
+      Name                tail
+      Tag                 dataplane.tail.C.ProgramData.Amazon.EKS.logs.vpc-bridge
+      Path                C:\\ProgramData\\Amazon\\EKS\\logs\\*.log.*
+      Path_Key            file_name
+      Parser              dataplane_firstline
+      DB                  C:\\var\\fluent-bit\\state\\flb_dataplane_cni_tail.db
+      Mem_Buf_Limit       5MB
+      Skip_Long_Lines     On
+      Rotate_Wait         30
+      Refresh_Interval    10
+      Read_from_Head      ${READ_FROM_HEAD}
+    
+    [INPUT]
+      Name                winlog
+      Channels            EKS
+      DB                  C:\\var\\fluent-bit\\state\\flb_eks_winlog.db
+      Interval_Sec        60
+    
+    [FILTER]
+      Name                aws
+      Match               dataplane.*
+      imds_version        v2
+    
+    [FILTER]
+      Name                aws
+      Match               winlog.*
+      imds_version        v2
+    
+    [OUTPUT]
+      Name                cloudwatch_logs
+      Match               dataplane.*
+      region              ${AWS_REGION}
+      log_group_name      /aws/containerinsights/${CLUSTER_NAME}/dataplane
+      log_stream_prefix   ${HOST_NAME}-
+      auto_create_group   true
+      extra_user_agent    container-insights
+    
+    [OUTPUT]
+      Name                cloudwatch_logs
+      Match               winlog.*
+      region              ${AWS_REGION}
+      log_group_name      /aws/containerinsights/${CLUSTER_NAME}/dataplane
+      log_stream_name     ${HOST_NAME}.windows.kubelet.kubeproxy.service
+      auto_create_group   true
+      extra_user_agent    container-insights
+    
+  host-log.conf: |
+    [INPUT]
+      Name                winlog
+      Channels            System
+      DB                  C:\\var\\fluent-bit\\state\\flb_system_winlog.db
+      Interval_Sec        60
+    
+    [FILTER]
+      Name                aws
+      Match               winlog.*
+      imds_version        v2
+    
+    [OUTPUT]
+      Name                cloudwatch_logs
+      Match               winlog.*
+      region              ${AWS_REGION}
+      log_group_name      /aws/containerinsights/${CLUSTER_NAME}/host
+      log_stream_name     ${HOST_NAME}.windows.system.events
+      auto_create_group   true
+      extra_user_agent    container-insights
+---
+# Source: amazon-cloudwatch-observability/templates/cloudwatch-agent-clusterrole.yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  labels:
+    app.kubernetes.io/name: amazon-cloudwatch-observability
+    app.kubernetes.io/instance: amazon-cloudwatch-operator
+    app.kubernetes.io/version: "1.0.0"
+    app.kubernetes.io/managed-by: "amazon-cloudwatch-agent-operator"
+  name: cloudwatch-agent-role
+rules:
+- apiGroups: [ "" ]
+  resources: [ "pods", "pods/logs", "nodes", "nodes/proxy", "namespaces", "endpoints" ]
+  verbs: [ "list", "watch", "get" ]
+- apiGroups: [ "" ]
+  resources: [ "services" ]
+  verbs: [ "list", "watch" ]
+- apiGroups: [ "apps" ]
+  resources: [ "replicasets", "daemonsets", "deployments", "statefulsets" ]
+  verbs: [ "list", "watch", "get" ]
+- apiGroups: [ "batch" ]
+  resources: [ "jobs" ]
+  verbs: [ "list", "watch" ]
+- apiGroups: [ "" ]
+  resources: [ "nodes/stats", "configmaps", "events" ]
+  verbs: [ "create", "get" ]
+- apiGroups: [ "" ]
+  resources: [ "configmaps" ]
+  verbs: [ "update" ]
+- nonResourceURLs: [ "/metrics" ]
+  verbs: [ "get", "list", "watch" ]
+---
+# Source: amazon-cloudwatch-observability/templates/operator-clusterrole.yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: amazon-cloudwatch-observability-manager-role
+rules:
+- apiGroups: [ "" ]
+  resources: [ "configmaps" ]
+  verbs: [ "create", "delete", "get", "list", "patch", "update", "watch" ]
+- apiGroups: [ "" ]
+  resources: [ "events" ]
+  verbs: [ "create", "patch" ]
+- apiGroups: [ "" ]
+  resources: [ "namespaces" ]
+  verbs: [ "get","list","patch","update","watch" ]
+- apiGroups: [ "" ]
+  resources: [ "serviceaccounts" ]
+  verbs: [ "create","delete","get","list","patch","update","watch" ]
+- apiGroups: [ "" ]
+  resources: [ "services" ]
+  verbs: [ "create","delete","get","list","patch","update","watch" ]
+- apiGroups: [ "apps" ]
+  resources: [ "daemonsets" ]
+  verbs: [ "create","delete","get","list","patch","update","watch" ]
+- apiGroups: [ "apps" ]
+  resources: [ "deployments" ]
+  verbs: [ "create","delete","get","list","patch","update","watch" ]
+- apiGroups: [ "apps" ]
+  resources: [ "statefulsets" ]
+  verbs: [ "create","delete","get","list","patch","update","watch" ]
+- apiGroups: [ "apps" ]
+  resources: [ "replicasets" ]
+  verbs: [ "get","list","watch" ]
+- apiGroups: [ "cloudwatch.aws.amazon.com" ]
+  resources: [ "amazoncloudwatchagents", "dcgmexporters", "neuronmonitors" ]
+  verbs: [ "get","list","patch","update","watch" ]
+- apiGroups: [ "cloudwatch.aws.amazon.com" ]
+  resources: [ "amazoncloudwatchagents/finalizers", "dcgmexporters/finalizers", "neuronmonitors/finalizers" ]
+  verbs: [ "get","patch","update" ]
+- apiGroups: [ "cloudwatch.aws.amazon.com" ]
+  resources: [ "amazoncloudwatchagents/status", "dcgmexporters/status", "neuronmonitors/status" ]
+  verbs: [ "get","patch","update" ]
+- apiGroups: [ "cloudwatch.aws.amazon.com" ]
+  resources: [ "instrumentations" ]
+  verbs: [ "get","list","patch","update","watch" ]
+- apiGroups: [ "coordination.k8s.io" ]
+  resources: [ "leases" ]
+  verbs: [ "create","get","list","update" ]
+- apiGroups: [ "networking.k8s.io" ]
+  resources: [ "ingresses" ]
+  verbs: [ "create","delete","get","list","patch","update","watch" ]
+- apiGroups: [ "route.openshift.io" ]
+  resources: [ "routes", "routes/custom-host" ]
+  verbs: [ "create","delete","get","list","patch","update","watch" ]
+- apiGroups: [ "policy" ]
+  resources: [ "poddisruptionbudget" ]
+  verbs: ["get","list"]
+---
+# Source: amazon-cloudwatch-observability/templates/cloudwatch-agent-clusterrolebinding.yaml
+kind: ClusterRoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: cloudwatch-agent-role-binding
+roleRef:
+  kind: ClusterRole
+  name: cloudwatch-agent-role
+  apiGroup: rbac.authorization.k8s.io
+subjects:
+- kind: ServiceAccount
+  name: cloudwatch-agent
+  namespace: amazon-cloudwatch
+---
+# Source: amazon-cloudwatch-observability/templates/operator-clusterrolebinding.yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  labels:
+    app.kubernetes.io/name: amazon-cloudwatch-observability
+    app.kubernetes.io/instance: amazon-cloudwatch-operator
+    app.kubernetes.io/version: "1.0.0"
+    app.kubernetes.io/managed-by: "amazon-cloudwatch-agent-operator"
+  name: amazon-cloudwatch-observability-manager-rolebinding
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: amazon-cloudwatch-observability-manager-role
+subjects:
+- kind: ServiceAccount
+  name: amazon-cloudwatch-observability-controller-manager
+  namespace: amazon-cloudwatch
+---
+# Source: amazon-cloudwatch-observability/templates/linux/dcgm-exporter-role.yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: "dcgm-exporter-role"
+  namespace: amazon-cloudwatch
+  labels:
+    app.kubernetes.io/name: amazon-cloudwatch-observability
+    app.kubernetes.io/instance: amazon-cloudwatch-operator
+    app.kubernetes.io/version: "1.0.0"
+    app.kubernetes.io/managed-by: "amazon-cloudwatch-agent-operator"
+rules:
+- apiGroups: [""]
+  resources: ["configmaps"]
+  resourceNames: ["dcgm-exporter-config-map"]
+  verbs: ["get"]
+---
+# Source: amazon-cloudwatch-observability/templates/linux/neuron-monitor-exporter-role.yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: "neuron-monitor-role"
+  namespace: amazon-cloudwatch
+  labels:
+    app.kubernetes.io/name: amazon-cloudwatch-observability
+    app.kubernetes.io/instance: amazon-cloudwatch-operator
+    app.kubernetes.io/version: "1.0.0"
+    app.kubernetes.io/managed-by: "amazon-cloudwatch-agent-operator"
+rules:
+- apiGroups: [""]
+  resources: ["configmaps"]
+  resourceNames: ["neuron-monitor-config-map"]
+  verbs: ["get"]
+---
+# Source: amazon-cloudwatch-observability/templates/linux/dcgm-exporter-rolebinding.yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  namespace: amazon-cloudwatch
+  name: dcgm-exporter-role-binding
+  labels:
+    app.kubernetes.io/name: amazon-cloudwatch-observability
+    app.kubernetes.io/instance: amazon-cloudwatch-operator
+    app.kubernetes.io/version: "1.0.0"
+    app.kubernetes.io/managed-by: "amazon-cloudwatch-agent-operator"
+roleRef:
+  kind: Role
+  name: "dcgm-exporter-role"
+  apiGroup: rbac.authorization.k8s.io
+subjects:
+- kind: ServiceAccount
+  name: dcgm-exporter-service-acct
+  namespace: amazon-cloudwatch
+---
+# Source: amazon-cloudwatch-observability/templates/linux/neuron-monitor-exporter-rolebinding.yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  namespace: amazon-cloudwatch
+  name: neuron-monitor-role-binding
+  labels:
+    app.kubernetes.io/name: amazon-cloudwatch-observability
+    app.kubernetes.io/instance: amazon-cloudwatch-operator
+    app.kubernetes.io/version: "1.0.0"
+    app.kubernetes.io/managed-by: "amazon-cloudwatch-agent-operator"
+roleRef:
+  kind: Role
+  name: "neuron-monitor-role"
+  apiGroup: rbac.authorization.k8s.io
+subjects:
+- kind: ServiceAccount
+  name: neuron-monitor-service-acct
+  namespace: amazon-cloudwatch
+---
+# Source: amazon-cloudwatch-observability/templates/operator-service.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app.kubernetes.io/name: amazon-cloudwatch-observability
+    app.kubernetes.io/instance: amazon-cloudwatch-operator
+    app.kubernetes.io/version: "1.0.0"
+    app.kubernetes.io/managed-by: "amazon-cloudwatch-agent-operator"
+  name: amazon-cloudwatch-observability-webhook-service
+  namespace: amazon-cloudwatch
+spec:
+  ports:
+  - port: 443
+    protocol: TCP
+    targetPort: 9443
+  selector:
+    app.kubernetes.io/name: amazon-cloudwatch-observability
+    control-plane: controller-manager
+---
+# Source: amazon-cloudwatch-observability/templates/linux/fluent-bit-daemonset.yaml
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: fluent-bit
+  namespace: amazon-cloudwatch
+  labels:
+    k8s-app: fluent-bit
+    version: v1
+    kubernetes.io/cluster-service: "true"
+spec:
+  selector:
+    matchLabels:
+      k8s-app: fluent-bit
+  template:
+    metadata:
+      annotations:
+        checksum/config: d28079bf4bb67323119115c537098f8ba192aec0426ff53b1e3f7039dcfff3a3
+      labels:
+        k8s-app: fluent-bit
+        version: v1
+        kubernetes.io/cluster-service: "true"
+    spec:
+      containers:
+      - name: fluent-bit
+        image: public.ecr.aws/aws-observability/aws-for-fluent-bit:2.32.2.20240627
+        imagePullPolicy: Always
+        env:
+        - name: AWS_REGION
+          value: us-east-1
+        - name: CLUSTER_NAME
+          value: "cloudwatchagent-ta-dev"
+        - name: READ_FROM_HEAD
+          value: "Off"
+        - name: READ_FROM_TAIL
+          value: "On"
+        - name: HOST_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: spec.nodeName
+        - name: HOSTNAME
+          valueFrom:
+            fieldRef:
+              apiVersion: v1
+              fieldPath: metadata.name
+        - name: CI_VERSION
+          value: "k8s/1.3.17"
+        resources:
+          limits:
+            cpu: 500m
+            memory: 250Mi
+          requests:
+            cpu: 50m
+            memory: 25Mi
+        volumeMounts:
+        # Please don't change below read-only permissions
+        - name: fluentbitstate
+          mountPath: /var/fluent-bit/state
+        - name: varlog
+          mountPath: /var/log
+          readOnly: true
+        - name: varlibdockercontainers
+          mountPath: /var/lib/docker/containers
+          readOnly: true
+        - name: fluent-bit-config
+          mountPath: /fluent-bit/etc/
+        - name: runlogjournal
+          mountPath: /run/log/journal
+          readOnly: true
+        - name: dmesg
+          mountPath: /var/log/dmesg
+          readOnly: true
+      terminationGracePeriodSeconds: 10
+      hostNetwork: true
+      dnsPolicy: ClusterFirstWithHostNet
+      volumes:
+      - name: fluentbitstate
+        hostPath:
+          path: /var/fluent-bit/state
+      - name: varlog
+        hostPath:
+          path: /var/log
+      - name: varlibdockercontainers
+        hostPath:
+          path: /var/lib/docker/containers
+      - name: fluent-bit-config
+        configMap:
+          name: fluent-bit-config
+      - name: runlogjournal
+        hostPath:
+          path: /run/log/journal
+      - name: dmesg
+        hostPath:
+          path: /var/log/dmesg
+      serviceAccountName: cloudwatch-agent
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: eks.amazonaws.com/compute-type
+                    operator: NotIn
+                    values:
+                      - fargate
+      nodeSelector:
+        kubernetes.io/os: linux
+      tolerations:
+      - operator: Exists
+---
+# Source: amazon-cloudwatch-observability/templates/windows/fluent-bit-windows-daemonset.yaml
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: fluent-bit-windows
+  namespace: amazon-cloudwatch
+  labels:
+    k8s-app: fluent-bit
+    version: v1
+    kubernetes.io/cluster-service: "true"
+spec:
+  selector:
+    matchLabels:
+      k8s-app: fluent-bit
+  template:
+    metadata:
+      annotations:
+        checksum/config: f878199d937d18566c364ffd6119fe4f9dd500a1b63080c1469fa0a3cf14ebe4
+      labels:
+        k8s-app: fluent-bit
+        version: v1
+        kubernetes.io/cluster-service: "true"
+    spec:
+      securityContext:
+        windowsOptions:
+          hostProcess: true
+          runAsUserName: "NT AUTHORITY\\System"
+      hostNetwork: true
+      nodeSelector:
+        kubernetes.io/os: windows
+      containers:
+      - name: fluent-bit
+        image: public.ecr.aws/aws-observability/aws-for-fluent-bit:2.31.12-windowsservercore
+        imagePullPolicy: Always
+        command: ["powershell.exe", "-Command", "New-Item -ItemType Directory -Path C:\\var\\fluent-bit\\state -Force;", "%CONTAINER_SANDBOX_MOUNT_POINT%/fluent-bit/bin/fluent-bit.exe", "-e", "%CONTAINER_SANDBOX_MOUNT_POINT%/fluent-bit/kinesis.dll", "-e", "%CONTAINER_SANDBOX_MOUNT_POINT%/fluent-bit/firehose.dll", "-e", "%CONTAINER_SANDBOX_MOUNT_POINT%/fluent-bit/cloudwatch.dll", "-c", "%CONTAINER_SANDBOX_MOUNT_POINT%/fluent-bit/configuration/fluent-bit.conf"]
+        env:
+        - name: AWS_REGION
+          value: us-east-1
+        - name: CLUSTER_NAME
+          value: "cloudwatchagent-ta-dev"
+        - name: READ_FROM_HEAD
+          value: "Off"
+        - name: HOST_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: spec.nodeName
+        - name: HOSTNAME
+          valueFrom:
+            fieldRef:
+              apiVersion: v1
+              fieldPath: metadata.name
+        - name: CI_VERSION
+          value: "k8s/1.3.17"
+        resources:
+          limits:
+            cpu: 500m
+            memory: 250Mi
+          requests:
+            cpu: 50m
+            memory: 25Mi
+        volumeMounts:
+          - name: fluent-bit-config
+            mountPath: fluent-bit\configuration\
+      volumes:
+        - name: fluent-bit-config
+          configMap:
+            name: fluent-bit-windows-config
+      terminationGracePeriodSeconds: 10
+      dnsPolicy: ClusterFirstWithHostNet
+      serviceAccountName: cloudwatch-agent
+      tolerations:
+      - operator: Exists
+---
+# Source: amazon-cloudwatch-observability/templates/operator-deployment.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app.kubernetes.io/name: amazon-cloudwatch-observability
+    app.kubernetes.io/instance: amazon-cloudwatch-operator
+    app.kubernetes.io/version: "1.0.0"
+    app.kubernetes.io/managed-by: "amazon-cloudwatch-agent-operator"
+    control-plane: controller-manager
+  name: amazon-cloudwatch-observability-controller-manager
+  namespace: amazon-cloudwatch
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: amazon-cloudwatch-observability
+      control-plane: controller-manager
+  template:
+    metadata:
+      annotations:
+      labels:
+        app.kubernetes.io/name: amazon-cloudwatch-observability
+        control-plane: controller-manager
+        
+    spec:
+      containers:
+      - image: 956457624121.dkr.ecr.us-west-2.amazonaws.com/operator:latest
+        args:
+        - "--auto-instrumentation-config={\"dotnet\":{\"limits\":{\"cpu\":\"500m\",\"memory\":\"128Mi\"},\"requests\":{\"cpu\":\"50m\",\"memory\":\"128Mi\"}},\"java\":{\"limits\":{\"cpu\":\"500m\",\"memory\":\"64Mi\"},\"requests\":{\"cpu\":\"50m\",\"memory\":\"64Mi\"}},\"python\":{\"limits\":{\"cpu\":\"500m\",\"memory\":\"32Mi\"},\"requests\":{\"cpu\":\"50m\",\"memory\":\"32Mi\"}}}"
+        - "--auto-annotation-config={\"dotnet\":{\"daemonsets\":[],\"deployments\":[],\"namespaces\":[],\"statefulsets\":[]},\"java\":{\"daemonsets\":[],\"deployments\":[],\"namespaces\":[],\"statefulsets\":[]},\"python\":{\"daemonsets\":[],\"deployments\":[],\"namespaces\":[],\"statefulsets\":[]}}"
+        - "--auto-instrumentation-java-image=public.ecr.aws/aws-observability/adot-autoinstrumentation-java:v1.32.3"
+        - "--auto-instrumentation-python-image=public.ecr.aws/aws-observability/adot-autoinstrumentation-python:v0.3.0"
+        - "--auto-instrumentation-dotnet-image=public.ecr.aws/aws-observability/adot-autoinstrumentation-dotnet:v1.2.0"
+        - "--feature-gates=operator.autoinstrumentation.multi-instrumentation,operator.autoinstrumentation.multi-instrumentation.skip-container-validation"
+        command:
+        - /manager
+        name: manager
+        ports:
+        - containerPort: 9443
+          name: webhook-server
+          protocol: TCP
+        resources: 
+          requests:
+            cpu: 100m
+            memory: 64Mi
+        volumeMounts:
+        - mountPath: /tmp/k8s-webhook-server/serving-certs
+          name: cert
+          readOnly: true
+      serviceAccountName: amazon-cloudwatch-observability-controller-manager
+      terminationGracePeriodSeconds: 10
+      volumes:
+      - name: cert
+        secret:
+          defaultMode: 420
+          secretName: amazon-cloudwatch-observability-controller-manager-service-cert
+      nodeSelector:
+        kubernetes.io/os: linux
+      tolerations:
+      - operator: Exists
+---
+# Source: amazon-cloudwatch-observability/templates/linux/cloudwatch-agent-daemonset.yaml
+apiVersion: cloudwatch.aws.amazon.com/v1alpha1
+kind: AmazonCloudWatchAgent
+metadata:
+  name: cloudwatch-agent
+  namespace: amazon-cloudwatch
+spec:
+  image: public.ecr.aws/cloudwatch-agent/cloudwatch-agent:1.300044.0b793
+  mode: statefulset
+  nodeSelector:
+    kubernetes.io/os: linux
+  serviceAccount: cloudwatch-agent
+  affinity:
+    nodeAffinity:
+      requiredDuringSchedulingIgnoredDuringExecution:
+        nodeSelectorTerms:
+          - matchExpressions:
+              - key: eks.amazonaws.com/compute-type
+                operator: NotIn
+                values:
+                  - fargate
+  # hostNetwork: true
+  config: "{\"agent\":{\"region\":\"us-east-1\"},\"logs\":{\"metrics_collected\":{\"kubernetes\":{\"cluster_name\":\"cloudwatchagent-ta-dev\",\"enhanced_container_insights\":false}}}}"
+  resources:
+    limits:
+      cpu: 500m
+      memory: 512Mi
+    requests:
+      cpu: 250m
+      memory: 128Mi
+  volumeMounts:
+  - mountPath: /rootfs
+    name: rootfs
+    readOnly: true
+  - mountPath: /var/run/docker.sock
+    name: dockersock
+    readOnly: true
+  - mountPath: /run/containerd/containerd.sock
+    name: containerdsock
+  - mountPath: /var/lib/docker
+    name: varlibdocker
+    readOnly: true
+  - mountPath: /sys
+    name: sys
+    readOnly: true
+  - mountPath: /dev/disk
+    name: devdisk
+    readOnly: true
+  - mountPath: /etc/amazon-cloudwatch-observability-agent-cert
+    name: agenttls
+    readOnly: true
+  - mountPath: /var/lib/kubelet/pod-resources
+    name: kubelet-podresources
+  volumes:
+  - name: kubelet-podresources
+    hostPath:
+      path: /var/lib/kubelet/pod-resources
+      type: Directory
+  - name: rootfs
+    hostPath:
+      path: /
+  - hostPath:
+      path: /var/run/docker.sock
+    name: dockersock
+  - hostPath:
+      path: /var/lib/docker
+    name: varlibdocker
+  - hostPath:
+      path: /run/containerd/containerd.sock
+    name: containerdsock
+  - hostPath:
+      path: /sys
+    name: sys
+  - hostPath:
+      path: /dev/disk/
+    name: devdisk
+  - name: agenttls
+    secret:
+      secretName: amazon-cloudwatch-observability-agent-cert
+      items:
+        - key: ca.crt
+          path: tls-ca.crt
+  env:
+  - name: K8S_NODE_NAME
+    valueFrom:
+      fieldRef:
+        fieldPath: spec.nodeName
+  - name: HOST_IP
+    valueFrom:
+      fieldRef:
+        fieldPath: status.hostIP
+  - name: HOST_NAME
+    valueFrom:
+      fieldRef:
+        fieldPath: spec.nodeName
+  - name: K8S_NAMESPACE
+    valueFrom:
+      fieldRef:
+        fieldPath: metadata.namespace
+  prometheusConfig: |
+    config:
+      global:
+        scrape_interval: 1m
+        scrape_timeout: 10s
+      scrape_configs:
+      - job_name: 'cwa-collector'
+        scrape_interval: 10s
+        static_configs:
+        - targets: [ '0.0.0.0:8888' ]
+      - job_name: 'cwa-ta-collector-server'
+        scrape_interval: 10s
+        static_configs:
+        - targets: [ '0.0.0.0:8888' ]
+        global:
+      - job_name: 'kubernetes-pod-appmesh-envoy'
+        sample_limit: 10000
+        metrics_path: /stats/prometheus
+        kubernetes_sd_configs:
+        - role: pod
+        relabel_configs:
+        - source_labels: [__meta_kubernetes_pod_container_name]
+          action: keep
+          regex: '^envoy$'
+        - source_labels: [__address__, __meta_kubernetes_pod_annotation_prometheus_io_port]
+          action: replace
+          regex: ([^:]+)(?::\d+)?;(\d+)
+          replacement: ${1}:9901
+          target_label: __address__
+        - action: labelmap
+          regex: __meta_kubernetes_pod_label_(.+)
+        - action: replace
+          source_labels:
+          - __meta_kubernetes_namespace
+          target_label: Namespace
+        - source_labels: [__meta_kubernetes_pod_name]
+          action: replace
+          target_label: pod_name
+        - action: replace
+          source_labels:
+          - __meta_kubernetes_pod_container_name
+          target_label: container_name
+        - action: replace
+          source_labels:
+          - __meta_kubernetes_pod_controller_name
+          target_label: pod_controller_name
+        - action: replace
+          source_labels:
+          - __meta_kubernetes_pod_controller_kind
+          target_label: pod_controller_kind
+        - action: replace
+          source_labels:
+          - __meta_kubernetes_pod_phase
+          target_label: pod_phase
+
+      - job_name: 'kubernetes-pod-fluentbit-plugin'
+        sample_limit: 10000
+        metrics_path: /api/v1/metrics/prometheus
+        kubernetes_sd_configs:
+        - role: pod
+        relabel_configs:
+        - source_labels: [__meta_kubernetes_pod_container_name]
+          action: keep
+          regex: '^fluent-bit.*$'
+        - source_labels: [__address__]
+          action: replace
+          regex: ([^:]+)(?::\d+)?
+          replacement: ${1}:2020
+          target_label: __address__
+        - action: labelmap
+          regex: __meta_kubernetes_pod_label_(.+)
+        - action: replace
+          source_labels:
+          - __meta_kubernetes_namespace
+          target_label: Namespace
+        - source_labels: [__meta_kubernetes_pod_name]
+          action: replace
+          target_label: pod_name
+        - action: replace
+          source_labels:
+          - __meta_kubernetes_pod_container_name
+          target_label: container_name
+        - action: replace
+          source_labels:
+          - __meta_kubernetes_pod_controller_name
+          target_label: pod_controller_name
+        - action: replace
+          source_labels:
+          - __meta_kubernetes_pod_controller_kind
+          target_label: pod_controller_kind
+        - action: replace
+          source_labels:
+          - __meta_kubernetes_pod_phase
+          target_label: pod_phase
+        - action: replace
+          source_labels:
+          - __meta_kubernetes_pod_node_name
+          target_label: NodeName
+
+      - job_name: kubernetes-service-endpoints
+        sample_limit: 10000
+        kubernetes_sd_configs:
+        - role: endpoints
+        relabel_configs:
+        - action: keep
+          regex: true
+          source_labels:
+          - __meta_kubernetes_service_annotation_prometheus_io_scrape
+        - action: replace
+          regex: (https?)
+          source_labels:
+          - __meta_kubernetes_service_annotation_prometheus_io_scheme
+          target_label: __scheme__
+        - action: replace
+          regex: (.+)
+          source_labels:
+          - __meta_kubernetes_service_annotation_prometheus_io_path
+          target_label: __metrics_path__
+        - action: replace
+          regex: ([^:]+)(?::\d+)?;(\d+)
+          replacement: $1:$2
+          source_labels:
+          - __address__
+          - __meta_kubernetes_service_annotation_prometheus_io_port
+          target_label: __address__
+        - action: labelmap
+          regex: __meta_kubernetes_service_label_(.+)
+        - action: replace
+          source_labels:
+          - __meta_kubernetes_namespace
+          target_label: Namespace
+        - action: replace
+          source_labels:
+          - __meta_kubernetes_service_name
+          target_label: Service
+        - action: replace
+          source_labels:
+          - __meta_kubernetes_pod_node_name
+          target_label: kubernetes_node
+        - action: replace
+          source_labels:
+          - __meta_kubernetes_pod_name
+          target_label: pod_name
+        - action: replace
+          source_labels:
+          - __meta_kubernetes_pod_container_name
+          target_label: container_name
+        metric_relabel_configs:
+        - source_labels: [__name__]
+          regex: 'go_gc_duration_seconds.*'
+          action: drop
+        - source_labels: [__name__, proxy]
+          regex: "haproxy_frontend.+;(.+)"
+          target_label: frontend
+          replacement: "$1"
+        - source_labels: [__name__, proxy]
+          regex: "haproxy_server.+;(.+)"
+          target_label: backend
+          replacement: "$1"
+        - source_labels: [__name__, proxy]
+          regex: "haproxy_backend.+;(.+)"
+          target_label: backend
+          replacement: "$1"
+        - regex: proxy
+          action: labeldrop
+
+      - job_name: 'kubernetes-pod-jmx'
+        sample_limit: 10000
+        metrics_path: /metrics
+        kubernetes_sd_configs:
+        - role: pod
+        relabel_configs:
+        - source_labels: [__address__]
+          action: keep
+          regex: '.*:9404$'
+        - action: labelmap
+          regex: __meta_kubernetes_pod_label_(.+)
+        - action: replace
+          source_labels:
+          - __meta_kubernetes_namespace
+          target_label: Namespace
+        - source_labels: [__meta_kubernetes_pod_name]
+          action: replace
+          target_label: pod_name
+        - action: replace
+          source_labels:
+          - __meta_kubernetes_pod_container_name
+          target_label: container_name
+        - action: replace
+          source_labels:
+          - __meta_kubernetes_pod_controller_name
+          target_label: pod_controller_name
+        - action: replace
+          source_labels:
+          - __meta_kubernetes_pod_controller_kind
+          target_label: pod_controller_kind
+        - action: replace
+          source_labels:
+          - __meta_kubernetes_pod_phase
+          target_label: pod_phase
+        metric_relabel_configs:
+        - source_labels: [__name__]
+          regex: 'jvm_gc_collection_seconds.*'
+          action: drop
+        
+  targetAllocator:
+    enabled: true
+  replicas: 3
+  tolerations:
+  - operator: Exists
+---
+# Source: amazon-cloudwatch-observability/templates/windows/cloudwatch-agent-windows-daemonset.yaml
+apiVersion: cloudwatch.aws.amazon.com/v1alpha1
+kind: AmazonCloudWatchAgent
+metadata:
+  name: cloudwatch-agent-windows
+  namespace: amazon-cloudwatch
+spec:
+  podSecurityContext:
+    windowsOptions:
+      hostProcess: true
+      runAsUserName: "NT AUTHORITY\\System"
+  hostNetwork: true
+  image: public.ecr.aws/cloudwatch-agent/cloudwatch-agent:1.300044.0b793
+  workingDir: "%CONTAINER_SANDBOX_MOUNT_POINT%\\Program Files\\Amazon\\AmazonCloudWatchAgent"
+  mode: daemonset
+  serviceAccount: cloudwatch-agent
+  nodeSelector:
+    kubernetes.io/os: windows
+  config: "{\"logs\":{\"metrics_collected\":{\"application_signals\":{},\"kubernetes\":{\"enhanced_container_insights\":true}}},\"traces\":{\"traces_collected\":{\"application_signals\":{}}}}"
+  resources:
+    limits:
+      cpu: 500m
+      memory: 512Mi
+    requests:
+      cpu: 250m
+      memory: 128Mi
+  env:
+  - name: K8S_NODE_NAME
+    valueFrom:
+      fieldRef:
+        fieldPath: spec.nodeName
+  - name: HOST_IP
+    valueFrom:
+      fieldRef:
+        fieldPath: status.hostIP
+  - name: HOST_NAME
+    valueFrom:
+      fieldRef:
+        fieldPath: spec.nodeName
+  - name: K8S_NAMESPACE
+    valueFrom:
+      fieldRef:
+        fieldPath: metadata.namespace
+  - name: RUN_IN_CONTAINER
+    value: "True"
+  - name: RUN_AS_HOST_PROCESS_CONTAINER
+    value: "True"
+  tolerations:
+  - operator: Exists
+---
+# Source: amazon-cloudwatch-observability/templates/linux/dcgm-exporter-daemonset.yaml
+apiVersion: cloudwatch.aws.amazon.com/v1alpha1
+kind: DcgmExporter
+metadata:
+  name: dcgm-exporter
+  namespace: amazon-cloudwatch
+  labels:
+    k8s-app: dcgm-exporter
+    version: v1
+spec:
+  image: nvcr.io/nvidia/k8s/dcgm-exporter:3.3.3-3.3.1-ubuntu22.04
+  nodeSelector:
+    kubernetes.io/os: linux
+  serviceAccount: dcgm-exporter-service-acct
+  affinity:
+    nodeAffinity:
+      requiredDuringSchedulingIgnoredDuringExecution:
+        nodeSelectorTerms:
+          - matchExpressions:
+              - key: node.kubernetes.io/instance-type
+                operator: In
+                values: 
+                - p2.xlarge
+                - p2.8xlarge
+                - p2.16xlarge
+                - p3.2xlarge
+                - p3.8xlarge
+                - p3.16xlarge
+                - p3dn.24xlarge
+                - p4d.24xlarge
+                - p4de.24xlarge
+                - p5.48xlarge
+                - g3s.xlarge
+                - g3.4xlarge
+                - g3.8xlarge
+                - g3.16xlarge
+                - g4dn.xlarge
+                - g4dn.2xlarge
+                - g4dn.4xlarge
+                - g4dn.8xlarge
+                - g4dn.16xlarge
+                - g4dn.12xlarge
+                - g4dn.metal
+                - g4ad.xlarge
+                - g4ad.2xlarge
+                - g4ad.4xlarge
+                - g4ad.8xlarge
+                - g4ad.16xlarge
+                - g5.xlarge
+                - g5.2xlarge
+                - g5.4xlarge
+                - g5.8xlarge
+                - g5.16xlarge
+                - g5.12xlarge
+                - g5.24xlarge
+                - g5.48xlarge
+                - g5g.xlarge
+                - g5g.2xlarge
+                - g5g.4xlarge
+                - g5g.8xlarge
+                - g5g.16xlarge
+                - g5g.metal
+                - ml.p5.48xlarge
+                - ml.p4d.24xlarge
+                - ml.p4de.24xlarge
+                - ml.p3.2xlarge
+                - ml.p3.8xlarge
+                - ml.p3.16xlarge
+                - ml.p3dn.24xlarge
+                - ml.p2.xlarge
+                - ml.p2.8xlarge
+                - ml.p2.16xlarge
+                - ml.g3s.xlarge
+                - ml.g3.4xlarge
+                - ml.g3.8xlarge
+                - ml.g3.16xlarge
+                - ml.g4dn.xlarge
+                - ml.g4dn.2xlarge
+                - ml.g4dn.4xlarge
+                - ml.g4dn.8xlarge
+                - ml.g4dn.16xlarge
+                - ml.g4dn.12xlarge
+                - ml.g4dn.metal
+                - ml.g4ad.xlarge
+                - ml.g4ad.2xlarge
+                - ml.g4ad.4xlarge
+                - ml.g4ad.8xlarge
+                - ml.g4ad.16xlarge
+                - ml.g5.xlarge
+                - ml.g5.2xlarge
+                - ml.g5.4xlarge
+                - ml.g5.8xlarge
+                - ml.g5.16xlarge
+                - ml.g5.12xlarge
+                - ml.g5.24xlarge
+                - ml.g5.48xlarge
+                - ml.g5g.xlarge
+                - ml.g5g.2xlarge
+                - ml.g5g.4xlarge
+                - ml.g5g.8xlarge
+                - ml.g5g.16xlarge
+                - ml.g5g.metal
+              - key: eks.amazonaws.com/compute-type
+                operator: NotIn
+                values:
+                  - fargate
+  resources:
+    limits:
+      cpu: 500m
+      memory: 500Mi
+    requests:
+      cpu: 250m
+      memory: 128Mi
+  env:
+  - name: "DCGM_EXPORTER_KUBERNETES"
+    value: "true"
+  - name: "DCGM_EXPORTER_LISTEN"
+    value: ":9400"
+  - name: NODE_NAME
+    valueFrom:
+      fieldRef:
+        fieldPath: spec.nodeName
+  ports:
+  - name: "metrics"
+    port: 9400
+  volumeMounts:
+  - name: "pod-gpu-resources"
+    readOnly: true
+    mountPath: "/var/lib/kubelet/pod-resources"
+  - mountPath: /etc/amazon-cloudwatch-observability-dcgm-cert
+    name: dcgmtls
+    readOnly: true
+  volumes:
+  - name: dcgmtls
+    secret:
+      secretName: amazon-cloudwatch-observability-agent-cert
+      items:
+        - key: tls.crt
+          path: server.crt
+        - key:  tls.key
+          path: server.key
+  - name: "pod-gpu-resources"
+    hostPath:
+      path: /var/lib/kubelet/pod-resources
+  metricsConfig: |
+    DCGM_FI_DEV_GPU_UTIL,      gauge, GPU utilization (in %).
+    DCGM_FI_DEV_MEM_COPY_UTIL, gauge, Memory utilization (in %).
+    DCGM_FI_DEV_FB_FREE, gauge, Framebuffer memory free (in MiB).
+    DCGM_FI_DEV_FB_USED, gauge, Framebuffer memory used (in MiB).
+    DCGM_FI_DEV_FB_TOTAL, gauge, Framebuffer memory used (in MiB).
+    DCGM_FI_DEV_FB_USED_PERCENT, gauge, Percentage used of Frame Buffer: Used/(Total - Reserved).
+    DCGM_FI_DEV_MEMORY_TEMP, gauge, Memory temperature (in C).
+    DCGM_FI_DEV_GPU_TEMP,    gauge, GPU temperature (in C).
+    DCGM_FI_DEV_POWER_USAGE,              gauge, Power draw (in W).
+  tlsConfig: |
+    tls_server_config:
+      cert_file: /etc/amazon-cloudwatch-observability-dcgm-cert/server.crt
+      key_file: /etc/amazon-cloudwatch-observability-dcgm-cert/server.key
+  tolerations:
+  - operator: Exists
+---
+# Source: amazon-cloudwatch-observability/templates/admission-webhooks/operator-webhook.yaml
+apiVersion: admissionregistration.k8s.io/v1
+kind: MutatingWebhookConfiguration
+metadata:
+  labels:
+    app.kubernetes.io/name: amazon-cloudwatch-observability
+    app.kubernetes.io/instance: amazon-cloudwatch-operator
+    app.kubernetes.io/version: "1.0.0"
+    app.kubernetes.io/managed-by: "amazon-cloudwatch-agent-operator"
+  name: amazon-cloudwatch-observability-mutating-webhook-configuration
+webhooks:
+- admissionReviewVersions:
+  - v1
+  clientConfig:
+    service:
+      name: amazon-cloudwatch-observability-webhook-service
+      namespace: amazon-cloudwatch
+      path: /mutate-cloudwatch-aws-amazon-com-v1alpha1-instrumentation
+    caBundle: LS0tLS1CRUdJTiBDRVJUSUZJQ0FURS0tLS0tCk1JSURSakNDQWk2Z0F3SUJBZ0lSQU9pMmxCWXFvR0hYbkY3WEFuWDBXek13RFFZSktvWklodmNOQVFFTEJRQXcKTFRFck1Da0dBMVVFQXhNaVlXMWhlbTl1TFdOc2IzVmtkMkYwWTJndGIySnpaWEoyWVdKcGJHbDBlUzFqWVRBZQpGdzB5TkRBNE1qY3lNREV3TURCYUZ3MHpOREE0TWpVeU1ERXdNREJhTUMweEt6QXBCZ05WQkFNVEltRnRZWHB2CmJpMWpiRzkxWkhkaGRHTm9MVzlpYzJWeWRtRmlhV3hwZEhrdFkyRXdnZ0VpTUEwR0NTcUdTSWIzRFFFQkFRVUEKQTRJQkR3QXdnZ0VLQW9JQkFRQy9UYXkwVDd6K3FYVHQ1bGQvWEtPeXJ1Q1g2YkU3Q0pjR2JnZW5ndmRabjJLYwpqaW1Mb0x1dHFIREZZSnovRjRFeCs3NDVVMmMwREtXYjV6WW1XZTdPdWU0dGR6dXRoVmJjT3ZRanNjV1FXR1NWCnhNY01iUVJnSUNFeWQzWHlSRytUQUk1cDZGSFE1MDRER0xMN1Q0aXZHWFZkYS9nNXpqZFFMV09pWmlIVVhXTHYKcjJYdzg2cEd3T0xqTmpQNnlWYnNYT1BhYlRGOEhaOUlkNHVTenNOWWtNMW95M1dxS3VUYkkzZzBWV29aYXpRVQpTdnpmZTJuRXd3YmRwREw5U0FKSE9oYXJTY3hkUHYxMldibDhVVkRsaW5naXA2K2NkT0h1UEh3RW9NUDRwNllyCmYxbk1YNlYzb2ZZM25IRFB0QVNlbERMMUJQTWw0NnV1UndEUDVDMGZBZ01CQUFHallUQmZNQTRHQTFVZER3RUIKL3dRRUF3SUNwREFkQmdOVkhTVUVGakFVQmdnckJnRUZCUWNEQVFZSUt3WUJCUVVIQXdJd0R3WURWUjBUQVFILwpCQVV3QXdFQi96QWRCZ05WSFE0RUZnUVVMSHBEMnRnbkU3Y0FqZ1NhbllUUjl4UUF5cDR3RFFZSktvWklodmNOCkFRRUxCUUFEZ2dFQkFHeFdrTENBVEFjUDl6eTJXWUJyYWMyaCttNzlNVDFKTnFJQmFSMDFTL0o0WlBrZGlxdWoKTzc5dnR3QnZJc2VPQXliL2xYL0tsOGFrNThZOGlmOVdTOW9oOFdhejBMSk9FV1RaR2dTMllDeFdteGttcTUydgpabWpyVXdEZ3haMG1QVzVlUnhlUlhwREJKbng1VUZpWVFvUzBWdjc5dFdIbzZENzUrKzJCNStNWXNyZ29ZRFhICndZVll3c1Y5QXIwMzZOM0w1clFURGx5SXhCekVSYWR1cWcyelJac1RhMWpMNFExR2pVajRoSW9ub2w1R3Z2eUgKQjZ4TFhLYkdIQ0xENHhHbVZvYVM2TS9OK2ZabTJmaGt0ZTF5bUdhT20vQks5cktCWWFjZnUvbTloa3RUY0RLUApjOUt1Wi9xK1ljZTJLK2FQbVIyNjEyU0NTbUg5ZTlUZmNpWT0KLS0tLS1FTkQgQ0VSVElGSUNBVEUtLS0tLQo=
+  failurePolicy: Ignore
+  name: minstrumentation.kb.io
+  rules:
+  - apiGroups:
+    - cloudwatch.aws.amazon.com
+    apiVersions:
+    - v1alpha1
+    operations:
+    - CREATE
+    - UPDATE
+    resources:
+    - instrumentations
+  sideEffects: None
+  timeoutSeconds: 10
+- admissionReviewVersions:
+  - v1
+  clientConfig:
+    service:
+      name: amazon-cloudwatch-observability-webhook-service
+      namespace: amazon-cloudwatch
+      path: /mutate-cloudwatch-aws-amazon-com-v1alpha1-amazoncloudwatchagent
+    caBundle: LS0tLS1CRUdJTiBDRVJUSUZJQ0FURS0tLS0tCk1JSURSakNDQWk2Z0F3SUJBZ0lSQU9pMmxCWXFvR0hYbkY3WEFuWDBXek13RFFZSktvWklodmNOQVFFTEJRQXcKTFRFck1Da0dBMVVFQXhNaVlXMWhlbTl1TFdOc2IzVmtkMkYwWTJndGIySnpaWEoyWVdKcGJHbDBlUzFqWVRBZQpGdzB5TkRBNE1qY3lNREV3TURCYUZ3MHpOREE0TWpVeU1ERXdNREJhTUMweEt6QXBCZ05WQkFNVEltRnRZWHB2CmJpMWpiRzkxWkhkaGRHTm9MVzlpYzJWeWRtRmlhV3hwZEhrdFkyRXdnZ0VpTUEwR0NTcUdTSWIzRFFFQkFRVUEKQTRJQkR3QXdnZ0VLQW9JQkFRQy9UYXkwVDd6K3FYVHQ1bGQvWEtPeXJ1Q1g2YkU3Q0pjR2JnZW5ndmRabjJLYwpqaW1Mb0x1dHFIREZZSnovRjRFeCs3NDVVMmMwREtXYjV6WW1XZTdPdWU0dGR6dXRoVmJjT3ZRanNjV1FXR1NWCnhNY01iUVJnSUNFeWQzWHlSRytUQUk1cDZGSFE1MDRER0xMN1Q0aXZHWFZkYS9nNXpqZFFMV09pWmlIVVhXTHYKcjJYdzg2cEd3T0xqTmpQNnlWYnNYT1BhYlRGOEhaOUlkNHVTenNOWWtNMW95M1dxS3VUYkkzZzBWV29aYXpRVQpTdnpmZTJuRXd3YmRwREw5U0FKSE9oYXJTY3hkUHYxMldibDhVVkRsaW5naXA2K2NkT0h1UEh3RW9NUDRwNllyCmYxbk1YNlYzb2ZZM25IRFB0QVNlbERMMUJQTWw0NnV1UndEUDVDMGZBZ01CQUFHallUQmZNQTRHQTFVZER3RUIKL3dRRUF3SUNwREFkQmdOVkhTVUVGakFVQmdnckJnRUZCUWNEQVFZSUt3WUJCUVVIQXdJd0R3WURWUjBUQVFILwpCQVV3QXdFQi96QWRCZ05WSFE0RUZnUVVMSHBEMnRnbkU3Y0FqZ1NhbllUUjl4UUF5cDR3RFFZSktvWklodmNOCkFRRUxCUUFEZ2dFQkFHeFdrTENBVEFjUDl6eTJXWUJyYWMyaCttNzlNVDFKTnFJQmFSMDFTL0o0WlBrZGlxdWoKTzc5dnR3QnZJc2VPQXliL2xYL0tsOGFrNThZOGlmOVdTOW9oOFdhejBMSk9FV1RaR2dTMllDeFdteGttcTUydgpabWpyVXdEZ3haMG1QVzVlUnhlUlhwREJKbng1VUZpWVFvUzBWdjc5dFdIbzZENzUrKzJCNStNWXNyZ29ZRFhICndZVll3c1Y5QXIwMzZOM0w1clFURGx5SXhCekVSYWR1cWcyelJac1RhMWpMNFExR2pVajRoSW9ub2w1R3Z2eUgKQjZ4TFhLYkdIQ0xENHhHbVZvYVM2TS9OK2ZabTJmaGt0ZTF5bUdhT20vQks5cktCWWFjZnUvbTloa3RUY0RLUApjOUt1Wi9xK1ljZTJLK2FQbVIyNjEyU0NTbUg5ZTlUZmNpWT0KLS0tLS1FTkQgQ0VSVElGSUNBVEUtLS0tLQo=
+  failurePolicy: Ignore
+  name: mamazoncloudwatchagent.kb.io
+  rules:
+  - apiGroups:
+    - cloudwatch.aws.amazon.com
+    apiVersions:
+    - v1alpha1
+    operations:
+    - CREATE
+    - UPDATE
+    resources:
+    - amazoncloudwatchagents
+  sideEffects: None
+  timeoutSeconds: 10
+- admissionReviewVersions:
+  - v1
+  clientConfig:
+    service:
+      name: amazon-cloudwatch-observability-webhook-service
+      namespace: amazon-cloudwatch
+      path: /mutate-v1-pod
+    caBundle: LS0tLS1CRUdJTiBDRVJUSUZJQ0FURS0tLS0tCk1JSURSakNDQWk2Z0F3SUJBZ0lSQU9pMmxCWXFvR0hYbkY3WEFuWDBXek13RFFZSktvWklodmNOQVFFTEJRQXcKTFRFck1Da0dBMVVFQXhNaVlXMWhlbTl1TFdOc2IzVmtkMkYwWTJndGIySnpaWEoyWVdKcGJHbDBlUzFqWVRBZQpGdzB5TkRBNE1qY3lNREV3TURCYUZ3MHpOREE0TWpVeU1ERXdNREJhTUMweEt6QXBCZ05WQkFNVEltRnRZWHB2CmJpMWpiRzkxWkhkaGRHTm9MVzlpYzJWeWRtRmlhV3hwZEhrdFkyRXdnZ0VpTUEwR0NTcUdTSWIzRFFFQkFRVUEKQTRJQkR3QXdnZ0VLQW9JQkFRQy9UYXkwVDd6K3FYVHQ1bGQvWEtPeXJ1Q1g2YkU3Q0pjR2JnZW5ndmRabjJLYwpqaW1Mb0x1dHFIREZZSnovRjRFeCs3NDVVMmMwREtXYjV6WW1XZTdPdWU0dGR6dXRoVmJjT3ZRanNjV1FXR1NWCnhNY01iUVJnSUNFeWQzWHlSRytUQUk1cDZGSFE1MDRER0xMN1Q0aXZHWFZkYS9nNXpqZFFMV09pWmlIVVhXTHYKcjJYdzg2cEd3T0xqTmpQNnlWYnNYT1BhYlRGOEhaOUlkNHVTenNOWWtNMW95M1dxS3VUYkkzZzBWV29aYXpRVQpTdnpmZTJuRXd3YmRwREw5U0FKSE9oYXJTY3hkUHYxMldibDhVVkRsaW5naXA2K2NkT0h1UEh3RW9NUDRwNllyCmYxbk1YNlYzb2ZZM25IRFB0QVNlbERMMUJQTWw0NnV1UndEUDVDMGZBZ01CQUFHallUQmZNQTRHQTFVZER3RUIKL3dRRUF3SUNwREFkQmdOVkhTVUVGakFVQmdnckJnRUZCUWNEQVFZSUt3WUJCUVVIQXdJd0R3WURWUjBUQVFILwpCQVV3QXdFQi96QWRCZ05WSFE0RUZnUVVMSHBEMnRnbkU3Y0FqZ1NhbllUUjl4UUF5cDR3RFFZSktvWklodmNOCkFRRUxCUUFEZ2dFQkFHeFdrTENBVEFjUDl6eTJXWUJyYWMyaCttNzlNVDFKTnFJQmFSMDFTL0o0WlBrZGlxdWoKTzc5dnR3QnZJc2VPQXliL2xYL0tsOGFrNThZOGlmOVdTOW9oOFdhejBMSk9FV1RaR2dTMllDeFdteGttcTUydgpabWpyVXdEZ3haMG1QVzVlUnhlUlhwREJKbng1VUZpWVFvUzBWdjc5dFdIbzZENzUrKzJCNStNWXNyZ29ZRFhICndZVll3c1Y5QXIwMzZOM0w1clFURGx5SXhCekVSYWR1cWcyelJac1RhMWpMNFExR2pVajRoSW9ub2w1R3Z2eUgKQjZ4TFhLYkdIQ0xENHhHbVZvYVM2TS9OK2ZabTJmaGt0ZTF5bUdhT20vQks5cktCWWFjZnUvbTloa3RUY0RLUApjOUt1Wi9xK1ljZTJLK2FQbVIyNjEyU0NTbUg5ZTlUZmNpWT0KLS0tLS1FTkQgQ0VSVElGSUNBVEUtLS0tLQo=
+  failurePolicy: Ignore
+  name: mpod.kb.io
+  rules:
+  - apiGroups:
+    - ""
+    apiVersions:
+    - v1
+    operations:
+    - CREATE
+    - UPDATE
+    resources:
+    - pods
+  sideEffects: None
+  timeoutSeconds: 10
+- admissionReviewVersions:
+  - v1
+  clientConfig:
+    service:
+      name: amazon-cloudwatch-observability-webhook-service
+      namespace: amazon-cloudwatch
+      path: /mutate-v1-namespace
+    caBundle: LS0tLS1CRUdJTiBDRVJUSUZJQ0FURS0tLS0tCk1JSURSakNDQWk2Z0F3SUJBZ0lSQU9pMmxCWXFvR0hYbkY3WEFuWDBXek13RFFZSktvWklodmNOQVFFTEJRQXcKTFRFck1Da0dBMVVFQXhNaVlXMWhlbTl1TFdOc2IzVmtkMkYwWTJndGIySnpaWEoyWVdKcGJHbDBlUzFqWVRBZQpGdzB5TkRBNE1qY3lNREV3TURCYUZ3MHpOREE0TWpVeU1ERXdNREJhTUMweEt6QXBCZ05WQkFNVEltRnRZWHB2CmJpMWpiRzkxWkhkaGRHTm9MVzlpYzJWeWRtRmlhV3hwZEhrdFkyRXdnZ0VpTUEwR0NTcUdTSWIzRFFFQkFRVUEKQTRJQkR3QXdnZ0VLQW9JQkFRQy9UYXkwVDd6K3FYVHQ1bGQvWEtPeXJ1Q1g2YkU3Q0pjR2JnZW5ndmRabjJLYwpqaW1Mb0x1dHFIREZZSnovRjRFeCs3NDVVMmMwREtXYjV6WW1XZTdPdWU0dGR6dXRoVmJjT3ZRanNjV1FXR1NWCnhNY01iUVJnSUNFeWQzWHlSRytUQUk1cDZGSFE1MDRER0xMN1Q0aXZHWFZkYS9nNXpqZFFMV09pWmlIVVhXTHYKcjJYdzg2cEd3T0xqTmpQNnlWYnNYT1BhYlRGOEhaOUlkNHVTenNOWWtNMW95M1dxS3VUYkkzZzBWV29aYXpRVQpTdnpmZTJuRXd3YmRwREw5U0FKSE9oYXJTY3hkUHYxMldibDhVVkRsaW5naXA2K2NkT0h1UEh3RW9NUDRwNllyCmYxbk1YNlYzb2ZZM25IRFB0QVNlbERMMUJQTWw0NnV1UndEUDVDMGZBZ01CQUFHallUQmZNQTRHQTFVZER3RUIKL3dRRUF3SUNwREFkQmdOVkhTVUVGakFVQmdnckJnRUZCUWNEQVFZSUt3WUJCUVVIQXdJd0R3WURWUjBUQVFILwpCQVV3QXdFQi96QWRCZ05WSFE0RUZnUVVMSHBEMnRnbkU3Y0FqZ1NhbllUUjl4UUF5cDR3RFFZSktvWklodmNOCkFRRUxCUUFEZ2dFQkFHeFdrTENBVEFjUDl6eTJXWUJyYWMyaCttNzlNVDFKTnFJQmFSMDFTL0o0WlBrZGlxdWoKTzc5dnR3QnZJc2VPQXliL2xYL0tsOGFrNThZOGlmOVdTOW9oOFdhejBMSk9FV1RaR2dTMllDeFdteGttcTUydgpabWpyVXdEZ3haMG1QVzVlUnhlUlhwREJKbng1VUZpWVFvUzBWdjc5dFdIbzZENzUrKzJCNStNWXNyZ29ZRFhICndZVll3c1Y5QXIwMzZOM0w1clFURGx5SXhCekVSYWR1cWcyelJac1RhMWpMNFExR2pVajRoSW9ub2w1R3Z2eUgKQjZ4TFhLYkdIQ0xENHhHbVZvYVM2TS9OK2ZabTJmaGt0ZTF5bUdhT20vQks5cktCWWFjZnUvbTloa3RUY0RLUApjOUt1Wi9xK1ljZTJLK2FQbVIyNjEyU0NTbUg5ZTlUZmNpWT0KLS0tLS1FTkQgQ0VSVElGSUNBVEUtLS0tLQo=
+  failurePolicy: Ignore
+  name: mnamespace.kb.io
+  rules:
+  - apiGroups:
+    - ""
+    apiVersions:
+    - v1
+    operations:
+    - CREATE
+    - UPDATE
+    resources:
+    - namespaces
+  sideEffects: None
+  timeoutSeconds: 10
+- admissionReviewVersions:
+  - v1
+  clientConfig:
+    service:
+      name: amazon-cloudwatch-observability-webhook-service
+      namespace: amazon-cloudwatch
+      path: /mutate-v1-workload
+    caBundle: LS0tLS1CRUdJTiBDRVJUSUZJQ0FURS0tLS0tCk1JSURSakNDQWk2Z0F3SUJBZ0lSQU9pMmxCWXFvR0hYbkY3WEFuWDBXek13RFFZSktvWklodmNOQVFFTEJRQXcKTFRFck1Da0dBMVVFQXhNaVlXMWhlbTl1TFdOc2IzVmtkMkYwWTJndGIySnpaWEoyWVdKcGJHbDBlUzFqWVRBZQpGdzB5TkRBNE1qY3lNREV3TURCYUZ3MHpOREE0TWpVeU1ERXdNREJhTUMweEt6QXBCZ05WQkFNVEltRnRZWHB2CmJpMWpiRzkxWkhkaGRHTm9MVzlpYzJWeWRtRmlhV3hwZEhrdFkyRXdnZ0VpTUEwR0NTcUdTSWIzRFFFQkFRVUEKQTRJQkR3QXdnZ0VLQW9JQkFRQy9UYXkwVDd6K3FYVHQ1bGQvWEtPeXJ1Q1g2YkU3Q0pjR2JnZW5ndmRabjJLYwpqaW1Mb0x1dHFIREZZSnovRjRFeCs3NDVVMmMwREtXYjV6WW1XZTdPdWU0dGR6dXRoVmJjT3ZRanNjV1FXR1NWCnhNY01iUVJnSUNFeWQzWHlSRytUQUk1cDZGSFE1MDRER0xMN1Q0aXZHWFZkYS9nNXpqZFFMV09pWmlIVVhXTHYKcjJYdzg2cEd3T0xqTmpQNnlWYnNYT1BhYlRGOEhaOUlkNHVTenNOWWtNMW95M1dxS3VUYkkzZzBWV29aYXpRVQpTdnpmZTJuRXd3YmRwREw5U0FKSE9oYXJTY3hkUHYxMldibDhVVkRsaW5naXA2K2NkT0h1UEh3RW9NUDRwNllyCmYxbk1YNlYzb2ZZM25IRFB0QVNlbERMMUJQTWw0NnV1UndEUDVDMGZBZ01CQUFHallUQmZNQTRHQTFVZER3RUIKL3dRRUF3SUNwREFkQmdOVkhTVUVGakFVQmdnckJnRUZCUWNEQVFZSUt3WUJCUVVIQXdJd0R3WURWUjBUQVFILwpCQVV3QXdFQi96QWRCZ05WSFE0RUZnUVVMSHBEMnRnbkU3Y0FqZ1NhbllUUjl4UUF5cDR3RFFZSktvWklodmNOCkFRRUxCUUFEZ2dFQkFHeFdrTENBVEFjUDl6eTJXWUJyYWMyaCttNzlNVDFKTnFJQmFSMDFTL0o0WlBrZGlxdWoKTzc5dnR3QnZJc2VPQXliL2xYL0tsOGFrNThZOGlmOVdTOW9oOFdhejBMSk9FV1RaR2dTMllDeFdteGttcTUydgpabWpyVXdEZ3haMG1QVzVlUnhlUlhwREJKbng1VUZpWVFvUzBWdjc5dFdIbzZENzUrKzJCNStNWXNyZ29ZRFhICndZVll3c1Y5QXIwMzZOM0w1clFURGx5SXhCekVSYWR1cWcyelJac1RhMWpMNFExR2pVajRoSW9ub2w1R3Z2eUgKQjZ4TFhLYkdIQ0xENHhHbVZvYVM2TS9OK2ZabTJmaGt0ZTF5bUdhT20vQks5cktCWWFjZnUvbTloa3RUY0RLUApjOUt1Wi9xK1ljZTJLK2FQbVIyNjEyU0NTbUg5ZTlUZmNpWT0KLS0tLS1FTkQgQ0VSVElGSUNBVEUtLS0tLQo=
+  failurePolicy: Ignore
+  name: mworkload.kb.io
+  rules:
+  - apiGroups:
+    - apps
+    apiVersions:
+    - v1
+    operations:
+    - CREATE
+    - UPDATE
+    resources:
+    - daemonsets
+    - deployments
+    - statefulsets
+  sideEffects: None
+  timeoutSeconds: 10
+---
+# Source: amazon-cloudwatch-observability/templates/linux/neuron-monitor-daemonset.yaml
+apiVersion: cloudwatch.aws.amazon.com/v1alpha1
+kind: NeuronMonitor
+metadata:
+  name: neuron-monitor
+  namespace: amazon-cloudwatch
+  labels:
+    k8s-app: neuron-monitor
+    version: v1
+spec:
+  image: public.ecr.aws/neuron/neuron-monitor:1.0.1
+  serviceAccount: neuron-monitor-service-acct
+  affinity:
+    nodeAffinity:
+      requiredDuringSchedulingIgnoredDuringExecution:
+        nodeSelectorTerms:
+          - matchExpressions:
+              - key: kubernetes.io/os
+                operator: In
+                values:
+                  - linux
+              - key: node.kubernetes.io/instance-type
+                operator: In
+                values: 
+                    - trn1.2xlarge
+                    - trn1.32xlarge
+                    - trn1n.32xlarge
+                    - inf1.xlarge
+                    - inf1.2xlarge
+                    - inf1.6xlarge
+                    - inf1.24xlarge
+                    - inf2.xlarge
+                    - inf2.8xlarge
+                    - inf2.24xlarge
+                    - inf2.48xlarge
+                    - ml.trn1.2xlarge
+                    - ml.trn1.32xlarge
+                    - ml.trn1n.32xlarge
+                    - ml.inf1.xlarge
+                    - ml.inf1.2xlarge
+                    - ml.inf1.6xlarge
+                    - ml.inf1.24xlarge
+                    - ml.inf2.xlarge
+                    - ml.inf2.8xlarge
+                    - ml.inf2.24xlarge
+                    - ml.inf2.48xlarge
+              - key: eks.amazonaws.com/compute-type
+                operator: NotIn
+                values:
+                  - fargate
+  resources:
+    limits:
+      cpu: 500m
+      memory: 256Mi
+    requests:
+      cpu: 256m
+      memory: 128Mi
+  env:
+  - name: NODE_NAME
+    valueFrom:
+      fieldRef:
+        fieldPath: spec.nodeName
+  - name: PATH
+    value: /usr/local/bin:/usr/bin:/bin:/opt/aws/neuron/bin
+  - name: GOMEMLIMIT
+    value: 160MiB
+  ports:
+  - name: "metrics"
+    port: 8000
+  command:
+    - "/opt/bin/entrypoint.sh"
+  args:
+    port: "8000"
+    cert-file: "/etc/amazon-cloudwatch-observability-neuron-cert/server.crt"
+    key-file: "/etc/amazon-cloudwatch-observability-neuron-cert/server.key"
+  securityContext:
+    privileged: true
+  volumeMounts:
+  - mountPath: /etc/amazon-cloudwatch-observability-neuron-cert/
+    name: neurontls
+    readOnly: true
+  volumes:
+  - name: neurontls
+    secret:
+      secretName: amazon-cloudwatch-observability-agent-cert
+      items:
+        - key: tls.crt
+          path: server.crt
+        - key: tls.key
+          path: server.key
+  monitorConfig: |
+    {
+      "period": "5s",
+      "neuron_runtimes": [
+        {
+          "tag_filter": ".*",
+          "metrics": [
+            {
+              "type": "neuroncore_counters"
+            },
+            {
+              "type": "memory_used"
+            },
+            {
+              "type": "neuron_runtime_vcpu_usage"
+            },
+            {
+              "type": "execution_stats"
+            }
+          ]
+        }
+      ],
+      "system_metrics": [
+        {
+          "type": "memory_info"
+        },
+        {
+          "period": "5s",
+          "type": "neuron_hw_counters"
+        }
+      ]
+    }
+  tolerations:
+  - operator: Exists
+---
+# Source: amazon-cloudwatch-observability/templates/admission-webhooks/operator-webhook.yaml
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingWebhookConfiguration
+metadata:
+  labels:
+    app.kubernetes.io/name: amazon-cloudwatch-observability
+    app.kubernetes.io/instance: amazon-cloudwatch-operator
+    app.kubernetes.io/version: "1.0.0"
+    app.kubernetes.io/managed-by: "amazon-cloudwatch-agent-operator"
+  name: amazon-cloudwatch-observability-validating-webhook-configuration
+webhooks:
+- admissionReviewVersions:
+  - v1
+  clientConfig:
+    service:
+      name: amazon-cloudwatch-observability-webhook-service
+      namespace: amazon-cloudwatch
+      path: /validate-cloudwatch-aws-amazon-com-v1alpha1-instrumentation
+    caBundle: LS0tLS1CRUdJTiBDRVJUSUZJQ0FURS0tLS0tCk1JSURSakNDQWk2Z0F3SUJBZ0lSQU9pMmxCWXFvR0hYbkY3WEFuWDBXek13RFFZSktvWklodmNOQVFFTEJRQXcKTFRFck1Da0dBMVVFQXhNaVlXMWhlbTl1TFdOc2IzVmtkMkYwWTJndGIySnpaWEoyWVdKcGJHbDBlUzFqWVRBZQpGdzB5TkRBNE1qY3lNREV3TURCYUZ3MHpOREE0TWpVeU1ERXdNREJhTUMweEt6QXBCZ05WQkFNVEltRnRZWHB2CmJpMWpiRzkxWkhkaGRHTm9MVzlpYzJWeWRtRmlhV3hwZEhrdFkyRXdnZ0VpTUEwR0NTcUdTSWIzRFFFQkFRVUEKQTRJQkR3QXdnZ0VLQW9JQkFRQy9UYXkwVDd6K3FYVHQ1bGQvWEtPeXJ1Q1g2YkU3Q0pjR2JnZW5ndmRabjJLYwpqaW1Mb0x1dHFIREZZSnovRjRFeCs3NDVVMmMwREtXYjV6WW1XZTdPdWU0dGR6dXRoVmJjT3ZRanNjV1FXR1NWCnhNY01iUVJnSUNFeWQzWHlSRytUQUk1cDZGSFE1MDRER0xMN1Q0aXZHWFZkYS9nNXpqZFFMV09pWmlIVVhXTHYKcjJYdzg2cEd3T0xqTmpQNnlWYnNYT1BhYlRGOEhaOUlkNHVTenNOWWtNMW95M1dxS3VUYkkzZzBWV29aYXpRVQpTdnpmZTJuRXd3YmRwREw5U0FKSE9oYXJTY3hkUHYxMldibDhVVkRsaW5naXA2K2NkT0h1UEh3RW9NUDRwNllyCmYxbk1YNlYzb2ZZM25IRFB0QVNlbERMMUJQTWw0NnV1UndEUDVDMGZBZ01CQUFHallUQmZNQTRHQTFVZER3RUIKL3dRRUF3SUNwREFkQmdOVkhTVUVGakFVQmdnckJnRUZCUWNEQVFZSUt3WUJCUVVIQXdJd0R3WURWUjBUQVFILwpCQVV3QXdFQi96QWRCZ05WSFE0RUZnUVVMSHBEMnRnbkU3Y0FqZ1NhbllUUjl4UUF5cDR3RFFZSktvWklodmNOCkFRRUxCUUFEZ2dFQkFHeFdrTENBVEFjUDl6eTJXWUJyYWMyaCttNzlNVDFKTnFJQmFSMDFTL0o0WlBrZGlxdWoKTzc5dnR3QnZJc2VPQXliL2xYL0tsOGFrNThZOGlmOVdTOW9oOFdhejBMSk9FV1RaR2dTMllDeFdteGttcTUydgpabWpyVXdEZ3haMG1QVzVlUnhlUlhwREJKbng1VUZpWVFvUzBWdjc5dFdIbzZENzUrKzJCNStNWXNyZ29ZRFhICndZVll3c1Y5QXIwMzZOM0w1clFURGx5SXhCekVSYWR1cWcyelJac1RhMWpMNFExR2pVajRoSW9ub2w1R3Z2eUgKQjZ4TFhLYkdIQ0xENHhHbVZvYVM2TS9OK2ZabTJmaGt0ZTF5bUdhT20vQks5cktCWWFjZnUvbTloa3RUY0RLUApjOUt1Wi9xK1ljZTJLK2FQbVIyNjEyU0NTbUg5ZTlUZmNpWT0KLS0tLS1FTkQgQ0VSVElGSUNBVEUtLS0tLQo=
+  failurePolicy: Ignore
+  name: vinstrumentationcreateupdate.kb.io
+  rules:
+  - apiGroups:
+    - cloudwatch.aws.amazon.com
+    apiVersions:
+    - v1alpha1
+    operations:
+    - CREATE
+    - UPDATE
+    resources:
+    - instrumentations
+  sideEffects: None
+  timeoutSeconds: 10
+- admissionReviewVersions:
+  - v1
+  clientConfig:
+    service:
+      name: amazon-cloudwatch-observability-webhook-service
+      namespace: amazon-cloudwatch
+      path: /validate-cloudwatch-aws-amazon-com-v1alpha1-instrumentation
+    caBundle: LS0tLS1CRUdJTiBDRVJUSUZJQ0FURS0tLS0tCk1JSURSakNDQWk2Z0F3SUJBZ0lSQU9pMmxCWXFvR0hYbkY3WEFuWDBXek13RFFZSktvWklodmNOQVFFTEJRQXcKTFRFck1Da0dBMVVFQXhNaVlXMWhlbTl1TFdOc2IzVmtkMkYwWTJndGIySnpaWEoyWVdKcGJHbDBlUzFqWVRBZQpGdzB5TkRBNE1qY3lNREV3TURCYUZ3MHpOREE0TWpVeU1ERXdNREJhTUMweEt6QXBCZ05WQkFNVEltRnRZWHB2CmJpMWpiRzkxWkhkaGRHTm9MVzlpYzJWeWRtRmlhV3hwZEhrdFkyRXdnZ0VpTUEwR0NTcUdTSWIzRFFFQkFRVUEKQTRJQkR3QXdnZ0VLQW9JQkFRQy9UYXkwVDd6K3FYVHQ1bGQvWEtPeXJ1Q1g2YkU3Q0pjR2JnZW5ndmRabjJLYwpqaW1Mb0x1dHFIREZZSnovRjRFeCs3NDVVMmMwREtXYjV6WW1XZTdPdWU0dGR6dXRoVmJjT3ZRanNjV1FXR1NWCnhNY01iUVJnSUNFeWQzWHlSRytUQUk1cDZGSFE1MDRER0xMN1Q0aXZHWFZkYS9nNXpqZFFMV09pWmlIVVhXTHYKcjJYdzg2cEd3T0xqTmpQNnlWYnNYT1BhYlRGOEhaOUlkNHVTenNOWWtNMW95M1dxS3VUYkkzZzBWV29aYXpRVQpTdnpmZTJuRXd3YmRwREw5U0FKSE9oYXJTY3hkUHYxMldibDhVVkRsaW5naXA2K2NkT0h1UEh3RW9NUDRwNllyCmYxbk1YNlYzb2ZZM25IRFB0QVNlbERMMUJQTWw0NnV1UndEUDVDMGZBZ01CQUFHallUQmZNQTRHQTFVZER3RUIKL3dRRUF3SUNwREFkQmdOVkhTVUVGakFVQmdnckJnRUZCUWNEQVFZSUt3WUJCUVVIQXdJd0R3WURWUjBUQVFILwpCQVV3QXdFQi96QWRCZ05WSFE0RUZnUVVMSHBEMnRnbkU3Y0FqZ1NhbllUUjl4UUF5cDR3RFFZSktvWklodmNOCkFRRUxCUUFEZ2dFQkFHeFdrTENBVEFjUDl6eTJXWUJyYWMyaCttNzlNVDFKTnFJQmFSMDFTL0o0WlBrZGlxdWoKTzc5dnR3QnZJc2VPQXliL2xYL0tsOGFrNThZOGlmOVdTOW9oOFdhejBMSk9FV1RaR2dTMllDeFdteGttcTUydgpabWpyVXdEZ3haMG1QVzVlUnhlUlhwREJKbng1VUZpWVFvUzBWdjc5dFdIbzZENzUrKzJCNStNWXNyZ29ZRFhICndZVll3c1Y5QXIwMzZOM0w1clFURGx5SXhCekVSYWR1cWcyelJac1RhMWpMNFExR2pVajRoSW9ub2w1R3Z2eUgKQjZ4TFhLYkdIQ0xENHhHbVZvYVM2TS9OK2ZabTJmaGt0ZTF5bUdhT20vQks5cktCWWFjZnUvbTloa3RUY0RLUApjOUt1Wi9xK1ljZTJLK2FQbVIyNjEyU0NTbUg5ZTlUZmNpWT0KLS0tLS1FTkQgQ0VSVElGSUNBVEUtLS0tLQo=
+  failurePolicy: Ignore
+  name: vinstrumentationdelete.kb.io
+  rules:
+  - apiGroups:
+    - cloudwatch.aws.amazon.com
+    apiVersions:
+    - v1alpha1
+    operations:
+    - DELETE
+    resources:
+    - instrumentations
+  sideEffects: None
+  timeoutSeconds: 10
+- admissionReviewVersions:
+  - v1
+  clientConfig:
+    service:
+      name: amazon-cloudwatch-observability-webhook-service
+      namespace: amazon-cloudwatch
+      path: /validate-cloudwatch-aws-amazon-com-v1alpha1-amazoncloudwatchagent
+    caBundle: LS0tLS1CRUdJTiBDRVJUSUZJQ0FURS0tLS0tCk1JSURSakNDQWk2Z0F3SUJBZ0lSQU9pMmxCWXFvR0hYbkY3WEFuWDBXek13RFFZSktvWklodmNOQVFFTEJRQXcKTFRFck1Da0dBMVVFQXhNaVlXMWhlbTl1TFdOc2IzVmtkMkYwWTJndGIySnpaWEoyWVdKcGJHbDBlUzFqWVRBZQpGdzB5TkRBNE1qY3lNREV3TURCYUZ3MHpOREE0TWpVeU1ERXdNREJhTUMweEt6QXBCZ05WQkFNVEltRnRZWHB2CmJpMWpiRzkxWkhkaGRHTm9MVzlpYzJWeWRtRmlhV3hwZEhrdFkyRXdnZ0VpTUEwR0NTcUdTSWIzRFFFQkFRVUEKQTRJQkR3QXdnZ0VLQW9JQkFRQy9UYXkwVDd6K3FYVHQ1bGQvWEtPeXJ1Q1g2YkU3Q0pjR2JnZW5ndmRabjJLYwpqaW1Mb0x1dHFIREZZSnovRjRFeCs3NDVVMmMwREtXYjV6WW1XZTdPdWU0dGR6dXRoVmJjT3ZRanNjV1FXR1NWCnhNY01iUVJnSUNFeWQzWHlSRytUQUk1cDZGSFE1MDRER0xMN1Q0aXZHWFZkYS9nNXpqZFFMV09pWmlIVVhXTHYKcjJYdzg2cEd3T0xqTmpQNnlWYnNYT1BhYlRGOEhaOUlkNHVTenNOWWtNMW95M1dxS3VUYkkzZzBWV29aYXpRVQpTdnpmZTJuRXd3YmRwREw5U0FKSE9oYXJTY3hkUHYxMldibDhVVkRsaW5naXA2K2NkT0h1UEh3RW9NUDRwNllyCmYxbk1YNlYzb2ZZM25IRFB0QVNlbERMMUJQTWw0NnV1UndEUDVDMGZBZ01CQUFHallUQmZNQTRHQTFVZER3RUIKL3dRRUF3SUNwREFkQmdOVkhTVUVGakFVQmdnckJnRUZCUWNEQVFZSUt3WUJCUVVIQXdJd0R3WURWUjBUQVFILwpCQVV3QXdFQi96QWRCZ05WSFE0RUZnUVVMSHBEMnRnbkU3Y0FqZ1NhbllUUjl4UUF5cDR3RFFZSktvWklodmNOCkFRRUxCUUFEZ2dFQkFHeFdrTENBVEFjUDl6eTJXWUJyYWMyaCttNzlNVDFKTnFJQmFSMDFTL0o0WlBrZGlxdWoKTzc5dnR3QnZJc2VPQXliL2xYL0tsOGFrNThZOGlmOVdTOW9oOFdhejBMSk9FV1RaR2dTMllDeFdteGttcTUydgpabWpyVXdEZ3haMG1QVzVlUnhlUlhwREJKbng1VUZpWVFvUzBWdjc5dFdIbzZENzUrKzJCNStNWXNyZ29ZRFhICndZVll3c1Y5QXIwMzZOM0w1clFURGx5SXhCekVSYWR1cWcyelJac1RhMWpMNFExR2pVajRoSW9ub2w1R3Z2eUgKQjZ4TFhLYkdIQ0xENHhHbVZvYVM2TS9OK2ZabTJmaGt0ZTF5bUdhT20vQks5cktCWWFjZnUvbTloa3RUY0RLUApjOUt1Wi9xK1ljZTJLK2FQbVIyNjEyU0NTbUg5ZTlUZmNpWT0KLS0tLS1FTkQgQ0VSVElGSUNBVEUtLS0tLQo=
+  failurePolicy: Ignore
+  name: vamazoncloudwatchagentcreateupdate.kb.io
+  rules:
+  - apiGroups:
+    - cloudwatch.aws.amazon.com
+    apiVersions:
+    - v1alpha1
+    operations:
+    - CREATE
+    - UPDATE
+    resources:
+    - amazoncloudwatchagents
+  sideEffects: None
+  timeoutSeconds: 10
+- admissionReviewVersions:
+  - v1
+  clientConfig:
+    service:
+      name: amazon-cloudwatch-observability-webhook-service
+      namespace: amazon-cloudwatch
+      path: /validate-cloudwatch-aws-amazon-com-v1alpha1-amazoncloudwatchagent
+    caBundle: LS0tLS1CRUdJTiBDRVJUSUZJQ0FURS0tLS0tCk1JSURSakNDQWk2Z0F3SUJBZ0lSQU9pMmxCWXFvR0hYbkY3WEFuWDBXek13RFFZSktvWklodmNOQVFFTEJRQXcKTFRFck1Da0dBMVVFQXhNaVlXMWhlbTl1TFdOc2IzVmtkMkYwWTJndGIySnpaWEoyWVdKcGJHbDBlUzFqWVRBZQpGdzB5TkRBNE1qY3lNREV3TURCYUZ3MHpOREE0TWpVeU1ERXdNREJhTUMweEt6QXBCZ05WQkFNVEltRnRZWHB2CmJpMWpiRzkxWkhkaGRHTm9MVzlpYzJWeWRtRmlhV3hwZEhrdFkyRXdnZ0VpTUEwR0NTcUdTSWIzRFFFQkFRVUEKQTRJQkR3QXdnZ0VLQW9JQkFRQy9UYXkwVDd6K3FYVHQ1bGQvWEtPeXJ1Q1g2YkU3Q0pjR2JnZW5ndmRabjJLYwpqaW1Mb0x1dHFIREZZSnovRjRFeCs3NDVVMmMwREtXYjV6WW1XZTdPdWU0dGR6dXRoVmJjT3ZRanNjV1FXR1NWCnhNY01iUVJnSUNFeWQzWHlSRytUQUk1cDZGSFE1MDRER0xMN1Q0aXZHWFZkYS9nNXpqZFFMV09pWmlIVVhXTHYKcjJYdzg2cEd3T0xqTmpQNnlWYnNYT1BhYlRGOEhaOUlkNHVTenNOWWtNMW95M1dxS3VUYkkzZzBWV29aYXpRVQpTdnpmZTJuRXd3YmRwREw5U0FKSE9oYXJTY3hkUHYxMldibDhVVkRsaW5naXA2K2NkT0h1UEh3RW9NUDRwNllyCmYxbk1YNlYzb2ZZM25IRFB0QVNlbERMMUJQTWw0NnV1UndEUDVDMGZBZ01CQUFHallUQmZNQTRHQTFVZER3RUIKL3dRRUF3SUNwREFkQmdOVkhTVUVGakFVQmdnckJnRUZCUWNEQVFZSUt3WUJCUVVIQXdJd0R3WURWUjBUQVFILwpCQVV3QXdFQi96QWRCZ05WSFE0RUZnUVVMSHBEMnRnbkU3Y0FqZ1NhbllUUjl4UUF5cDR3RFFZSktvWklodmNOCkFRRUxCUUFEZ2dFQkFHeFdrTENBVEFjUDl6eTJXWUJyYWMyaCttNzlNVDFKTnFJQmFSMDFTL0o0WlBrZGlxdWoKTzc5dnR3QnZJc2VPQXliL2xYL0tsOGFrNThZOGlmOVdTOW9oOFdhejBMSk9FV1RaR2dTMllDeFdteGttcTUydgpabWpyVXdEZ3haMG1QVzVlUnhlUlhwREJKbng1VUZpWVFvUzBWdjc5dFdIbzZENzUrKzJCNStNWXNyZ29ZRFhICndZVll3c1Y5QXIwMzZOM0w1clFURGx5SXhCekVSYWR1cWcyelJac1RhMWpMNFExR2pVajRoSW9ub2w1R3Z2eUgKQjZ4TFhLYkdIQ0xENHhHbVZvYVM2TS9OK2ZabTJmaGt0ZTF5bUdhT20vQks5cktCWWFjZnUvbTloa3RUY0RLUApjOUt1Wi9xK1ljZTJLK2FQbVIyNjEyU0NTbUg5ZTlUZmNpWT0KLS0tLS1FTkQgQ0VSVElGSUNBVEUtLS0tLQo=
+  failurePolicy: Ignore
+  name: vamazoncloudwatchagentdelete.kb.io
+  rules:
+  - apiGroups:
+    - cloudwatch.aws.amazon.com
+    apiVersions:
+    - v1alpha1
+    operations:
+    - DELETE
+    resources:
+    - amazoncloudwatchagents
+  sideEffects: None
+  timeoutSeconds: 10
+

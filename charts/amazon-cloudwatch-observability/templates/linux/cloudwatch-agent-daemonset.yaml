@@ -26,7 +26,7 @@ metadata:
   namespace: {{ .Release.Namespace }}
 spec:
   image: {{ template "cloudwatch-agent.image" . }}
-  mode: daemonset
+  mode: statefulset
   nodeSelector:
     kubernetes.io/os: linux
   serviceAccount: {{ template "cloudwatch-agent.serviceAccountName" . }}
@@ -39,7 +39,7 @@ spec:
                 operator: NotIn
                 values:
                   - fargate
-  hostNetwork: true
+  # hostNetwork: true
   {{- if .Values.agent.config }}
   config: {{ include "cloudwatch-agent.modify-config" (merge (dict "Config" .Values.agent.config) . ) }}
   {{- else }}
@@ -117,6 +117,213 @@ spec:
     valueFrom:
       fieldRef:
         fieldPath: metadata.namespace
+  prometheusConfig: |
+    config:
+      global:
+        scrape_interval: 1m
+        scrape_timeout: 10s
+      scrape_configs:
+      - job_name: 'cwa-collector'
+        scrape_interval: 10s
+        static_configs:
+        - targets: [ '0.0.0.0:8888' ]
+      - job_name: 'cwa-ta-collector-server'
+        scrape_interval: 10s
+        static_configs:
+        - targets: [ '0.0.0.0:8888' ]
+      - job_name: 'kubernetes-pod-appmesh-envoy'
+        sample_limit: 10000
+        metrics_path: /stats/prometheus
+        kubernetes_sd_configs:
+        - role: pod
+        relabel_configs:
+        - source_labels: [__meta_kubernetes_pod_container_name]
+          action: keep
+          regex: '^envoy$'
+        - source_labels: [__address__, __meta_kubernetes_pod_annotation_prometheus_io_port]
+          action: replace
+          regex: ([^:]+)(?::\d+)?;(\d+)
+          replacement: ${1}:9901
+          target_label: __address__
+        - action: labelmap
+          regex: __meta_kubernetes_pod_label_(.+)
+        - action: replace
+          source_labels:
+          - __meta_kubernetes_namespace
+          target_label: Namespace
+        - source_labels: [__meta_kubernetes_pod_name]
+          action: replace
+          target_label: pod_name
+        - action: replace
+          source_labels:
+          - __meta_kubernetes_pod_container_name
+          target_label: container_name
+        - action: replace
+          source_labels:
+          - __meta_kubernetes_pod_controller_name
+          target_label: pod_controller_name
+        - action: replace
+          source_labels:
+          - __meta_kubernetes_pod_controller_kind
+          target_label: pod_controller_kind
+        - action: replace
+          source_labels:
+          - __meta_kubernetes_pod_phase
+          target_label: pod_phase
+
+      - job_name: 'kubernetes-pod-fluentbit-plugin'
+        sample_limit: 10000
+        metrics_path: /api/v1/metrics/prometheus
+        kubernetes_sd_configs:
+        - role: pod
+        relabel_configs:
+        - source_labels: [__meta_kubernetes_pod_container_name]
+          action: keep
+          regex: '^fluent-bit.*$'
+        - source_labels: [__address__]
+          action: replace
+          regex: ([^:]+)(?::\d+)?
+          replacement: ${1}:2020
+          target_label: __address__
+        - action: labelmap
+          regex: __meta_kubernetes_pod_label_(.+)
+        - action: replace
+          source_labels:
+          - __meta_kubernetes_namespace
+          target_label: Namespace
+        - source_labels: [__meta_kubernetes_pod_name]
+          action: replace
+          target_label: pod_name
+        - action: replace
+          source_labels:
+          - __meta_kubernetes_pod_container_name
+          target_label: container_name
+        - action: replace
+          source_labels:
+          - __meta_kubernetes_pod_controller_name
+          target_label: pod_controller_name
+        - action: replace
+          source_labels:
+          - __meta_kubernetes_pod_controller_kind
+          target_label: pod_controller_kind
+        - action: replace
+          source_labels:
+          - __meta_kubernetes_pod_phase
+          target_label: pod_phase
+        - action: replace
+          source_labels:
+          - __meta_kubernetes_pod_node_name
+          target_label: NodeName
+
+      - job_name: kubernetes-service-endpoints
+        sample_limit: 10000
+        kubernetes_sd_configs:
+        - role: endpoints
+        relabel_configs:
+        - action: keep
+          regex: true
+          source_labels:
+          - __meta_kubernetes_service_annotation_prometheus_io_scrape
+        - action: replace
+          regex: (https?)
+          source_labels:
+          - __meta_kubernetes_service_annotation_prometheus_io_scheme
+          target_label: __scheme__
+        - action: replace
+          regex: (.+)
+          source_labels:
+          - __meta_kubernetes_service_annotation_prometheus_io_path
+          target_label: __metrics_path__
+        - action: replace
+          regex: ([^:]+)(?::\d+)?;(\d+)
+          replacement: $1:$2
+          source_labels:
+          - __address__
+          - __meta_kubernetes_service_annotation_prometheus_io_port
+          target_label: __address__
+        - action: labelmap
+          regex: __meta_kubernetes_service_label_(.+)
+        - action: replace
+          source_labels:
+          - __meta_kubernetes_namespace
+          target_label: Namespace
+        - action: replace
+          source_labels:
+          - __meta_kubernetes_service_name
+          target_label: Service
+        - action: replace
+          source_labels:
+          - __meta_kubernetes_pod_node_name
+          target_label: kubernetes_node
+        - action: replace
+          source_labels:
+          - __meta_kubernetes_pod_name
+          target_label: pod_name
+        - action: replace
+          source_labels:
+          - __meta_kubernetes_pod_container_name
+          target_label: container_name
+        metric_relabel_configs:
+        - source_labels: [__name__]
+          regex: 'go_gc_duration_seconds.*'
+          action: drop
+        - source_labels: [__name__, proxy]
+          regex: "haproxy_frontend.+;(.+)"
+          target_label: frontend
+          replacement: "$1"
+        - source_labels: [__name__, proxy]
+          regex: "haproxy_server.+;(.+)"
+          target_label: backend
+          replacement: "$1"
+        - source_labels: [__name__, proxy]
+          regex: "haproxy_backend.+;(.+)"
+          target_label: backend
+          replacement: "$1"
+        - regex: proxy
+          action: labeldrop
+
+      - job_name: 'kubernetes-pod-jmx'
+        sample_limit: 10000
+        metrics_path: /metrics
+        kubernetes_sd_configs:
+        - role: pod
+        relabel_configs:
+        - source_labels: [__address__]
+          action: keep
+          regex: '.*:9404$'
+        - action: labelmap
+          regex: __meta_kubernetes_pod_label_(.+)
+        - action: replace
+          source_labels:
+          - __meta_kubernetes_namespace
+          target_label: Namespace
+        - source_labels: [__meta_kubernetes_pod_name]
+          action: replace
+          target_label: pod_name
+        - action: replace
+          source_labels:
+          - __meta_kubernetes_pod_container_name
+          target_label: container_name
+        - action: replace
+          source_labels:
+          - __meta_kubernetes_pod_controller_name
+          target_label: pod_controller_name
+        - action: replace
+          source_labels:
+          - __meta_kubernetes_pod_controller_kind
+          target_label: pod_controller_kind
+        - action: replace
+          source_labels:
+          - __meta_kubernetes_pod_phase
+          target_label: pod_phase
+        metric_relabel_configs:
+        - source_labels: [__name__]
+          regex: 'jvm_gc_collection_seconds.*'
+          action: drop
+        
+  targetAllocator:
+    enabled: true
+  replicas: 10
   {{- with .Values.tolerations }}
   tolerations: {{- toYaml . | nindent 2}}
   {{- end }}
