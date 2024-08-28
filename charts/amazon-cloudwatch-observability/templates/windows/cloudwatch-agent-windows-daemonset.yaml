@@ -1,49 +1,40 @@
 {{- if .Values.agent.enabled }}
 {{- $clusterName := .Values.clusterName | required ".Values.clusterName is required." -}}
 {{- $region := .Values.region | required ".Values.region is required." -}}
+{{- range $i, $agent := $.Values.agentWorkloadsWindows }}
 apiVersion: cloudwatch.aws.amazon.com/v1alpha1
 kind: AmazonCloudWatchAgent
 metadata:
-  name: {{ template "cloudwatch-agent.name" . }}-windows
-  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "amazon-cloudwatch-observability.labels" $ | nindent 4}}
+  name: {{ $agent.name | default (include "cloudwatch-agent.name" $) }}
+  namespace: {{ $.Release.Namespace }}
 spec:
-  podSecurityContext:
-    windowsOptions:
-      hostProcess: true
-      runAsUserName: "NT AUTHORITY\\System"
-  hostNetwork: true
-  image: {{ template "cloudwatch-agent.image" . }}
-  workingDir: "%CONTAINER_SANDBOX_MOUNT_POINT%\\Program Files\\Amazon\\AmazonCloudWatchAgent"
-  mode: daemonset
-  serviceAccount: {{ template "cloudwatch-agent.serviceAccountName" . }}
-  nodeSelector:
-    kubernetes.io/os: windows
-  config: {{ .Values.agent.windowsDefaultConfig | toJson | quote }}
-  {{- with .Values.agent.resources }}
+  {{- with $agent.podSecurityContext }}
+  podSecurityContext: {{- toYaml . | nindent 4 }}
+  {{- end }}
+  {{- if $agent.hostNetwork }}
+  hostNetwork: {{ $agent.hostNetwork | default false }}
+  {{- end }}
+  image: {{ template "cloudwatch-agent.image" $ }}
+  {{- if $agent.workingDir }}
+  workingDir: {{ $agent.workingDir | quote }}
+  {{- end }}
+  mode: {{ $agent.mode | default "daemonset" }}
+  serviceAccount: {{ template "cloudwatch-agent.serviceAccountName" $ }}
+  {{- with $agent.nodeSelector }}
+  nodeSelector: {{- toYaml . | nindent 4}}
+  {{- end }}
+  config: {{ $agent.config | default $.Values.agent.windowsDefaultConfig | toJson | quote }}
+  {{- with $.Values.agent.resources }}
   resources: {{- toYaml . | nindent 4}}
   {{- end }}
-  env:
-  - name: K8S_NODE_NAME
-    valueFrom:
-      fieldRef:
-        fieldPath: spec.nodeName
-  - name: HOST_IP
-    valueFrom:
-      fieldRef:
-        fieldPath: status.hostIP
-  - name: HOST_NAME
-    valueFrom:
-      fieldRef:
-        fieldPath: spec.nodeName
-  - name: K8S_NAMESPACE
-    valueFrom:
-      fieldRef:
-        fieldPath: metadata.namespace
-  - name: RUN_IN_CONTAINER
-    value: "True"
-  - name: RUN_AS_HOST_PROCESS_CONTAINER
-    value: "True"
-  {{- with .Values.tolerations }}
-  tolerations: {{- toYaml . | nindent 2}}
+  {{- with $agent.env }}
+  env: {{- toYaml . | nindent 4}}
   {{- end }}
+  {{- with $.Values.tolerations }}
+  tolerations: {{- toYaml . | nindent 4}}
+  {{- end }}
+---
+{{- end }}
 {{- end }}
