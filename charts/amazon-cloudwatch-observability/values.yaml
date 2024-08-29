@@ -569,7 +569,7 @@ agent:
     issuerAnnotations: { }
   serviceAccount:
     name: # override agent service account name
-  config: &config # optional config that can be provided to override the defaultConfig
+  config:  # optional config that can be provided to override the defaultConfig
   defaultConfig:
     {
       "logs": {
@@ -602,7 +602,6 @@ agentWorkloadsWindows:
     nodeSelector:
       kubernetes.io/os: windows
     mode: daemonset
-    config: *config
     hostNetwork: true
     podSecurityContext:
       windowsOptions:

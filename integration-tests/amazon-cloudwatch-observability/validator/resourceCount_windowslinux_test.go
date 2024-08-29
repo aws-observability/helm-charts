@@ -7,12 +7,35 @@
 package validator
 
 const (
-	// Services count on Linux and Windows
-	serviceCountLinux   = 6
-	serviceCountWindows = 3
+	// Services count on Linux:
+	// - amazon-cloudwatch-observability-webhook-service
+	// - cloudwatch-agent
+	// - cloudwatch-agent-headless
+	// - cloudwatch-agent-monitoring
+	// - dcgm-exporter-service
+	// - neuron-monitor-service
+	serviceCountLinux = 6
 
-	// DaemonSet count on Linux and Windows
-	daemonsetCountLinux   = 4
+	// Services count on Windows:
+	// - cloudwatch-agent-windows
+	// - cloudwatch-agent-windows-headless
+	// - cloudwatch-agent-windows-monitoring
+	// - cloudwatch-agent-windows-application-signals
+	// - cloudwatch-agent-windows-application-signals-headless
+	// - cloudwatch-agent-windows-application-signals-monitoring
+	serviceCountWindows = 6
+
+	// DaemonSet count on Linux:
+	// - cloudwatch-agent
+	// - dcgm-exporter
+	// - fluent-bit
+	// - neuron-monitor
+	daemonsetCountLinux = 4
+
+	// DaemonSet count on Windows:
+	// - cloudwatch-agent-windows
+	// - cloudwatch-agent-windows-application-signals
+	// - fluent-bit-windows
 	daemonsetCountWindows = 3
 
 	// Pods count on Linux and Windows
