@@ -20,11 +20,10 @@ spec:
   {{- if $agent.workingDir }}
   workingDir: {{ $agent.workingDir | quote }}
   {{- end }}
-  mode: {{ $agent.mode | default "daemonset" }}
+  mode: daemonset
   serviceAccount: {{ template "cloudwatch-agent.serviceAccountName" $ }}
-  {{- with $agent.nodeSelector }}
-  nodeSelector: {{- toYaml . | nindent 4}}
-  {{- end }}
+  nodeSelector:
+    kubernetes.io/os: windows
   config: {{ $agent.config | default $.Values.agent.windowsDefaultConfig | toJson | quote }}
   {{- with $.Values.agent.resources }}
   resources: {{- toYaml . | nindent 4}}

@@ -569,7 +569,7 @@ agent:
     issuerAnnotations: { }
   serviceAccount:
     name: # override agent service account name
-  config:  # optional config that can be provided to override the defaultConfig
+  config: # optional config that can be provided to override the defaultConfig
   defaultConfig:
     {
       "logs": {
@@ -599,9 +599,6 @@ agent:
 
 agentWorkloadsWindows:
   - name: cloudwatch-agent-windows
-    nodeSelector:
-      kubernetes.io/os: windows
-    mode: daemonset
     config:
       {
         "logs": {
@@ -637,9 +634,6 @@ agentWorkloadsWindows:
             fieldPath: metadata.namespace
 
   - name: cloudwatch-agent-windows-container-insights
-    nodeSelector:
-      kubernetes.io/os: windows
-    mode: daemonset
     hostNetwork: true
     podSecurityContext:
       windowsOptions:
