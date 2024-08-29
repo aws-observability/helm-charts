@@ -20,9 +20,9 @@ const (
 	// - cloudwatch-agent-windows
 	// - cloudwatch-agent-windows-headless
 	// - cloudwatch-agent-windows-monitoring
-	// - cloudwatch-agent-windows-application-signals
-	// - cloudwatch-agent-windows-application-signals-headless
-	// - cloudwatch-agent-windows-application-signals-monitoring
+	// - cloudwatch-agent-windows-container-insights
+	// - cloudwatch-agent-windows-container-insights-headless
+	// - cloudwatch-agent-windows-container-insights-monitoring
 	serviceCountWindows = 6
 
 	// DaemonSet count on Linux:
@@ -34,7 +34,7 @@ const (
 
 	// DaemonSet count on Windows:
 	// - cloudwatch-agent-windows
-	// - cloudwatch-agent-windows-application-signals
+	// - cloudwatch-agent-windows-container-insights
 	// - fluent-bit-windows
 	daemonsetCountWindows = 3
 
