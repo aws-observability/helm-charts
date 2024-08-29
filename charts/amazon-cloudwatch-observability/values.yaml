@@ -602,38 +602,6 @@ agentWorkloadsWindows:
     nodeSelector:
       kubernetes.io/os: windows
     mode: daemonset
-    hostNetwork: true
-    podSecurityContext:
-      windowsOptions:
-        hostProcess: true
-        runAsUserName: "NT AUTHORITY\\System"
-    workingDir: "%CONTAINER_SANDBOX_MOUNT_POINT%\\Program Files\\Amazon\\AmazonCloudWatchAgent"
-    env:
-    - name: K8S_NODE_NAME
-      valueFrom:
-        fieldRef:
-          fieldPath: spec.nodeName
-    - name: HOST_IP
-      valueFrom:
-        fieldRef:
-          fieldPath: status.hostIP
-    - name: HOST_NAME
-      valueFrom:
-        fieldRef:
-          fieldPath: spec.nodeName
-    - name: K8S_NAMESPACE
-      valueFrom:
-        fieldRef:
-          fieldPath: metadata.namespace
-    - name: RUN_IN_CONTAINER
-      value: "True"
-    - name: RUN_AS_HOST_PROCESS_CONTAINER
-      value: "True"
-
-  - name: cloudwatch-agent-windows-application-signals
-    nodeSelector:
-      kubernetes.io/os: windows
-    mode: daemonset
     config:
       {
         "logs": {
@@ -667,6 +635,38 @@ agentWorkloadsWindows:
         valueFrom:
           fieldRef:
             fieldPath: metadata.namespace
+
+  - name: cloudwatch-agent-windows-container-insights
+    nodeSelector:
+      kubernetes.io/os: windows
+    mode: daemonset
+    hostNetwork: true
+    podSecurityContext:
+      windowsOptions:
+        hostProcess: true
+        runAsUserName: "NT AUTHORITY\\System"
+    workingDir: "%CONTAINER_SANDBOX_MOUNT_POINT%\\Program Files\\Amazon\\AmazonCloudWatchAgent"
+    env:
+      - name: K8S_NODE_NAME
+        valueFrom:
+          fieldRef:
+            fieldPath: spec.nodeName
+      - name: HOST_IP
+        valueFrom:
+          fieldRef:
+            fieldPath: status.hostIP
+      - name: HOST_NAME
+        valueFrom:
+          fieldRef:
+            fieldPath: spec.nodeName
+      - name: K8S_NAMESPACE
+        valueFrom:
+          fieldRef:
+            fieldPath: metadata.namespace
+      - name: RUN_IN_CONTAINER
+        value: "True"
+      - name: RUN_AS_HOST_PROCESS_CONTAINER
+        value: "True"
 
 dcgmExporter:
   name:
