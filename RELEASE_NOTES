@@ -3,6 +3,7 @@ amazon-cloudwatch-observability v2.0.1 (2024-08-23)
 ========================================================================
 Enhancements:
 * Upgrade DCGM-Exporter for Linux to 3.3.7-3.5.0-ubuntu22.04
+* Upgrade CWAgent to v1.300045.0
 
 =======================================================================
 amazon-cloudwatch-observability v2.0.0 (2024-08-15)
