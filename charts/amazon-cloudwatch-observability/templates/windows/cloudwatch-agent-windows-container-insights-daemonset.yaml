@@ -4,13 +4,16 @@
 apiVersion: cloudwatch.aws.amazon.com/v1alpha1
 kind: AmazonCloudWatchAgent
 metadata:
-  name: {{ template "cloudwatch-agent.name" . }}-windows
+  name: {{ template "cloudwatch-agent.name" . }}-windows-container-insights
   namespace: {{ .Release.Namespace }}
 spec:
   podSecurityContext:
     windowsOptions:
+      hostProcess: true
       runAsUserName: "NT AUTHORITY\\System"
+  hostNetwork: true
   image: {{ template "cloudwatch-agent.image" . }}
+  workingDir: "%CONTAINER_SANDBOX_MOUNT_POINT%\\Program Files\\Amazon\\AmazonCloudWatchAgent"
   mode: daemonset
   serviceAccount: {{ template "cloudwatch-agent.serviceAccountName" . }}
   nodeSelector:
@@ -19,12 +22,9 @@ spec:
     '{
       "logs": {
         "metrics_collected": {
-          "application_signals": { }
-        }
-      },
-      "traces": {
-        "traces_collected": {
-          "application_signals": { }
+          "kubernetes": {
+            "enhanced_container_insights": true
+          }
         }
       }
     }'
@@ -48,6 +48,10 @@ spec:
       valueFrom:
         fieldRef:
           fieldPath: metadata.namespace
+    - name: RUN_IN_CONTAINER
+      value: "True"
+    - name: RUN_AS_HOST_PROCESS_CONTAINER
+      value: "True"
   {{- with .Values.tolerations }}
   tolerations: {{- toYaml . | nindent 2}}
   {{- end }}
