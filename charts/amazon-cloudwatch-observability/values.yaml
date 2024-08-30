@@ -463,12 +463,12 @@ manager:
       deployments: [ ]
       daemonsets: [ ]
       statefulsets: [ ]
-    nodejs:
+    dotnet:
       namespaces: [ ]
       deployments: [ ]
       daemonsets: [ ]
       statefulsets: [ ]
-    dotnet:
+    nodejs:
       namespaces: [ ]
       deployments: [ ]
       daemonsets: [ ]
