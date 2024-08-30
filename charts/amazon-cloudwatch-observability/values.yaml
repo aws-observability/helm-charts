@@ -413,15 +413,15 @@ manager:
     python:
       repositoryDomain: public.ecr.aws/aws-observability
       repository: adot-autoinstrumentation-python
-      tag: v0.3.0
+      tag: v0.4.0
     nodejs:
-      repositoryDomain: ghcr.io/open-telemetry/opentelemetry-operator
-      repository: autoinstrumentation-nodejs
-      tag: 0.52.1
+      repositoryDomain: public.ecr.aws/aws-observability
+      repository: adot-autoinstrumentation-node
+      tag: v0.1.1
     dotnet:
       repositoryDomain: public.ecr.aws/aws-observability
       repository: adot-autoinstrumentation-dotnet
-      tag: v1.2.0
+      tag: v1.3.0
   autoInstrumentationResources:
     java:
       limits:
@@ -452,10 +452,6 @@ manager:
         cpu: "50m"
         memory: "128Mi"
       tag: v0.2.0
-    nodejs:
-      repositoryDomain: ghcr.io/open-telemetry/opentelemetry-operator
-      repository: autoinstrumentation-nodejs
-      tag: 0.51.0
   autoAnnotateAutoInstrumentation:
     java:
       namespaces: [ ]
