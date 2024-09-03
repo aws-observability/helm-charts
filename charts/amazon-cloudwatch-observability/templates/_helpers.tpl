@@ -154,7 +154,6 @@ Get the current recommended auto instrumentation python image
 {{- printf "%s/%s:%s" .Values.manager.autoInstrumentationImage.python.repositoryDomain .Values.manager.autoInstrumentationImage.python.repository .Values.manager.autoInstrumentationImage.python.tag -}}
 {{- end -}}
 
-
 {{/*
 Get the current recommended auto instrumentation dotnet image
 */}}
