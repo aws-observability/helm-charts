@@ -586,22 +586,6 @@ agent:
         }
       }
     }
-  windowsDefaultConfig:
-    {
-      "logs": {
-        "metrics_collected": {
-          "kubernetes": {
-            "enhanced_container_insights": true
-          },
-          "application_signals": { }
-        }
-      },
-      "traces": {
-        "traces_collected": {
-          "application_signals": { }
-        }
-      }
-    }
 
 dcgmExporter:
   name:
