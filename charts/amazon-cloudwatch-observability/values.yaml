@@ -732,7 +732,7 @@ manager:
       tag: v1.3.2
     nodejs:
       repositoryDomain: public.ecr.aws/aws-observability
-      repository: adot-autoinstrumentation-node
+      repository: adot-autoinstrumentation-nodejs
       tag: v0.1.0
   autoInstrumentationResources:
     java:
