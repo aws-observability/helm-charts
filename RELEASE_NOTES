@@ -1,6 +1,18 @@
 =======================================================================
 amazon-cloudwatch-observability v2.0.1 (2024-08-23)
 ========================================================================
+New Features:
+* Adding support for NodeJS auto instrumentation for Application Signals (#91)
+
+Enhancements:
+* Upgrade CWAgent to v1.300045.1b823
+* Upgrade CWAgent Operator to v1.7.0
+* Upgrade Python SDK to v0.4.0
+* Upgrade .Net SDK to v1.3.0
+
+=======================================================================
+amazon-cloudwatch-observability v2.0.1 (2024-08-23)
+========================================================================
 Enhancements:
 * Upgrade DCGM-Exporter for Linux to 3.3.7-3.5.0-ubuntu22.04
 * Upgrade CWAgent to v1.300045.0
