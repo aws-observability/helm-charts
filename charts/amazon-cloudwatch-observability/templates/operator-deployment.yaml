@@ -26,11 +26,12 @@ spec:
       containers:
       - image: {{ template "cloudwatch-agent-operator.image" . }}
         args:
-        - {{ printf "--auto-instrumentation-config=%s" (dict "java" (.Values.manager.autoInstrumentationResources.java) "python" (.Values.manager.autoInstrumentationResources.python) "dotnet" (.Values.manager.autoInstrumentationResources.dotnet) | toJson) | quote }}
+        - {{ printf "--auto-instrumentation-config=%s" (dict "java" (.Values.manager.autoInstrumentationResources.java) "python" (.Values.manager.autoInstrumentationResources.python) "dotnet" (.Values.manager.autoInstrumentationResources.dotnet) "nodejs" (.Values.manager.autoInstrumentationResources.nodejs) | toJson) | quote }}
         - {{ printf "--auto-annotation-config=%s" (.Values.manager.autoAnnotateAutoInstrumentation | toJson) | quote }}
         - "--auto-instrumentation-java-image={{ template "auto-instrumentation-java.image" . }}"
         - "--auto-instrumentation-python-image={{ template "auto-instrumentation-python.image" . }}"
         - "--auto-instrumentation-dotnet-image={{ template "auto-instrumentation-dotnet.image" . }}"
+        - "--auto-instrumentation-nodejs-image={{ template "auto-instrumentation-nodejs.image" . }}"
         - "--feature-gates=operator.autoinstrumentation.multi-instrumentation,operator.autoinstrumentation.multi-instrumentation.skip-container-validation"
         command:
         - /manager

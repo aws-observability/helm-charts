@@ -162,6 +162,13 @@ Get the current recommended auto instrumentation dotnet image
 {{- end -}}
 
 {{/*
+Get the current recommended auto instrumentation nodejs image
+*/}}
+{{- define "auto-instrumentation-nodejs.image" -}}
+{{- printf "%s/%s:%s" .Values.manager.autoInstrumentationImage.nodejs.repositoryDomain .Values.manager.autoInstrumentationImage.nodejs.repository .Values.manager.autoInstrumentationImage.nodejs.tag -}}
+{{- end -}}
+
+{{/*
 Common labels
 */}}
 {{- define "amazon-cloudwatch-observability.labels" -}}
