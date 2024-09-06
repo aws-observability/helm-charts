@@ -574,6 +574,9 @@ agentWorkloads:
     serviceAccount:
       name:
     config:
+    prometheus:
+      customResourceName:
+      config:
 
 agent:
   name:

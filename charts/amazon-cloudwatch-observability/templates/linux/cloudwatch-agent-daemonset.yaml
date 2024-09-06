@@ -1,8 +1,8 @@
 {{- if .Values.agent.enabled }}
 {{- range $i, $customAgent := .Values.agentWorkloads }}
-{{- if and ($.Values.agent.autoGenerateCert.enabled) (not $.Values.agent.certManager.enabled) -}}
+{{- if and ($customAgent.autoGenerateCert.enabled) (not $customAgent.certManager.enabled) -}}
 {{- $altNames := list ( printf "%s-service" (include "dcgm-exporter.name" $) ) ( printf "%s-service" (include "neuron-monitor.name" $) ) ( printf "%s-service.%s.svc" (include "dcgm-exporter.name" $) $.Release.Namespace ) ( printf "%s-service.%s.svc" (include "neuron-monitor.name" $) $.Release.Namespace ) -}}
-{{- $ca := genCA ("agent-ca")  ( $.Values.agent.autoGenerateCert.expiryDays | int ) -}}
+{{- $ca := genCA ("agent-ca")  ( $customAgent.autoGenerateCert.expiryDays | default $.Values.agent.autoGenerateCert.expiryDays | int ) -}}
 {{- $cert := genSignedCert ("agent") nil $altNames ( $.Values.admissionWebhooks.autoGenerateCert.expiryDays | int ) $ca -}}
 apiVersion: v1
 kind: Secret
@@ -49,10 +49,10 @@ spec:
   resources:
     requests:
       memory: {{ $customAgent.resources.requests.memory | default $.Values.agent.resources.requests.memory }}
-      cpu: {{ $customAgent.resources.requests.cpu | default default $.Values.agent.resources.requests.cpu }}
+      cpu: {{ $customAgent.resources.requests.cpu | default $.Values.agent.resources.requests.cpu }}
     limits:
-      memory: {{ $customAgent.resources.limits.memory | default default $.Values.agent.resources.limits.memory }}
-      cpu: {{ $customAgent.resources.limits.cpu | default default $.Values.agent.resources.limits.cpu }}
+      memory: {{ $customAgent.resources.limits.memory | default $.Values.agent.resources.limits.memory }}
+      cpu: {{ $customAgent.resources.limits.cpu | default $.Values.agent.resources.limits.cpu }}
   volumeMounts:
   - mountPath: /rootfs
     name: rootfs
