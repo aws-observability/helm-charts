@@ -422,6 +422,11 @@ manager:
       repositoryDomain: public.ecr.aws/aws-observability
       repository: adot-autoinstrumentation-node
       tag: v0.1.0
+  autoInstrumentationApplicationSignals:
+    java:
+      runtimeEnabled: true
+    python:
+      runtimeEnabled: true
   autoInstrumentationResources:
     java:
       limits:
