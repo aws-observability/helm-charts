@@ -15,12 +15,12 @@ data:
   parsers.conf: |
     {{- .Values.containerLogs.fluentBit.config.customParsers  | nindent 4 }}
 {{- if contains "us-iso-" .Values.region }}
-  {{- range $key, $val := .Values.containerLogs.fluentBit.config.ADCISOextraFiles }}
+  {{- range $key, $val := .Values.containerLogs.fluentBit.config.adcIsoExtraFiles }}
   {{ $key }}: |
     {{- (tpl $val $) | nindent 4 }}
   {{- end -}}
 {{- else if contains "us-isob-" .Values.region }}
-  {{- range $key, $val := .Values.containerLogs.fluentBit.config.ADCISOBextraFiles }}
+  {{- range $key, $val := .Values.containerLogs.fluentBit.config.adcIsobExtraFiles }}
   {{ $key }}: |
     {{- (tpl $val $) | nindent 4 }}
   {{- end -}}

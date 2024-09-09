@@ -233,7 +233,7 @@ containerLogs:
             log_stream_prefix   ${HOST_NAME}.
             auto_create_group   true
             extra_user_agent    container-insights
-      ADCISOextraFiles:
+      adcIsoExtraFiles:
         application-log.conf: |
           [INPUT]
             Name                tail
@@ -389,7 +389,7 @@ containerLogs:
             auto_create_group   true
             endpoint            logs.${AWS_REGION}.c2s.ic.gov
             extra_user_agent    container-insights
-      ADCISOBextraFiles:
+      adcIsobExtraFiles:
         application-log.conf: |
           [INPUT]
             Name                tail
