@@ -552,7 +552,7 @@ agentWorkloads:
     mode: daemonset
     replicas:
     image:
-#      repository:
+      repository:
       tag:
     resources:
       requests:
@@ -575,7 +575,8 @@ agentWorkloads:
       name:
     config:
     prometheus:
-      customResourceName:
+      customResources:
+        enabled: false
       config:
 
 agent:

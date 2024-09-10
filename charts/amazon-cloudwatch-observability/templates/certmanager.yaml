@@ -45,9 +45,8 @@ spec:
 {{- end }}
 {{- end }}
 
-###################################################################################################
 {{- range $i, $customAgent := .Values.agentWorkloads }}
-{{- if ( $customAgent.certManager.enabled) }}
+{{- if $customAgent.certManager.enabled }}
 apiVersion: cert-manager.io/v1
 kind: Certificate
 metadata:
@@ -82,7 +81,6 @@ spec:
   selfSigned: { }
 ---
 {{- end }}
-{{- end }}
 ---
 apiVersion: v1
 kind: Secret
@@ -91,4 +89,5 @@ metadata:
     {{- include "amazon-cloudwatch-observability.labels" $ | nindent 4 }}
   name: "amazon-cloudwatch-observability-agent-cert"
   namespace: {{ $.Release.Namespace }}
+{{- end }}
 {{- end }}
