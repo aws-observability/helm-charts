@@ -28,6 +28,7 @@ metadata:
 spec:
   image: {{ include "cloudwatch-agent.modify-image" (merge (dict "Image" $customAgent.image) $ ) }}
   mode: {{ $customAgent.mode | default "daemonset" }}
+  replicas: {{ $customAgent.replicas | default 1 }}
   nodeSelector:
     kubernetes.io/os: linux
   serviceAccount: {{ $customAgent.serviceAccount.name | default (include "cloudwatch-agent.serviceAccountName" $) }}

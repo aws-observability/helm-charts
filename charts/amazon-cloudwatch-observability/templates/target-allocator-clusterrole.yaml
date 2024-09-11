@@ -24,7 +24,7 @@ rules:
     verbs: ["get"]
   {{- if $customAgent.prometheus.customResources.enabled }}
   - apiGroups: [ "monitoring.coreos.com"]
-    resources: ["alertmanagerconfigs", "alertmanagers", "podmonitors", "probes", "prometheusagents", "prometheuses", "prometheusrules", "scrapeconfigs", "servicemonitors", "thanosrulers"]
+    resources: ["podmonitors", "servicemonitors"]
     verbs: ["get", "list", "watch"]
   {{- end }}
 {{- end }}
