@@ -1,6 +1,6 @@
 {{- if .Values.agent.enabled }}
-{{- range $i, $customAgent := .Values.agentWorkloads }}
-{{- if and (eq $customAgent.mode "statefulset") (or $customAgent.prometheus.config $customAgent.prometheus.customResources.enabled) }}
+{{- range $i, $customAgent := .Values.agents }}
+{{- if and (and (hasKey ($customAgent.prometheus) "targetAllocator") (hasKey ($customAgent.prometheus.targetAllocator) "enabled")) $customAgent.prometheus.targetAllocator.enabled }}
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
@@ -22,7 +22,7 @@ rules:
     verbs: ["get", "list", "watch"]
   - nonResourceURLs: ["/metrics"]
     verbs: ["get"]
-  {{- if $customAgent.prometheus.customResources.enabled }}
+  {{- if and (and (hasKey ($customAgent.prometheus) "customResources") (hasKey ($customAgent.prometheus.customResources) "enabled")) $customAgent.prometheus.customResources.enabled }}
   - apiGroups: [ "monitoring.coreos.com"]
     resources: ["podmonitors", "servicemonitors"]
     verbs: ["get", "list", "watch"]

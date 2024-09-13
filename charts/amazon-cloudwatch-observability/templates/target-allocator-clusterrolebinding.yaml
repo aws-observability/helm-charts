@@ -1,6 +1,6 @@
 {{- if .Values.agent.enabled }}
-{{- range $i, $customAgent := .Values.agentWorkloads }}
-{{- if and (eq $customAgent.mode "statefulset") (or $customAgent.prometheus.config $customAgent.prometheus.customResourceName) }}
+{{- range $i, $customAgent := .Values.agents }}
+{{- if and (and (hasKey ($customAgent.prometheus) "targetAllocator") (hasKey ($customAgent.prometheus.targetAllocator) "enabled")) $customAgent.prometheus.targetAllocator.enabled }}
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:

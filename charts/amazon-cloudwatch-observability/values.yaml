@@ -547,7 +547,7 @@ admissionWebhooks:
 
 ## Agent workloads list
 agents:
-  - name: cloudwatch-agent-mitali
+  - name: cloudwatch-agent
 
 agent:
   name:
