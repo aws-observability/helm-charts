@@ -1,16 +1,15 @@
 {{- if .Values.agent.enabled }}
-{{- range $i, $customAgent := .Values.agentWorkloads }}
-{{- if and ($customAgent.autoGenerateCert.enabled) (not $customAgent.certManager.enabled) -}}
-{{- $altNames := list ( printf "%s-service" (include "dcgm-exporter.name" $) ) ( printf "%s-service" (include "neuron-monitor.name" $) ) ( printf "%s-service.%s.svc" (include "dcgm-exporter.name" $) $.Release.Namespace ) ( printf "%s-service.%s.svc" (include "neuron-monitor.name" $) $.Release.Namespace ) -}}
-{{- $ca := genCA ("agent-ca")  ( $customAgent.autoGenerateCert.expiryDays | default $.Values.agent.autoGenerateCert.expiryDays | int ) -}}
-{{- $cert := genSignedCert ("agent") nil $altNames ( $.Values.admissionWebhooks.autoGenerateCert.expiryDays | int ) $ca -}}
+{{- if and (.Values.agent.autoGenerateCert.enabled) (not .Values.agent.certManager.enabled) -}}
+{{- $altNames := list ( printf "%s-service" (include "dcgm-exporter.name" .) ) ( printf "%s-service" (include "neuron-monitor.name" .) ) ( printf "%s-service.%s.svc" (include "dcgm-exporter.name" .) .Release.Namespace ) ( printf "%s-service.%s.svc" (include "neuron-monitor.name" .) .Release.Namespace ) -}}
+{{- $ca := genCA ("agent-ca")  ( .Values.agent.autoGenerateCert.expiryDays | int ) -}}
+{{- $cert := genSignedCert ("agent") nil $altNames ( .Values.admissionWebhooks.autoGenerateCert.expiryDays | int ) $ca -}}
 apiVersion: v1
 kind: Secret
 metadata:
   labels:
-      {{- include "amazon-cloudwatch-observability.labels" $ | nindent 4}}
+    {{- include "amazon-cloudwatch-observability.labels" . | nindent 4}}
   name: "amazon-cloudwatch-observability-agent-cert"
-  namespace: {{ $.Release.Namespace }}
+  namespace: {{ .Release.Namespace }}
 data:
   ca.crt: {{ $ca.Cert | b64enc }}
   tls.crt: {{ $cert.Cert | b64enc }}
@@ -18,6 +17,7 @@ data:
 ---
 {{- end -}}
 
+{{- range $i, $customAgent := .Values.agents }}
 {{- $clusterName := $.Values.clusterName | required "$.Values.clusterName is required." -}}
 {{- $region := $.Values.region | required "$.Values.region is required." -}}
 apiVersion: cloudwatch.aws.amazon.com/v1alpha1
@@ -26,12 +26,12 @@ metadata:
   name: {{ $customAgent.name | default (include "cloudwatch-agent.name" $) }}
   namespace: {{ $.Release.Namespace }}
 spec:
-  image: {{ include "cloudwatch-agent.modify-image" (merge (dict "Image" $customAgent.image) $ ) }}
+  image: {{ include "cloudwatch-agent.modify-image" (merge (dict "image" $customAgent.image) $ ) }}
   mode: {{ $customAgent.mode | default "daemonset" }}
   replicas: {{ $customAgent.replicas | default 1 }}
   nodeSelector:
     kubernetes.io/os: linux
-  serviceAccount: {{ $customAgent.serviceAccount.name | default (include "cloudwatch-agent.serviceAccountName" $) }}
+  serviceAccount: {{ if hasKey ($customAgent.serviceAccount) "name" }}{{ $customAgent.serviceAccount.Name }}{{ else }}{{ (include "cloudwatch-agent.serviceAccountName" $) }}{{ end }}
   affinity:
     nodeAffinity:
       requiredDuringSchedulingIgnoredDuringExecution:
@@ -49,11 +49,11 @@ spec:
   {{- end }}
   resources:
     requests:
-      memory: {{ $customAgent.resources.requests.memory | default $.Values.agent.resources.requests.memory }}
-      cpu: {{ $customAgent.resources.requests.cpu | default $.Values.agent.resources.requests.cpu }}
+      memory: {{ if and (hasKey ($customAgent.resources) "requests") (hasKey ($customAgent.resources.requests) "memory") }}{{ $customAgent.resources.requests.memory }}{{ else }}{{ $.Values.agent.resources.requests.memory }}{{ end }}
+      cpu: {{ if and (hasKey ($customAgent.resources) "requests") (hasKey ($customAgent.resources.requests) "cpu") }}{{ $customAgent.resources.requests.cpu }}{{ else }}{{ $.Values.agent.resources.requests.cpu }}{{ end }}
     limits:
-      memory: {{ $customAgent.resources.limits.memory | default $.Values.agent.resources.limits.memory }}
-      cpu: {{ $customAgent.resources.limits.cpu | default $.Values.agent.resources.limits.cpu }}
+      memory: {{ if and (hasKey ($customAgent.resources) "limits") (hasKey ($customAgent.resources.limits) "memory") }}{{ $customAgent.resources.limits.memory }}{{ else }}{{ $.Values.agent.resources.limits.memory }}{{ end }}
+      cpu: {{ if and (hasKey ($customAgent.resources) "limits") (hasKey ($customAgent.resources.limits) "cpu") }}{{ $customAgent.resources.limits.cpu }}{{ else }}{{ $.Values.agent.resources.limits.cpu }}{{ end }}
   volumeMounts:
   - mountPath: /rootfs
     name: rootfs

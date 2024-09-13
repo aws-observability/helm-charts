@@ -546,41 +546,13 @@ admissionWebhooks:
   secretLabels: { }
 
 ## Agent workloads list
-agentWorkloads:
-  - name: cloudwatch-agent-with-container-insights-and-application-signals
-    ## Supported modes are daemonset, statefulset and deployment
-    mode: daemonset
-    replicas:
-    image:
-      repository:
-      tag:
-    resources:
-      requests:
-        memory:
-        cpu:
-      limits:
-        memory:
-        cpu:
-    autoGenerateCert:
-      enabled: true
-      expiryDays:
-    certManager:
-      enabled: false
-      issuerRef: { }
-      # kind:
-      # name:
-      certificateAnnotations: { }
-      issuerAnnotations: { }
-    serviceAccount:
-      name:
-    config:
-    prometheus:
-      customResources:
-        enabled: false
-      config:
+agents:
+  - name: cloudwatch-agent-mitali
 
 agent:
   name:
+  mode:
+  replicas:
   image:
     repository: cloudwatch-agent
     tag: 1.300045.1b823
@@ -636,6 +608,31 @@ agent:
         }
       }
     }
+  windowsDefaultConfig:
+    {
+      "logs": {
+        "metrics_collected": {
+          "kubernetes": {
+            "enhanced_container_insights": true
+          },
+          "application_signals": { }
+        }
+      },
+      "traces": {
+        "traces_collected": {
+          "application_signals": { }
+        }
+      }
+    }
+  prometheus:
+    config:
+    prometheusCR:
+      enabled: false
+    targetAllocator:
+      enabled: false
+      strategy:
+  nodeSelector:
+    kubernetes.io/os: linux
 
 dcgmExporter:
   name:

@@ -26,8 +26,8 @@ spec:
   subject:
     organizationalUnits:
       - {{ template "amazon-cloudwatch-observability.name" . }}
+  {{- if not .Values.admissionWebhooks.certManager.issuerRef }}
 ---
-{{- if not .Values.admissionWebhooks.certManager.issuerRef }}
 apiVersion: cert-manager.io/v1
 kind: Issuer
 metadata:
@@ -41,19 +41,18 @@ metadata:
   namespace: {{ .Release.Namespace }}
 spec:
   selfSigned: { }
----
-{{- end }}
-{{- end }}
+  {{- end }}
+  {{- end }}
 
-{{- range $i, $customAgent := .Values.agentWorkloads }}
-{{- if $customAgent.certManager.enabled }}
+  {{- if ( .Values.agent.certManager.enabled) }}
+---
 apiVersion: cert-manager.io/v1
 kind: Certificate
 metadata:
   labels:
-    {{- include "amazon-cloudwatch-observability.labels" $ | nindent 4 }}
+    {{- include "amazon-cloudwatch-observability.labels" . | nindent 4 }}
   name: "amazon-cloudwatch-observability-agent-cert"
-  namespace: {{ $.Release.Namespace }}
+  namespace: {{ .Release.Namespace }}
 spec:
   dnsNames:
     - "dcgm-exporter-service"
@@ -64,30 +63,29 @@ spec:
     kind: Issuer
     name: "agent-ca"
   secretName: "amazon-cloudwatch-observability-agent-cert"
+  {{- if not .Values.agent.certManager.issuerRef }}
 ---
-{{- if not $customAgent.certManager.issuerRef }}
 apiVersion: cert-manager.io/v1
 kind: Issuer
 metadata:
-  {{- if $customAgent.certManager.issuerAnnotations }}
+  {{- if .Values.agent.certManager.issuerAnnotations }}
   annotations:
-  {{- toYaml $customAgent.certManager.issuerAnnotations | nindent 4 }}
+  {{- toYaml .Values.agent.certManager.issuerAnnotations | nindent 4 }}
   {{- end }}
   labels:
-    {{- include "amazon-cloudwatch-observability.labels" $ | nindent 4 }}
+    {{- include "amazon-cloudwatch-observability.labels" . | nindent 4 }}
   name: "agent-ca"
-  namespace: {{ $.Release.Namespace }}
+  namespace: {{ .Release.Namespace }}
 spec:
   selfSigned: { }
----
-{{- end }}
+  {{- end }}
 ---
 apiVersion: v1
 kind: Secret
 metadata:
   labels:
-    {{- include "amazon-cloudwatch-observability.labels" $ | nindent 4 }}
+    {{- include "amazon-cloudwatch-observability.labels" . | nindent 4 }}
   name: "amazon-cloudwatch-observability-agent-cert"
-  namespace: {{ $.Release.Namespace }}
-{{- end }}
-{{- end }}
+  namespace: {{ .Release.Namespace }}
+  {{- end }}
+

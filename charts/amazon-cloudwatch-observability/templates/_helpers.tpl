@@ -71,13 +71,13 @@ Get the current recommended cloudwatch agent image for a region
 {{- $repository := .Values.agent.image.repository -}}
 {{- $tag := .Values.agent.image.tag -}}
 
-{{- if not .Image }}
-{{- $customImage := deepCopy .Image }}
-{{ if $customImage.repository }}
-{{- $repository = $customImage.repository -}}
+{{- if (.image) }}
+{{- $imageCopy := deepCopy .image }}
+{{- if hasKey $imageCopy "repository" }}
+{{- $repository = $imageCopy.repository -}}
 {{- end -}}
-{{ if $customImage.tag }}
-{{- $tag =  $customImage.tag -}}
+{{- if hasKey $imageCopy "tag" }}
+{{- $tag =  $imageCopy.tag -}}
 {{- end -}}
 {{- end -}}
 
