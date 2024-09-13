@@ -1,5 +1,5 @@
 =======================================================================
-amazon-cloudwatch-observability v2.0.1 (2024-08-23)
+amazon-cloudwatch-observability v2.1.0 (2024-08-23)
 ========================================================================
 New Features:
 * Adding support for NodeJS auto instrumentation for Application Signals (#91)
