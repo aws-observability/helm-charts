@@ -424,9 +424,11 @@ manager:
       tag: v0.1.0
   autoInstrumentationApplicationSignals:
     java:
-      runtimeEnabled: true
+      runtime:
+        enabled: true
     python:
-      runtimeEnabled: true
+      runtime:
+        enabled: true
   autoInstrumentationResources:
     java:
       limits:
