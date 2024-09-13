@@ -425,10 +425,10 @@ manager:
   autoInstrumentationApplicationSignals:
     java:
       runtime:
-        enabled: true
+        enabled: "true"
     python:
       runtime:
-        enabled: true
+        enabled: "true"
   autoInstrumentationResources:
     java:
       limits:
