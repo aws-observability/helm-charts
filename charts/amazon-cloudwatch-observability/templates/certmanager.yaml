@@ -72,6 +72,8 @@ metadata:
   name: "amazon-cloudwatch-observability-agent-server-cert"
   namespace: {{ .Release.Namespace }}
 spec:
+  dnsNames:
+    - "amazon-cloudwatch-observability-agent-server"
   issuerRef:
     kind: Issuer
     name: "agent-ca"
@@ -85,6 +87,8 @@ metadata:
   name: "amazon-cloudwatch-observability-agent-client-cert"
   namespace: {{ .Release.Namespace }}
 spec:
+  dnsNames:
+    - "amazon-cloudwatch-observability-agent-client"
   issuerRef:
     kind: Issuer
     name: "agent-ca"

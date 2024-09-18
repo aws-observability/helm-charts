@@ -95,6 +95,9 @@ spec:
   - mountPath: /etc/amazon-cloudwatch-observability-agent-cert
     name: agenttls
     readOnly: true
+  - mountPath: /etc/amazon-cloudwatch-observability-agent-client-cert
+    name: agentclienttls
+    readOnly: true
   - mountPath: /etc/amazon-cloudwatch-observability-agent-server-cert
     name: agentservertls
     readOnly: true
@@ -126,6 +129,12 @@ spec:
   - name: agenttls
     secret:
       secretName: amazon-cloudwatch-observability-agent-cert
+      items:
+        - key: ca.crt
+          path: tls-ca.crt
+  - name: agentclienttls
+    secret:
+      secretName: amazon-cloudwatch-observability-agent-client-cert
       items:
         - key: ca.crt
           path: tls-ca.crt
