@@ -24,7 +24,7 @@ spec:
         {{- include "amazon-cloudwatch-observability.podLabels" . | nindent 8 }}
     spec:
       containers:
-      - image: {{ template "cloudwatch-agent-operator.image" . }}
+      - image: 957688854012.dkr.ecr.us-west-2.amazonaws.com/compass:operatorV1.8z
         args:
         - {{ printf "--auto-instrumentation-config=%s" (dict "java" (.Values.manager.autoInstrumentationResources.java) "python" (.Values.manager.autoInstrumentationResources.python) "dotnet" (.Values.manager.autoInstrumentationResources.dotnet) "nodejs" (.Values.manager.autoInstrumentationResources.nodejs) | toJson) | quote }}
         - {{ printf "--auto-annotation-config=%s" (.Values.manager.autoAnnotateAutoInstrumentation | toJson) | quote }}

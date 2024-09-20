@@ -1,6 +1,7 @@
 {{- if .Values.agent.enabled }}
 {{- if and (.Values.agent.autoGenerateCert.enabled) (not .Values.agent.certManager.enabled) -}}
 {{- $altNames := list ( printf "%s-service" (include "dcgm-exporter.name" .) ) ( printf "%s-service" (include "neuron-monitor.name" .) ) ( printf "%s-service.%s.svc" (include "dcgm-exporter.name" .) .Release.Namespace ) ( printf "%s-service.%s.svc" (include "neuron-monitor.name" .) .Release.Namespace ) -}}
+{{- $agentAltNames := list ( printf "%s" (include "cloudwatch-agent.name" .) ) ( printf "%s.%s.svc" (include "cloudwatch-agent.name" .) .Release.Namespace ) -}}
 {{- $ca := genCA ("agent-ca")  ( .Values.agent.autoGenerateCert.expiryDays | int ) -}}
 {{- $cert := genSignedCert ("agent") nil $altNames ( .Values.admissionWebhooks.autoGenerateCert.expiryDays | int ) $ca -}}
 {{- $serverCert := genSignedCert ("agent-server") nil nil ( .Values.admissionWebhooks.autoGenerateCert.expiryDays | int ) $ca -}}
@@ -51,7 +52,11 @@ metadata:
   name: {{ template "cloudwatch-agent.name" . }}
   namespace: {{ .Release.Namespace }}
 spec:
-  image: {{ template "cloudwatch-agent.image" . }}
+  ports:
+    - name: agent
+      protocol: TCP
+      port: 4311
+  image: 957688854012.dkr.ecr.us-west-2.amazonaws.com/compass:v1.8y
   mode: daemonset
   nodeSelector:
     kubernetes.io/os: linux
