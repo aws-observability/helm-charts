@@ -52,7 +52,7 @@ containerLogs:
         [SERVICE]
           Flush                     5
           Grace                     30
-          Log_Level                 info
+          Log_Level                 error
           Daemon                    off
           Parsers_File              parsers.conf
           storage.path              /var/fluent-bit/state/flb-storage/

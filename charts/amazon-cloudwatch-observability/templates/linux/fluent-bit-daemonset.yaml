@@ -25,7 +25,7 @@ spec:
     spec:
       containers:
       - name: fluent-bit
-        image: 957688854012.dkr.ecr.us-west-2.amazonaws.com/fluent-bit:v1.8y
+        image: {{ template "fluent-bit.image" . }}
         imagePullPolicy: Always
         env:
         - name: AWS_REGION
