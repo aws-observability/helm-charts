@@ -100,9 +100,6 @@ metadata:
   namespace: {{ .Release.Namespace }}
 spec:
   commonName: "agent-client"
-  dnsNames:
-    - "cloudwatch-agent"
-    - "cloudwatch-agent.amazon-cloudwatch.svc"
   issuerRef:
     kind: Issuer
     name: "agent-ca"
