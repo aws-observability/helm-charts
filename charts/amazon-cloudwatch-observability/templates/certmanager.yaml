@@ -72,12 +72,24 @@ metadata:
   name: "amazon-cloudwatch-observability-agent-server-cert"
   namespace: {{ .Release.Namespace }}
 spec:
+  commonName: "agent-server"
   dnsNames:
-    - "amazon-cloudwatch-observability-agent-server"
+    - "cloudwatch-agent"
+    - "cloudwatch-agent.amazon-cloudwatch.svc"
   issuerRef:
     kind: Issuer
     name: "agent-ca"
   secretName: "amazon-cloudwatch-observability-agent-server-cert"
+  usages:
+    - digital signature
+    - key encipherment
+    - cert sign
+  keyUsages:
+    critical: true
+    usages:
+      - digitalSignature
+      - keyEncipherment
+      - certSign
 ---
 apiVersion: cert-manager.io/v1
 kind: Certificate
@@ -87,12 +99,24 @@ metadata:
   name: "amazon-cloudwatch-observability-agent-client-cert"
   namespace: {{ .Release.Namespace }}
 spec:
+  commonName: "agent-client"
   dnsNames:
-    - "amazon-cloudwatch-observability-agent-client"
+    - "cloudwatch-agent"
+    - "cloudwatch-agent.amazon-cloudwatch.svc"
   issuerRef:
     kind: Issuer
     name: "agent-ca"
   secretName:  "amazon-cloudwatch-observability-agent-client-cert"
+  usages:
+    - digital signature
+    - key encipherment
+    - cert sign
+  keyUsages:
+    critical: true
+    usages:
+      - digitalSignature
+      - keyEncipherment
+      - certSign
 {{- if not .Values.agent.certManager.issuerRef }}
 ---
 apiVersion: cert-manager.io/v1
