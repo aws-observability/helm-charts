@@ -586,6 +586,7 @@ agent:
   serviceAccount:
     name: # override agent service account name
   config: # optional config that can be provided to override the defaultConfig
+  otelConfig: # optional YAML config that can be provided to combine with the config/defaultConfig
   defaultConfig:
     {
       "logs": {
