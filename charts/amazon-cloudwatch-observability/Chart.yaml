@@ -1,13 +1,12 @@
 apiVersion: v2
 name: amazon-cloudwatch-observability
-version: 2.1.1
+version: 2.1.2
 appVersion: 1.0.0
 description: A Helm chart for Amazon CloudWatch Observability
 type: application
 home: https://aws.amazon.com/cloudwatch/
 sources:
-- https://github.com/aws-observability/helm-charts/tree/main/charts/amazon-cloudwatch-observability
+  - https://github.com/aws-observability/helm-charts/tree/main/charts/amazon-cloudwatch-observability
 maintainers:
-- name: straussb
-- name: lisaguo
-- name: kausyas
+  - name: lisaguo
+  - name: kausyas
