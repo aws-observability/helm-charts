@@ -4,6 +4,7 @@ amazon-cloudwatch-observability v2.1.2 (2024-10-01)
 Enhancements:
 * Upgrade .Net SDK to v1.3.2
 * Upgrade Neuron-Monitor to v1.2.1
+* Support G6 GPU instance types with DCGM-Exporter
 
 =======================================================================
 amazon-cloudwatch-observability v2.1.1 (2024-09-17)
