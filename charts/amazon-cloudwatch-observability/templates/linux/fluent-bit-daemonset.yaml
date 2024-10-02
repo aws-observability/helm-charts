@@ -71,6 +71,7 @@ spec:
       terminationGracePeriodSeconds: 10
       hostNetwork: true
       dnsPolicy: ClusterFirstWithHostNet
+      priorityClassName: {{ .Values.containerLogs.fluentBit.priorityClassName }}
       volumes:
       - name: fluentbitstate
         hostPath:
