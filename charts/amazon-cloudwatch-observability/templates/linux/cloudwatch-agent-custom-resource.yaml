@@ -49,14 +49,20 @@ spec:
   {{- end }}
   {{- if $customAgent.prometheus }}
   {{- if $customAgent.prometheus.config }}
-  prometheus: {{ $customAgent.prometheus.config | toYaml | quote }}
+  prometheus:
+    {{- with $customAgent.prometheus.config }}
+    config:
+      {{- toYaml . | nindent 6 }}
+    {{- end }}
   {{- end }}
   {{- if $customAgent.prometheus.targetAllocator }}
   targetAllocator:
     enabled: {{ $customAgent.prometheus.targetAllocator.enabled | default false }}
     image: {{ include "target-allocator.modify-image" (merge (dict "image" $customAgent.prometheus.targetAllocator.image) $ ) }}
     allocationStrategy: "consistent-hashing"
-  prometheusCR: {{ $customAgent.prometheus.targetAllocator.prometheusCR.enabled | default false }}
+    {{- if $customAgent.prometheus.targetAllocator.prometheusCR }}
+    prometheusCR: {{ $customAgent.prometheus.targetAllocator.prometheusCR.enabled | default false }}
+    {{- end }}
   {{- end }}
   {{- end }}
   resources:

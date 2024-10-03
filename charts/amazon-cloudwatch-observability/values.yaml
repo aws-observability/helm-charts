@@ -551,8 +551,8 @@ agents:
 
 agent:
   name:
-  mode:
-  replicas:
+  mode: # represents the mode the cloudwatch-agent will run in (deployment, daemonset or statefulset)
+  replicas: # The total number non-terminated pods targeted by this cloudwatch-agent's deployment or statefulSet.
   image:
     repository: cloudwatch-agent
     tag: 1.300045.1b823

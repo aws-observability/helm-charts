@@ -134,7 +134,7 @@ Get the current recommended target allocator image for a region
 {{- $imageDomain := "" -}}
 {{- $imageDomain = index .Values.agent.prometheus.targetAllocator.image.repositoryDomainMap .Values.region -}}
 {{- if not $imageDomain -}}
-{{- $imageDomain = .Values.agent.prometheus.targetAllocator.repositoryDomainMap.public -}}
+{{- $imageDomain = .Values.agent.prometheus.targetAllocator.image.repositoryDomainMap.public -}}
 {{- end -}}
 {{- printf "%s/%s:%s" $imageDomain $repository $tag -}}
 {{- end -}}
