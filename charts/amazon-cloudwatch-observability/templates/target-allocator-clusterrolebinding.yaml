@@ -1,0 +1,21 @@
+{{- if .Values.agent.enabled }}
+{{- range $i, $customAgent := .Values.agents }}
+{{- if and (and (hasKey ($customAgent.prometheus) "targetAllocator") (hasKey ($customAgent.prometheus.targetAllocator) "enabled")) $customAgent.prometheus.targetAllocator.enabled }}
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  labels:
+    {{- include "amazon-cloudwatch-observability.labels" $ | nindent 4 }}
+  name: "cloudwatch-agent-target-allocator-rolebinding"
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: "cloudwatch-agent-target-allocator-role"
+subjects:
+- kind: ServiceAccount
+  name: "target-allocator-service-acct"
+  namespace: {{ $.Release.Namespace }}
+{{- end }}
+---
+{{- end }}
+{{- end }}
