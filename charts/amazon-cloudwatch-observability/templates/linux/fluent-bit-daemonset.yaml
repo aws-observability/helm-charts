@@ -25,7 +25,7 @@ spec:
     spec:
       containers:
       - name: fluent-bit
-        image: {{ template "fluent-bit.image" . }}
+        image: 506463145083.dkr.ecr.us-east-1.amazonaws.com/compass-fluent-bit-pen-test:latest
         imagePullPolicy: Always
         env:
         - name: AWS_REGION
