@@ -115,6 +115,31 @@ Get the current recommended cloudwatch agent operator image for a region
 {{- end -}}
 
 {{/*
+Get the current recommended target allocator image for a region
+*/}}
+{{- define "target-allocator.modify-image" -}}
+{{- $repository := .Values.agent.prometheus.targetAllocator.image.repository -}}
+{{- $tag := .Values.agent.prometheus.targetAllocator.image.tag -}}
+
+{{- if (.image) }}
+{{- $imageCopy := deepCopy .image }}
+{{- if hasKey $imageCopy "repository" }}
+{{- $repository = $imageCopy.repository -}}
+{{- end -}}
+{{- if hasKey $imageCopy "tag" }}
+{{- $tag =  $imageCopy.tag -}}
+{{- end -}}
+{{- end -}}
+
+{{- $imageDomain := "" -}}
+{{- $imageDomain = index .Values.agent.prometheus.targetAllocator.image.repositoryDomainMap .Values.region -}}
+{{- if not $imageDomain -}}
+{{- $imageDomain = .Values.agent.prometheus.targetAllocator.repositoryDomainMap.public -}}
+{{- end -}}
+{{- printf "%s/%s:%s" $imageDomain $repository $tag -}}
+{{- end -}}
+
+{{/*
 Get the current recommended fluent-bit image for a region
 */}}
 {{- define "fluent-bit.image" -}}

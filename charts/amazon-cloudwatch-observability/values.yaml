@@ -626,13 +626,19 @@ agent:
     }
   prometheus:
     config:
-    prometheusCR:
-      enabled: false
     targetAllocator:
       enabled: false
-      strategy:
-  nodeSelector:
-    kubernetes.io/os: linux
+      image:
+        repository: cloudwatch-agent-target-allocator
+        tag: latest
+        repositoryDomainMap:
+          public: public.ecr.aws/cloudwatch-agent
+          cn-north-1: 934860584483.dkr.ecr.cn-north-1.amazonaws.com.cn
+          cn-northwest-1: 934860584483.dkr.ecr.cn-northwest-1.amazonaws.com.cn
+          us-gov-east-1: 743662458514.dkr.ecr.us-gov-east-1.amazonaws.com
+          us-gov-west-1: 743662458514.dkr.ecr.us-gov-west-1.amazonaws.com
+      prometheusCR:
+        enabled: false
 
 dcgmExporter:
   name:

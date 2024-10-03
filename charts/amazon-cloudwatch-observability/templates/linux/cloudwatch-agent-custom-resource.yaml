@@ -47,6 +47,18 @@ spec:
   {{- else }}
   config: {{ include "cloudwatch-agent.modify-config" (merge (dict "Config" $.Values.agent.defaultConfig) $ ) }}
   {{- end }}
+  {{- if $customAgent.prometheus }}
+  {{- if $customAgent.prometheus.config }}
+  prometheus: {{ $customAgent.prometheus.config | toYaml | quote }}
+  {{- end }}
+  {{- if $customAgent.prometheus.targetAllocator }}
+  targetAllocator:
+    enabled: {{ $customAgent.prometheus.targetAllocator.enabled | default false }}
+    image: {{ include "target-allocator.modify-image" (merge (dict "image" $customAgent.prometheus.targetAllocator.image) $ ) }}
+    allocationStrategy: "consistent-hashing"
+  prometheusCR: {{ $customAgent.prometheus.targetAllocator.prometheusCR.enabled | default false }}
+  {{- end }}
+  {{- end }}
   resources:
     requests:
       memory: {{ if and (hasKey ($customAgent.resources) "requests") (hasKey ($customAgent.resources.requests) "memory") }}{{ $customAgent.resources.requests.memory }}{{ else }}{{ $.Values.agent.resources.requests.memory }}{{ end }}
