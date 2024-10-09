@@ -1,6 +1,6 @@
 {{- if .Values.agent.enabled }}
 {{- if and (.Values.agent.autoGenerateCert.enabled) (not .Values.agent.certManager.enabled) -}}
-{{- $altNames := list ( printf "%s-service" (include "dcgm-exporter.name" .) ) ( printf "%s-service" (include "neuron-monitor.name" .) ) ( printf "%s-service.%s.svc" (include "dcgm-exporter.name" .) .Release.Namespace ) ( printf "%s-service.%s.svc" (include "neuron-monitor.name" .) .Release.Namespace ) -}}
+{{- $altNames := list ( "target-allocator-service") ( printf "%s-service" (include "dcgm-exporter.name" .) ) ( printf "%s-service" (include "neuron-monitor.name" .) ) ( printf "%s-service.%s.svc" (include "dcgm-exporter.name" .) .Release.Namespace ) ( printf "%s-service.%s.svc" (include "neuron-monitor.name" .) .Release.Namespace ) -}}
 {{- $ca := genCA ("agent-ca")  ( .Values.agent.autoGenerateCert.expiryDays | int ) -}}
 {{- $cert := genSignedCert ("agent") nil $altNames ( .Values.admissionWebhooks.autoGenerateCert.expiryDays | int ) $ca -}}
 apiVersion: v1
@@ -141,6 +141,13 @@ spec:
     valueFrom:
       fieldRef:
         fieldPath: metadata.namespace
+  {{ if $customAgent.prometheus}}
+  prometheus:
+    config: 
+      {{ toYaml $customAgent.prometheus.config  | nindent 6 }}
+  targetAllocator:
+    enabled: {{$customAgent.prometheus.targetAllocator.enabled}}
+  {{ end }}
   {{- with $.Values.tolerations }}
   tolerations: {{- toYaml . | nindent 2}}
   {{- end }}
