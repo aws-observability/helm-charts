@@ -585,6 +585,7 @@ agent:
     issuerAnnotations: { }
   serviceAccount:
     name: # override agent service account name
+    annotations: { } # optional annotations for the service account
   config: # optional config that can be provided to override the defaultConfig
   defaultConfig:
     {

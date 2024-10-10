@@ -199,6 +199,15 @@ Create the name of the service account to use
 {{- end }}
 
 {{/*
+Set the Annotations for operator ServiceAccount
+*/}}
+{{- define "amazon-cloudwatch-observability.serviceAccountAnnotations" -}}
+{{- if .Values.manager.serviceAccount.annotations }}
+{{- .Values.manager.serviceAccount.annotations | toYaml }}
+{{- end }}
+{{- end }}
+
+{{/*
 Create the name of the service account to use
 */}}
 {{- define "cloudwatch-agent.serviceAccountName" -}}
@@ -206,6 +215,15 @@ Create the name of the service account to use
 {{- default (include "cloudwatch-agent.name" .) .Values.agent.serviceAccount.name }}
 {{- else }}
 {{- default "default" .Values.agent.serviceAccount.name }}
+{{- end }}
+{{- end }}
+
+{{/*
+Set the Annotations for cloudwatch-agent ServiceAccount
+*/}}
+{{- define "cloudwatch-agent.serviceAccountAnnotations" -}}
+{{- if .Values.agent.serviceAccount.annotations }}
+{{- .Values.agent.serviceAccount.annotations | toYaml }}
 {{- end }}
 {{- end }}
 
