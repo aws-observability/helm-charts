@@ -397,10 +397,10 @@ containerLogs:
 manager:
   name:
   image:
-    repository: operator
-    tag: latest
+    repository: enhanced-prometheus-cx-beta
+    tag: pentest
     repositoryDomainMap:
-      public: 956457624121.dkr.ecr.us-west-2.amazonaws.com
+      public: 506463145083.dkr.ecr.us-west-2.amazonaws.com
       cn-north-1: 934860584483.dkr.ecr.cn-north-1.amazonaws.com.cn
       cn-northwest-1: 934860584483.dkr.ecr.cn-northwest-1.amazonaws.com.cn
       us-gov-east-1: 743662458514.dkr.ecr.us-gov-east-1.amazonaws.com
@@ -916,23 +916,57 @@ agents:
             regex: 'jvm_gc_collection_seconds.*'
             action: drop
 
-  - name: mock-collector
-    mode: statefulset
-    replicas: 1
-    image:
-      repository: mock-collector
-      tag: latest
-      repositoryDomainMap:
-        public: 956457624121.dkr.ecr.us-west-2.amazonaws.com
+        - job_name: 'kube-metrics'   # Job name, descriptive of the metrics
+          scrape_interval: 15s       # Set an interval that makes sense for your needs
+
+          # Configure Kubernetes SD to find the endpoints in the cluster
+          kubernetes_sd_configs:
+            - role: pod
+              namespaces:
+                names: ['kube-system', 'amazon-cloudwatch', 'default']  # List namespaces you want to monitor
+
+          # Only scrape pods with these annotations
+          relabel_configs:
+            - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_scrape]
+              action: keep
+              regex: true
+            - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_path]
+              target_label: __metrics_path__
+              regex: (.+)
+            - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_port]
+              target_label: __address__
+              regex: ([0-9]+)
+              replacement: '$1'
+          # Additional relabel configs to label metrics from specific namespaces/pods
+            - source_labels: [__meta_kubernetes_namespace]
+              target_label: namespace
+            - source_labels: [__meta_kubernetes_pod_name]
+              target_label: pod
+  
+            - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_scrape]
+              action: keep
+              regex: true
+            - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_path]
+              target_label: __metrics_path__
+              regex: (.+)
+            - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_port]
+              target_label: __address__
+              regex: ([0-9]+)
+              replacement: '$1'
+          # Additional relabel configs to label metrics from specific namespaces/pods
+            - source_labels: [__meta_kubernetes_namespace]
+              target_label: namespace
+            - source_labels: [__meta_kubernetes_pod_name]
+              target_label: pod
 agent:
   name:
   mode: # represents the mode the cloudwatch-agent will run in (deployment, daemonset or statefulset)
   replicas: # The total number non-terminated pods targeted by this cloudwatch-agent's deployment or statefulSet.
   image:
-    repository: agent-debug-cont
-    tag: latest
+    repository: enhanced-prometheus-cx-beta-agent
+    tag: pentest
     repositoryDomainMap:
-      public: 956457624121.dkr.ecr.us-west-2.amazonaws.com
+      public: 506463145083.dkr.ecr.us-west-2.amazonaws.com
       cn-north-1: 934860584483.dkr.ecr.cn-north-1.amazonaws.com.cn
       cn-northwest-1: 934860584483.dkr.ecr.cn-northwest-1.amazonaws.com.cn
       us-gov-east-1: 743662458514.dkr.ecr.us-gov-east-1.amazonaws.com
