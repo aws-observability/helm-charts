@@ -9,7 +9,7 @@ replicaCount: 1
 nameOverride: ""
 
 ## Provide the ClusterName (this is a required parameter)
-clusterName: "cloudwatchagent-ta-dev"
+clusterName: 
 
 ## Provide the Region (this is a required parameter)
 region:
