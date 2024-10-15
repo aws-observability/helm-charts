@@ -46,7 +46,7 @@ spec:
   config: {{ include "cloudwatch-agent.modify-config" (merge (dict "Config" .Values.agent.defaultConfig) . ) }}
   {{- end }}
   {{- if .Values.agent.otelConfig }}
-  otelConfig: {{ .Values.agent.otelConfig | toYaml | quote }}
+  otelConfig: {{ include "cloudwatch-agent.modify-yaml-config" (merge (dict "OtelConfig" .Values.agent.otelConfig) . ) }}
   {{- end }}
   {{- with .Values.agent.resources }}
   resources: {{- toYaml . | nindent 4}}
