@@ -47,6 +47,7 @@ containerLogs:
       requests:
         cpu: 50m
         memory: 25Mi
+    priorityClassName: ""
     config:
       service: |
         [SERVICE]
