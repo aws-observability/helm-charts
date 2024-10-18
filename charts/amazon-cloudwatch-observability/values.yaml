@@ -398,7 +398,7 @@ manager:
   name:
   image:
     repository: cloudwatch-agent-operator
-    tag: 1.7.0
+    tag: 1.8.0
     repositoryDomainMap:
       public: public.ecr.aws/cloudwatch-agent
       cn-north-1: 934860584483.dkr.ecr.cn-north-1.amazonaws.com.cn
@@ -409,11 +409,11 @@ manager:
     java:
       repositoryDomain: public.ecr.aws/aws-observability
       repository: adot-autoinstrumentation-java
-      tag: v1.32.3
+      tag: v1.32.4
     python:
       repositoryDomain: public.ecr.aws/aws-observability
       repository: adot-autoinstrumentation-python
-      tag: v0.5.0
+      tag: v0.6.0
     dotnet:
       repositoryDomain: public.ecr.aws/aws-observability
       repository: adot-autoinstrumentation-dotnet
@@ -549,7 +549,7 @@ agent:
   name:
   image:
     repository: cloudwatch-agent
-    tag: 1.300047.0b872
+    tag: 1.300048.1b904
     repositoryDomainMap:
       public: public.ecr.aws/cloudwatch-agent
       cn-north-1: 934860584483.dkr.ecr.cn-north-1.amazonaws.com.cn
