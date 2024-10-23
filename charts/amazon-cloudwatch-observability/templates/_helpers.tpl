@@ -48,6 +48,7 @@ Helper function to modify cloudwatch-agent YAML config
 */}}
 {{- define "cloudwatch-agent.modify-yaml-config" -}}
 {{- $configCopy := deepCopy .OtelConfig }}
+{{- $configCopy := fromYaml $configCopy }}
 
 {{- range $name, $component := $configCopy }}
 {{- if $component -}}
