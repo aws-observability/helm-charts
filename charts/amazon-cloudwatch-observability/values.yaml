@@ -121,6 +121,7 @@ containerLogs:
           [FILTER]
             Name                aws
             Match               application.*
+            enable_entity       true
           
           [FILTER]
             Name                kubernetes
@@ -146,6 +147,7 @@ containerLogs:
             log_stream_prefix   ${HOST_NAME}-
             auto_create_group   true
             extra_user_agent    container-insights
+            add_entity          true
         dataplane-log.conf: |
           [INPUT]
             Name                systemd
