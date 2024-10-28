@@ -545,7 +545,7 @@ admissionWebhooks:
   ## Secret labels
   secretLabels: { }
 
-## Agent workloads list
+## List of AmazonCloudWatchAgent workloads to install & manage, each representing an independent installation of the AmazonCloudWatchAgent CustomResource. Each entry in this list uses the schema & the defaults from $.agent, so only provide any overrides here.
 agents:
   - name: cloudwatch-agent
 
