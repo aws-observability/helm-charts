@@ -26,7 +26,7 @@ spec:
   subject:
     organizationalUnits:
       - {{ template "amazon-cloudwatch-observability.name" . }}
-{{- if not .Values.admissionWebhooks.certManager.issuerRef }}
+  {{- if not .Values.admissionWebhooks.certManager.issuerRef }}
 ---
 apiVersion: cert-manager.io/v1
 kind: Issuer
@@ -41,10 +41,10 @@ metadata:
   namespace: {{ .Release.Namespace }}
 spec:
   selfSigned: { }
-{{- end }}
-{{- end }}
+  {{- end }}
+  {{- end }}
 
-{{- if ( .Values.agent.certManager.enabled) }}
+  {{- if ( .Values.agent.certManager.enabled) }}
 ---
 apiVersion: cert-manager.io/v1
 kind: Certificate
@@ -63,7 +63,7 @@ spec:
     kind: Issuer
     name: "agent-ca"
   secretName: "amazon-cloudwatch-observability-agent-cert"
-{{- if not .Values.agent.certManager.issuerRef }}
+  {{- if not .Values.agent.certManager.issuerRef }}
 ---
 apiVersion: cert-manager.io/v1
 kind: Issuer
@@ -78,7 +78,7 @@ metadata:
   namespace: {{ .Release.Namespace }}
 spec:
   selfSigned: { }
-{{- end }}
+  {{- end }}
 ---
 apiVersion: v1
 kind: Secret
@@ -87,5 +87,5 @@ metadata:
     {{- include "amazon-cloudwatch-observability.labels" . | nindent 4 }}
   name: "amazon-cloudwatch-observability-agent-cert"
   namespace: {{ .Release.Namespace }}
-{{- end }}
+  {{- end }}
 
