@@ -21,7 +21,7 @@ const (
 	// - cloudwatch-agent-windows-headless
 	// - cloudwatch-agent-windows-monitoring
 	// - cloudwatch-agent-windows-container-insights-monitoring
-	serviceCountWindows = 6
+	serviceCountWindows = 4
 
 	// DaemonSet count on Linux:
 	// - cloudwatch-agent
