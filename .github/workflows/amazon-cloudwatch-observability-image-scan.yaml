@@ -82,7 +82,11 @@ jobs:
           cmd: yq '${{ matrix.container_images.tag }}' charts/amazon-cloudwatch-observability/values.yaml
 
       - name: "Scan for vulnerabilities"
-        uses: crazy-max/ghaction-container-scan@v3
+        uses: aquasecurity/trivy-action@0.28.0
         with:
-          image: ${{ steps.registry.outputs.result }}/${{ steps.repository.outputs.result }}:${{ steps.tag.outputs.result }}
-          severity_threshold: HIGH
+          image-ref: ${{ steps.registry.outputs.result }}/${{ steps.repository.outputs.result }}:${{ steps.tag.outputs.result }}
+          format: 'table'
+          exit-code: '1'
+          ignore-unfixed: true
+          vuln-type: 'os,library'
+          severity: 'CRITICAL,HIGH'
