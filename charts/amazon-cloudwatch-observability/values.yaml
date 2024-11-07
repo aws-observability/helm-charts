@@ -409,19 +409,19 @@ manager:
     java:
       repositoryDomain: public.ecr.aws/aws-observability
       repository: adot-autoinstrumentation-java
-      tag: v1.32.4
+      tag: v1.32.5
     python:
       repositoryDomain: public.ecr.aws/aws-observability
       repository: adot-autoinstrumentation-python
-      tag: v0.6.0
+      tag: v0.7.0
     dotnet:
       repositoryDomain: public.ecr.aws/aws-observability
       repository: adot-autoinstrumentation-dotnet
-      tag: v1.3.2
+      tag: v1.4.0
     nodejs:
       repositoryDomain: public.ecr.aws/aws-observability
       repository: adot-autoinstrumentation-node
-      tag: v0.2.0
+      tag: v0.3.0
   autoInstrumentationConfiguration:
     java:
       runtime_metrics:
