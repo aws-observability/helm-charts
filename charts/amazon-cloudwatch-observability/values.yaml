@@ -122,6 +122,7 @@ containerLogs:
             Name                aws
             Match               application.*
             az                  false
+            ec2_instance_id     false
             Enable_Entity       true
           
           [FILTER]
