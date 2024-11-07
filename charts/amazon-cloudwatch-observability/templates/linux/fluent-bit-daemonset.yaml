@@ -68,6 +68,12 @@ spec:
         - name: dmesg
           mountPath: /var/log/dmesg
           readOnly: true
+        - mountPath: /etc/amazon-cloudwatch-observability-agent-client-cert
+          name: agentclienttls
+          readOnly: true
+        - mountPath: /etc/amazon-cloudwatch-observability-agent-server-cert
+          name: agentservertls
+          readOnly: true
       terminationGracePeriodSeconds: 10
       hostNetwork: true
       dnsPolicy: ClusterFirstWithHostNet
@@ -90,6 +96,20 @@ spec:
       - name: dmesg
         hostPath:
           path: /var/log/dmesg
+      - name: agentclienttls
+        secret:
+          secretName: amazon-cloudwatch-observability-agent-client-cert
+          items:
+            - key: tls.crt
+              path: client.crt
+            - key: tls.key
+              path: client.key
+      - name: agentservertls
+        secret:
+          secretName: amazon-cloudwatch-observability-agent-server-cert
+          items:
+            - key: ca.crt
+              path: tls-ca.crt
       serviceAccountName: {{ template "cloudwatch-agent.serviceAccountName" . }}
       affinity:
         nodeAffinity:
