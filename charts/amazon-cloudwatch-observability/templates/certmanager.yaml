@@ -55,6 +55,9 @@ metadata:
   namespace: {{ .Release.Namespace }}
 spec:
   dnsNames:
+    {{- range $i, $customAgent := .Values.agents }}
+    - {{( printf "%s-target-allocator-service" $customAgent.name )}}
+    {{- end }}
     - "dcgm-exporter-service"
     - "dcgm-exporter-service.amazon-cloudwatch.svc"
     - "neuron-monitor-service"
