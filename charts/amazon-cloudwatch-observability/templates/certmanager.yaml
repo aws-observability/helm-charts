@@ -84,12 +84,6 @@ spec:
     - digital signature
     - key encipherment
     - cert sign
-  keyUsages:
-    critical: true
-    usages:
-      - digitalSignature
-      - keyEncipherment
-      - certSign
 ---
 apiVersion: cert-manager.io/v1
 kind: Certificate
@@ -108,12 +102,6 @@ spec:
     - digital signature
     - key encipherment
     - cert sign
-  keyUsages:
-    critical: true
-    usages:
-      - digitalSignature
-      - keyEncipherment
-      - certSign
 {{- if not .Values.agent.certManager.issuerRef }}
 ---
 apiVersion: cert-manager.io/v1
