@@ -3,30 +3,167 @@
 # Declare variables to be passed into your templates.
 
 replicaCount: 1
-
 ## Provide a name in place of cloudwatchagent-operator.
 ##
 nameOverride: ""
-
 ## Provide the ClusterName (this is a required parameter)
 clusterName:
-
 ## Provide the Region (this is a required parameter)
 region:
-
 nodeLabelKey: node.kubernetes.io/instance-type
 fargateLabelKey: eks.amazonaws.com/compute-type
-
 ## NVIDIA GPU instance types
-gpuInstances: [ g3.4xlarge, g3.8xlarge, g3.16xlarge, g3s.xlarge, g4ad.2xlarge, g4ad.4xlarge, g4ad.8xlarge, g4ad.16xlarge, g4ad.xlarge, g4dn.2xlarge, g4dn.4xlarge, g4dn.8xlarge, g4dn.12xlarge, g4dn.16xlarge, g4dn.metal, g4dn.xlarge, g5.2xlarge, g5.4xlarge, g5.8xlarge, g5.12xlarge, g5.16xlarge, g5.24xlarge, g5.48xlarge, g5.xlarge, g5g.2xlarge, g5g.4xlarge, g5g.8xlarge, g5g.16xlarge, g5g.metal, g5g.xlarge, g6.2xlarge, g6.4xlarge, g6.8xlarge, g6.12xlarge, g6.16xlarge, g6.24xlarge, g6.48xlarge, g6.xlarge, g6e.2xlarge, g6e.4xlarge, g6e.8xlarge, g6e.12xlarge, g6e.16xlarge, g6e.24xlarge, g6e.48xlarge, g6e.xlarge, gr6.4xlarge, gr6.8xlarge, p2.8xlarge, p2.16xlarge, p2.xlarge, p3.2xlarge, p3.8xlarge, p3.16xlarge, p3dn.24xlarge, p4d.24xlarge, p4de.24xlarge, p5.48xlarge, p5e.48xlarge, ml.g3.4xlarge, ml.g3.8xlarge, ml.g3.16xlarge, ml.g3s.xlarge, ml.g4ad.2xlarge, ml.g4ad.4xlarge, ml.g4ad.8xlarge, ml.g4ad.16xlarge, ml.g4ad.xlarge, ml.g4dn.2xlarge, ml.g4dn.4xlarge, ml.g4dn.8xlarge, ml.g4dn.12xlarge, ml.g4dn.16xlarge, ml.g4dn.metal, ml.g4dn.xlarge, ml.g5.2xlarge, ml.g5.4xlarge, ml.g5.8xlarge, ml.g5.12xlarge, ml.g5.16xlarge, ml.g5.24xlarge, ml.g5.48xlarge, ml.g5.xlarge, ml.g5g.2xlarge, ml.g5g.4xlarge, ml.g5g.8xlarge, ml.g5g.16xlarge, ml.g5g.metal, ml.g5g.xlarge, ml.g6.2xlarge, ml.g6.4xlarge, ml.g6.8xlarge, ml.g6.12xlarge, ml.g6.16xlarge, ml.g6.24xlarge, ml.g6.48xlarge, ml.g6.xlarge, ml.g6e.2xlarge, ml.g6e.4xlarge, ml.g6e.8xlarge, ml.g6e.12xlarge, ml.g6e.16xlarge, ml.g6e.24xlarge, ml.g6e.48xlarge, ml.g6e.xlarge, ml.gr6.4xlarge, ml.gr6.8xlarge, ml.p2.8xlarge, ml.p2.16xlarge, ml.p2.xlarge, ml.p3.2xlarge, ml.p3.8xlarge, ml.p3.16xlarge, ml.p3dn.24xlarge, ml.p4d.24xlarge, ml.p4de.24xlarge, ml.p5.48xlarge, ml.p5e.48xlarge ]
-
+gpuInstances:
+  - g3.4xlarge
+  - g3.8xlarge
+  - g3.16xlarge
+  - g3s.xlarge
+  - g4ad.2xlarge
+  - g4ad.4xlarge
+  - g4ad.8xlarge
+  - g4ad.16xlarge
+  - g4ad.xlarge
+  - g4dn.2xlarge
+  - g4dn.4xlarge
+  - g4dn.8xlarge
+  - g4dn.12xlarge
+  - g4dn.16xlarge
+  - g4dn.metal
+  - g4dn.xlarge
+  - g5.2xlarge
+  - g5.4xlarge
+  - g5.8xlarge
+  - g5.12xlarge
+  - g5.16xlarge
+  - g5.24xlarge
+  - g5.48xlarge
+  - g5.xlarge
+  - g5g.2xlarge
+  - g5g.4xlarge
+  - g5g.8xlarge
+  - g5g.16xlarge
+  - g5g.metal
+  - g5g.xlarge
+  - g6.2xlarge
+  - g6.4xlarge
+  - g6.8xlarge
+  - g6.12xlarge
+  - g6.16xlarge
+  - g6.24xlarge
+  - g6.48xlarge
+  - g6.xlarge
+  - g6e.2xlarge
+  - g6e.4xlarge
+  - g6e.8xlarge
+  - g6e.12xlarge
+  - g6e.16xlarge
+  - g6e.24xlarge
+  - g6e.48xlarge
+  - g6e.xlarge
+  - gr6.4xlarge
+  - gr6.8xlarge
+  - p2.8xlarge
+  - p2.16xlarge
+  - p2.xlarge
+  - p3.2xlarge
+  - p3.8xlarge
+  - p3.16xlarge
+  - p3dn.24xlarge
+  - p4d.24xlarge
+  - p4de.24xlarge
+  - p5.48xlarge
+  - p5e.48xlarge
+  - ml.g3.4xlarge
+  - ml.g3.8xlarge
+  - ml.g3.16xlarge
+  - ml.g3s.xlarge
+  - ml.g4ad.2xlarge
+  - ml.g4ad.4xlarge
+  - ml.g4ad.8xlarge
+  - ml.g4ad.16xlarge
+  - ml.g4ad.xlarge
+  - ml.g4dn.2xlarge
+  - ml.g4dn.4xlarge
+  - ml.g4dn.8xlarge
+  - ml.g4dn.12xlarge
+  - ml.g4dn.16xlarge
+  - ml.g4dn.metal
+  - ml.g4dn.xlarge
+  - ml.g5.2xlarge
+  - ml.g5.4xlarge
+  - ml.g5.8xlarge
+  - ml.g5.12xlarge
+  - ml.g5.16xlarge
+  - ml.g5.24xlarge
+  - ml.g5.48xlarge
+  - ml.g5.xlarge
+  - ml.g5g.2xlarge
+  - ml.g5g.4xlarge
+  - ml.g5g.8xlarge
+  - ml.g5g.16xlarge
+  - ml.g5g.metal
+  - ml.g5g.xlarge
+  - ml.g6.2xlarge
+  - ml.g6.4xlarge
+  - ml.g6.8xlarge
+  - ml.g6.12xlarge
+  - ml.g6.16xlarge
+  - ml.g6.24xlarge
+  - ml.g6.48xlarge
+  - ml.g6.xlarge
+  - ml.g6e.2xlarge
+  - ml.g6e.4xlarge
+  - ml.g6e.8xlarge
+  - ml.g6e.12xlarge
+  - ml.g6e.16xlarge
+  - ml.g6e.24xlarge
+  - ml.g6e.48xlarge
+  - ml.g6e.xlarge
+  - ml.gr6.4xlarge
+  - ml.gr6.8xlarge
+  - ml.p2.8xlarge
+  - ml.p2.16xlarge
+  - ml.p2.xlarge
+  - ml.p3.2xlarge
+  - ml.p3.8xlarge
+  - ml.p3.16xlarge
+  - ml.p3dn.24xlarge
+  - ml.p4d.24xlarge
+  - ml.p4de.24xlarge
+  - ml.p5.48xlarge
+  - ml.p5e.48xlarge
 ## Tranium/Infrentia instance types
-neuronInstances: [ trn1.2xlarge, trn1.32xlarge, trn1n.32xlarge, trn2.3xlarge, trn2.48xlarge, trn2a.48xlarge, trn2n.48xlarge, trn2u.48xlarg, inf1.xlarge, inf1.2xlarge, inf1.6xlarge, inf1.24xlarge, inf2.xlarge, inf2.8xlarge, inf2.24xlarge, inf2.48xlarge, ml.trn1.2xlarge, ml.trn1.32xlarge, ml.trn1n.32xlarge, ml.inf1.xlarge, ml.inf1.2xlarge, ml.inf1.6xlarge, ml.inf1.24xlarge, ml.inf2.xlarge, ml.inf2.8xlarge, ml.inf2.24xlarge, ml.inf2.48xlarge ]
-
+neuronInstances:
+  - trn1.2xlarge
+  - trn1.32xlarge
+  - trn1n.32xlarge
+  - trn2.3xlarge
+  - trn2.48xlarge
+  - trn2a.48xlarge
+  - trn2n.48xlarge
+  - trn2u.48xlarg
+  - inf1.xlarge
+  - inf1.2xlarge
+  - inf1.6xlarge
+  - inf1.24xlarge
+  - inf2.xlarge
+  - inf2.8xlarge
+  - inf2.24xlarge
+  - inf2.48xlarge
+  - ml.trn1.2xlarge
+  - ml.trn1.32xlarge
+  - ml.trn1n.32xlarge
+  - ml.inf1.xlarge
+  - ml.inf1.2xlarge
+  - ml.inf1.6xlarge
+  - ml.inf1.24xlarge
+  - ml.inf2.xlarge
+  - ml.inf2.8xlarge
+  - ml.inf2.24xlarge
+  - ml.inf2.48xlarge
 ## Provide default tolerations
 tolerations:
-- operator: Exists
-
+  - operator: Exists
 containerLogs:
   enabled: true
   fluentBit:
@@ -441,53 +578,53 @@ manager:
   autoInstrumentationResources:
     java:
       limits:
-        cpu: "500m"
-        memory: "64Mi"
+        cpu: 500m
+        memory: 64Mi
       requests:
-        cpu: "50m"
-        memory: "64Mi"
+        cpu: 50m
+        memory: 64Mi
     python:
       limits:
-        cpu: "500m"
-        memory: "32Mi"
+        cpu: 500m
+        memory: 32Mi
       requests:
-        cpu: "50m"
-        memory: "32Mi"
+        cpu: 50m
+        memory: 32Mi
     dotnet:
       limits:
-        cpu: "500m"
-        memory: "128Mi"
+        cpu: 500m
+        memory: 128Mi
       requests:
-        cpu: "50m"
-        memory: "128Mi"
+        cpu: 50m
+        memory: 128Mi
     nodejs:
       limits:
-        cpu: "500m"
-        memory: "128Mi"
+        cpu: 500m
+        memory: 128Mi
       requests:
-        cpu: "50m"
-        memory: "128Mi"
+        cpu: 50m
+        memory: 128Mi
   autoAnnotateAutoInstrumentation:
     java:
-      namespaces: [ ]
-      deployments: [ ]
-      daemonsets: [ ]
-      statefulsets: [ ]
+      namespaces: []
+      deployments: []
+      daemonsets: []
+      statefulsets: []
     python:
-      namespaces: [ ]
-      deployments: [ ]
-      daemonsets: [ ]
-      statefulsets: [ ]
+      namespaces: []
+      deployments: []
+      daemonsets: []
+      statefulsets: []
     dotnet:
-      namespaces: [ ]
-      deployments: [ ]
-      daemonsets: [ ]
-      statefulsets: [ ]
+      namespaces: []
+      deployments: []
+      daemonsets: []
+      statefulsets: []
     nodejs:
-      namespaces: [ ]
-      deployments: [ ]
-      daemonsets: [ ]
-      statefulsets: [ ]
+      namespaces: []
+      deployments: []
+      daemonsets: []
+      statefulsets: []
   ports:
     containerPort: 9443
     metricsPort: 8080
@@ -501,71 +638,59 @@ manager:
   ## e.g ENV_VAR: env_value
   env:
     ENABLE_WEBHOOKS: "true"
-
   # -- Create the manager ServiceAccount
   serviceAccount:
     create: true
-    annotations: { }
-
-  podAnnotations: { }
-  podLabels: { }
-
+    annotations: {}
+  podAnnotations: {}
+  podLabels: {}
   service:
     name:
-
 ## Admission webhooks make sure only requests with correctly formatted rules will get into the Operator.
 admissionWebhooks:
   create: true
   failurePolicy: Ignore
   secretName: ""
-
   ## Defines the sidecar injection logic in Pods.
   ## - Ignore, the injection is fail-open. The pod will be created, but the sidecar won't be injected.
   ## - Fail, the injection is fail-close. If the webhook pod is not ready, pods cannot be created.
   pods:
     failurePolicy: Ignore
-
   ## Adds a prefix to the mutating webhook name.
   ## This can be used to order this mutating webhook with all your cluster's mutating webhooks.
   namePrefix: ""
-
   ## Customize webhook timeout duration
   timeoutSeconds: 10
-
   ## Provide selectors for your objects
-  namespaceSelector: { }
-  objectSelector: { }
-
+  namespaceSelector: {}
+  objectSelector: {}
   ## TLS Certificate Option 1: Use Helm to automatically generate self-signed certificate.
   ## autoGenerateCert must be enabled. This is the default option.
   ## If true, Helm will automatically create a self-signed cert and secret for you.
   autoGenerateCert:
     enabled: true
     expiryDays: 3650 # 10 years
-
   ## TLS Certificate Option 2: Use certManager to generate self-signed certificate.
   ## certManager must be enabled. If enabled, it takes precedence over option 1.
   certManager:
     enabled: false
     ## Provide the issuer kind and name to do the cert auth job.
     ## By default, OpenTelemetry Operator will use self-signer issuer.
-    issuerRef: { }
+    issuerRef: {}
     # kind:
     # name:
     ## Annotations for the cert and issuer if cert-manager is enabled.
-    certificateAnnotations: { }
-    issuerAnnotations: { }
-
+    certificateAnnotations: {}
+    issuerAnnotations: {}
   ## Secret annotations
-  secretAnnotations: { }
+  secretAnnotations: {}
   ## Secret labels
-  secretLabels: { }
-
+  secretLabels: {}
 agent:
   name:
   image:
     repository: cloudwatch-agent
-    tag: 1.300049.1b929
+    tag: 1.300050.0b956
     repositoryDomainMap:
       public: public.ecr.aws/cloudwatch-agent
       cn-north-1: 934860584483.dkr.ecr.cn-north-1.amazonaws.com.cn
@@ -575,30 +700,29 @@ agent:
   enabled: true
   resources:
     requests:
-      memory: "128Mi"
-      cpu: "250m"
+      memory: 128Mi
+      cpu: 250m
     limits:
-      memory: "512Mi"
-      cpu: "500m"
+      memory: 512Mi
+      cpu: 500m
   ## TLS Certificate Option 1: Use Helm to automatically generate self-signed certificate.
   ## autoGenerateCert must be enabled. This is the default option.
   ## If true, Helm will automatically create a self-signed cert and secret for you.
   autoGenerateCert:
     enabled: true
     expiryDays: 3650 # 10 years
-
   ## TLS Certificate Option 2: Use certManager to generate self-signed certificate.
   ## certManager must be enabled. If enabled, it takes precedence over option 1.
   certManager:
     enabled: false
     ## Provide the issuer kind and name to do the cert auth job.
     ## By default, OpenTelemetry Operator will use self-signer issuer.
-    issuerRef: { }
+    issuerRef: {}
     # kind:
     # name:
     ## Annotations for the cert and issuer if cert-manager is enabled.
-    certificateAnnotations: { }
-    issuerAnnotations: { }
+    certificateAnnotations: {}
+    issuerAnnotations: {}
   serviceAccount:
     name: # override agent service account name
   config: # optional config that can be provided to override the defaultConfig
@@ -639,16 +763,16 @@ dcgmExporter:
       cpu: 500m
       memory: 500Mi
   configmap: dcgm-exporter-config-map
-  arguments: ["--web-config-file=/etc/dcgm-exporter/web-config.yaml" ]
+  arguments:
+    - --web-config-file=/etc/dcgm-exporter/web-config.yaml
   service:
     enable: true
     type: ClusterIP
     port: 9400
-    address: ":9400"
-  kubeletPath: "/var/lib/kubelet/pod-resources"
+    address: :9400
+  kubeletPath: /var/lib/kubelet/pod-resources
   serviceAccount:
     name: # override exporter service account name
-
 neuronMonitor:
   name:
   image:
@@ -668,11 +792,12 @@ neuronMonitor:
     enable: true
     type: ClusterIP
     port: 8000
-    address: ":8000"
+    address: :8000
   securityContext:
     runAsNonRoot: false
     runAsUser: 0
     capabilities:
-      add: ["SYS_ADMIN"]
+      add:
+        - SYS_ADMIN
   serviceAccount:
     name: # override exporter service account name
