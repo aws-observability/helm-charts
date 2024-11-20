@@ -1,5 +1,12 @@
 =======================================================================
-amazon-cloudwatch-observability v2.3.0 (2024-11-08)========================================================================
+amazon-cloudwatch-observability v2.3.1 (2024-11-14)
+========================================================================
+Bug Fixes:
+* Remove keyUsages in favor of usages in cert manager template (#128) 
+
+=======================================================================
+amazon-cloudwatch-observability v2.3.0 (2024-11-08)
+========================================================================
 New Features:
 * Add agent server port for vending entity to FluentBit
 
