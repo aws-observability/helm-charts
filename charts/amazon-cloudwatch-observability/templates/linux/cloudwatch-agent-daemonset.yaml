@@ -1,8 +1,11 @@
 {{- if .Values.agent.enabled }}
 {{- if and (.Values.agent.autoGenerateCert.enabled) (not .Values.agent.certManager.enabled) -}}
 {{- $altNames := list ( printf "%s-service" (include "dcgm-exporter.name" .) ) ( printf "%s-service" (include "neuron-monitor.name" .) ) ( printf "%s-service.%s.svc" (include "dcgm-exporter.name" .) .Release.Namespace ) ( printf "%s-service.%s.svc" (include "neuron-monitor.name" .) .Release.Namespace ) -}}
+{{- $agentAltNames := list ( printf "%s" (include "cloudwatch-agent.name" .) ) ( printf "%s.%s.svc" (include "cloudwatch-agent.name" .) .Release.Namespace ) -}}
 {{- $ca := genCA ("agent-ca")  ( .Values.agent.autoGenerateCert.expiryDays | int ) -}}
 {{- $cert := genSignedCert ("agent") nil $altNames ( .Values.admissionWebhooks.autoGenerateCert.expiryDays | int ) $ca -}}
+{{- $serverCert := genSignedCert ("agent-server") nil $agentAltNames ( .Values.admissionWebhooks.autoGenerateCert.expiryDays | int ) $ca -}}
+{{- $clientCert := genSignedCert ("agent-client") nil nil ( .Values.admissionWebhooks.autoGenerateCert.expiryDays | int ) $ca -}}
 apiVersion: v1
 kind: Secret
 metadata:
@@ -14,6 +17,30 @@ data:
   ca.crt: {{ $ca.Cert | b64enc }}
   tls.crt: {{ $cert.Cert | b64enc }}
   tls.key: {{ $cert.Key | b64enc }}
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  labels:
+      {{- include "amazon-cloudwatch-observability.labels" . | nindent 4}}
+  name: "amazon-cloudwatch-observability-agent-server-cert"
+  namespace: {{ .Release.Namespace }}
+data:
+  ca.crt: {{ $ca.Cert | b64enc }}
+  tls.crt: {{ $serverCert.Cert | b64enc }}
+  tls.key: {{ $serverCert.Key | b64enc }}
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  labels:
+      {{- include "amazon-cloudwatch-observability.labels" . | nindent 4}}
+  name: "amazon-cloudwatch-observability-agent-client-cert"
+  namespace: {{ .Release.Namespace }}
+data:
+  ca.crt: {{ $ca.Cert | b64enc }}
+  tls.crt: {{ $clientCert.Cert | b64enc }}
+  tls.key: {{ $clientCert.Key | b64enc }}
 ---
 {{- end -}}
 
@@ -45,6 +72,9 @@ spec:
   {{- else }}
   config: {{ include "cloudwatch-agent.modify-config" (merge (dict "Config" .Values.agent.defaultConfig) . ) }}
   {{- end }}
+  {{- if .Values.agent.otelConfig }}
+  otelConfig: {{ include "cloudwatch-agent.modify-yaml-config" (merge (dict "OtelConfig" .Values.agent.otelConfig) . ) }}
+  {{- end }}
   {{- with .Values.agent.resources }}
   resources: {{- toYaml . | nindent 4}}
   {{- end }}
@@ -68,6 +98,12 @@ spec:
     readOnly: true
   - mountPath: /etc/amazon-cloudwatch-observability-agent-cert
     name: agenttls
+    readOnly: true
+  - mountPath: /etc/amazon-cloudwatch-observability-agent-client-cert
+    name: agentclienttls
+    readOnly: true
+  - mountPath: /etc/amazon-cloudwatch-observability-agent-server-cert
+    name: agentservertls
     readOnly: true
   - mountPath: /var/lib/kubelet/pod-resources
     name: kubelet-podresources
@@ -100,6 +136,20 @@ spec:
       items:
         - key: ca.crt
           path: tls-ca.crt
+  - name: agentclienttls
+    secret:
+      secretName: amazon-cloudwatch-observability-agent-client-cert
+      items:
+        - key: ca.crt
+          path: tls-ca.crt
+  - name: agentservertls
+    secret:
+      secretName: amazon-cloudwatch-observability-agent-server-cert
+      items:
+        - key: tls.crt
+          path: server.crt
+        - key: tls.key
+          path: server.key
   env:
   - name: K8S_NODE_NAME
     valueFrom:
