@@ -105,12 +105,7 @@ jobs:
         uses: slackapi/slack-github-action@v2.0.0
         with:
           webhook: ${{ secrets.SLACK_WEBHOOK_URL }}
-          webhook-type: incoming-webhook
+          webhook-type: webhook-trigger
           payload: |
-            text: "Image Security Status"
-            blocks:
-              - type: "section"
-                text:
-                  type: "mrkdwn"
-                  text: |
-                    ${{ env.SCAN_RESULT }}
+            results: >-
+             ${{ env.SCAN_RESULT }}
