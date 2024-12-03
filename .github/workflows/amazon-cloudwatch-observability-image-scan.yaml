@@ -108,4 +108,4 @@ jobs:
           webhook-type: webhook-trigger
           payload: |
             results: >-
-             ${{ env.SCAN_RESULT }}
+               ${{ env.SCAN_RESULT }}
