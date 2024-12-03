@@ -88,9 +88,21 @@ jobs:
           image: ${{ steps.registry.outputs.result }}/${{ steps.repository.outputs.result }}:${{ steps.tag.outputs.result }}
           severity_threshold: HIGH
           annotations: true
+      # from https://stackoverflow.com/questions/61919141/read-json-file-in-github-actions
+      - name: "Read json file"
+        id: set_var
+        run: |
+          content=`cat ${{ steps.scan.outputs.json }}`
+          # the following lines are only required for multi line json
+          content="${content//'%'/'%25'}"
+          content="${content//$'\n'/'%0A'}"
+          content="${content//$'\r'/'%0D'}"
+          # end of optional handling for multi line json
+          echo "::set-output name=content::$content"
       - name: Send a saved artifact to a Slack workflow
         uses: slackapi/slack-github-action@v2.0.0
         with:
-          payload-file-path: ${{ steps.scan.outputs.json }}
           webhook: ${{ secrets.SLACK_WEBHOOK_URL }}
           webhook-type: webhook-trigger
+          payload: |
+            results: "${{ steps.set_var.outputs.content }}"
