@@ -89,7 +89,7 @@ jobs:
           severity_threshold: HIGH
           annotations: true
       - name: Send a saved artifact to a Slack workflow
-        uses: slackapi/slack-github-action@v3
+        uses: slackapi/slack-github-action@v2.0.0
         with:
           payload-file-path: ${{ steps.scan.outputs.json }}
           webhook: ${{ secrets.SLACK_WEBHOOK_URL }}
