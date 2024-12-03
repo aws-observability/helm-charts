@@ -91,7 +91,6 @@ jobs:
       # from https://stackoverflow.com/questions/61919141/read-json-file-in-github-actions
       - run: echo "SCAN_RESULT=$(jq -c . < ${{ steps.scan.outputs.json }})" >> $GITHUB_ENV
       - run: |
-          echo '${{ fromJson(env.SCAN_RESULT) }}'
           echo '${{ env.SCAN_RESULT }}'
       - name: Send a saved artifact to a Slack workflow
         uses: slackapi/slack-github-action@v2.0.0
@@ -99,4 +98,4 @@ jobs:
           webhook: ${{ secrets.SLACK_WEBHOOK_URL }}
           webhook-type: webhook-trigger
           payload: |
-            results: "${{ env.SCAN_RESULT }}"
+            results: '${{ env.SCAN_RESULT }}'
