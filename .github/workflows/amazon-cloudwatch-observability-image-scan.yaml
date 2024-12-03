@@ -82,7 +82,16 @@ jobs:
           cmd: yq '${{ matrix.container_images.tag }}' charts/amazon-cloudwatch-observability/values.yaml
 
       - name: "Scan for vulnerabilities"
+        id: scan
         uses: crazy-max/ghaction-container-scan@v3
         with:
           image: ${{ steps.registry.outputs.result }}/${{ steps.repository.outputs.result }}:${{ steps.tag.outputs.result }}
           severity_threshold: HIGH
+      - name: "Send slack message"
+        uses: slackapi/slack-github-action@v2.0.0
+        with:
+          webhook: ${{ secrets.SLACK_WEBHOOK_URL }}
+          webhook-type: webhook-trigger
+          payload: |
+            status: "${{ steps.scan.outputs.json }}"
+            option: "false"
