@@ -89,10 +89,7 @@ jobs:
           severity_threshold: HIGH
           annotations: true
       # from https://stackoverflow.com/questions/61919141/read-json-file-in-github-actions
-      - run: |
-          echo 'SCAN_RESULT<<EOF' >> $GITHUB_ENV
-          cat ${{ steps.scan.outputs.json }} >> $GITHUB_ENV
-          echo '\nEOF' >> $GITHUB_ENV
+      - run: echo "SCAN_RESULT=$(jq -c . < ${{ steps.scan.outputs.json }})" >> $GITHUB_ENV
       - run: |
           echo '${{ fromJson(env.SCAN_RESULT) }}'
           echo '${{ env.SCAN_RESULT }}'
