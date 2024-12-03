@@ -89,6 +89,7 @@ jobs:
           severity_threshold: HIGH
           annotations: true
       - run: cat ${{ steps.scan.outputs.json }}
+        if: success() || failure()
       # from https://stackoverflow.com/questions/61919141/read-json-file-in-github-actions
       - run: echo "SCAN_RESULT=$(jq -r '.[] | "**\(.ArtifactName)**:\n" + ( .Results // empty | .[] | select(.Vulnerabilities != null) | .Vulnerabilities[] | "- \(.VulnerabilityID)" ) | @text' ${{ steps.scan.outputs.json }})" >> $GITHUB_ENV
         if: success() || failure()
