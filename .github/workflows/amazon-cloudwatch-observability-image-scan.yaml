@@ -91,7 +91,11 @@ jobs:
       - run: cat ${{ steps.scan.outputs.json }}
         if: success() || failure()
       # from https://stackoverflow.com/questions/61919141/read-json-file-in-github-actions
-      - run: echo "SCAN_RESULT=$(jq -rs '"**\(.ArtifactName)**:\n", ( .Results | .[] | select(.Vulnerabilities != null) | .Vulnerabilities[] | "- \(.VulnerabilityID)" ) | @text' ${{ steps.scan.outputs.json }})" >> $GITHUB_ENV
+      - run: |
+          SCAN_RESULT=$(jq -rs '"**\(.ArtifactName)**:\n", ( .Results | .[] | select(.Vulnerabilities != null) | .Vulnerabilities[] | "- \(.VulnerabilityID)" ) | @text' ${{ steps.scan.outputs.json }})
+          echo "SCAN_RESULT<<EOF" >> $GITHUB_ENV
+          echo "$SCAN_RESULT" >> $GITHUB_ENV
+          echo "EOF" >> $GITHUB_ENV
         if: success() || failure()
       - if: success() || failure()
         run: |
