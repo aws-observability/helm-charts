@@ -107,5 +107,5 @@ jobs:
           webhook: ${{ secrets.SLACK_WEBHOOK_URL }}
           webhook-type: webhook-trigger
           payload: |
-            results: >-
+            results: |
                ${{ env.SCAN_RESULT }}
