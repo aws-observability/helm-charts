@@ -99,10 +99,11 @@ jobs:
           content="${content//$'\r'/'%0D'}"
           # end of optional handling for multi line json
           echo "::set-output name=content::$content"
+          echo "$content"
       - name: Send a saved artifact to a Slack workflow
         uses: slackapi/slack-github-action@v2.0.0
         with:
           webhook: ${{ secrets.SLACK_WEBHOOK_URL }}
           webhook-type: webhook-trigger
           payload: |
-            results: "${{ steps.set_var.outputs.content }}"
+            results: "${{ fromJson(steps.set_var.outputs.content) }}"
