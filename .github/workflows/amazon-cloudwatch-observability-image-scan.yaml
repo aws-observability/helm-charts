@@ -82,8 +82,15 @@ jobs:
           cmd: yq '${{ matrix.container_images.tag }}' charts/amazon-cloudwatch-observability/values.yaml
 
       - name: "Scan for vulnerabilities"
+        id: scan
         uses: crazy-max/ghaction-container-scan@v3
         with:
           image: ${{ steps.registry.outputs.result }}/${{ steps.repository.outputs.result }}:${{ steps.tag.outputs.result }}
           severity_threshold: HIGH
           annotations: true
+      - name: Send a saved artifact to a Slack workflow
+        uses: slackapi/slack-github-action@v3
+        with:
+          payload-file-path: ${{ steps.scan.outputs.json }}
+          webhook: ${{ secrets.SLACK_WEBHOOK_URL }}
+          webhook-type: webhook-trigger
