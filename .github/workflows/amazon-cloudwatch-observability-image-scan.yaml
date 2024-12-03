@@ -93,6 +93,7 @@ jobs:
       - run: |
           echo '${{ env.SCAN_RESULT }}'
       - name: Send a saved artifact to a Slack workflow
+        if: success() || failure()
         uses: slackapi/slack-github-action@v2.0.0
         with:
           webhook: ${{ secrets.SLACK_WEBHOOK_URL }}
