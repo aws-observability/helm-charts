@@ -89,7 +89,7 @@ jobs:
           severity_threshold: HIGH
           annotations: true
       # from https://stackoverflow.com/questions/61919141/read-json-file-in-github-actions
-      - run: echo "SCAN_RESULT=$(jq -cRs  . ${{ steps.scan.outputs.json }})" >> $GITHUB_ENV
+      - run: echo "SCAN_RESULT=$(jq -s  . ${{ steps.scan.outputs.json }})" >> $GITHUB_ENV
         if: success() || failure()
       - if: success() || failure()
         run: |
@@ -101,4 +101,5 @@ jobs:
           webhook: ${{ secrets.SLACK_WEBHOOK_URL }}
           webhook-type: webhook-trigger
           payload: |
-            results: '${{ env.SCAN_RESULT }}'
+            results: >-
+             ${{ env.SCAN_RESULT }}
