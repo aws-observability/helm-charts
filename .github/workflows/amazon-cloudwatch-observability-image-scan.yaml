@@ -92,7 +92,7 @@ jobs:
         if: success() || failure()
       # from https://stackoverflow.com/questions/61919141/read-json-file-in-github-actions
       - run: |
-          SCAN_RESULT=$(jq -r '"**\(.ArtifactName)**:\n", ( .Results | .[] | select(.Vulnerabilities != null) | .Vulnerabilities[] | "- \(.VulnerabilityID)" ) | @text' ${{ steps.scan.outputs.json }})
+          SCAN_RESULT=$(jq -r '"**\(.ArtifactName)**:", ( .Results | .[] | select(.Vulnerabilities != null) | .Vulnerabilities[] | "- \(.VulnerabilityID)" ) | @text' ${{ steps.scan.outputs.json }})
           echo "SCAN_RESULT<<EOF" >> $GITHUB_ENV
           echo "$SCAN_RESULT" >> $GITHUB_ENV
           echo "EOF" >> $GITHUB_ENV
@@ -105,7 +105,12 @@ jobs:
         uses: slackapi/slack-github-action@v2.0.0
         with:
           webhook: ${{ secrets.SLACK_WEBHOOK_URL }}
-          webhook-type: webhook-trigger
+          webhook-type: incoming-webhook
           payload: |
-            results: >-
-             ${{ env.SCAN_RESULT }}
+            text: "Image Security Status"
+            blocks:
+              - type: "section"
+                text:
+                  type: "mrkdwn"
+                  text: |
+                    ${{ env.SCAN_RESULT }}
