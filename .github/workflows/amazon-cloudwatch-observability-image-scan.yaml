@@ -101,7 +101,7 @@ jobs:
         run: |
           echo '${{ env.SCAN_RESULT }}'
       - name: Send a saved artifact to a Slack workflow
-        if: success() || failure() || ${{ env.SCAN_RESULT != '' }} 
+        if: (success() || failure()) && ${{ env.SCAN_RESULT != '' }} 
         run: |
           curl -X POST "${{ secrets.SLACK_WEBHOOK_URL }}" \
             -H "Content-Type: application/json" \
