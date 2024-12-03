@@ -90,7 +90,9 @@ jobs:
           annotations: true
       # from https://stackoverflow.com/questions/61919141/read-json-file-in-github-actions
       - run: echo "SCAN_RESULT=$(jq -c . < ${{ steps.scan.outputs.json }})" >> $GITHUB_ENV
-      - run: |
+        if: success() || failure()
+      - if: success() || failure()
+        run: |
           echo '${{ env.SCAN_RESULT }}'
       - name: Send a saved artifact to a Slack workflow
         if: success() || failure()
