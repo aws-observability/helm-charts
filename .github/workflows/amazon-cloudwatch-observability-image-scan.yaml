@@ -82,7 +82,27 @@ jobs:
           cmd: yq '${{ matrix.container_images.tag }}' charts/amazon-cloudwatch-observability/values.yaml
 
       - name: "Scan for vulnerabilities"
+        id: scan
         uses: crazy-max/ghaction-container-scan@v3
         with:
           image: ${{ steps.registry.outputs.result }}/${{ steps.repository.outputs.result }}:${{ steps.tag.outputs.result }}
           severity_threshold: HIGH
+          annotations: true
+      - run: cat ${{ steps.scan.outputs.json }}
+        if: success() || failure()
+      # from https://stackoverflow.com/questions/61919141/read-json-file-in-github-actions
+      - run: |
+          SCAN_RESULT=$(jq -cr '"\(.ArtifactName): " + (.Results | .[] | select(.Vulnerabilities != null) | .Vulnerabilities | map(.VulnerabilityID) | join(", "))' ${{ steps.scan.outputs.json }} | cut -c -2999)
+          echo "SCAN_RESULT<<EOF" >> $GITHUB_ENV
+          echo "$SCAN_RESULT" >> $GITHUB_ENV
+          echo "EOF" >> $GITHUB_ENV
+        if: success() || failure()
+      - if: success() || failure()
+        run: |
+          echo '${{ env.SCAN_RESULT }}'
+      - name: Send a saved artifact to a Slack workflow
+        if: success() || failure()
+        run: |
+          curl -X POST "${{ secrets.SLACK_WEBHOOK_URL }}" \
+            -H "Content-Type: application/json" \
+            -d '{"results": "${{ env.SCAN_RESULT }}"}'
