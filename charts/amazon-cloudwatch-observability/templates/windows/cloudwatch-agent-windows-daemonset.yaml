@@ -16,6 +16,7 @@ spec:
   workingDir: "%CONTAINER_SANDBOX_MOUNT_POINT%\\Program Files\\Amazon\\AmazonCloudWatchAgent"
   mode: daemonset
   serviceAccount: {{ template "cloudwatch-agent.serviceAccountName" . }}
+  priorityClassName: {{ .Values.agent.priorityClassName }}
   nodeSelector:
     kubernetes.io/os: windows
   config: {{ .Values.agent.windowsDefaultConfig | toJson | quote }}
