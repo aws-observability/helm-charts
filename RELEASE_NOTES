@@ -1,8 +1,14 @@
 =======================================================================
+amazon-cloudwatch-observability v2.4.0 (2024-12-06)
+========================================================================
+Enhancements:
+* Increment CWAgent to v1.300050.0b956 that adds ability to scraping Kueue metrics
+
+=======================================================================
 amazon-cloudwatch-observability v2.3.1 (2024-11-14)
 ========================================================================
 Bug Fixes:
-* Remove keyUsages in favor of usages in cert manager template (#128) 
+* Remove keyUsages in favor of usages in cert manager template (#128)
 
 =======================================================================
 amazon-cloudwatch-observability v2.3.0 (2024-11-08)
