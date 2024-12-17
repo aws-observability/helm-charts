@@ -89,6 +89,12 @@ spec:
     config:
       {{- toYaml . | nindent 6 }}
     {{- end }}
+  {{- else if $.Values.agent.prometheus.config }}
+  prometheus:
+    {{- with $.Values.agent.prometheus.config }}
+    config:
+      {{- toYaml . | nindent 6 }}
+    {{- end }}
   {{- end }}
   {{- if $customAgent.prometheus.targetAllocator }}
   targetAllocator:
@@ -97,6 +103,14 @@ spec:
     allocationStrategy: "consistent-hashing"
     {{- if $customAgent.prometheus.targetAllocator.prometheusCR }}
     prometheusCR: {{ $customAgent.prometheus.targetAllocator.prometheusCR.enabled | default false }}
+    {{- end }}
+  {{- else if $.Values.agent.prometheus.targetAllocator }}
+  targetAllocator:
+    enabled: {{ $.Values.agent.prometheus.targetAllocator.enabled | default false }}
+    image: {{ include "target-allocator.modify-image" (merge (dict "image" $.Values.agent.prometheus.targetAllocator.image) $ ) }}
+    allocationStrategy: "consistent-hashing"
+    {{- if $.Values.agent.prometheus.targetAllocator.prometheusCR }}
+    prometheusCR: {{ $.Values.agent.prometheus.targetAllocator.prometheusCR.enabled | default false }}
     {{- end }}
   {{- end }}
   {{- end }}
