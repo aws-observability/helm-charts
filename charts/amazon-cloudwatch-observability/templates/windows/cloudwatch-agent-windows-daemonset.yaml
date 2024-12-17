@@ -14,6 +14,7 @@ spec:
   image: {{ template "cloudwatch-agent.image" . }}
   mode: daemonset
   serviceAccount: {{ template "cloudwatch-agent.serviceAccountName" . }}
+  priorityClassName: {{ .Values.agent.priorityClassName }}
   nodeSelector:
     kubernetes.io/os: windows
   config: {{ include "cloudwatch-agent.modify-config" (merge (dict "Config" $config) .) }}

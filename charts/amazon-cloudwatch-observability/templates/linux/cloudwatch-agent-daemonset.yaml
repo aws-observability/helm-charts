@@ -57,6 +57,7 @@ spec:
   nodeSelector:
     kubernetes.io/os: linux
   serviceAccount: {{ template "cloudwatch-agent.serviceAccountName" . }}
+  priorityClassName: {{ .Values.agent.priorityClassName }}
   affinity:
     nodeAffinity:
       requiredDuringSchedulingIgnoredDuringExecution:
