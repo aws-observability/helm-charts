@@ -4502,6 +4502,11 @@ spec:
                           type: boolean
                       type: object
                   type: object
+                otelConfig:
+                  description: Config is the raw YAML to be used as the collector's
+                    configuration. Refer to the OpenTelemetry Collector documentation
+                    for details.
+                  type: string
                 podAnnotations:
                   additionalProperties:
                     type: string

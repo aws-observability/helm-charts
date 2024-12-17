@@ -1,4 +1,57 @@
 =======================================================================
+amazon-cloudwatch-observability v2.3.1 (2024-11-14)
+========================================================================
+Bug Fixes:
+* Remove keyUsages in favor of usages in cert manager template (#128) 
+
+=======================================================================
+amazon-cloudwatch-observability v2.3.0 (2024-11-08)
+========================================================================
+New Features:
+* Add agent server port for vending entity to FluentBit
+
+Enhancements:
+* Upgrade CWAgent to v1.300049.1b929
+* Upgrade CWAgent Operator to v1.9.0
+* Upgrade Java SDK to v1.32.5
+* Upgrade Python SDK to v0.7.0
+* Upgrade .Net SDK to v1.4.0
+* Upgrade NodeJS SDK to v0.3.0
+
+=======================================================================
+amazon-cloudwatch-observability v2.2.0 (2024-10-21)
+========================================================================
+New Features:
+* Adding support for supplemental YAML config for cloudwatch-agent on Linux (#110)
+
+Enhancements:
+* Upgrade CWAgent to v1.300048.1b904
+* Upgrade CWAgent Operator to v1.8.0
+* Upgrade Java SDK to v1.32.4
+* Upgrade Python SDK to v0.6.0
+
+=======================================================================
+amazon-cloudwatch-observability v2.1.3 (2024-10-04)
+========================================================================
+Enhancements:
+* Upgrade CWAgent to v1.300047.0b872
+* Upgrade NodeJS SDK to v0.2.0
+
+=======================================================================
+amazon-cloudwatch-observability v2.1.2 (2024-10-01)
+========================================================================
+Enhancements:
+* Upgrade .Net SDK to v1.3.2
+* Upgrade Neuron-Monitor to v1.2.1
+* Support G6 GPU instance types with DCGM-Exporter
+
+=======================================================================
+amazon-cloudwatch-observability v2.1.1 (2024-09-17)
+========================================================================
+Enhancements:
+* Upgrade Python SDK to v0.5.0
+
+=======================================================================
 amazon-cloudwatch-observability v2.1.0 (2024-09-13)
 ========================================================================
 New Features:
