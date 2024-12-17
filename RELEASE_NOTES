@@ -1,5 +1,11 @@
 =======================================================================
-amazon-cloudwatch-observability v2.4.0 (2024-12-06)
+amazon-cloudwatch-observability v2.5.0 (2024-11-20)
+========================================================================
+Enhancements:
+* Support Tranium 2 and p5e HyperPod instance types
+
+=======================================================================
+amazon-cloudwatch-observability v2.4.0 (2024-11-20)
 ========================================================================
 Enhancements:
 * Increment CWAgent to v1.300050.0b956 that adds ability to scraping Kueue metrics
