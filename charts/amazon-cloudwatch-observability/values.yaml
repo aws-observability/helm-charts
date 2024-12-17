@@ -184,7 +184,7 @@ containerLogs:
       requests:
         cpu: 50m
         memory: 25Mi
-    priorityClassName: ""
+    priorityClassName: "system-node-critical"
     config:
       service: |
         [SERVICE]
@@ -1323,7 +1323,7 @@ agent:
       us-gov-east-1: 743662458514.dkr.ecr.us-gov-east-1.amazonaws.com
       us-gov-west-1: 743662458514.dkr.ecr.us-gov-west-1.amazonaws.com
   enabled: true
-  priorityClassName: ""
+  priorityClassName: "system-node-critical"
   resources:
     requests:
       memory: 128Mi
