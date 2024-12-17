@@ -14,8 +14,30 @@ data:
     {{- end }}
   parsers.conf: |
     {{- .Values.containerLogs.fluentBit.config.customParsers  | nindent 4 }}
+{{- if hasPrefix "us-iso-" .Values.region }}
+  {{- range $key, $val := .Values.containerLogs.fluentBit.config.adcIsoExtraFiles }}
+  {{ $key }}: |
+    {{- (tpl $val $) | nindent 4 }}
+  {{- end -}}
+{{- else if hasPrefix "us-isob-" .Values.region }}
+  {{- range $key, $val := .Values.containerLogs.fluentBit.config.adcIsobExtraFiles }}
+  {{ $key }}: |
+    {{- (tpl $val $) | nindent 4 }}
+  {{- end -}}
+{{- else if hasPrefix "us-isof-" .Values.region }}
+  {{- range $key, $val := .Values.containerLogs.fluentBit.config.adcIsofExtraFiles }}
+  {{ $key }}: |
+    {{- (tpl $val $) | nindent 4 }}
+  {{- end -}}
+{{- else if hasPrefix "eu-isoe-" .Values.region }}
+  {{- range $key, $val := .Values.containerLogs.fluentBit.config.euAdcIsoeExtraFiles }}
+  {{ $key }}: |
+    {{- (tpl $val $) | nindent 4 }}
+  {{- end -}}
+{{- else }}
   {{- range $key, $val := .Values.containerLogs.fluentBit.config.extraFiles }}
   {{ $key }}: |
     {{- (tpl $val $) | nindent 4 }}
   {{- end -}}
+{{- end -}}
 {{- end -}}
