@@ -62,6 +62,7 @@ spec:
   nodeSelector:
     kubernetes.io/os: linux
   serviceAccount: {{ if hasKey ($customAgent.serviceAccount) "name" }}{{ $customAgent.serviceAccount.Name }}{{ else }}{{ (include "cloudwatch-agent.serviceAccountName" $) }}{{ end }}
+  priorityClassName: {{ $customAgent.priorityClassName | default $.Values.agent.priorityClassName }}
   affinity:
     nodeAffinity:
       requiredDuringSchedulingIgnoredDuringExecution:
