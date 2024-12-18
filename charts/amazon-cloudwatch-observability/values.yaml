@@ -1311,8 +1311,15 @@ admissionWebhooks:
   secretAnnotations: {}
   ## Secret labels
   secretLabels: {}
+
+## List of AmazonCloudWatchAgent workloads to install & manage, each representing an independent installation of the AmazonCloudWatchAgent CustomResource. Each entry in this list uses the schema & the defaults from $.agent, so only provide any overrides here.
+agents:
+  - name: cloudwatch-agent
+
 agent:
   name:
+  mode: # represents the mode the cloudwatch-agent will run in (deployment, daemonset or statefulset)
+  replicas: # The total number non-terminated pods targeted by this cloudwatch-agent's deployment or statefulSet.
   image:
     repository: cloudwatch-agent
     tag: 1.300050.0b956
@@ -1369,6 +1376,21 @@ agent:
         }
       }
     }
+  prometheus:
+    config:
+    targetAllocator:
+      enabled: false
+      image:
+        repository: cloudwatch-agent-target-allocator
+        tag: 1.0.0
+        repositoryDomainMap:
+          public: public.ecr.aws/cloudwatch-agent
+          cn-north-1: 934860584483.dkr.ecr.cn-north-1.amazonaws.com.cn
+          cn-northwest-1: 934860584483.dkr.ecr.cn-northwest-1.amazonaws.com.cn
+          us-gov-east-1: 743662458514.dkr.ecr.us-gov-east-1.amazonaws.com
+          us-gov-west-1: 743662458514.dkr.ecr.us-gov-west-1.amazonaws.com
+      prometheusCR:
+        enabled: false
 
 dcgmExporter:
   name:

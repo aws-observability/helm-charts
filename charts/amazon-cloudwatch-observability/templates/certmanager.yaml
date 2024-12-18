@@ -44,7 +44,7 @@ spec:
 {{- end }}
 {{- end }}
 
-{{- if ( .Values.agent.certManager.enabled) }}
+  {{- if ( .Values.agent.certManager.enabled) }}
 ---
 apiVersion: cert-manager.io/v1
 kind: Certificate
@@ -55,6 +55,9 @@ metadata:
   namespace: {{ .Release.Namespace }}
 spec:
   dnsNames:
+    {{- range $i, $customAgent := .Values.agents }}
+    - {{( printf "%s-target-allocator-service" $customAgent.name )}}
+    {{- end }}
     - "dcgm-exporter-service"
     - "dcgm-exporter-service.amazon-cloudwatch.svc"
     - "neuron-monitor-service"

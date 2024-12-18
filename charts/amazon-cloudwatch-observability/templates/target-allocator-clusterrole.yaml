@@ -1,0 +1,33 @@
+{{- if .Values.agent.enabled }}
+{{- range $i, $customAgent := .Values.agents }}
+{{- if and (and (hasKey ($customAgent.prometheus) "targetAllocator") (hasKey ($customAgent.prometheus.targetAllocator) "enabled")) $customAgent.prometheus.targetAllocator.enabled }}
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  labels:
+    {{- include "amazon-cloudwatch-observability.labels" $ | nindent 4}}
+  name: "cloudwatch-agent-target-allocator-role"
+rules:
+  - apiGroups: [ "" ]
+    resources: [ "pods", "nodes", "nodes/metrics", "services", "endpoints" ]
+    verbs: [ "list", "watch", "get" ]
+  - apiGroups: [ "" ]
+    resources: [ "configmaps" ]
+    verbs: [ "get" ]
+  - apiGroups: ["discovery.k8s.io"]
+    resources: ["endpointslices"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: [ "networking.k8s.io"]
+    resources: ["ingresses"]
+    verbs: ["get", "list", "watch"]
+  - nonResourceURLs: ["/metrics"]
+    verbs: ["get"]
+  {{- if and (hasKey ($customAgent.prometheus.targetAllocator) "PrometheusCR") $customAgent.prometheus.targetAllocator.PrometheusCR.enabled }}
+  - apiGroups: [ "monitoring.coreos.com"]
+    resources: ["podmonitors", "servicemonitors"]
+    verbs: ["get", "list", "watch"]
+  {{- end }}
+{{- end }}
+---
+{{- end }}
+{{- end }}
