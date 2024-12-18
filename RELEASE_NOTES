@@ -1,4 +1,21 @@
 =======================================================================
+amazon-cloudwatch-observability v3.0.0 (2024-12-17)
+========================================================================
+New Features:
+* Add support for installing multiple AmazonCloudWatchAgent workloads (#126)
+* Introduce support for Prometheus scraping with the CloudWatchAgent and TargetAllocator (#126)
+* Set default PriorityClass as system-node-critical for CloudWatchAgent and FluentBit daemonsets (#137)
+
+Enhancements:
+* Unify schema for Application Signals metrics across platforms
+* Increment ADOT JAVA SDK to v1.32.6 for Application Signals
+
+Bug Fixes:
+* Do not apply default tolerations to controller manager deployment (#137)
+* Avoid excessive logging of 404 errors when IMDS tags access is not enabled
+* Fix edge case that causes the CloudWatchAgent to crash with a concurrent map writes error
+
+=======================================================================
 amazon-cloudwatch-observability v2.6.0 (2024-12-06)
 ========================================================================
 Enhancements:
