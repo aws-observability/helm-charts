@@ -32,6 +32,7 @@ spec:
         - "--auto-instrumentation-python-image={{ template "auto-instrumentation-python.image" . }}"
         - "--auto-instrumentation-dotnet-image={{ template "auto-instrumentation-dotnet.image" . }}"
         - "--auto-instrumentation-nodejs-image={{ template "auto-instrumentation-nodejs.image" . }}"
+        - "--target-allocator-image={{ template "target-allocator.modify-image" . }}"
         - "--feature-gates=operator.autoinstrumentation.multi-instrumentation,operator.autoinstrumentation.multi-instrumentation.skip-container-validation"
         command:
         - /manager
