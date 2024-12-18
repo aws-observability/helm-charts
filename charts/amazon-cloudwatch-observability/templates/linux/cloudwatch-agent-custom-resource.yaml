@@ -4,7 +4,7 @@
 {{- range $i, $customAgent := .Values.agents }}
 {{ $altNames = append $altNames ( printf "%s-target-allocator-service" $customAgent.name )}}
 {{- end }}
-  {{- $agentAltNames := list ( printf "%s" (include "cloudwatch-agent.name" .) ) ( printf "%s.%s.svc" (include "cloudwatch-agent.name" .) .Release.Namespace ) -}}
+{{- $agentAltNames := list ( printf "%s" (include "cloudwatch-agent.name" .) ) ( printf "%s.%s.svc" (include "cloudwatch-agent.name" .) .Release.Namespace ) -}}
 {{- $ca := genCA ("agent-ca")  ( .Values.agent.autoGenerateCert.expiryDays | int ) -}}
 {{- $cert := genSignedCert ("agent") nil $altNames ( .Values.admissionWebhooks.autoGenerateCert.expiryDays | int ) $ca -}}
 {{- $serverCert := genSignedCert ("agent-server") nil $agentAltNames ( .Values.admissionWebhooks.autoGenerateCert.expiryDays | int ) $ca -}}
