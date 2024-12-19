@@ -47,22 +47,24 @@ data:
 ---
 {{- end -}}
 
-{{- range $i, $customAgent := .Values.agents }}
-{{- $clusterName := $.Values.clusterName | required "$.Values.clusterName is required." -}}
-{{- $region := $.Values.region | required "$.Values.region is required." -}}
+{{- $clusterName := .Values.clusterName | required ".Values.clusterName is required." -}}
+{{- $region := .Values.region | required ".Values.region is required." -}}
+
+{{- range .Values.agents }}
+{{- $agent := merge (deepCopy $.Values.agent) . }}
 apiVersion: cloudwatch.aws.amazon.com/v1alpha1
 kind: AmazonCloudWatchAgent
 metadata:
-  name: {{ $customAgent.name | default (include "cloudwatch-agent.name" $) }}
+  name: {{ $agent.name | default (include "cloudwatch-agent.name" $) }}
   namespace: {{ $.Release.Namespace }}
 spec:
-  image: {{ include "cloudwatch-agent.modify-image" (merge (dict "image" $customAgent.image) $ ) }}
-  mode: {{ $customAgent.mode | default "daemonset" }}
-  replicas: {{ $customAgent.replicas | default 1 }}
+  image: {{ include "cloudwatch-agent.modify-image" (merge (dict "image" $agent.image) $ ) }}
+  mode: {{ $agent.mode }}
+  replicas: {{ $agent.replicas }}
   nodeSelector:
     kubernetes.io/os: linux
-  serviceAccount: {{ if hasKey ($customAgent.serviceAccount) "name" }}{{ $customAgent.serviceAccount.Name }}{{ else }}{{ (include "cloudwatch-agent.serviceAccountName" $) }}{{ end }}
-  priorityClassName: {{ $customAgent.priorityClassName | default $.Values.agent.priorityClassName }}
+  serviceAccount: {{ $agent.serviceAccount.name | default (include "cloudwatch-agent.serviceAccountName" $) }}
+  priorityClassName: {{ $agent.priorityClassName | default $.Values.agent.priorityClassName }}
   affinity:
     nodeAffinity:
       requiredDuringSchedulingIgnoredDuringExecution:
@@ -73,41 +75,33 @@ spec:
                 values:
                   - fargate
   hostNetwork: true
-  {{- if $customAgent.config }}
-  config: {{ include "cloudwatch-agent.modify-config" (merge (dict "Config" $customAgent.config) $ ) }}
+  {{- if $agent.config }}
+  config: {{ include "cloudwatch-agent.modify-config" (merge (dict "Config" $agent.config) $ ) }}
   {{- else }}
-  config: {{ include "cloudwatch-agent.modify-config" (merge (dict "Config" $.Values.agent.defaultConfig) $ ) }}
+  config: {{ include "cloudwatch-agent.modify-config" (merge (dict "Config" $agent.defaultConfig) $ ) }}
   {{- end }}
-  {{- if $customAgent.otelConfig }}
-  otelConfig: {{ include "cloudwatch-agent.modify-yaml-config" (merge (dict "OtelConfig" $customAgent.otelConfig) . ) }}
-  {{ else if $.Values.agent.otelConfig }}
-  otelConfig: {{ include "cloudwatch-agent.modify-yaml-config" (merge (dict "OtelConfig" $.Values.agent.otelConfig) . ) }}
+  {{- if $agent.otelConfig }}
+  otelConfig: {{ include "cloudwatch-agent.modify-yaml-config" (merge (dict "OtelConfig" $agent.otelConfig) . ) }}
   {{- end }}
-  {{- if $customAgent.prometheus }}
-  {{- if $customAgent.prometheus.config }}
+  {{- if $agent.prometheus.config }}
   prometheus:
-    {{- with $customAgent.prometheus.config }}
+    {{- with $agent.prometheus.config }}
     config:
       {{- toYaml . | nindent 6 }}
     {{- end }}
   {{- end }}
-  {{- if $customAgent.prometheus.targetAllocator }}
+  {{- if $agent.prometheus.targetAllocator.enabled }}
   targetAllocator:
-    enabled: {{ $customAgent.prometheus.targetAllocator.enabled | default false }}
-    image: {{ include "target-allocator.modify-image" (merge (dict "image" $customAgent.prometheus.targetAllocator.image) $ ) }}
+    enabled: {{ $agent.prometheus.targetAllocator.enabled | default false }}
+    image: {{ include "target-allocator.modify-image" (merge (dict "image" $agent.prometheus.targetAllocator.image) $ ) }}
     allocationStrategy: "consistent-hashing"
-    {{- if $customAgent.prometheus.targetAllocator.prometheusCR }}
-    prometheusCR: {{ $customAgent.prometheus.targetAllocator.prometheusCR.enabled | default false }}
+    {{- if $agent.prometheus.targetAllocator.prometheusCR.enabled }}
+    prometheusCR: {{ $agent.prometheus.targetAllocator.prometheusCR.enabled | default false }}
     {{- end }}
   {{- end }}
+  {{- with $agent.resources }}
+  resources: {{- toYaml . | nindent 4}}
   {{- end }}
-  resources:
-    requests:
-      memory: {{ if and (hasKey ($customAgent.resources) "requests") (hasKey ($customAgent.resources.requests) "memory") }}{{ $customAgent.resources.requests.memory }}{{ else }}{{ $.Values.agent.resources.requests.memory }}{{ end }}
-      cpu: {{ if and (hasKey ($customAgent.resources) "requests") (hasKey ($customAgent.resources.requests) "cpu") }}{{ $customAgent.resources.requests.cpu }}{{ else }}{{ $.Values.agent.resources.requests.cpu }}{{ end }}
-    limits:
-      memory: {{ if and (hasKey ($customAgent.resources) "limits") (hasKey ($customAgent.resources.limits) "memory") }}{{ $customAgent.resources.limits.memory }}{{ else }}{{ $.Values.agent.resources.limits.memory }}{{ end }}
-      cpu: {{ if and (hasKey ($customAgent.resources) "limits") (hasKey ($customAgent.resources.limits) "cpu") }}{{ $customAgent.resources.limits.cpu }}{{ else }}{{ $.Values.agent.resources.limits.cpu }}{{ end }}
   volumeMounts:
   - mountPath: /rootfs
     name: rootfs
