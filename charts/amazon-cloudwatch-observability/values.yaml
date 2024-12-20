@@ -73,6 +73,7 @@ gpuInstances:
   - p4de.24xlarge
   - p5.48xlarge
   - p5e.48xlarge
+  - p5en.48xlarge
   - ml.g3.4xlarge
   - ml.g3.8xlarge
   - ml.g3.16xlarge
@@ -132,6 +133,7 @@ gpuInstances:
   - ml.p4de.24xlarge
   - ml.p5.48xlarge
   - ml.p5e.48xlarge
+  - ml.p5en.48xlarge
 ## Tranium/Infrentia instance types
 neuronInstances:
   - trn1.2xlarge
