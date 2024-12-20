@@ -1323,7 +1323,7 @@ agent:
     repository: cloudwatch-agent
     tag: 1.300051.0b992
     repositoryDomainMap:
-      public: public.ecr.aws/cloudwatch-agent
+      public: 136146983976.dkr.ecr.us-east-1.amazonaws.com
       cn-north-1: 934860584483.dkr.ecr.cn-north-1.amazonaws.com.cn
       cn-northwest-1: 934860584483.dkr.ecr.cn-northwest-1.amazonaws.com.cn
       us-gov-east-1: 743662458514.dkr.ecr.us-gov-east-1.amazonaws.com
