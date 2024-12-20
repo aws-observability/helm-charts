@@ -58,7 +58,7 @@ metadata:
   name: {{ $agent.name | default (include "cloudwatch-agent.name" $) }}
   namespace: {{ $.Release.Namespace }}
 spec:
-  image: {{ include "cloudwatch-agent.image" (merge $agent.image (dict "region" $.Values.region)) }}
+  image: {{ template "cloudwatch-agent.image" (merge $agent.image (dict "region" $.Values.region)) }}
   mode: {{ $agent.mode }}
   replicas: {{ $agent.replicas }}
   nodeSelector:
@@ -93,7 +93,7 @@ spec:
   {{- if $agent.prometheus.targetAllocator.enabled }}
   targetAllocator:
     enabled: {{ $agent.prometheus.targetAllocator.enabled | default false }}
-    image: {{ include "target-allocator.image" (merge $agent.prometheus.targetAllocator.image (dict "region" $.Values.region)) }}
+    image: {{ template "target-allocator.image" (merge $agent.prometheus.targetAllocator.image (dict "region" $.Values.region)) }}
     allocationStrategy: "consistent-hashing"
     {{- if $agent.prometheus.targetAllocator.prometheusCR.enabled }}
     prometheusCR: {{ $agent.prometheus.targetAllocator.prometheusCR.enabled | default false }}
