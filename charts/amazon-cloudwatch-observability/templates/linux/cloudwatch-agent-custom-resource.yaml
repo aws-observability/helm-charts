@@ -51,7 +51,7 @@ data:
 {{- $region := .Values.region | required ".Values.region is required." -}}
 
 {{- range .Values.agents }}
-{{- $agent := merge (deepCopy $.Values.agent) . }}
+{{- $agent := merge . (deepCopy $.Values.agent) }}
 apiVersion: cloudwatch.aws.amazon.com/v1alpha1
 kind: AmazonCloudWatchAgent
 metadata:
