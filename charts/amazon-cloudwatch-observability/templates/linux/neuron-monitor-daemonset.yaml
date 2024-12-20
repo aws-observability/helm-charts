@@ -36,7 +36,7 @@ spec:
   - name: PATH
     value: /usr/local/bin:/usr/bin:/bin:/opt/aws/neuron/bin
   - name: GOMEMLIMIT
-    value: 320MiB
+    value: 160MiB
   ports:
   - name: "metrics"
     port: {{ .Values.neuronMonitor.service.port }}
@@ -52,9 +52,6 @@ spec:
   - mountPath: /etc/amazon-cloudwatch-observability-neuron-cert/
     name: neurontls
     readOnly: true
-  - mountPath: /opt-aws
-    name: "aws-config"
-    readOnly: true
   volumes:
   - name: neurontls
     secret:
@@ -64,9 +61,6 @@ spec:
           path: server.crt
         - key: tls.key
           path: server.key
-  - name: "aws-config"
-    hostPath:
-      path: /opt/aws
   monitorConfig: |
     {
       "period": "5s",
@@ -85,7 +79,7 @@ spec:
             },
             {
               "type": "execution_stats"
-            }
+            }``
           ]
         }
       ],
