@@ -11,7 +11,7 @@ spec:
   podSecurityContext:
     windowsOptions:
       runAsUserName: "NT AUTHORITY\\System"
-  image: {{ template "cloudwatch-agent.image" . }}
+  image: {{ include "cloudwatch-agent.image" (merge .Values.agent.image (dict "region" .Values.region)) }}
   mode: daemonset
   serviceAccount: {{ template "cloudwatch-agent.serviceAccountName" . }}
   priorityClassName: {{ .Values.agent.priorityClassName }}
