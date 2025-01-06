@@ -83,6 +83,4 @@ spec:
         }
       ]
     }
-  {{- with .Values.tolerations }}
-  tolerations: {{- toYaml . | nindent 2}}
-  {{- end }}
+  {{- dict "component" .Values.neuronMonitor "context" . | include "amazon-cloudwatch-observability.common.tolerations" | nindent 2 }}

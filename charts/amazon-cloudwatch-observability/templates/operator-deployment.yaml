@@ -59,3 +59,4 @@ spec:
       {{- with .Values.manager.nodeSelector }}
       nodeSelector: {{- toYaml . | nindent 8 }}
       {{- end }}
+      {{- dict "component" .Values.manager "context" . | include "amazon-cloudwatch-observability.common.tolerations" | nindent 6 }}
