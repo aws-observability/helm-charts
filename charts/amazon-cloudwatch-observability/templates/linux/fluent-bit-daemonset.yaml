@@ -125,7 +125,5 @@ spec:
       {{- with .Values.containerLogs.fluentBit.nodeSelector }}
       nodeSelector: {{- toYaml . | nindent 8 }}
       {{- end }}
-      {{- with .Values.tolerations }}
-      tolerations: {{- toYaml . | nindent 6}}
-      {{- end }}
+      {{- dict "component" .Values.containerLogs.fluentBit "context" . | include "amazon-cloudwatch-observability.common.tolerations" | nindent 6 }}
 {{- end }}

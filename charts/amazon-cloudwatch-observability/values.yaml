@@ -35,6 +35,8 @@ containerLogs:
       requests:
         cpu: 50m
         memory: 25Mi
+    ## Override root tolerations
+    # tolerations: []
     priorityClassName: system-node-critical
     updateStrategy:
       type: RollingUpdate
@@ -1128,6 +1130,7 @@ manager:
     requests:
       cpu: 100m
       memory: 64Mi
+  tolerations: []
   ## Adds additional environment variables
   ## e.g ENV_VAR: env_value
   env:
@@ -1232,6 +1235,8 @@ agent:
     rollingUpdate:
       maxUnavailable: 1
       maxSurge: 0
+  ## Override root tolerations
+  # tolerations: []
   ## TLS Certificate Option 1: Use Helm to automatically generate self-signed certificate.
   ## autoGenerateCert must be enabled. This is the default option.
   ## If true, Helm will automatically create a self-signed cert and secret for you.
@@ -1303,6 +1308,8 @@ dcgmExporter:
     limits:
       cpu: 500m
       memory: 500Mi
+  ## Override root tolerations
+  # tolerations: []
   configmap: dcgm-exporter-config-map
   arguments:
     - --web-config-file=/etc/dcgm-exporter/web-config.yaml
@@ -1458,6 +1465,8 @@ neuronMonitor:
     requests:
       cpu: 256m
       memory: 128Mi
+  ## Override root tolerations
+  # tolerations: []
   configmap: neuron-monitor-config-map
   service:
     enable: true

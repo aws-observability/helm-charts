@@ -234,9 +234,7 @@ spec:
   {{ end }}
   - name: K8S_CLUSTER_NAME
     value: {{ $.Values.clusterName }}
-  {{- with $.Values.tolerations }}
-  tolerations: {{- toYaml . | nindent 2}}
-  {{- end }}
+  {{- dict "component" $agent "context" $ | include "amazon-cloudwatch-observability.common.tolerations" | nindent 2 }}
 ---
 {{- end }}
 {{- end }}
