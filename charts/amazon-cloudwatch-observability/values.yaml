@@ -1201,6 +1201,9 @@ manager:
     python:
       runtime_metrics:
         enabled: "true"
+    dotnet:
+      runtime_metrics:
+        enabled: "true"
   autoInstrumentationResources:
     java:
       limits:
