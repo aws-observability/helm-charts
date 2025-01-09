@@ -1423,7 +1423,7 @@ neuronMonitor:
   name:
   image:
     repository: neuron-monitor
-    tag: 1.2.1
+    tag: 1.3.0
     repositoryDomainMap:
       public: public.ecr.aws/neuron
   resources:
