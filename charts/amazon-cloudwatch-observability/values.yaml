@@ -1429,7 +1429,7 @@ neuronMonitor:
   resources:
     limits:
       cpu: 500m
-      memory: 500`Mi
+      memory: 500Mi
     requests:
       cpu: 256m
       memory: 128Mi
