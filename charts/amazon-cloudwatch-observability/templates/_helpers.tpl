@@ -5,6 +5,25 @@ Expand the name of the chart.
 {{- default .Chart.Name .Values.nameOverride | trunc 63 | trimSuffix "-" }}
 {{- end }}
 
+{{- define "amazon-cloudwatch-observability.common.tolerations" -}}
+{{- $tolerations := .context.Values.tolerations }}
+{{- if .component }}
+  {{- $replaceTolerations := get .component "tolerationsReplaced" }}
+  {{- $componentTolerations := get .component "tolerations" }}
+  {{- if $componentTolerations }}
+    {{- if or $replaceTolerations (empty $tolerations) }}
+      {{- $tolerations = $componentTolerations }}
+    {{- else }}
+      {{- $tolerations = concat $tolerations $componentTolerations }}
+    {{- end }}
+  {{- end }}
+{{- end }}
+{{- with $tolerations }}
+tolerations:
+  {{- toYaml . | nindent 2 }}
+{{- end }}
+{{- end }}
+
 {{/*
 Helper function to modify cloudwatch-agent config
 */}}

@@ -123,7 +123,5 @@ spec:
                       - fargate
       nodeSelector:
         kubernetes.io/os: linux
-      {{- with .Values.tolerations }}
-      tolerations: {{- toYaml . | nindent 6}}
-      {{- end }}
+      {{- dict "component" .Values.containerLogs.fluentBit "context" . | include "amazon-cloudwatch-observability.common.tolerations" | nindent 6 }}
 {{- end }}
