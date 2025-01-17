@@ -50,6 +50,11 @@ jobs:
       - name: Set KUBECONFIG environment variable
         run: echo KUBECONFIG="${{ github.workspace }}/../../../.kube/config" >> $GITHUB_ENV
 
+      - name: Install Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.1.7"
+
       - name: Verify Terraform version
         run: terraform --version
 
@@ -106,6 +111,11 @@ jobs:
       - name: Set KUBECONFIG environment variable
         run: echo KUBECONFIG="${{ github.workspace }}/../../../.kube/config" >> $GITHUB_ENV
 
+      - name: Install Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.1.7"
+
       - name: Verify Terraform version
         run: terraform --version
 
@@ -161,6 +171,11 @@ jobs:
 
       - name: Set KUBECONFIG environment variable
         run: echo KUBECONFIG="${{ github.workspace }}/../../../.kube/config" >> $GITHUB_ENV
+        
+      - name: Install Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.1.7"
 
       - name: Verify Terraform version
         run: terraform --version
