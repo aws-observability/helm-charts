@@ -44,7 +44,7 @@ spec:
 {{- end }}
 {{- end }}
 
-  {{- if ( .Values.agent.certManager.enabled) }}
+{{- if ( .Values.agent.certManager.enabled) }}
 ---
 apiVersion: cert-manager.io/v1
 kind: Certificate
@@ -100,7 +100,25 @@ spec:
   issuerRef:
     kind: Issuer
     name: "agent-ca"
-  secretName:  "amazon-cloudwatch-observability-agent-client-cert"
+  secretName: "amazon-cloudwatch-observability-agent-client-cert"
+  usages:
+    - digital signature
+    - key encipherment
+    - cert sign
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  labels:
+    {{- include "amazon-cloudwatch-observability.labels" . | nindent 4 }}
+  name: "amazon-cloudwatch-observability-agent-outbound-cert"
+  namespace: {{ .Release.Namespace }}
+spec:
+  commonName: "agent-outbound-client"
+  issuerRef:
+    kind: Issuer
+    name: "agent-ca"
+  secretName: "amazon-cloudwatch-observability-agent-outbound-cert"
   usages:
     - digital signature
     - key encipherment
@@ -143,7 +161,14 @@ kind: Secret
 metadata:
   labels:
     {{- include "amazon-cloudwatch-observability.labels" . | nindent 4 }}
-  name:  "amazon-cloudwatch-observability-agent-client-cert"
+  name: "amazon-cloudwatch-observability-agent-client-cert"
+  namespace: {{ .Release.Namespace }}
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  labels:
+    {{- include "amazon-cloudwatch-observability.labels" . | nindent 4 }}
+  name: "amazon-cloudwatch-observability-agent-outbound-cert"
   namespace: {{ .Release.Namespace }}
 {{- end }}
-
