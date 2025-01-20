@@ -55,3 +55,4 @@ spec:
           secretName: {{ template "amazon-cloudwatch-observability.certificateSecretName" . }}
       nodeSelector:
         kubernetes.io/os: linux
+      {{- dict "component" .Values.manager "context" . | include "amazon-cloudwatch-observability.common.tolerations" | nindent 6 }}
