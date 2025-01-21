@@ -114,7 +114,7 @@ metadata:
   name: "amazon-cloudwatch-observability-agent-outbound-cert"
   namespace: {{ .Release.Namespace }}
 spec:
-  commonName: "agent-outbound-client"
+  commonName: "agent-outbound"
   issuerRef:
     kind: Issuer
     name: "agent-ca"
