@@ -46,14 +46,17 @@ Helper function to modify customer supplied agent config if ContainerInsights or
 {{/*
 Helper function to modify cloudwatch-agent YAML config
 */}}
-{{- define "cloudwatch-agent.modify-yaml-config" -}}
+{{- define "cloudwatch-agent.modify-otel-config" -}}
 {{- $configCopy := deepCopy .OtelConfig }}
+{{- if kindIs "string" $configCopy }}
+  {{- $configCopy = fromYaml $configCopy }}
+{{- end }}
 
 {{- range $name, $component := $configCopy }}
-{{- if $component -}}
+{{- if and $component (kindIs "map" $component) }}
   {{- range $key, $value := $component }}
-    {{- if (and (quote $value | empty) (not (hasKey $component $key))) }}
-      {{- $component = set $component $key (dict) }}
+    {{- if eq $value nil }}
+      {{- $_ := set $component $key dict }}
     {{- end -}}
   {{- end }}
 {{- end }}

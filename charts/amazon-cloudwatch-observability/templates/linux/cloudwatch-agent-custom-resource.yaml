@@ -81,7 +81,7 @@ spec:
   config: {{ include "cloudwatch-agent.modify-config" (merge (dict "Config" $agent.defaultConfig) $ ) }}
   {{- end }}
   {{- if $agent.otelConfig }}
-  otelConfig: {{ include "cloudwatch-agent.modify-yaml-config" (merge (dict "OtelConfig" $agent.otelConfig) . ) }}
+  otelConfig: {{ include "cloudwatch-agent.modify-otel-config" (merge (dict "OtelConfig" $agent.otelConfig) . ) }}
   {{- end }}
   {{- if $agent.prometheus.config }}
   prometheus:
