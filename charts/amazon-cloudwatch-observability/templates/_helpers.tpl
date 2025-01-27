@@ -20,13 +20,25 @@ Helper function to modify cloudwatch-agent config
 {{- $appSignals := pluck "application_signals" $configCopy.logs.metrics_collected | first }}
 {{- if and (hasKey $configCopy.logs.metrics_collected "application_signals") (empty $appSignals.hosted_in) }}
 {{- $clusterName := .Values.clusterName | required ".Values.clusterName is required." -}}
-{{- $appSignals := set $appSignals "hosted_in" .Values.clusterName }}
+{{- $appSignals := set $appSignals "hosted_in" $clusterName }}
 {{- end }}
 
 {{- $containerInsights := pluck "kubernetes" $configCopy.logs.metrics_collected | first }}
 {{- if and (hasKey $configCopy.logs.metrics_collected "kubernetes") (empty $containerInsights.cluster_name) }}
 {{- $clusterName := .Values.clusterName | required ".Values.clusterName is required." -}}
-{{- $containerInsights := set $containerInsights "cluster_name" .Values.clusterName }}
+{{- $containerInsights := set $containerInsights "cluster_name" $clusterName }}
+{{- end }}
+
+{{- $otlpLogs := pluck "otlp" $configCopy.logs.metrics_collected | first }}
+{{- if and (hasKey $configCopy.logs.metrics_collected "otlp") (empty $otlpLogs.cluster_name) }}
+{{- $clusterName := .Values.clusterName | required ".Values.clusterName is required." -}}
+{{- $otlpLogs := set $otlpLogs "cluster_name" $clusterName }}
+{{- end }}
+
+{{- $otlpMetrics := pluck "otlp" $configCopy.metrics.metrics_collected | first }}
+{{- if and (hasKey $configCopy.metrics.metrics_collected "otlp") (empty $otlpMetrics.cluster_name) }}
+{{- $clusterName := .Values.clusterName | required ".Values.clusterName is required." -}}
+{{- $otlpMetrics := set $otlpMetrics "cluster_name" $clusterName }}
 {{- end }}
 
 {{- default ""  $configCopy | toJson | quote }}
