@@ -17,36 +17,16 @@ Helper function to modify cloudwatch-agent config
 {{- $agent := set $configCopy "agent" $agentRegion }}
 {{- end }}
 
-{{- if hasKey $configCopy "logs" }}
-  {{- if hasKey $configCopy.logs "metrics_collected" }}
-    {{- $appSignals := pluck "application_signals" $configCopy.logs.metrics_collected | first }}
-    {{- if and (hasKey $configCopy.logs.metrics_collected "application_signals") (empty $appSignals.hosted_in) }}
-      {{- $clusterName := .Values.clusterName | required ".Values.clusterName is required." -}}
-      {{- $appSignals = set $appSignals "hosted_in" $clusterName }}
-    {{- end }}
-
-    {{- $containerInsights := pluck "kubernetes" $configCopy.logs.metrics_collected | first }}
-    {{- if and (hasKey $configCopy.logs.metrics_collected "kubernetes") (empty $containerInsights.cluster_name) }}
-      {{- $clusterName := .Values.clusterName | required ".Values.clusterName is required." -}}
-      {{- $containerInsights = set $containerInsights "cluster_name" $clusterName }}
-    {{- end }}
-
-    {{- $otlpLogs := pluck "otlp" $configCopy.logs.metrics_collected | first }}
-    {{- if and (hasKey $configCopy.logs.metrics_collected "otlp") (empty $otlpLogs.cluster_name) }}
-      {{- $clusterName := .Values.clusterName | required ".Values.clusterName is required." -}}
-      {{- $otlpLogs = set $otlpLogs "cluster_name" $clusterName }}
-    {{- end }}
-  {{- end }}
+{{- $appSignals := pluck "application_signals" $configCopy.logs.metrics_collected | first }}
+{{- if and (hasKey $configCopy.logs.metrics_collected "application_signals") (empty $appSignals.hosted_in) }}
+{{- $clusterName := .Values.clusterName | required ".Values.clusterName is required." -}}
+{{- $appSignals := set $appSignals "hosted_in" .Values.clusterName }}
 {{- end }}
 
-{{- if hasKey $configCopy "metrics" }}
-  {{- if hasKey $configCopy.metrics "metrics_collected" }}
-    {{- $otlpMetrics := pluck "otlp" $configCopy.metrics.metrics_collected | first }}
-    {{- if and (hasKey $configCopy.metrics.metrics_collected "otlp") (empty $otlpMetrics.cluster_name) }}
-      {{- $clusterName := .Values.clusterName | required ".Values.clusterName is required." -}}
-      {{- $otlpMetrics = set $otlpMetrics "cluster_name" $clusterName }}
-    {{- end }}
-  {{- end }}
+{{- $containerInsights := pluck "kubernetes" $configCopy.logs.metrics_collected | first }}
+{{- if and (hasKey $configCopy.logs.metrics_collected "kubernetes") (empty $containerInsights.cluster_name) }}
+{{- $clusterName := .Values.clusterName | required ".Values.clusterName is required." -}}
+{{- $containerInsights := set $containerInsights "cluster_name" .Values.clusterName }}
 {{- end }}
 
 {{- default ""  $configCopy | toJson | quote }}
@@ -56,16 +36,10 @@ Helper function to modify cloudwatch-agent config
 Helper function to modify customer supplied agent config if ContainerInsights or ApplicationSignals is enabled
 */}}
 {{- define "cloudwatch-agent.modify-config" -}}
-{{- $c := .Config -}}
-{{- $hasAppSignals := and (hasKey $c "logs") (hasKey $c.logs "metrics_collected") (hasKey $c.logs.metrics_collected "application_signals") }}
-{{- $hasKubernetes := and (hasKey $c "logs") (hasKey $c.logs "metrics_collected") (hasKey $c.logs.metrics_collected "kubernetes") }}
-{{- $hasOtlpLogs := and (hasKey $c "logs") (hasKey $c.logs "metrics_collected") (hasKey $c.logs.metrics_collected "otlp") }}
-{{- $hasOtlpMetrics := and (hasKey $c "metrics") (hasKey $c.metrics "metrics_collected") (hasKey $c.metrics.metrics_collected "otlp") }}
-{{- $shouldModify := or $hasAppSignals $hasKubernetes $hasOtlpLogs $hasOtlpMetrics }}
-{{- if $shouldModify }}
-  {{- include "cloudwatch-agent.config-modifier" . }}
+{{- if and (hasKey .Config "logs") (or (and (hasKey .Config.logs "metrics_collected") (hasKey .Config.logs.metrics_collected "application_signals")) (and (hasKey .Config.logs "metrics_collected") (hasKey .Config.logs.metrics_collected "kubernetes"))) }}
+{{- include "cloudwatch-agent.config-modifier" . }}
 {{- else }}
-  {{- default "" .Config | toJson | quote }}
+{{- default "" .Config | toJson | quote }}
 {{- end }}
 {{- end }}
 
