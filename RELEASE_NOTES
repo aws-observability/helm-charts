@@ -1,7 +1,12 @@
 =======================================================================
 amazon-cloudwatch-observability v3.2.0 (2025-02-04)
 ========================================================================
+New Features:
+* Support Logical NeuronCore configuration (LNC) with trn2
+
 Enhancements:
+* Allow both YAML string and object for OTEL config
+* Add runtime metrics config for Application Signals .NET
 * Remove unsupported Neuron Monitor metrics
 * Upgrade CWAgent to v1.300052.0b1024
 * Upgrade CWAgent Operator to v2.1.0
