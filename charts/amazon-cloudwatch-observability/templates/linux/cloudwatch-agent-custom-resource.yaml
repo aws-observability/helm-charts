@@ -197,6 +197,10 @@ spec:
     valueFrom:
       fieldRef:
         fieldPath: metadata.namespace
+  {{ if eq $.Values.k8sMode "ROSA"}}
+  - name: RUN_WITH_IRSA
+    value: "True"
+  {{ end }}
   {{- with $.Values.tolerations }}
   tolerations: {{- toYaml . | nindent 2}}
   {{- end }}
