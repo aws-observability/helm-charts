@@ -16,4 +16,9 @@ rules:
 - apiGroups: ["", "config.openshift.io"]
   resources: ["pods", "namespaces", "infrastructures", "infrastructures/status"]
   verbs: ["get", "watch", "list"]
+- nonResourceURLs: [ "/pods" ]
+  verbs: [ "get", "list", "watch" ]
+- apiGroups: [""]
+  resources: ["nodes/proxy"]
+  verbs: ["get", "list", "watch"]
 {{- end }}

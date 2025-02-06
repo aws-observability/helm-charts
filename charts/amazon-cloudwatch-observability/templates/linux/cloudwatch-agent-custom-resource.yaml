@@ -117,6 +117,15 @@ spec:
     readOnly: true
   - mountPath: /run/containerd/containerd.sock
     name: containerdsock
+  - mountPath: /var/run/crio/crio.sock
+    name: criosock
+  - mountPath: /var/lib/containers
+    name: criocontainer
+  - mountPath: /var/log/pods
+    name: criologs
+  - mountPath: /var
+    name: var
+    readOnly: true
   - mountPath: /var/lib/docker
     name: varlibdocker
     readOnly: true
@@ -154,6 +163,19 @@ spec:
   - hostPath:
       path: /run/containerd/containerd.sock
     name: containerdsock
+  - hostPath:
+      path: /var/run/crio/crio.sock
+    name: criosock
+  - hostPath:
+      path:  /var/lib/containers
+    name: criocontainer
+  - hostPath:
+      path:  /var/log/pods
+    name: criologs
+  - hostPath:
+      path: /var
+      type: Directory
+    name: var
   - hostPath:
       path: /sys
     name: sys
