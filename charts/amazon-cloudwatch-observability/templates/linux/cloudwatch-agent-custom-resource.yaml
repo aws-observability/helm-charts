@@ -62,6 +62,11 @@ spec:
   nodeSelector:
     kubernetes.io/os: linux
   serviceAccount: {{ if hasKey ($customAgent.serviceAccount) "name" }}{{ $customAgent.serviceAccount.Name }}{{ else }}{{ (include "cloudwatch-agent.serviceAccountName" $) }}{{ end }}
+  securityContext:
+    runAsNonRoot: false
+    capabilities:
+      add:
+        - SYS_ADMIN
   priorityClassName: {{ $customAgent.priorityClassName | default $.Values.agent.priorityClassName }}
   affinity:
     nodeAffinity:
