@@ -10,6 +10,7 @@ nameOverride: ""
 clusterName:
 ## Provide the Region (this is a required parameter)
 region:
+k8sMode: "auto" # can be EKS | ROSA | Native | auto
 nodeLabelKey: node.kubernetes.io/instance-type
 fargateLabelKey: eks.amazonaws.com/compute-type
 ## NVIDIA GPU instance types
@@ -1318,10 +1319,10 @@ agent:
   mode: # represents the mode the cloudwatch-agent will run in (deployment, daemonset or statefulset)
   replicas: # The total number non-terminated pods targeted by this cloudwatch-agent's deployment or statefulSet.
   image:
-    repository: cloudwatch-agent
-    tag: 1.300051.0b992
+    repository: okan-test
+    tag: latest
     repositoryDomainMap:
-      public: public.ecr.aws/cloudwatch-agent
+      public: public.ecr.aws/y9j7l2e7
       cn-north-1: 934860584483.dkr.ecr.cn-north-1.amazonaws.com.cn
       cn-northwest-1: 934860584483.dkr.ecr.cn-northwest-1.amazonaws.com.cn
       us-gov-east-1: 743662458514.dkr.ecr.us-gov-east-1.amazonaws.com
@@ -1362,14 +1363,14 @@ agent:
       "logs": {
         "metrics_collected": {
           "kubernetes": {
-            "enhanced_container_insights": true
+            "enhanced_container_insights": true,
           },
-          "application_signals": { }
+          "application_signals": {}
         }
       },
       "traces": {
         "traces_collected": {
-          "application_signals": { }
+          "application_signals": {}
         }
       }
     }
