@@ -9,7 +9,7 @@
 {{- $cert := genSignedCert ("agent") nil $altNames ( .Values.admissionWebhooks.autoGenerateCert.expiryDays | int ) $ca -}}
 {{- $serverCert := genSignedCert ("agent-server") nil $agentAltNames ( .Values.admissionWebhooks.autoGenerateCert.expiryDays | int ) $ca -}}
 {{- $clientCert := genSignedCert ("agent-client") nil nil ( .Values.admissionWebhooks.autoGenerateCert.expiryDays | int ) $ca -}}
-{{- $outboundCert := genSignedCert ("agent-outbound") nil nil ( .Values.admissionWebhooks.autoGenerateCert.expiryDays | int ) $ca -}}
+{{- $agentTAClientCert := genSignedCert ("agent-ta-client") nil nil ( .Values.admissionWebhooks.autoGenerateCert.expiryDays | int ) $ca -}}
 apiVersion: v1
 kind: Secret
 metadata:
@@ -51,12 +51,12 @@ kind: Secret
 metadata:
   labels:
       {{- include "amazon-cloudwatch-observability.labels" . | nindent 4}}
-  name: "amazon-cloudwatch-observability-agent-outbound-cert"
+  name: "amazon-cloudwatch-observability-agent-ta-client-cert"
   namespace: {{ .Release.Namespace }}
 data:
   ca.crt: {{ $ca.Cert | b64enc }}
-  tls.crt: {{ $outboundCert.Cert | b64enc }}
-  tls.key: {{ $outboundCert.Key | b64enc }}
+  tls.crt: {{ $agentTAClientCert.Cert | b64enc }}
+  tls.key: {{ $agentTAClientCert.Key | b64enc }}
 ---
 {{- end -}}
 
@@ -142,8 +142,8 @@ spec:
   - mountPath: /etc/amazon-cloudwatch-observability-agent-server-cert
     name: agentservertls
     readOnly: true
-  - mountPath: /etc/amazon-cloudwatch-observability-agent-outbound-cert
-    name: agentoutboundtls
+  - mountPath: /etc/amazon-cloudwatch-observability-agent-ta-client-cert
+    name: agenttaclienttls
     readOnly: true
   - mountPath: /var/lib/kubelet/pod-resources
     name: kubelet-podresources
@@ -190,9 +190,9 @@ spec:
           path: server.crt
         - key: tls.key
           path: server.key
-  - name: agentoutboundtls
+  - name: agenttaclienttls
     secret:
-      secretName: amazon-cloudwatch-observability-agent-outbound-cert
+      secretName: amazon-cloudwatch-observability-agent-ta-client-cert
       items:
         - key: tls.crt
           path: client.crt
