@@ -57,6 +57,10 @@ spec:
         {{- with .Values.containerLogs.fluentBit.resources }}
         resources: {{- toYaml . | nindent 10}}
         {{- end }}
+        {{- with .Values.containerLogs.fluentBit.securityContext }}
+        securityContext:
+          {{- toYaml . | nindent 10}}
+        {{- end }}
         volumeMounts:
           - name: fluent-bit-config
             mountPath: fluent-bit\configuration\
