@@ -67,6 +67,8 @@ spec:
     capabilities:
       add:
         - SYS_ADMIN
+        - SYS_RAWIO
+
   priorityClassName: {{ $customAgent.priorityClassName | default $.Values.agent.priorityClassName }}
   affinity:
     nodeAffinity:
