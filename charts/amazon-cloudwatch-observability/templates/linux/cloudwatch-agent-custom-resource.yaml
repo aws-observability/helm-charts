@@ -151,6 +151,10 @@ spec:
     readOnly: true
   - mountPath: /var/lib/kubelet/pod-resources
     name: kubelet-podresources
+    {{ if eq $.Values.k8sMode "ROSA"}}
+  - mountPath: /etc/kubernetes/kubelet-ca.crt
+    name: kubelet-ca
+    {{ end }}
   volumes:
   - name: kubelet-podresources
     hostPath:
@@ -207,6 +211,11 @@ spec:
           path: server.crt
         - key: tls.key
           path: server.key
+    {{ if eq $.Values.k8sMode "ROSA"}}
+  - name: kubelet-ca
+    hostPath:
+      path: /etc/kubernetes/kubelet-ca.crt
+    {{end }}
   env:
   - name: K8S_NODE_NAME
     valueFrom:
