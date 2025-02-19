@@ -63,9 +63,7 @@ spec:
     kubernetes.io/os: linux
   serviceAccount: {{ if hasKey ($customAgent.serviceAccount) "name" }}{{ $customAgent.serviceAccount.Name }}{{ else }}{{ (include "cloudwatch-agent.serviceAccountName" $) }}{{ end }}
   securityContext:
-    privileged: true
     runAsNonRoot: false
-    runAsUser: 0
     capabilities:
       add:
         - SYS_ADMIN
