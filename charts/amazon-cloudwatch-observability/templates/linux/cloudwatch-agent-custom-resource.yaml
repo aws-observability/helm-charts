@@ -59,11 +59,11 @@ metadata:
   namespace: {{ $.Release.Namespace }}
 spec:
   updateStrategy:
-      type: {{ .Values.agent.updateStrategy.type | default "RollingUpdate" }}
-      {{- if eq .Values.agent.updateStrategy.type "RollingUpdate" }}
+      type: {{ $agent.updateStrategy.type | default "RollingUpdate" }}
+      {{- if eq $agent.updateStrategy.type "RollingUpdate" }}
       rollingUpdate:
-        maxUnavailable: {{ .Values.agent.updateStrategy.rollingUpdate.maxUnavailable | default 1 }}
-        maxSurge: {{ .Values.agent.updateStrategy.rollingUpdate.maxSurge | default 0 }}
+        maxUnavailable: {{ $agent.updateStrategy.rollingUpdate.maxUnavailable | default 1 }}
+        maxSurge: {{ $agent.updateStrategy.rollingUpdate.maxSurge | default 0 }}
       {{- end }}
   image: {{ template "cloudwatch-agent.image" (merge $agent.image (dict "region" $.Values.region)) }}
   mode: {{ $agent.mode }}
