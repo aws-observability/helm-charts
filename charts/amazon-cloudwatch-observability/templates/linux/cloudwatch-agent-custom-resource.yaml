@@ -58,6 +58,13 @@ metadata:
   name: {{ $agent.name | default (include "cloudwatch-agent.name" $) }}
   namespace: {{ $.Release.Namespace }}
 spec:
+  updateStrategy:
+      type: {{ $agent.updateStrategy.type }}
+      {{- if eq $agent.updateStrategy.type "RollingUpdate" }}
+      rollingUpdate:
+        maxUnavailable: {{ $agent.updateStrategy.rollingUpdate.maxUnavailable }}
+        maxSurge: {{ $agent.updateStrategy.rollingUpdate.maxSurge }}
+      {{- end }}
   image: {{ template "cloudwatch-agent.image" (merge $agent.image (dict "region" $.Values.region)) }}
   mode: {{ $agent.mode }}
   replicas: {{ $agent.replicas }}

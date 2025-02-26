@@ -187,6 +187,11 @@ containerLogs:
         cpu: 50m
         memory: 25Mi
     priorityClassName: system-node-critical
+    updateStrategy:
+      type: RollingUpdate
+      rollingUpdate:
+        maxUnavailable: 1
+        maxSurge: 0
     config:
       service: |
         [SERVICE]
@@ -1340,6 +1345,11 @@ agent:
     limits:
       memory: 512Mi
       cpu: 500m
+  updateStrategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 1
+      maxSurge: 0
   ## TLS Certificate Option 1: Use Helm to automatically generate self-signed certificate.
   ## autoGenerateCert must be enabled. This is the default option.
   ## If true, Helm will automatically create a self-signed cert and secret for you.
