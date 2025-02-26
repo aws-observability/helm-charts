@@ -78,6 +78,13 @@ spec:
       hostNetwork: true
       dnsPolicy: ClusterFirstWithHostNet
       priorityClassName: {{ .Values.containerLogs.fluentBit.priorityClassName }}
+      updateStrategy:
+        type: {{ .Values.containerLogs.fluentBit.updateStrategy.type | default "RollingUpdate" }}
+        {{- if eq .Values.containerLogs.fluentBit.updateStrategy.type "RollingUpdate" }}
+        rollingUpdate:
+          maxUnavailable: {{ .Values.containerLogs.fluentBit.updateStrategy.rollingUpdate.maxUnavailable | default 1 }}
+          maxSurge: {{ .Values.containerLogs.fluentBit.updateStrategy.rollingUpdate.maxSurge | default 0 }}
+        {{- end }}
       volumes:
       - name: fluentbitstate
         hostPath:

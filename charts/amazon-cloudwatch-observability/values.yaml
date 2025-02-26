@@ -187,6 +187,11 @@ containerLogs:
         cpu: 50m
         memory: 25Mi
     priorityClassName: system-node-critical
+    updateStrategy:
+      type: RollingUpdate
+      rollingUpdate:
+        maxUnavailable: 1
+        maxSurge: 
     config:
       service: |
         [SERVICE]
