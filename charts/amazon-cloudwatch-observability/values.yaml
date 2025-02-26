@@ -191,7 +191,7 @@ containerLogs:
       type: RollingUpdate
       rollingUpdate:
         maxUnavailable: 1
-        maxSurge: 
+        maxSurge: 0
     config:
       service: |
         [SERVICE]
