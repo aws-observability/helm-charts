@@ -9,22 +9,12 @@ metadata:
 spec:
   image: {{ template "neuron-monitor.image" . }}
   serviceAccount: {{ template "neuron-monitor.serviceAccountName" . }}
-  affinity:
-    nodeAffinity:
-      requiredDuringSchedulingIgnoredDuringExecution:
-        nodeSelectorTerms:
-          - matchExpressions:
-              - key: kubernetes.io/os
-                operator: In
-                values:
-                  - linux
-              - key: {{ .Values.nodeLabelKey }}
-                operator: In
-                values: {{ .Values.neuronInstances | toYaml | nindent 20 }}
-              - key: {{ .Values.fargateLabelKey }}
-                operator: NotIn
-                values:
-                  - fargate
+  {{- with .Values.neuronMonitor.nodeSelector }}
+  nodeSelector: {{- toYaml . | nindent 2 }}
+  {{- end }}
+  {{- with .Values.neuronMonitor.affinity }}
+  affinity: {{- toYaml . | nindent 2 }}
+  {{- end }}
   {{- with .Values.neuronMonitor.resources }}
   resources: {{- toYaml . | nindent 4}}
   {{- end }}

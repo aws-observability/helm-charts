@@ -8,21 +8,13 @@ metadata:
     version: v1
 spec:
   image: {{ template "dcgm-exporter.image" . }}
-  nodeSelector:
-    kubernetes.io/os: linux
+  {{- with .Values.dcgmExporter.nodeSelector }}
+  nodeSelector: {{- toYaml . | nindent 2 }}
+  {{- end }}
   serviceAccount: {{ template "dcgm-exporter.serviceAccountName" . }}
-  affinity:
-    nodeAffinity:
-      requiredDuringSchedulingIgnoredDuringExecution:
-        nodeSelectorTerms:
-          - matchExpressions:
-              - key: {{ .Values.nodeLabelKey }}
-                operator: In
-                values: {{ .Values.gpuInstances | toYaml | nindent 16 }}
-              - key: {{ .Values.fargateLabelKey }}
-                operator: NotIn
-                values:
-                  - fargate
+  {{- with .Values.dcgmExporter.affinity }}
+  affinity: {{- toYaml . | nindent 2 }}
+  {{- end }}
   {{- with .Values.dcgmExporter.resources }}
   resources: {{- toYaml . | nindent 4}}
   {{- end }}
