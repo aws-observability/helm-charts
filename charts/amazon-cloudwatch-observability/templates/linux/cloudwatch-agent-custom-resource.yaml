@@ -68,19 +68,14 @@ spec:
   image: {{ template "cloudwatch-agent.image" (merge $agent.image (dict "region" $.Values.region)) }}
   mode: {{ $agent.mode }}
   replicas: {{ $agent.replicas }}
-  nodeSelector:
-    kubernetes.io/os: linux
+  {{- with $agent.nodeSelector }}
+  nodeSelector: {{- toYaml . | nindent 2 }}
+  {{- end }}
   serviceAccount: {{ $agent.serviceAccount.name | default (include "cloudwatch-agent.serviceAccountName" $) }}
   priorityClassName: {{ $agent.priorityClassName | default $.Values.agent.priorityClassName }}
-  affinity:
-    nodeAffinity:
-      requiredDuringSchedulingIgnoredDuringExecution:
-        nodeSelectorTerms:
-          - matchExpressions:
-              - key: {{ $.Values.fargateLabelKey }}
-                operator: NotIn
-                values:
-                  - fargate
+  {{- with $agent.affinity }}
+  affinity: {{- toYaml . | nindent 2 }}
+  {{- end }}
   hostNetwork: true
   {{- if $agent.config }}
   config: {{ include "cloudwatch-agent.modify-config" (merge (dict "Config" $agent.config) $ ) }}

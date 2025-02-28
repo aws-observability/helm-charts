@@ -119,17 +119,12 @@ spec:
             - key: ca.crt
               path: tls-ca.crt
       serviceAccountName: {{ template "cloudwatch-agent.serviceAccountName" . }}
-      affinity:
-        nodeAffinity:
-          requiredDuringSchedulingIgnoredDuringExecution:
-            nodeSelectorTerms:
-              - matchExpressions:
-                  - key: {{ .Values.fargateLabelKey }}
-                    operator: NotIn
-                    values:
-                      - fargate
-      nodeSelector:
-        kubernetes.io/os: linux
+      {{- with .Values.containerLogs.fluentBit.affinity }}
+      affinity: {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.containerLogs.fluentBit.nodeSelector }}
+      nodeSelector: {{- toYaml . | nindent 8 }}
+      {{- end }}
       {{- with .Values.tolerations }}
       tolerations: {{- toYaml . | nindent 6}}
       {{- end }}
