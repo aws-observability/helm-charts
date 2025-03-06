@@ -9,11 +9,11 @@ metadata:
 spec:
   image: {{ template "dcgm-exporter.image" . }}
   {{- with .Values.dcgmExporter.nodeSelector }}
-  nodeSelector: {{- toYaml . | nindent 2 }}
+  nodeSelector: {{- toYaml . | nindent 4 }}
   {{- end }}
   serviceAccount: {{ template "dcgm-exporter.serviceAccountName" . }}
   {{- with .Values.dcgmExporter.affinity }}
-  affinity: {{- toYaml . | nindent 2 }}
+  affinity: {{- toYaml . | nindent 4 }}
   {{- end }}
   {{- with .Values.dcgmExporter.resources }}
   resources: {{- toYaml . | nindent 4}}

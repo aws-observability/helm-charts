@@ -69,7 +69,7 @@ spec:
   mode: {{ $agent.mode }}
   replicas: {{ $agent.replicas }}
   {{- with $agent.nodeSelector }}
-  nodeSelector: {{- toYaml . | nindent 2 }}
+  nodeSelector: {{- toYaml . | nindent 4 }}
   {{- end }}
   serviceAccount: {{ $agent.serviceAccount.name | default (include "cloudwatch-agent.serviceAccountName" $) }}
   {{ if $isROSA }}
@@ -81,7 +81,7 @@ spec:
   {{ end }}
   priorityClassName: {{ $agent.priorityClassName | default $.Values.agent.priorityClassName }}
   {{- with $agent.affinity }}
-  affinity: {{- toYaml . | nindent 2 }}
+  affinity: {{- toYaml . | nindent 4 }}
   {{- end }}
   hostNetwork: true
   {{- if $agent.config }}
