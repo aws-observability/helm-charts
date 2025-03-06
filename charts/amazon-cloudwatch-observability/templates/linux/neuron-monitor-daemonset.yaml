@@ -10,10 +10,10 @@ spec:
   image: {{ template "neuron-monitor.image" . }}
   serviceAccount: {{ template "neuron-monitor.serviceAccountName" . }}
   {{- with .Values.neuronMonitor.nodeSelector }}
-  nodeSelector: {{- toYaml . | nindent 2 }}
+  nodeSelector: {{- toYaml . | nindent 4 }}
   {{- end }}
   {{- with .Values.neuronMonitor.affinity }}
-  affinity: {{- toYaml . | nindent 2 }}
+  affinity: {{- toYaml . | nindent 4 }}
   {{- end }}
   {{- with .Values.neuronMonitor.resources }}
   resources: {{- toYaml . | nindent 4}}

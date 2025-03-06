@@ -1318,8 +1318,8 @@ dcgmExporter:
         nodeSelectorTerms:
           - matchExpressions:
               - key: node.kubernetes.io/instance-type
-              - operator: In
-              - values:
+                operator: In
+                values:
                   ## NVIDIA GPU instance types
                   - g4ad.4xlarge
                   - g4ad.8xlarge
@@ -1476,8 +1476,8 @@ neuronMonitor:
         nodeSelectorTerms:
           - matchExpressions:
               - key: node.kubernetes.io/instance-type
-              - operator: In
-              - values:
+                operator: In
+                values:
                   ## Tranium/Infrentia instance types
                   - trn1.2xlarge
                   - trn1.32xlarge
