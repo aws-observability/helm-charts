@@ -1,6 +1,6 @@
 apiVersion: v2
 name: amazon-cloudwatch-observability
-version: 3.3.0
+version: 3.4.0
 appVersion: 1.0.0
 description: A Helm chart for Amazon CloudWatch Observability
 type: application
