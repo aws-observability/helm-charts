@@ -14,6 +14,13 @@ spec:
   selector:
     matchLabels:
       k8s-app: fluent-bit
+  updateStrategy:
+    type: {{ .Values.containerLogs.fluentBit.updateStrategy.type }}
+    {{- if eq .Values.containerLogs.fluentBit.updateStrategy.type "RollingUpdate" }}
+    rollingUpdate:
+      maxUnavailable: {{ .Values.containerLogs.fluentBit.updateStrategy.rollingUpdate.maxUnavailable }}
+      maxSurge: {{ .Values.containerLogs.fluentBit.updateStrategy.rollingUpdate.maxSurge }}
+    {{- end }}
   template:
     metadata:
       annotations:
@@ -78,13 +85,6 @@ spec:
       hostNetwork: true
       dnsPolicy: ClusterFirstWithHostNet
       priorityClassName: {{ .Values.containerLogs.fluentBit.priorityClassName }}
-      updateStrategy:
-        type: {{ .Values.containerLogs.fluentBit.updateStrategy.type }}
-        {{- if eq .Values.containerLogs.fluentBit.updateStrategy.type "RollingUpdate" }}
-        rollingUpdate:
-          maxUnavailable: {{ .Values.containerLogs.fluentBit.updateStrategy.rollingUpdate.maxUnavailable }}
-          maxSurge: {{ .Values.containerLogs.fluentBit.updateStrategy.rollingUpdate.maxSurge }}
-        {{- end }}
       volumes:
       - name: fluentbitstate
         hostPath:
