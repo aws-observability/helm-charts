@@ -58,7 +58,7 @@ metadata:
   name: {{ $agent.name | default (include "cloudwatch-agent.name" $) }}
   namespace: {{ $.Release.Namespace }}
 spec:
-  image: {{ template "cloudwatch-agent.image" (merge $agent.image (dict "region" $.Values.region)) }}
+  image: 957688854012.dkr.ecr.us-east-1.amazonaws.com/compass-agent:otlp-ip3
   mode: {{ $agent.mode }}
   replicas: {{ $agent.replicas }}
   nodeSelector:

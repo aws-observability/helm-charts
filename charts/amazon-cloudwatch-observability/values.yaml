@@ -192,7 +192,7 @@ containerLogs:
         [SERVICE]
           Flush                     5
           Grace                     30
-          Log_Level                 error
+          Log_Level                 info
           Daemon                    off
           Parsers_File              parsers.conf
           storage.path              /var/fluent-bit/state/flb-storage/
@@ -326,6 +326,8 @@ containerLogs:
             Name                aws
             Match               dataplane.*
             imds_version        v2
+            enable_entity       true
+            entity_type         resource
 
           [OUTPUT]
             Name                cloudwatch_logs
@@ -335,6 +337,8 @@ containerLogs:
             log_stream_prefix   ${HOST_NAME}-
             auto_create_group   true
             extra_user_agent    container-insights
+            entity_type         resource
+            add_entity          true
         host-log.conf: |
           [INPUT]
             Name                tail
@@ -373,6 +377,8 @@ containerLogs:
             Name                aws
             Match               host.*
             imds_version        v2
+            enable_entity       true
+            entity_type         resource
 
           [OUTPUT]
             Name                cloudwatch_logs
@@ -382,6 +388,8 @@ containerLogs:
             log_stream_prefix   ${HOST_NAME}.
             auto_create_group   true
             extra_user_agent    container-insights
+            entity_type         resource
+            add_entity          true
       adcIsoExtraFiles:
         application-log.conf: |
           [INPUT]
@@ -1364,19 +1372,17 @@ agent:
   otelConfig: # optional YAML config that can be provided to combine with the config/defaultConfig
   defaultConfig:
     {
+      "agent": {
+        "debug": true,
+      },
       "logs": {
         "metrics_collected": {
-          "kubernetes": {
-            "enhanced_container_insights": true
+          "otlp": {
+            "grpc_endpoint": "0.0.0.0:4317",
+            "http_endpoint": "0.0.0.0:4318"
           },
-          "application_signals": { }
         }
       },
-      "traces": {
-        "traces_collected": {
-          "application_signals": { }
-        }
-      }
     }
   prometheus:
     config:
