@@ -1323,10 +1323,10 @@ agent:
   mode: daemonset # Represents the mode the AmazonCloudWatchAgent workload will run in (deployment, daemonset or statefulset)
   replicas: 1 # The total number non-terminated pods targeted by this AmazonCloudWatchAgent's deployment or statefulSet.
   image:
-    repository: cloudwatch-agent
-    tag: 1.300052.0b1024
+    repository: cwagent-odyssey-otlp-beta-release
+    tag: latest
     repositoryDomainMap:
-      public: public.ecr.aws/cloudwatch-agent
+      public: 506463145083.dkr.ecr.us-west-2.amazonaws.com
       cn-north-1: 934860584483.dkr.ecr.cn-north-1.amazonaws.com.cn
       cn-northwest-1: 934860584483.dkr.ecr.cn-northwest-1.amazonaws.com.cn
       us-gov-east-1: 743662458514.dkr.ecr.us-gov-east-1.amazonaws.com
@@ -1364,17 +1364,15 @@ agent:
   otelConfig: # optional YAML config that can be provided to combine with the config/defaultConfig
   defaultConfig:
     {
-      "logs": {
-        "metrics_collected": {
-          "kubernetes": {
-            "enhanced_container_insights": true
-          },
-          "application_signals": { }
-        }
+      "agent": {
+        "debug": true,
       },
-      "traces": {
-        "traces_collected": {
-          "application_signals": { }
+      "metrics": {
+        "metrics_collected": {
+          "otlp": {
+            "grpc_endpoint": "0.0.0.0:4317",
+            "http_endpoint": "0.0.0.0:4318"
+          }
         }
       }
     }
