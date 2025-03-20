@@ -232,6 +232,8 @@ spec:
   - name: RUN_WITH_IRSA
     value: "True"
   {{ end }}
+  - name: K8S_CLUSTER_NAME
+    value: {{ $.Values.clusterName }}
   {{- with $.Values.tolerations }}
   tolerations: {{- toYaml . | nindent 2}}
   {{- end }}
