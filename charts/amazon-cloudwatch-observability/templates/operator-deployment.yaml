@@ -46,6 +46,9 @@ spec:
         - mountPath: /tmp/k8s-webhook-server/serving-certs
           name: cert
           readOnly: true
+      {{- with .Values.manager.affinity }}
+      affinity: {{- toYaml . | nindent 8 }}
+      {{- end }}
       serviceAccountName: {{ template "amazon-cloudwatch-observability.managerServiceAccountName" . }}
       terminationGracePeriodSeconds: 10
       volumes:
@@ -53,5 +56,6 @@ spec:
         secret:
           defaultMode: 420
           secretName: {{ template "amazon-cloudwatch-observability.certificateSecretName" . }}
-      nodeSelector:
-        kubernetes.io/os: linux
+      {{- with .Values.manager.nodeSelector }}
+      nodeSelector: {{- toYaml . | nindent 8 }}
+      {{- end }}
