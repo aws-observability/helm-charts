@@ -231,6 +231,8 @@ spec:
   {{ if eq $.Values.k8sMode "ROSA"}}
   - name: RUN_WITH_IRSA
     value: "True"
+  - name: RUN_IN_ROSA
+    value: "True"
   {{ end }}
   - name: K8S_CLUSTER_NAME
     value: {{ $.Values.clusterName }}
