@@ -1324,10 +1324,10 @@ agent:
   mode: daemonset # Represents the mode the AmazonCloudWatchAgent workload will run in (deployment, daemonset or statefulset)
   replicas: 1 # The total number non-terminated pods targeted by this AmazonCloudWatchAgent's deployment or statefulSet.
   image:
-    repository: okan-test
-    tag: latest
+    repository: cloudwatch-agent
+    tag: 1.300052.0b1024
     repositoryDomainMap:
-      public: public.ecr.aws/y9j7l2e7
+      public: public.ecr.aws/cloudwatch-agent
       cn-north-1: 934860584483.dkr.ecr.cn-north-1.amazonaws.com.cn
       cn-northwest-1: 934860584483.dkr.ecr.cn-northwest-1.amazonaws.com.cn
       us-gov-east-1: 743662458514.dkr.ecr.us-gov-east-1.amazonaws.com
@@ -1368,14 +1368,14 @@ agent:
       "logs": {
         "metrics_collected": {
           "kubernetes": {
-            "enhanced_container_insights": true,
+            "enhanced_container_insights": true
           },
-          "application_signals": {}
+          "application_signals": { }
         }
       },
       "traces": {
         "traces_collected": {
-          "application_signals": {}
+          "application_signals": { }
         }
       }
     }
