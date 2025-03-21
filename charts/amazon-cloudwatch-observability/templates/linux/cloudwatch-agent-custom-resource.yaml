@@ -123,9 +123,6 @@ spec:
     name: criocontainer
   - mountPath: /var/log/pods
     name: criologs
-  - mountPath: /var
-    name: var
-    readOnly: true
   - mountPath: /var/lib/docker
     name: varlibdocker
     readOnly: true
@@ -176,10 +173,6 @@ spec:
   - hostPath:
       path:  /var/log/pods
     name: criologs
-  - hostPath:
-      path: /var
-      type: Directory
-    name: var
   - hostPath:
       path: /sys
     name: sys
