@@ -1,0 +1,38 @@
+{{ if and .Values.agent.enabled (eq .Values.k8sMode "ROSA") }}
+apiVersion: security.openshift.io/v1
+kind: SecurityContextConstraints
+metadata:
+  name: cloudwatch-agent-scc
+allowHostDirVolumePlugin: true
+allowHostIPC: false
+allowHostNetwork: true
+allowHostPID: false
+allowHostPorts: true
+allowPrivilegeEscalation: true
+allowPrivilegedContainer: true
+allowedCapabilities: null
+readOnlyRootFilesystem: false
+runAsUser:
+  type: RunAsAny
+seLinuxContext:
+  type: RunAsAny
+supplementalGroups:
+  type: RunAsAny
+defaultAddCapabilities:
+- SYS_ADMIN
+fsGroup:
+  type: RunAsAny
+groups: []
+requiredDropCapabilities:
+  - ALL
+volumes:
+  - configMap
+  - secret
+  - emptyDir
+  - hostPath
+  - projected
+users:
+  - system:serviceaccount:{{ .Release.Namespace }}:{{ template "cloudwatch-agent.serviceAccountName" . }}
+
+
+{{ end }}
