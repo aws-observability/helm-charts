@@ -10,7 +10,7 @@ nameOverride: ""
 clusterName:
 ## Provide the Region (this is a required parameter)
 region:
-k8sMode: "auto" # can be EKS | ROSA | Native | auto
+k8sMode: EKS # can be EKS | ROSA | K8S
 nodeLabelKey: node.kubernetes.io/instance-type
 fargateLabelKey: eks.amazonaws.com/compute-type
 ## NVIDIA GPU instance types

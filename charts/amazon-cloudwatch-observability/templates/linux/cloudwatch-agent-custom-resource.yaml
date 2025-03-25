@@ -49,7 +49,7 @@ data:
 
 {{- $clusterName := .Values.clusterName | required ".Values.clusterName is required." -}}
 {{- $region := .Values.region | required ".Values.region is required." -}}
-
+{{- $isROSA := eq $.Values.k8sMode "ROSA" -}}
 {{- range .Values.agents }}
 {{- $agent := merge . (deepCopy $.Values.agent) }}
 apiVersion: cloudwatch.aws.amazon.com/v1alpha1
@@ -64,12 +64,13 @@ spec:
   nodeSelector:
     kubernetes.io/os: linux
   serviceAccount: {{ $agent.serviceAccount.name | default (include "cloudwatch-agent.serviceAccountName" $) }}
+  {{ if $isROSA }}
   securityContext:
     runAsNonRoot: false
     capabilities:
       add:
         - SYS_ADMIN
-
+  {{ end }}
   priorityClassName: {{ $agent.priorityClassName | default $.Values.agent.priorityClassName }}
   affinity:
     nodeAffinity:
@@ -123,9 +124,6 @@ spec:
     name: criocontainer
   - mountPath: /var/log/pods
     name: criologs
-  - mountPath: /var
-    name: var
-    readOnly: true
   - mountPath: /var/lib/docker
     name: varlibdocker
     readOnly: true
@@ -146,7 +144,7 @@ spec:
     readOnly: true
   - mountPath: /var/lib/kubelet/pod-resources
     name: kubelet-podresources
-    {{ if eq $.Values.k8sMode "ROSA"}}
+    {{ if $isROSA }}
   - mountPath: /etc/kubernetes/kubelet-ca.crt
     name: kubelet-ca
     {{ end }}
@@ -177,10 +175,6 @@ spec:
       path:  /var/log/pods
     name: criologs
   - hostPath:
-      path: /var
-      type: Directory
-    name: var
-  - hostPath:
       path: /sys
     name: sys
   - hostPath:
@@ -206,11 +200,11 @@ spec:
           path: server.crt
         - key: tls.key
           path: server.key
-    {{ if eq $.Values.k8sMode "ROSA"}}
+  {{ if $isROSA }}
   - name: kubelet-ca
     hostPath:
       path: /etc/kubernetes/kubelet-ca.crt
-    {{end }}
+  {{end }}
   env:
   - name: K8S_NODE_NAME
     valueFrom:
@@ -228,9 +222,7 @@ spec:
     valueFrom:
       fieldRef:
         fieldPath: metadata.namespace
-  {{ if eq $.Values.k8sMode "ROSA"}}
-  - name: RUN_WITH_IRSA
-    value: "True"
+  {{ if $isROSA }}
   - name: RUN_IN_ROSA
     value: "True"
   {{ end }}
