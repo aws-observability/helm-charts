@@ -79,6 +79,22 @@ Helper function to modify cloudwatch-agent YAML config
 {{- $configCopy | toYaml | quote }}
 {{- end }}
 
+{{- define "cloudwatch-agent.rolloutStrategyMaxUnavailable" -}}
+{{- if eq .mode "daemonset" -}}
+1
+{{- else -}}
+25%
+{{- end -}}
+{{- end -}}
+
+{{- define "cloudwatch-agent.rolloutStrategyMaxSurge" -}}
+{{- if eq .mode "daemonset" -}}
+0
+{{- else -}}
+25%
+{{- end -}}
+{{- end -}}
+
 {{/*
 Name for cloudwatch-agent
 */}}

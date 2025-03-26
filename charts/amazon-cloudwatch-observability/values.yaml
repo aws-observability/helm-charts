@@ -1143,15 +1143,7 @@ manager:
   podLabels: {}
   service:
     name:
-  affinity:
-    nodeAffinity:
-      requiredDuringSchedulingIgnoredDuringExecution:
-        nodeSelectorTerms:
-          - matchExpressions:
-              - key: eks.amazonaws.com/compute-type
-                operator: NotIn
-                values:
-                  - fargate
+  affinity: {}
   nodeSelector:
     kubernetes.io/os: linux
 ## Admission webhooks make sure only requests with correctly formatted rules will get into the Operator.
@@ -1233,8 +1225,8 @@ agent:
   updateStrategy:
     type: RollingUpdate
     rollingUpdate:
-      maxUnavailable: 1
-      maxSurge: 0
+      maxUnavailable:
+      maxSurge:
   ## Override root tolerations
   # tolerations: []
   ## TLS Certificate Option 1: Use Helm to automatically generate self-signed certificate.
