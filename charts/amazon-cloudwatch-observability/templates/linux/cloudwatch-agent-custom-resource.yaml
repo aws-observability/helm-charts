@@ -120,10 +120,13 @@ spec:
     name: containerdsock
   - mountPath: /var/run/crio/crio.sock
     name: criosock
+    readOnly: true
   - mountPath: /var/lib/containers
     name: criocontainer
+    readOnly: true
   - mountPath: /var/log/pods
-    name: criologs
+    name: criolog
+    readOnly: true
   - mountPath: /var/lib/docker
     name: varlibdocker
     readOnly: true
@@ -147,6 +150,7 @@ spec:
     {{ if $isROSA }}
   - mountPath: /etc/kubernetes/kubelet-ca.crt
     name: kubelet-ca
+    readOnly: true
     {{ end }}
   volumes:
   - name: kubelet-podresources
