@@ -229,6 +229,12 @@ spec:
   - name: K8S_CLUSTER_NAME
     value: {{ $.Values.clusterName }}
   {{- with $.Values.tolerations }}
+  {{- if $.Values.k8sClientExponentialBackoff.enabled }}
+  - name: KUBE_CLIENT_BACKOFF_BASE
+    value: {{ $.Values.k8sClientExponentialBackoff.backoffBaseSeconds | quote }}
+  - name: KUBE_CLIENT_BACKOFF_DURATION
+    value: {{ $.Values.k8sClientExponentialBackoff.backoffMaxDurationSeconds | quote }}
+  {{- end }}
   tolerations: {{- toYaml . | nindent 2}}
   {{- end }}
 ---
