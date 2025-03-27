@@ -1451,3 +1451,7 @@ neuronMonitor:
         - SYS_ADMIN
   serviceAccount:
     name: # override exporter service account name
+k8sClientExponentialBackoff:
+  enabled: true
+  backoffBaseSeconds: 1
+  backoffMaxDurationSeconds: 120
