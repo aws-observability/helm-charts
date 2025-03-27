@@ -62,7 +62,7 @@ data:
 
 {{- $clusterName := .Values.clusterName | required ".Values.clusterName is required." -}}
 {{- $region := .Values.region | required ".Values.region is required." -}}
-
+{{- $isROSA := eq $.Values.k8sMode "ROSA" -}}
 {{- range .Values.agents }}
 {{- $agent := merge . (deepCopy $.Values.agent) }}
 apiVersion: cloudwatch.aws.amazon.com/v1alpha1
@@ -77,6 +77,13 @@ spec:
   nodeSelector:
     kubernetes.io/os: linux
   serviceAccount: {{ $agent.serviceAccount.name | default (include "cloudwatch-agent.serviceAccountName" $) }}
+  {{ if $isROSA }}
+  securityContext:
+    runAsNonRoot: false
+    capabilities:
+      add:
+        - SYS_ADMIN
+  {{ end }}
   priorityClassName: {{ $agent.priorityClassName | default $.Values.agent.priorityClassName }}
   affinity:
     nodeAffinity:
@@ -94,7 +101,7 @@ spec:
   config: {{ include "cloudwatch-agent.modify-config" (merge (dict "Config" $agent.defaultConfig) $ ) }}
   {{- end }}
   {{- if $agent.otelConfig }}
-  otelConfig: {{ include "cloudwatch-agent.modify-yaml-config" (merge (dict "OtelConfig" $agent.otelConfig) . ) }}
+  otelConfig: {{ include "cloudwatch-agent.modify-otel-config" (merge (dict "OtelConfig" $agent.otelConfig) . ) }}
   {{- end }}
   {{- if $agent.prometheus.config }}
   prometheus:
@@ -124,6 +131,12 @@ spec:
     readOnly: true
   - mountPath: /run/containerd/containerd.sock
     name: containerdsock
+  - mountPath: /var/run/crio/crio.sock
+    name: criosock
+  - mountPath: /var/lib/containers
+    name: criocontainer
+  - mountPath: /var/log/pods
+    name: criologs
   - mountPath: /var/lib/docker
     name: varlibdocker
     readOnly: true
@@ -147,6 +160,10 @@ spec:
     readOnly: true
   - mountPath: /var/lib/kubelet/pod-resources
     name: kubelet-podresources
+    {{ if $isROSA }}
+  - mountPath: /etc/kubernetes/kubelet-ca.crt
+    name: kubelet-ca
+    {{ end }}
   volumes:
   - name: kubelet-podresources
     hostPath:
@@ -164,6 +181,15 @@ spec:
   - hostPath:
       path: /run/containerd/containerd.sock
     name: containerdsock
+  - hostPath:
+      path: /var/run/crio/crio.sock
+    name: criosock
+  - hostPath:
+      path:  /var/lib/containers
+    name: criocontainer
+  - hostPath:
+      path:  /var/log/pods
+    name: criologs
   - hostPath:
       path: /sys
     name: sys
@@ -198,6 +224,11 @@ spec:
           path: client.crt
         - key: tls.key
           path: client.key
+  {{ if $isROSA }}
+  - name: kubelet-ca
+    hostPath:
+      path: /etc/kubernetes/kubelet-ca.crt
+  {{end }}
   env:
   - name: K8S_NODE_NAME
     valueFrom:
@@ -215,6 +246,12 @@ spec:
     valueFrom:
       fieldRef:
         fieldPath: metadata.namespace
+  {{ if $isROSA }}
+  - name: RUN_IN_ROSA
+    value: "True"
+  {{ end }}
+  - name: K8S_CLUSTER_NAME
+    value: {{ $.Values.clusterName }}
   {{- with $.Values.tolerations }}
   tolerations: {{- toYaml . | nindent 2}}
   {{- end }}

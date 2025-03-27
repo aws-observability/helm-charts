@@ -1,0 +1,10 @@
+{{ if and .Values.agent.enabled (eq .Values.k8sMode "ROSA") }}
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: system:openshift:scc:cloudwatch-agent-scc
+rules:
+  - apiGroups: [""]
+    resources: ["securitycontextconstraints"]
+    verbs: ["use"]
+{{- end }}
