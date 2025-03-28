@@ -1,0 +1,170 @@
+{{- if .Values.agent.enabled }}
+{{- if and (.Values.agent.autoGenerateCert.enabled) (not .Values.agent.certManager.enabled) -}}
+{{- $altNames := list ( printf "%s-service" (include "dcgm-exporter.name" .) ) ( printf "%s-service" (include "neuron-monitor.name" .) ) ( printf "%s-service.%s.svc" (include "dcgm-exporter.name" .) .Release.Namespace ) ( printf "%s-service.%s.svc" (include "neuron-monitor.name" .) .Release.Namespace ) -}}
+{{- $agentAltNames := list ( printf "%s" (include "cloudwatch-agent.name" .) ) ( printf "%s.%s.svc" (include "cloudwatch-agent.name" .) .Release.Namespace ) -}}
+{{- $ca := genCA ("agent-ca")  ( .Values.agent.autoGenerateCert.expiryDays | int ) -}}
+{{- $cert := genSignedCert ("agent") nil $altNames ( .Values.admissionWebhooks.autoGenerateCert.expiryDays | int ) $ca -}}
+{{- $serverCert := genSignedCert ("agent-server") nil $agentAltNames ( .Values.admissionWebhooks.autoGenerateCert.expiryDays | int ) $ca -}}
+{{- $clientCert := genSignedCert ("agent-client") nil nil ( .Values.admissionWebhooks.autoGenerateCert.expiryDays | int ) $ca -}}
+apiVersion: v1
+kind: Secret
+metadata:
+  labels:
+      {{- include "amazon-cloudwatch-observability.labels" . | nindent 4}}
+  name: "amazon-cloudwatch-observability-agent-cert"
+  namespace: {{ .Release.Namespace }}
+data:
+  ca.crt: {{ $ca.Cert | b64enc }}
+  tls.crt: {{ $cert.Cert | b64enc }}
+  tls.key: {{ $cert.Key | b64enc }}
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  labels:
+      {{- include "amazon-cloudwatch-observability.labels" . | nindent 4}}
+  name: "amazon-cloudwatch-observability-agent-server-cert"
+  namespace: {{ .Release.Namespace }}
+data:
+  ca.crt: {{ $ca.Cert | b64enc }}
+  tls.crt: {{ $serverCert.Cert | b64enc }}
+  tls.key: {{ $serverCert.Key | b64enc }}
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  labels:
+      {{- include "amazon-cloudwatch-observability.labels" . | nindent 4}}
+  name: "amazon-cloudwatch-observability-agent-client-cert"
+  namespace: {{ .Release.Namespace }}
+data:
+  ca.crt: {{ $ca.Cert | b64enc }}
+  tls.crt: {{ $clientCert.Cert | b64enc }}
+  tls.key: {{ $clientCert.Key | b64enc }}
+---
+{{- end -}}
+
+{{- $clusterName := .Values.clusterName | required ".Values.clusterName is required." -}}
+{{- $region := .Values.region | required ".Values.region is required." -}}
+apiVersion: cloudwatch.aws.amazon.com/v1alpha1
+kind: AmazonCloudWatchAgent
+metadata:
+  name: {{ template "cloudwatch-agent.name" . }}
+  namespace: {{ .Release.Namespace }}
+spec:
+  image: {{ template "cloudwatch-agent.image" . }}
+  mode: daemonset
+  nodeSelector:
+    kubernetes.io/os: linux
+  serviceAccount: {{ template "cloudwatch-agent.serviceAccountName" . }}
+  affinity:
+    nodeAffinity:
+      requiredDuringSchedulingIgnoredDuringExecution:
+        nodeSelectorTerms:
+          - matchExpressions:
+              - key: {{ .Values.fargateLabelKey }}
+                operator: NotIn
+                values:
+                  - fargate
+  hostNetwork: true
+  {{- if .Values.agent.config }}
+  config: {{ include "cloudwatch-agent.modify-config" (merge (dict "Config" .Values.agent.config) . ) }}
+  {{- else }}
+  config: {{ include "cloudwatch-agent.modify-config" (merge (dict "Config" .Values.agent.defaultConfig) . ) }}
+  {{- end }}
+  {{- with .Values.agent.resources }}
+  resources: {{- toYaml . | nindent 4}}
+  {{- end }}
+  volumeMounts:
+  - mountPath: /rootfs
+    name: rootfs
+    readOnly: true
+  - mountPath: /var/run/docker.sock
+    name: dockersock
+    readOnly: true
+  - mountPath: /run/containerd/containerd.sock
+    name: containerdsock
+  - mountPath: /var/lib/docker
+    name: varlibdocker
+    readOnly: true
+  - mountPath: /sys
+    name: sys
+    readOnly: true
+  - mountPath: /dev/disk
+    name: devdisk
+    readOnly: true
+  - mountPath: /etc/amazon-cloudwatch-observability-agent-cert
+    name: agenttls
+    readOnly: true
+  - mountPath: /etc/amazon-cloudwatch-observability-agent-client-cert
+    name: agentclienttls
+    readOnly: true
+  - mountPath: /etc/amazon-cloudwatch-observability-agent-server-cert
+    name: agentservertls
+    readOnly: true
+  - mountPath: /var/lib/kubelet/pod-resources
+    name: kubelet-podresources
+  volumes:
+  - name: kubelet-podresources
+    hostPath:
+      path: /var/lib/kubelet/pod-resources
+      type: Directory
+  - name: rootfs
+    hostPath:
+      path: /
+  - hostPath:
+      path: /var/run/docker.sock
+    name: dockersock
+  - hostPath:
+      path: /var/lib/docker
+    name: varlibdocker
+  - hostPath:
+      path: /run/containerd/containerd.sock
+    name: containerdsock
+  - hostPath:
+      path: /sys
+    name: sys
+  - hostPath:
+      path: /dev/disk/
+    name: devdisk
+  - name: agenttls
+    secret:
+      secretName: amazon-cloudwatch-observability-agent-cert
+      items:
+        - key: ca.crt
+          path: tls-ca.crt
+  - name: agentclienttls
+    secret:
+      secretName: amazon-cloudwatch-observability-agent-client-cert
+      items:
+        - key: ca.crt
+          path: tls-ca.crt
+  - name: agentservertls
+    secret:
+      secretName: amazon-cloudwatch-observability-agent-server-cert
+      items:
+        - key: tls.crt
+          path: server.crt
+        - key: tls.key
+          path: server.key
+  env:
+  - name: K8S_NODE_NAME
+    valueFrom:
+      fieldRef:
+        fieldPath: spec.nodeName
+  - name: HOST_IP
+    valueFrom:
+      fieldRef:
+        fieldPath: status.hostIP
+  - name: HOST_NAME
+    valueFrom:
+      fieldRef:
+        fieldPath: spec.nodeName
+  - name: K8S_NAMESPACE
+    valueFrom:
+      fieldRef:
+        fieldPath: metadata.namespace
+  {{- with .Values.tolerations }}
+  tolerations: {{- toYaml . | nindent 2}}
+  {{- end }}
+{{- end }}

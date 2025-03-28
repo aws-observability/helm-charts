@@ -170,11 +170,12 @@ containerLogs:
   enabled: true
   fluentBit:
     image:
-      repository: aws-for-fluent-bit
-      tag: 2.32.5
+      repository: compass-fluent-bit
+      tag: aws-final19
       tagWindows: 2.31.12-windowsservercore
+      imagePullPolicy: IfNotPresent
       repositoryDomainMap:
-        public: public.ecr.aws/aws-observability
+        public: 957688854012.dkr.ecr.us-east-1.amazonaws.com
         cn-north-1: 128054284489.dkr.ecr.cn-north-1.amazonaws.com.cn
         cn-northwest-1: 128054284489.dkr.ecr.cn-northwest-1.amazonaws.com.cn
         us-gov-east-1: 161423150738.dkr.ecr.us-gov-east-1.amazonaws.com
@@ -192,7 +193,7 @@ containerLogs:
         [SERVICE]
           Flush                     5
           Grace                     30
-          Log_Level                 error
+          Log_Level                 debug
           Daemon                    off
           Parsers_File              parsers.conf
           storage.path              /var/fluent-bit/state/flb-storage/
