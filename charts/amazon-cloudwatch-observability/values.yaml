@@ -310,6 +310,8 @@ containerLogs:
             Name                aws
             Match               host.*
             imds_version        v2
+            enable_entity       true                                                                                                                                                                                                               │
+            entity_type         resource
 
           [OUTPUT]
             Name                cloudwatch_logs
