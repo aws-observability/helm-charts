@@ -170,7 +170,7 @@ containerLogs:
   enabled: true
   fluentBit:
     image:
-      repository: compass-fluent-bit
+      repository: compass-fluentbit
       tag: aws-final19
       tagWindows: 2.31.12-windowsservercore
       imagePullPolicy: IfNotPresent
