@@ -259,9 +259,6 @@ containerLogs:
             imds_version        v2
             enable_entity       true
             entity_type         resource
-
-            enable_entity       true                                                                                                                                                                                                                        │
-            entity_type         resource 
           [OUTPUT]
             Name                cloudwatch_logs
             Match               dataplane.*
@@ -321,8 +318,6 @@ containerLogs:
             log_stream_prefix   ${HOST_NAME}.
             auto_create_group   true
             extra_user_agent    container-insights
-            entity_type         resource
-            add_entity          true
             entity_type         resource
             add_entity          true
       adcIsoExtraFiles:
