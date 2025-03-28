@@ -268,7 +268,7 @@ containerLogs:
           [FILTER]
             Name                kubernetes
             Match               application.*
-            Kube_URL            https://invalid.default.svc:443
+            Kube_URL            https://kubernetes.default.svc:443
             Kube_Tag_Prefix     application.var.log.containers.
             Merge_Log           On
             Merge_Log_Key       log_processed
@@ -276,7 +276,7 @@ containerLogs:
             K8S-Logging.Exclude Off
             Labels              Off
             Annotations         Off
-            Use_Kubelet         Off
+            Use_Kubelet         On
             Kubelet_Port        10250
             Buffer_Size         0
             Use_Pod_Association On
@@ -328,22 +328,6 @@ containerLogs:
             imds_version        v2
             enable_entity       true
             entity_type         resource
-          
-          [FILTER]
-            Name                kubernetes
-            Match               dataplane.*
-            Kube_URL            https://invalid.default.svc:443
-            Kube_Tag_Prefix     application.var.log.containers.
-            Merge_Log           On
-            Merge_Log_Key       log_processed
-            K8S-Logging.Parser  On
-            K8S-Logging.Exclude Off
-            Labels              Off
-            Annotations         Off
-            Use_Kubelet         Off
-            Kubelet_Port        10250
-            Buffer_Size         0
-            Use_Pod_Association On
 
           [OUTPUT]
             Name                cloudwatch_logs
@@ -395,22 +379,6 @@ containerLogs:
             imds_version        v2
             enable_entity       true
             entity_type         resource
-
-          [FILTER]
-            Name                kubernetes
-            Match               host.*
-            Kube_URL            https://invalid.default.svc:443
-            Kube_Tag_Prefix     application.var.log.containers.
-            Merge_Log           On
-            Merge_Log_Key       log_processed
-            K8S-Logging.Parser  On
-            K8S-Logging.Exclude Off
-            Labels              Off
-            Annotations         Off
-            Use_Kubelet         Off
-            Kubelet_Port        10250
-            Buffer_Size         0
-            Use_Pod_Association On
 
           [OUTPUT]
             Name                cloudwatch_logs
