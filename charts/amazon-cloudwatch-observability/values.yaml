@@ -252,6 +252,8 @@ containerLogs:
             Rename              _SYSTEMD_UNIT               systemd_unit
             Rename              MESSAGE                     message
             Remove_regex        ^((?!hostname|systemd_unit|message).)*$
+            Kube_URL            https://invalid.default.svc:443
+            Use_Kubelet         Off
 
           [FILTER]
             Name                aws
@@ -309,6 +311,8 @@ containerLogs:
             imds_version        v2
             enable_entity       true
             entity_type         resource
+            Kube_URL            https://invalid.default.svc:443
+            Use_Kubelet         Off
 
           [OUTPUT]
             Name                cloudwatch_logs
