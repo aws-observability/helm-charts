@@ -170,7 +170,7 @@ containerLogs:
   enabled: true
   fluentBit:
     image:
-      repository: compass-fluent-bit
+      repository: compass-fluentbit
       tag: aws-final19
       tagWindows: 2.31.12-windowsservercore
       repositoryDomainMap:
@@ -257,6 +257,9 @@ containerLogs:
             Name                aws
             Match               dataplane.*
             imds_version        v2
+            enable_entity       true
+            entity_type         resource
+
             enable_entity       true                                                                                                                                                                                                                        │
             entity_type         resource 
           [OUTPUT]
@@ -307,8 +310,7 @@ containerLogs:
             Name                aws
             Match               host.*
             imds_version        v2
-            enable_entity       true                                                                                                                                                                                                               │
-            entity_type         resource
+
           [OUTPUT]
             Name                cloudwatch_logs
             Match               host.*
@@ -317,6 +319,8 @@ containerLogs:
             log_stream_prefix   ${HOST_NAME}.
             auto_create_group   true
             extra_user_agent    container-insights
+            entity_type         resource
+            add_entity          true
             entity_type         resource
             add_entity          true
       adcIsoExtraFiles:
