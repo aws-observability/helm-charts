@@ -1,3 +1,4 @@
+{{- if .Values.dcgmExporter.enabled }}
 apiVersion: cloudwatch.aws.amazon.com/v1alpha1
 kind: DcgmExporter
 metadata:
@@ -74,3 +75,4 @@ spec:
   {{- with .Values.tolerations }}
   tolerations: {{- toYaml . | nindent 2}}
   {{- end }}
+{{- end }}

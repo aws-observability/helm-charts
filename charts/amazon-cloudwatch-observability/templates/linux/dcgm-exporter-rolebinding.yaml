@@ -1,3 +1,4 @@
+{{- if .Values.dcgmExporter.enabled }}
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
 metadata:
@@ -13,3 +14,4 @@ subjects:
 - kind: ServiceAccount
   name: {{ template "dcgm-exporter.serviceAccountName" . }}
   namespace: {{ .Release.Namespace }}
+{{- end }}
