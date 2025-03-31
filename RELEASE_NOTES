@@ -1,3 +1,19 @@
+========================================================================
+amazon-cloudwatch-observability v3.3.0 (2025-04-01)
+========================================================================
+New Features:
+* Introduce optional flags in Helm chart to disable DCGM Exporter, Neuron Monitor, and Windows resources (#162):
+  - `.Values.dcgmExporter.enabled`
+  - `.Values.neuronMonitor.enabled`
+  - `.Values.windows.enabled`
+  This allows users to prevent undesired resource deployments and related warning logs.
+
+Enhancements:
+* No additional enhancements.
+
+Bug Fixes:
+* No additional bug fixes.
+
 =======================================================================
 amazon-cloudwatch-observability v3.2.0 (2025-02-04)
 ========================================================================
