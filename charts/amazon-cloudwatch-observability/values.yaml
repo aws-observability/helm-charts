@@ -1395,6 +1395,7 @@ agent:
       prometheusCR:
         enabled: false
 dcgmExporter:
+  enabled: true
   name:
   image:
     repository: dcgm-exporter
@@ -1424,6 +1425,7 @@ dcgmExporter:
   serviceAccount:
     name: # override exporter service account name
 neuronMonitor:
+  enabled: true
   name:
   image:
     repository: neuron-monitor
@@ -1451,3 +1453,5 @@ neuronMonitor:
         - SYS_ADMIN
   serviceAccount:
     name: # override exporter service account name
+windows:
+  enabled: true

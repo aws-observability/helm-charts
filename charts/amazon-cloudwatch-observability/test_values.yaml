@@ -1,0 +1,11 @@
+clusterName: kkamji-al2023
+region: ap-northeast-2
+
+windows:
+  enabled: false
+
+dcgmExporter:
+  enabled: false
+
+neuronMonitor:
+  enabled: false
