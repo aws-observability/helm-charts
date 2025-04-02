@@ -28,6 +28,7 @@ spec:
         args:
         - {{ printf "--auto-instrumentation-config=%s" (dict "java" (merge .Values.manager.autoInstrumentationResources.java .Values.manager.autoInstrumentationConfiguration.java) "python" (merge .Values.manager.autoInstrumentationResources.python .Values.manager.autoInstrumentationConfiguration.python) "dotnet" (merge .Values.manager.autoInstrumentationResources.dotnet .Values.manager.autoInstrumentationConfiguration.dotnet) "nodejs" (.Values.manager.autoInstrumentationResources.nodejs) | toJson) | quote }}
         - {{ printf "--auto-annotation-config=%s" (.Values.manager.autoAnnotateAutoInstrumentation | toJson) | quote }}
+        - {{ printf "--auto-monitor-config=%s" (.Values.manager.applicationSignals.autoMonitor | toJson) | quote }}
         - "--auto-instrumentation-java-image={{ template "auto-instrumentation-java.image" . }}"
         - "--auto-instrumentation-python-image={{ template "auto-instrumentation-python.image" . }}"
         - "--auto-instrumentation-dotnet-image={{ template "auto-instrumentation-dotnet.image" . }}"

@@ -1037,7 +1037,7 @@ manager:
   name:
   image:
     repository: cloudwatch-agent-operator
-    tag: 2.2.1
+    tag: 3.0.0
     repositoryDomainMap:
       public: public.ecr.aws/cloudwatch-agent
       cn-north-1: 934860584483.dkr.ecr.cn-north-1.amazonaws.com.cn
@@ -1061,6 +1061,53 @@ manager:
       repositoryDomain: public.ecr.aws/aws-observability
       repository: adot-autoinstrumentation-node
       tag: v0.6.0
+  applicationSignals:
+    autoMonitor:
+      monitorAllServices: false
+      languages: ["java", "python", "dotnet", "nodejs"]
+      restartPods: false
+      exclude:
+        java:
+          namespaces: []
+          deployments: []
+          daemonsets: []
+          statefulsets: []
+        python:
+          namespaces: []
+          deployments: []
+          daemonsets: []
+          statefulsets: []
+        dotnet:
+          namespaces: []
+          deployments: []
+          daemonsets: []
+          statefulsets: []
+        nodejs:
+          namespaces: []
+          deployments: []
+          daemonsets: []
+          statefulsets: []
+      customSelector:
+        java:
+          namespaces: []
+          deployments: []
+          daemonsets: []
+          statefulsets: []
+        python:
+          namespaces: []
+          deployments: []
+          daemonsets: []
+          statefulsets: []
+        dotnet:
+          namespaces: []
+          deployments: []
+          daemonsets: []
+          statefulsets: []
+        nodejs:
+          namespaces: []
+          deployments: []
+          daemonsets: []
+          statefulsets: []
   autoInstrumentationConfiguration:
     java:
       runtime_metrics:
