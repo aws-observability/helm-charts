@@ -1170,9 +1170,11 @@ manager:
   name:
   image:
     repository: cloudwatch-agent-operator
-    tag: 2.1.0
+    # TODO change back once done testing
+    tag: latest
     repositoryDomainMap:
-      public: public.ecr.aws/cloudwatch-agent
+      # TODO change back once done testing
+      public: 992382443197.dkr.ecr.us-west-2.amazonaws.com
       cn-north-1: 934860584483.dkr.ecr.cn-north-1.amazonaws.com.cn
       cn-northwest-1: 934860584483.dkr.ecr.cn-northwest-1.amazonaws.com.cn
       us-gov-east-1: 743662458514.dkr.ecr.us-gov-east-1.amazonaws.com
@@ -1194,6 +1196,53 @@ manager:
       repositoryDomain: public.ecr.aws/aws-observability
       repository: adot-autoinstrumentation-node
       tag: v0.5.0
+  applicationSignals:
+    autoMonitor:
+      monitorAllServices: false
+      languages: []
+      restartPods: false
+      exclude:
+        java:
+          namespaces: []
+          deployments: []
+          daemonsets: []
+          statefulsets: []
+        python:
+          namespaces: []
+          deployments: []
+          daemonsets: []
+          statefulsets: []
+        dotnet:
+          namespaces: []
+          deployments: []
+          daemonsets: []
+          statefulsets: []
+        nodejs:
+          namespaces: []
+          deployments: []
+          daemonsets: []
+          statefulsets: []
+      customSelector:
+        java:
+          namespaces: []
+          deployments: []
+          daemonsets: []
+          statefulsets: []
+        python:
+          namespaces: []
+          deployments: []
+          daemonsets: []
+          statefulsets: []
+        dotnet:
+          namespaces: []
+          deployments: []
+          daemonsets: []
+          statefulsets: []
+        nodejs:
+          namespaces: []
+          deployments: []
+          daemonsets: []
+          statefulsets: []
   autoInstrumentationConfiguration:
     java:
       runtime_metrics:
