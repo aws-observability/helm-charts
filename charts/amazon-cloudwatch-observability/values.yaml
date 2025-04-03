@@ -1367,6 +1367,14 @@ agent:
       "agent": {
         "debug": true,
       },
+      "logs": {
+        "metrics_collected": {
+          "otlp": {
+            "grpc_endpoint": "0.0.0.0:4317",
+            "http_endpoint": "0.0.0.0:4318"
+          }
+        }
+      },
       "metrics": {
         "metrics_collected": {
           "otlp": {
