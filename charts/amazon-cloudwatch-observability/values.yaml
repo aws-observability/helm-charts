@@ -1199,7 +1199,7 @@ manager:
   applicationSignals:
     autoMonitor:
       monitorAllServices: false
-      languages: []
+      languages: ["java", "python", "dotnet", "nodejs"]
       restartPods: false
       exclude:
         java:
