@@ -233,7 +233,7 @@ spec:
     value: "True"
   {{ end }}
   - name: K8S_CLUSTER_NAME
-    value: {{ $.Values.clusterName }}
+    value: "{{ $.Values.clusterName }}"
   {{- dict "component" $agent "context" $ | include "amazon-cloudwatch-observability.common.tolerations" | nindent 2 }}
 ---
 {{- end }}
