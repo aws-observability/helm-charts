@@ -1489,7 +1489,7 @@ neuronMonitor:
                   - trn2.48xlarge
                   - trn2a.48xlarge
                   - trn2n.48xlarge
-                  - trn2u.48xlarg
+                  - trn2u.48xlarge
                   - inf1.xlarge
                   - inf1.2xlarge
                   - inf1.6xlarge
