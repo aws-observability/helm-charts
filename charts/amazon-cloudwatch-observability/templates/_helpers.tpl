@@ -33,14 +33,14 @@ Helper function to modify cloudwatch-agent config
 
 {{- $appSignals := pluck "application_signals" $configCopy.logs.metrics_collected | first }}
 {{- if and (hasKey $configCopy.logs.metrics_collected "application_signals") (empty $appSignals.hosted_in) }}
-{{- $clusterName := .Values.clusterName | required ".Values.clusterName is required." -}}
-{{- $appSignals := set $appSignals "hosted_in" (.Values.clusterName | quote) }}
+{{- $clusterName := .Values.clusterName | toString | required ".Values.clusterName is required." -}}
+{{- $appSignals := set $appSignals "hosted_in" $clusterName }}
 {{- end }}
 
 {{- $containerInsights := pluck "kubernetes" $configCopy.logs.metrics_collected | first }}
 {{- if and (hasKey $configCopy.logs.metrics_collected "kubernetes") (empty $containerInsights.cluster_name) }}
-{{- $clusterName := .Values.clusterName | required ".Values.clusterName is required." -}}
-{{- $containerInsights := set $containerInsights "cluster_name" (.Values.clusterName | quote) }}
+{{- $clusterName := .Values.clusterName | toString | required ".Values.clusterName is required." -}}
+{{- $containerInsights := set $containerInsights "cluster_name" $clusterName }}
 {{- end }}
 
 {{- default ""  $configCopy | toJson | quote }}
