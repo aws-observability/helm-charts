@@ -15,126 +15,155 @@ nodeLabelKey: node.kubernetes.io/instance-type
 fargateLabelKey: eks.amazonaws.com/compute-type
 ## NVIDIA GPU instance types
 gpuInstances:
-  - g4ad.16xlarge
+  - g3.4xlarge
+  - g3.8xlarge
+  - g3.16xlarge
+  - g3s.xlarge
   - g4ad.2xlarge
   - g4ad.4xlarge
   - g4ad.8xlarge
+  - g4ad.16xlarge
   - g4ad.xlarge
-  - g4dn.12xlarge
-  - g4dn.16xlarge
   - g4dn.2xlarge
   - g4dn.4xlarge
   - g4dn.8xlarge
+  - g4dn.12xlarge
+  - g4dn.16xlarge
   - g4dn.metal
   - g4dn.xlarge
+  - g5.2xlarge
+  - g5.4xlarge
+  - g5.8xlarge
   - g5.12xlarge
   - g5.16xlarge
   - g5.24xlarge
-  - g5.2xlarge
   - g5.48xlarge
-  - g5.4xlarge
-  - g5.8xlarge
-  - g5g.16xlarge
+  - g5.xlarge
   - g5g.2xlarge
   - g5g.4xlarge
   - g5g.8xlarge
+  - g5g.16xlarge
   - g5g.metal
   - g5g.xlarge
-  - g5.xlarge
+  - g6.2xlarge
+  - g6.4xlarge
+  - g6.8xlarge
   - g6.12xlarge
   - g6.16xlarge
   - g6.24xlarge
-  - g6.2xlarge
   - g6.48xlarge
-  - g6.4xlarge
-  - g6.8xlarge
+  - g6.xlarge
+  - g6e.2xlarge
+  - g6e.4xlarge
+  - g6e.8xlarge
   - g6e.12xlarge
   - g6e.16xlarge
   - g6e.24xlarge
-  - g6e.2xlarge
   - g6e.48xlarge
-  - g6e.4xlarge
-  - g6e.8xlarge
   - g6e.xlarge
-  - g6.xlarge
   - gr6.4xlarge
   - gr6.8xlarge
-  - p2.16xlarge
   - p2.8xlarge
+  - p2.16xlarge
   - p2.xlarge
-  - p3.16xlarge
   - p3.2xlarge
   - p3.8xlarge
+  - p3.16xlarge
   - p3dn.24xlarge
   - p4d.24xlarge
+  - p4de.24xlarge
   - p5.48xlarge
+  - p5e.48xlarge
   - p5en.48xlarge
-  - ml.g4dn.12xlarge
-  - ml.g4dn.16xlarge
+  - ml.g3.4xlarge
+  - ml.g3.8xlarge
+  - ml.g3.16xlarge
+  - ml.g3s.xlarge
+  - ml.g4ad.2xlarge
+  - ml.g4ad.4xlarge
+  - ml.g4ad.8xlarge
+  - ml.g4ad.16xlarge
+  - ml.g4ad.xlarge
   - ml.g4dn.2xlarge
   - ml.g4dn.4xlarge
   - ml.g4dn.8xlarge
+  - ml.g4dn.12xlarge
+  - ml.g4dn.16xlarge
+  - ml.g4dn.metal
   - ml.g4dn.xlarge
+  - ml.g5.2xlarge
+  - ml.g5.4xlarge
+  - ml.g5.8xlarge
   - ml.g5.12xlarge
   - ml.g5.16xlarge
   - ml.g5.24xlarge
-  - ml.g5.2xlarge
   - ml.g5.48xlarge
-  - ml.g5.4xlarge
-  - ml.g5.8xlarge
   - ml.g5.xlarge
+  - ml.g5g.2xlarge
+  - ml.g5g.4xlarge
+  - ml.g5g.8xlarge
+  - ml.g5g.16xlarge
+  - ml.g5g.metal
+  - ml.g5g.xlarge
+  - ml.g6.2xlarge
+  - ml.g6.4xlarge
+  - ml.g6.8xlarge
   - ml.g6.12xlarge
   - ml.g6.16xlarge
   - ml.g6.24xlarge
-  - ml.g6.2xlarge
   - ml.g6.48xlarge
-  - ml.g6.4xlarge
-  - ml.g6.8xlarge
+  - ml.g6.xlarge
+  - ml.g6e.2xlarge
+  - ml.g6e.4xlarge
+  - ml.g6e.8xlarge
   - ml.g6e.12xlarge
   - ml.g6e.16xlarge
   - ml.g6e.24xlarge
-  - ml.g6e.2xlarge
   - ml.g6e.48xlarge
-  - ml.g6e.4xlarge
-  - ml.g6e.8xlarge
   - ml.g6e.xlarge
-  - ml.g6.xlarge
   - ml.gr6.4xlarge
   - ml.gr6.8xlarge
-  - ml.p2.16xlarge
   - ml.p2.8xlarge
+  - ml.p2.16xlarge
   - ml.p2.xlarge
-  - ml.p3.16xlarge
   - ml.p3.2xlarge
   - ml.p3.8xlarge
+  - ml.p3.16xlarge
   - ml.p3dn.24xlarge
   - ml.p4d.24xlarge
   - ml.p4de.24xlarge
   - ml.p5.48xlarge
+  - ml.p5e.48xlarge
+  - ml.p5en.48xlarge
 ## Tranium/Infrentia instance types
 neuronInstances:
-  - inf1.24xlarge
-  - inf1.2xlarge
-  - inf1.6xlarge
-  - inf1.xlarge
-  - inf2.24xlarge
-  - inf2.48xlarge
-  - inf2.8xlarge
-  - inf2.xlarge
   - trn1.2xlarge
   - trn1.32xlarge
   - trn1n.32xlarge
-  - ml.inf1.24xlarge
-  - ml.inf1.2xlarge
-  - ml.inf1.6xlarge
-  - ml.inf1.xlarge
-  - ml.inf2.24xlarge
-  - ml.inf2.48xlarge
-  - ml.inf2.8xlarge
-  - ml.inf2.xlarge
+  - trn2.3xlarge
+  - trn2.48xlarge
+  - trn2a.48xlarge
+  - trn2n.48xlarge
+  - trn2u.48xlarg
+  - inf1.xlarge
+  - inf1.2xlarge
+  - inf1.6xlarge
+  - inf1.24xlarge
+  - inf2.xlarge
+  - inf2.8xlarge
+  - inf2.24xlarge
+  - inf2.48xlarge
   - ml.trn1.2xlarge
   - ml.trn1.32xlarge
   - ml.trn1n.32xlarge
+  - ml.inf1.xlarge
+  - ml.inf1.2xlarge
+  - ml.inf1.6xlarge
+  - ml.inf1.24xlarge
+  - ml.inf2.xlarge
+  - ml.inf2.8xlarge
+  - ml.inf2.24xlarge
+  - ml.inf2.48xlarge
 ## Provide default tolerations
 tolerations:
   - operator: Exists
@@ -1409,7 +1438,7 @@ dcgmExporter:
   name:
   image:
     repository: dcgm-exporter
-    tag: 3.3.9-3.6.1-ubuntu22.04-amd64
+    tag: 3.3.9-3.6.1-ubuntu22.04
     repositoryDomainMap:
       public: nvcr.io/nvidia/k8s
       cn-north-1: 934860584483.dkr.ecr.cn-north-1.amazonaws.com.cn
@@ -1596,45 +1625,3 @@ neuronMonitor:
         - SYS_ADMIN
   serviceAccount:
     name: # override exporter service account name
-  affinity:
-    nodeAffinity:
-      requiredDuringSchedulingIgnoredDuringExecution:
-        nodeSelectorTerms:
-          - matchExpressions:
-              - key: node.kubernetes.io/instance-type
-                operator: In
-                values:
-                  ## Tranium/Infrentia instance types
-                  - trn1.2xlarge
-                  - trn1.32xlarge
-                  - trn1n.32xlarge
-                  - trn2.3xlarge
-                  - trn2.48xlarge
-                  - trn2a.48xlarge
-                  - trn2n.48xlarge
-                  - trn2u.48xlarge
-                  - inf1.xlarge
-                  - inf1.2xlarge
-                  - inf1.6xlarge
-                  - inf1.24xlarge
-                  - inf2.xlarge
-                  - inf2.8xlarge
-                  - inf2.24xlarge
-                  - inf2.48xlarge
-                  - ml.trn1.2xlarge
-                  - ml.trn1.32xlarge
-                  - ml.trn1n.32xlarge
-                  - ml.inf1.xlarge
-                  - ml.inf1.2xlarge
-                  - ml.inf1.6xlarge
-                  - ml.inf1.24xlarge
-                  - ml.inf2.xlarge
-                  - ml.inf2.8xlarge
-                  - ml.inf2.24xlarge
-                  - ml.inf2.48xlarge
-              - key: eks.amazonaws.com/compute-type
-                operator: NotIn
-                values:
-                  - fargate
-  nodeSelector:
-    kubernetes.io/os: linux
