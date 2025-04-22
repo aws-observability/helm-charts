@@ -1,3 +1,11 @@
+=======================================================================
+amazon-cloudwatch-observability v3.6.0 (2025-03-25)
+=======================================================================
+New Features:
+* Support for deploying CloudWatch Agent on Red Hat OpenShift Service on AWS (ROSA) clusters.
+Enhancements:
+* Add K8S_CLUSTER_NAME environment variable to improve cluster name detection.
+  
 ========================================================================
 amazon-cloudwatch-observability v3.5.0 (2025-03-17)
 ========================================================================

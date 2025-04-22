@@ -1048,7 +1048,7 @@ manager:
     java:
       repositoryDomain: public.ecr.aws/aws-observability
       repository: adot-autoinstrumentation-java
-      tag: v1.33.0
+      tag: v2.0.1
     python:
       repositoryDomain: public.ecr.aws/aws-observability
       repository: adot-autoinstrumentation-python
@@ -1195,7 +1195,7 @@ agent:
   replicas: 1 # The total number non-terminated pods targeted by this AmazonCloudWatchAgent's deployment or statefulSet.
   image:
     repository: cloudwatch-agent
-    tag: 1.300053.1b1058
+    tag: 1.300054.0b1074
     repositoryDomainMap:
       public: public.ecr.aws/cloudwatch-agent
       cn-north-1: 934860584483.dkr.ecr.cn-north-1.amazonaws.com.cn
