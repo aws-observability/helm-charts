@@ -17,6 +17,7 @@ Enhancements:
 Bug Fixes:
 	* Support integer cluster names
 	* Support trn2u.48xlarge instance types for gpu monitoring
+
 =======================================================================
 amazon-cloudwatch-observability v3.6.0 (2025-03-25)
 =======================================================================
