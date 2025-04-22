@@ -45,5 +45,7 @@ spec:
       value: "True"
     - name: RUN_AS_HOST_PROCESS_CONTAINER
       value: "True"
-  {{- dict "component" .Values.agent "context" . | include "amazon-cloudwatch-observability.common.tolerations" | nindent 2 }}
+  {{- with .Values.tolerations }}
+  tolerations: {{- toYaml . | nindent 2}}
+  {{- end }}
 {{- end }}

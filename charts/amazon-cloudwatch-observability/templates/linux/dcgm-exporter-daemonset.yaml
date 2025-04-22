@@ -8,13 +8,21 @@ metadata:
     version: v1
 spec:
   image: {{ template "dcgm-exporter.image" . }}
-  {{- with .Values.dcgmExporter.nodeSelector }}
-  nodeSelector: {{- toYaml . | nindent 4 }}
-  {{- end }}
+  nodeSelector:
+    kubernetes.io/os: linux
   serviceAccount: {{ template "dcgm-exporter.serviceAccountName" . }}
-  {{- with .Values.dcgmExporter.affinity }}
-  affinity: {{- toYaml . | nindent 4 }}
-  {{- end }}
+  affinity:
+    nodeAffinity:
+      requiredDuringSchedulingIgnoredDuringExecution:
+        nodeSelectorTerms:
+          - matchExpressions:
+              - key: {{ .Values.nodeLabelKey }}
+                operator: In
+                values: {{ .Values.gpuInstances | toYaml | nindent 16 }}
+              - key: {{ .Values.fargateLabelKey }}
+                operator: NotIn
+                values:
+                  - fargate
   {{- with .Values.dcgmExporter.resources }}
   resources: {{- toYaml . | nindent 4}}
   {{- end }}
@@ -63,4 +71,6 @@ spec:
     tls_server_config:
       cert_file: /etc/amazon-cloudwatch-observability-dcgm-cert/server.crt
       key_file: /etc/amazon-cloudwatch-observability-dcgm-cert/server.key
-  {{- dict "component" .Values.dcgmExporter "context" . | include "amazon-cloudwatch-observability.common.tolerations" | nindent 2 }}
+  {{- with .Values.tolerations }}
+  tolerations: {{- toYaml . | nindent 2}}
+  {{- end }}

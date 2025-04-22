@@ -14,13 +14,6 @@ spec:
   selector:
     matchLabels:
       k8s-app: fluent-bit
-  updateStrategy:
-    type: {{ .Values.containerLogs.fluentBit.updateStrategy.type }}
-    {{- if eq .Values.containerLogs.fluentBit.updateStrategy.type "RollingUpdate" }}
-    rollingUpdate:
-      maxUnavailable: {{ .Values.containerLogs.fluentBit.updateStrategy.rollingUpdate.maxUnavailable }}
-      maxSurge: {{ .Values.containerLogs.fluentBit.updateStrategy.rollingUpdate.maxSurge }}
-    {{- end }}
   template:
     metadata:
       annotations:
@@ -119,11 +112,18 @@ spec:
             - key: ca.crt
               path: tls-ca.crt
       serviceAccountName: {{ template "cloudwatch-agent.serviceAccountName" . }}
-      {{- with .Values.containerLogs.fluentBit.affinity }}
-      affinity: {{- toYaml . | nindent 8 }}
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: {{ .Values.fargateLabelKey }}
+                    operator: NotIn
+                    values:
+                      - fargate
+      nodeSelector:
+        kubernetes.io/os: linux
+      {{- with .Values.tolerations }}
+      tolerations: {{- toYaml . | nindent 6}}
       {{- end }}
-      {{- with .Values.containerLogs.fluentBit.nodeSelector }}
-      nodeSelector: {{- toYaml . | nindent 8 }}
-      {{- end }}
-      {{- dict "component" .Values.containerLogs.fluentBit "context" . | include "amazon-cloudwatch-observability.common.tolerations" | nindent 6 }}
 {{- end }}

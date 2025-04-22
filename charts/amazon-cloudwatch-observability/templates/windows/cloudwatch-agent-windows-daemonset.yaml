@@ -38,5 +38,7 @@ spec:
       valueFrom:
         fieldRef:
           fieldPath: metadata.namespace
-  {{- dict "component" .Values.agent "context" . | include "amazon-cloudwatch-observability.common.tolerations" | nindent 2 }}
+  {{- with .Values.tolerations }}
+  tolerations: {{- toYaml . | nindent 2}}
+  {{- end }}
 {{- end }}

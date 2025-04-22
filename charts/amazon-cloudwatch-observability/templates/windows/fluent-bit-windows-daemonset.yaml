@@ -67,5 +67,7 @@ spec:
       terminationGracePeriodSeconds: 10
       dnsPolicy: ClusterFirstWithHostNet
       serviceAccountName: {{ template "cloudwatch-agent.serviceAccountName" . }}
-      {{- dict "component" .Values.containerLogs.fluentBit "context" . | include "amazon-cloudwatch-observability.common.tolerations" | nindent 6 }}
+      {{- with .Values.tolerations }}
+      tolerations: {{- toYaml . | nindent 6}}
+      {{- end }}
 {{- end }}
