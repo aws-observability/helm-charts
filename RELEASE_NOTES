@@ -1,29 +1,3 @@
-========================================================================
-amazon-cloudwatch-observability v3.5.0 (2025-03-17)
-========================================================================
-Enhancements:
-* Upgrade CloudWatchAgent to 1.300053.1b1058
-
-========================================================================
-amazon-cloudwatch-observability v3.4.0 (2025-03-10)
-========================================================================
-Enhancements:
-* [Application Signals] Performance fix by using EndpointSlices to reduce load on API server
-* Upgrade CloudWatchAgent to 1.300053.0b1046
-* Upgrade CloudWatchAgentOperator to 2.2.0
-
-========================================================================
-amazon-cloudwatch-observability v3.3.1 (2025-02-06)
-========================================================================
-Bug Fixes:
-* Upgrade DCGM Exporter to 3.3.9-3.6.1-ubuntu22.04-amd64 to fix arch issue
-
-========================================================================
-amazon-cloudwatch-observability v3.3.0 (2025-02-06)
-========================================================================
-Enhancements:
-* Upgrade DCGM Exporter to 3.3.9-3.6.1-ubuntu22.04
-
 =======================================================================
 amazon-cloudwatch-observability v3.6.0 (2025-03-25)
 =======================================================================
@@ -31,7 +5,7 @@ New Features:
 * Support for deploying CloudWatch Agent on Red Hat OpenShift Service on AWS (ROSA) clusters.
 Enhancements:
 * Add K8S_CLUSTER_NAME environment variable to improve cluster name detection.
-
+  
 ========================================================================
 amazon-cloudwatch-observability v3.5.0 (2025-03-17)
 ========================================================================
