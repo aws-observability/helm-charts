@@ -1,4 +1,18 @@
 =======================================================================
+amazon-cloudwatch-observability v3.7.0 (2025-04-22)
+========================================================================
+Enhancements:
+* Upgrade CWAgent to v1.30055.0b1095
+* Upgrade CloudWatch Agent Addon to v3.7.0-eksbuild.1
+* Upgrade Neuron Monitor to v1.4.0
+* Upgrade Fluent Bit to v2.32.5.20250327
+* Upgrade Application Signals SDKs:
+* Upgrade Java SDK to v2.10.0
+* Upgrade Python SDK to v0.9.0
+* Upgrade .NET SDK to v1.7.0
+* Upgrade NodeJS SDK to v0.6.0
+
+=======================================================================
 amazon-cloudwatch-observability v3.6.0 (2025-03-25)
 =======================================================================
 New Features:
