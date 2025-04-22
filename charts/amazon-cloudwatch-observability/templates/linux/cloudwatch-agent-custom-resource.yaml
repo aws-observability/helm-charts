@@ -49,7 +49,7 @@ data:
 
 {{- $clusterName := .Values.clusterName | required ".Values.clusterName is required." -}}
 {{- $region := .Values.region | required ".Values.region is required." -}}
-
+{{- $isROSA := eq $.Values.k8sMode "ROSA" -}}
 {{- range .Values.agents }}
 {{- $agent := merge . (deepCopy $.Values.agent) }}
 apiVersion: cloudwatch.aws.amazon.com/v1alpha1
@@ -58,22 +58,31 @@ metadata:
   name: {{ $agent.name | default (include "cloudwatch-agent.name" $) }}
   namespace: {{ $.Release.Namespace }}
 spec:
+  updateStrategy:
+      type: {{ $agent.updateStrategy.type }}
+      {{- if eq $agent.updateStrategy.type "RollingUpdate" }}
+      rollingUpdate:
+        maxUnavailable: {{ $agent.updateStrategy.rollingUpdate.maxUnavailable | default (include "cloudwatch-agent.rolloutStrategyMaxUnavailable" (dict "mode" $agent.mode)) }}
+        maxSurge: {{ $agent.updateStrategy.rollingUpdate.maxSurge | default (include "cloudwatch-agent.rolloutStrategyMaxSurge" (dict "mode" $agent.mode)) }}
+      {{- end }}
   image: {{ template "cloudwatch-agent.image" (merge $agent.image (dict "region" $.Values.region)) }}
   mode: {{ $agent.mode }}
   replicas: {{ $agent.replicas }}
-  nodeSelector:
-    kubernetes.io/os: linux
+  {{- with $agent.nodeSelector }}
+  nodeSelector: {{- toYaml . | nindent 4 }}
+  {{- end }}
   serviceAccount: {{ $agent.serviceAccount.name | default (include "cloudwatch-agent.serviceAccountName" $) }}
+  {{ if $isROSA }}
+  securityContext:
+    runAsNonRoot: false
+    capabilities:
+      add:
+        - SYS_ADMIN
+  {{ end }}
   priorityClassName: {{ $agent.priorityClassName | default $.Values.agent.priorityClassName }}
-  affinity:
-    nodeAffinity:
-      requiredDuringSchedulingIgnoredDuringExecution:
-        nodeSelectorTerms:
-          - matchExpressions:
-              - key: {{ $.Values.fargateLabelKey }}
-                operator: NotIn
-                values:
-                  - fargate
+  {{- with $agent.affinity }}
+  affinity: {{- toYaml . | nindent 4 }}
+  {{- end }}
   hostNetwork: true
   {{- if $agent.config }}
   config: {{ include "cloudwatch-agent.modify-config" (merge (dict "Config" $agent.config) $ ) }}
@@ -111,6 +120,15 @@ spec:
     readOnly: true
   - mountPath: /run/containerd/containerd.sock
     name: containerdsock
+  - mountPath: /var/run/crio/crio.sock
+    name: criosock
+    readOnly: true
+  - mountPath: /var/lib/containers
+    name: criocontainer
+    readOnly: true
+  - mountPath: /var/log/pods
+    name: criologs
+    readOnly: true
   - mountPath: /var/lib/docker
     name: varlibdocker
     readOnly: true
@@ -131,6 +149,11 @@ spec:
     readOnly: true
   - mountPath: /var/lib/kubelet/pod-resources
     name: kubelet-podresources
+    {{ if $isROSA }}
+  - mountPath: /etc/kubernetes/kubelet-ca.crt
+    name: kubelet-ca
+    readOnly: true
+    {{ end }}
   volumes:
   - name: kubelet-podresources
     hostPath:
@@ -148,6 +171,15 @@ spec:
   - hostPath:
       path: /run/containerd/containerd.sock
     name: containerdsock
+  - hostPath:
+      path: /var/run/crio/crio.sock
+    name: criosock
+  - hostPath:
+      path:  /var/lib/containers
+    name: criocontainer
+  - hostPath:
+      path:  /var/log/pods
+    name: criologs
   - hostPath:
       path: /sys
     name: sys
@@ -174,6 +206,11 @@ spec:
           path: server.crt
         - key: tls.key
           path: server.key
+  {{ if $isROSA }}
+  - name: kubelet-ca
+    hostPath:
+      path: /etc/kubernetes/kubelet-ca.crt
+  {{end }}
   env:
   - name: K8S_NODE_NAME
     valueFrom:
@@ -191,6 +228,12 @@ spec:
     valueFrom:
       fieldRef:
         fieldPath: metadata.namespace
+  {{ if $isROSA }}
+  - name: RUN_IN_ROSA
+    value: "True"
+  {{ end }}
+  - name: K8S_CLUSTER_NAME
+    value: {{ $.Values.clusterName | quote }}
   {{- dict "component" $agent "context" $ | include "amazon-cloudwatch-observability.common.tolerations" | nindent 2 }}
 ---
 {{- end }}
