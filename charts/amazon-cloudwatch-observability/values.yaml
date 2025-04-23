@@ -1322,6 +1322,11 @@ dcgmExporter:
                 operator: In
                 values:
                   ## NVIDIA GPU instance types
+                  - g3.4xlarge
+                  - g3.8xlarge
+                  - g3.16xlarge
+                  - g3s.xlarge
+                  - g4ad.2xlarge
                   - g4ad.4xlarge
                   - g4ad.8xlarge
                   - g4ad.16xlarge
