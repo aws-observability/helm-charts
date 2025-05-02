@@ -1285,7 +1285,7 @@ dcgmExporter:
   name:
   image:
     repository: dcgm-exporter
-    tag: 3.3.9-3.6.1-ubuntu22.04
+    tag: 3.3.9-3.6.1-ubuntu22.04-amd64
     repositoryDomainMap:
       public: nvcr.io/nvidia/k8s
       cn-north-1: 934860584483.dkr.ecr.cn-north-1.amazonaws.com.cn
