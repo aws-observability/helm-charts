@@ -5,7 +5,8 @@ Enhancements:
 * Upgrade CWAgent to v1.30055.0b1095
 * Expose update strategy to make it configurable for cloudwatch agent and fluentbit
 * Adding component level affinity selectors and node selectors
-* Support per-component tolerations (+ manager)* Upgrade CloudWatch Agent Addon to v3.7.0-eksbuild.1
+* Support per-component tolerations (+ manager)
+* Upgrade CloudWatch Agent Addon to v3.7.0-eksbuild.1
 * Upgrade Neuron Monitor to v1.4.0
 * Upgrade Fluent Bit to v2.32.5.20250327
 * Upgrade Application Signals SDKs:
