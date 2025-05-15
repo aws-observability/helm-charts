@@ -1,4 +1,12 @@
 =======================================================================
+amazon-cloudwatch-observability v4.0.0 (2025-05-09)
+=======================================================================
+New Features:
+* Introduce AutoMonitor for EKS Application Signals
+Bug Fixes:
+* Fix bug with cp for .net auto instrumentation when run as non-root
+
+=======================================================================
 amazon-cloudwatch-observability v3.7.0 (2025-04-22)
 ========================================================================
 Enhancements:
