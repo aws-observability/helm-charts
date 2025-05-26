@@ -22,7 +22,7 @@ rules:
     verbs: ["get", "list", "watch"]
   - nonResourceURLs: ["/metrics"]
     verbs: ["get"]
-  {{- if and (hasKey ($customAgent.prometheus.targetAllocator) "PrometheusCR") $customAgent.prometheus.targetAllocator.PrometheusCR.enabled }}
+  {{- if and (hasKey ($customAgent.prometheus.targetAllocator) "prometheusCR") $customAgent.prometheus.targetAllocator.prometheusCR.enabled }}
   - apiGroups: [ "monitoring.coreos.com"]
     resources: ["podmonitors", "servicemonitors"]
     verbs: ["get", "list", "watch"]
