@@ -1,5 +1,16 @@
 =======================================================================
-amazon-cloudwatch-observability v4.0.1 (2025-05-116)
+amazon-cloudwatch-observability v4.1.0 (2025-05-27)
+========================================================================
+New Features:
+* [Container Insights] Adding support for EBS NVMe metrics using EBS CSI Driver
+
+Enhancements:
+* Upgrade CWAgent to v1.300056.0b1123
+* Upgrade CWAgent Operator to v3.0.1
+* Upgrade Neuron Monitor to v1.5.0
+
+=======================================================================
+amazon-cloudwatch-observability v4.0.1 (2025-05-16)
 ========================================================================
 Enhancements:
 * Upgrade CWAgent to v1.300055.2b1110
