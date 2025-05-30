@@ -80,7 +80,7 @@ containerLogs:
           [INPUT]
             Name                tail
             Tag                 application.*
-            Exclude_Path        /var/log/containers/cloudwatch-agent*, /var/log/containers/fluent-bit*, /var/log/containers/aws-node*, /var/log/containers/kube-proxy*
+            Exclude_Path        /var/log/containers/cloudwatch-agent*, /var/log/containers/fluent-bit*, /var/log/containers/fluentd*, /var/log/containers/aws-node*, /var/log/containers/kube-proxy*
             Path                /var/log/containers/*.log
             multiline.parser    docker, cri
             DB                  /var/fluent-bit/state/flb_container.db
@@ -242,7 +242,7 @@ containerLogs:
           [INPUT]
             Name                tail
             Tag                 application.*
-            Exclude_Path        /var/log/containers/cloudwatch-agent*, /var/log/containers/fluent-bit*, /var/log/containers/aws-node*, /var/log/containers/kube-proxy*
+            Exclude_Path        /var/log/containers/cloudwatch-agent*, /var/log/containers/fluent-bit*, /var/log/containers/fluentd*, /var/log/containers/aws-node*, /var/log/containers/kube-proxy*
             Path                /var/log/containers/*.log
             multiline.parser    docker, cri
             DB                  /var/fluent-bit/state/flb_container.db
@@ -398,7 +398,7 @@ containerLogs:
           [INPUT]
             Name                tail
             Tag                 application.*
-            Exclude_Path        /var/log/containers/cloudwatch-agent*, /var/log/containers/fluent-bit*, /var/log/containers/aws-node*, /var/log/containers/kube-proxy*
+            Exclude_Path        /var/log/containers/cloudwatch-agent*, /var/log/containers/fluent-bit*, /var/log/containers/fluentd*, /var/log/containers/aws-node*, /var/log/containers/kube-proxy*
             Path                /var/log/containers/*.log
             multiline.parser    docker, cri
             DB                  /var/fluent-bit/state/flb_container.db
@@ -554,7 +554,7 @@ containerLogs:
           [INPUT]
             Name                tail
             Tag                 application.*
-            Exclude_Path        /var/log/containers/cloudwatch-agent*, /var/log/containers/fluent-bit*, /var/log/containers/aws-node*, /var/log/containers/kube-proxy*
+            Exclude_Path        /var/log/containers/cloudwatch-agent*, /var/log/containers/fluent-bit*, /var/log/containers/fluentd*, /var/log/containers/aws-node*, /var/log/containers/kube-proxy*
             Path                /var/log/containers/*.log
             multiline.parser    docker, cri
             DB                  /var/fluent-bit/state/flb_container.db
@@ -710,7 +710,7 @@ containerLogs:
           [INPUT]
             Name                tail
             Tag                 application.*
-            Exclude_Path        /var/log/containers/cloudwatch-agent*, /var/log/containers/fluent-bit*, /var/log/containers/aws-node*, /var/log/containers/kube-proxy*
+            Exclude_Path        /var/log/containers/cloudwatch-agent*, /var/log/containers/fluent-bit*, /var/log/containers/fluentd*, /var/log/containers/aws-node*, /var/log/containers/kube-proxy*
             Path                /var/log/containers/*.log
             multiline.parser    docker, cri
             DB                  /var/fluent-bit/state/flb_container.db
@@ -898,7 +898,7 @@ containerLogs:
           [INPUT]
             Name                tail
             Tag                 application.*
-            Exclude_Path        C:\\var\\log\\containers\\fluent-bit*, C:\\var\\log\\containers\\cloudwatch-agent*
+            Exclude_Path        C:\\var\\log\\containers\\fluent-bit*, C:\\var\\log\\containers\\fluentd*, C:\\var\\log\\containers\\cloudwatch-agent*
             Path                C:\\var\\log\\containers\\*.log
             Parser              docker
             DB                  C:\\var\\fluent-bit\\state\\flb_container.db
