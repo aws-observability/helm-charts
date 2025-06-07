@@ -15,6 +15,86 @@ Bug Fixes:
 * No additional bug fixes.
 
 =======================================================================
+amazon-cloudwatch-observability v4.1.0 (2025-05-27)
+========================================================================
+New Features:
+* [Container Insights] Adding support for EBS NVMe metrics using EBS CSI Driver
+
+Enhancements:
+* Upgrade CWAgent to v1.300056.0b1123
+* Upgrade CWAgent Operator to v3.0.1
+* Upgrade Neuron Monitor to v1.5.0
+
+=======================================================================
+amazon-cloudwatch-observability v4.0.1 (2025-05-16)
+========================================================================
+Enhancements:
+* Upgrade CWAgent to v1.300055.2b1110
+
+=======================================================================
+amazon-cloudwatch-observability v4.0.0 (2025-05-09)
+=======================================================================
+New Features:
+* Introduce AutoMonitor for EKS Application Signals
+Bug Fixes:
+* Fix bug with cp for .net auto instrumentation when run as non-root
+
+=======================================================================
+amazon-cloudwatch-observability v3.7.0 (2025-04-22)
+========================================================================
+Enhancements:
+* Upgrade CWAgent to v1.30055.0b1095
+* Expose update strategy to make it configurable for cloudwatch agent and fluentbit
+* Adding component level affinity selectors and node selectors
+* Support per-component tolerations (+ manager)
+* Upgrade CloudWatch Agent Addon to v3.7.0-eksbuild.1
+* Upgrade Neuron Monitor to v1.4.0
+* Upgrade Fluent Bit to v2.32.5.20250327
+* Upgrade Application Signals SDKs:
+* Upgrade Java SDK to v2.10.0
+* Upgrade Python SDK to v0.9.0
+* Upgrade .NET SDK to v1.7.0
+* Upgrade NodeJS SDK to v0.6.0
+
+Bug Fixes:
+* Support integer cluster names
+* Support trn2u.48xlarge instance types for gpu monitoring
+
+=======================================================================
+amazon-cloudwatch-observability v3.6.0 (2025-03-25)
+=======================================================================
+New Features:
+* Support for deploying CloudWatch Agent on Red Hat OpenShift Service on AWS (ROSA) clusters.
+Enhancements:
+* Add K8S_CLUSTER_NAME environment variable to improve cluster name detection.
+  
+========================================================================
+amazon-cloudwatch-observability v3.5.0 (2025-03-17)
+========================================================================
+Enhancements:
+* Upgrade CloudWatchAgent to 1.300053.1b1058
+
+========================================================================
+amazon-cloudwatch-observability v3.4.0 (2025-03-10)
+========================================================================
+Enhancements:
+* [Application Signals] Performance fix by using EndpointSlices to reduce load on API server
+* Upgrade CloudWatchAgent to 1.300053.0b1046
+* Upgrade CloudWatchAgentOperator to 2.2.0
+
+========================================================================
+amazon-cloudwatch-observability v3.3.1 (2025-02-06)
+========================================================================
+Bug Fixes:
+* Upgrade DCGM Exporter to 3.3.9-3.6.1-ubuntu22.04-amd64 to fix arch issue
+
+========================================================================
+amazon-cloudwatch-observability v3.3.0 (2025-02-06)
+========================================================================
+Enhancements:
+* Upgrade DCGM Exporter to 3.3.9-3.6.1-ubuntu22.04
+
+=======================================================================
 amazon-cloudwatch-observability v3.2.0 (2025-02-04)
 ========================================================================
 New Features:

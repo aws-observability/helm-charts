@@ -11,159 +11,6 @@ clusterName:
 ## Provide the Region (this is a required parameter)
 region:
 k8sMode: EKS # can be EKS | ROSA | K8S
-nodeLabelKey: node.kubernetes.io/instance-type
-fargateLabelKey: eks.amazonaws.com/compute-type
-## NVIDIA GPU instance types
-gpuInstances:
-  - g3.4xlarge
-  - g3.8xlarge
-  - g3.16xlarge
-  - g3s.xlarge
-  - g4ad.2xlarge
-  - g4ad.4xlarge
-  - g4ad.8xlarge
-  - g4ad.16xlarge
-  - g4ad.xlarge
-  - g4dn.2xlarge
-  - g4dn.4xlarge
-  - g4dn.8xlarge
-  - g4dn.12xlarge
-  - g4dn.16xlarge
-  - g4dn.metal
-  - g4dn.xlarge
-  - g5.2xlarge
-  - g5.4xlarge
-  - g5.8xlarge
-  - g5.12xlarge
-  - g5.16xlarge
-  - g5.24xlarge
-  - g5.48xlarge
-  - g5.xlarge
-  - g5g.2xlarge
-  - g5g.4xlarge
-  - g5g.8xlarge
-  - g5g.16xlarge
-  - g5g.metal
-  - g5g.xlarge
-  - g6.2xlarge
-  - g6.4xlarge
-  - g6.8xlarge
-  - g6.12xlarge
-  - g6.16xlarge
-  - g6.24xlarge
-  - g6.48xlarge
-  - g6.xlarge
-  - g6e.2xlarge
-  - g6e.4xlarge
-  - g6e.8xlarge
-  - g6e.12xlarge
-  - g6e.16xlarge
-  - g6e.24xlarge
-  - g6e.48xlarge
-  - g6e.xlarge
-  - gr6.4xlarge
-  - gr6.8xlarge
-  - p2.8xlarge
-  - p2.16xlarge
-  - p2.xlarge
-  - p3.2xlarge
-  - p3.8xlarge
-  - p3.16xlarge
-  - p3dn.24xlarge
-  - p4d.24xlarge
-  - p4de.24xlarge
-  - p5.48xlarge
-  - p5e.48xlarge
-  - p5en.48xlarge
-  - ml.g3.4xlarge
-  - ml.g3.8xlarge
-  - ml.g3.16xlarge
-  - ml.g3s.xlarge
-  - ml.g4ad.2xlarge
-  - ml.g4ad.4xlarge
-  - ml.g4ad.8xlarge
-  - ml.g4ad.16xlarge
-  - ml.g4ad.xlarge
-  - ml.g4dn.2xlarge
-  - ml.g4dn.4xlarge
-  - ml.g4dn.8xlarge
-  - ml.g4dn.12xlarge
-  - ml.g4dn.16xlarge
-  - ml.g4dn.metal
-  - ml.g4dn.xlarge
-  - ml.g5.2xlarge
-  - ml.g5.4xlarge
-  - ml.g5.8xlarge
-  - ml.g5.12xlarge
-  - ml.g5.16xlarge
-  - ml.g5.24xlarge
-  - ml.g5.48xlarge
-  - ml.g5.xlarge
-  - ml.g5g.2xlarge
-  - ml.g5g.4xlarge
-  - ml.g5g.8xlarge
-  - ml.g5g.16xlarge
-  - ml.g5g.metal
-  - ml.g5g.xlarge
-  - ml.g6.2xlarge
-  - ml.g6.4xlarge
-  - ml.g6.8xlarge
-  - ml.g6.12xlarge
-  - ml.g6.16xlarge
-  - ml.g6.24xlarge
-  - ml.g6.48xlarge
-  - ml.g6.xlarge
-  - ml.g6e.2xlarge
-  - ml.g6e.4xlarge
-  - ml.g6e.8xlarge
-  - ml.g6e.12xlarge
-  - ml.g6e.16xlarge
-  - ml.g6e.24xlarge
-  - ml.g6e.48xlarge
-  - ml.g6e.xlarge
-  - ml.gr6.4xlarge
-  - ml.gr6.8xlarge
-  - ml.p2.8xlarge
-  - ml.p2.16xlarge
-  - ml.p2.xlarge
-  - ml.p3.2xlarge
-  - ml.p3.8xlarge
-  - ml.p3.16xlarge
-  - ml.p3dn.24xlarge
-  - ml.p4d.24xlarge
-  - ml.p4de.24xlarge
-  - ml.p5.48xlarge
-  - ml.p5e.48xlarge
-  - ml.p5en.48xlarge
-## Tranium/Infrentia instance types
-neuronInstances:
-  - trn1.2xlarge
-  - trn1.32xlarge
-  - trn1n.32xlarge
-  - trn2.3xlarge
-  - trn2.48xlarge
-  - trn2a.48xlarge
-  - trn2n.48xlarge
-  - trn2u.48xlarg
-  - inf1.xlarge
-  - inf1.2xlarge
-  - inf1.6xlarge
-  - inf1.24xlarge
-  - inf2.xlarge
-  - inf2.8xlarge
-  - inf2.24xlarge
-  - inf2.48xlarge
-  - ml.trn1.2xlarge
-  - ml.trn1.32xlarge
-  - ml.trn1n.32xlarge
-  - ml.inf1.xlarge
-  - ml.inf1.2xlarge
-  - ml.inf1.6xlarge
-  - ml.inf1.24xlarge
-  - ml.inf2.xlarge
-  - ml.inf2.8xlarge
-  - ml.inf2.24xlarge
-  - ml.inf2.48xlarge
 ## Provide default tolerations
 tolerations:
   - operator: Exists
@@ -172,7 +19,7 @@ containerLogs:
   fluentBit:
     image:
       repository: aws-for-fluent-bit
-      tag: 2.32.5
+      tag: 2.32.5.20250327
       tagWindows: 2.31.12-windowsservercore
       repositoryDomainMap:
         public: public.ecr.aws/aws-observability
@@ -187,7 +34,14 @@ containerLogs:
       requests:
         cpu: 50m
         memory: 25Mi
+    ## Override root tolerations
+    # tolerations: []
     priorityClassName: system-node-critical
+    updateStrategy:
+      type: RollingUpdate
+      rollingUpdate:
+        maxUnavailable: 1
+        maxSurge: 0
     config:
       service: |
         [SERVICE]
@@ -1165,13 +1019,24 @@ containerLogs:
             log_stream_name     ${HOST_NAME}.windows.system.events
             auto_create_group   true
             extra_user_agent    container-insights
+    affinity:
+      nodeAffinity:
+        requiredDuringSchedulingIgnoredDuringExecution:
+          nodeSelectorTerms:
+            - matchExpressions:
+                - key: eks.amazonaws.com/compute-type
+                  operator: NotIn
+                  values:
+                    - fargate
+    nodeSelector:
+      kubernetes.io/os: linux
 ## Provide CloudWatchAgent Operator manager container image and resources.
 ##
 manager:
   name:
   image:
     repository: cloudwatch-agent-operator
-    tag: 2.1.0
+    tag: 3.0.1
     repositoryDomainMap:
       public: public.ecr.aws/cloudwatch-agent
       cn-north-1: 934860584483.dkr.ecr.cn-north-1.amazonaws.com.cn
@@ -1182,19 +1047,70 @@ manager:
     java:
       repositoryDomain: public.ecr.aws/aws-observability
       repository: adot-autoinstrumentation-java
-      tag: v1.33.0
+      tag: v2.10.0
     python:
       repositoryDomain: public.ecr.aws/aws-observability
       repository: adot-autoinstrumentation-python
-      tag: v0.8.0
+      tag: v0.9.0
     dotnet:
       repositoryDomain: public.ecr.aws/aws-observability
       repository: adot-autoinstrumentation-dotnet
-      tag: v1.6.0
+      tag: v1.7.0
     nodejs:
       repositoryDomain: public.ecr.aws/aws-observability
       repository: adot-autoinstrumentation-node
-      tag: v0.5.0
+      tag: v0.6.0
+  applicationSignals:
+    autoMonitor:
+      monitorAllServices: false
+      languages:
+        - java
+        - python
+        - dotnet
+        - nodejs
+      restartPods: false
+      exclude:
+        java:
+          namespaces: []
+          deployments: []
+          daemonsets: []
+          statefulsets: []
+        python:
+          namespaces: []
+          deployments: []
+          daemonsets: []
+          statefulsets: []
+        dotnet:
+          namespaces: []
+          deployments: []
+          daemonsets: []
+          statefulsets: []
+        nodejs:
+          namespaces: []
+          deployments: []
+          daemonsets: []
+          statefulsets: []
+      customSelector:
+        java:
+          namespaces: []
+          deployments: []
+          daemonsets: []
+          statefulsets: []
+        python:
+          namespaces: []
+          deployments: []
+          daemonsets: []
+          statefulsets: []
+        dotnet:
+          namespaces: []
+          deployments: []
+          daemonsets: []
+          statefulsets: []
+        nodejs:
+          namespaces: []
+          deployments: []
+          daemonsets: []
+          statefulsets: []
   autoInstrumentationConfiguration:
     java:
       runtime_metrics:
@@ -1264,6 +1180,7 @@ manager:
     requests:
       cpu: 100m
       memory: 64Mi
+  tolerations: []
   ## Adds additional environment variables
   ## e.g ENV_VAR: env_value
   env:
@@ -1276,6 +1193,9 @@ manager:
   podLabels: {}
   service:
     name:
+  affinity: {}
+  nodeSelector:
+    kubernetes.io/os: linux
 ## Admission webhooks make sure only requests with correctly formatted rules will get into the Operator.
 admissionWebhooks:
   create: true
@@ -1325,7 +1245,7 @@ agent:
   replicas: 1 # The total number non-terminated pods targeted by this AmazonCloudWatchAgent's deployment or statefulSet.
   image:
     repository: cloudwatch-agent
-    tag: 1.300052.0b1024
+    tag: 1.300056.0b1123
     repositoryDomainMap:
       public: public.ecr.aws/cloudwatch-agent
       cn-north-1: 934860584483.dkr.ecr.cn-north-1.amazonaws.com.cn
@@ -1334,6 +1254,17 @@ agent:
       us-gov-west-1: 743662458514.dkr.ecr.us-gov-west-1.amazonaws.com
   enabled: true
   priorityClassName: system-node-critical
+  affinity:
+    nodeAffinity:
+      requiredDuringSchedulingIgnoredDuringExecution:
+        nodeSelectorTerms:
+          - matchExpressions:
+              - key: eks.amazonaws.com/compute-type
+                operator: NotIn
+                values:
+                  - fargate
+  nodeSelector:
+    kubernetes.io/os: linux
   resources:
     requests:
       memory: 128Mi
@@ -1341,6 +1272,13 @@ agent:
     limits:
       memory: 512Mi
       cpu: 500m
+  updateStrategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable:
+      maxSurge:
+  ## Override root tolerations
+  # tolerations: []
   ## TLS Certificate Option 1: Use Helm to automatically generate self-signed certificate.
   ## autoGenerateCert must be enabled. This is the default option.
   ## If true, Helm will automatically create a self-signed cert and secret for you.
@@ -1399,7 +1337,7 @@ dcgmExporter:
   name:
   image:
     repository: dcgm-exporter
-    tag: 3.3.7-3.5.0-ubuntu22.04
+    tag: 3.3.9-3.6.1-ubuntu22.04
     repositoryDomainMap:
       public: nvcr.io/nvidia/k8s
       cn-north-1: 934860584483.dkr.ecr.cn-north-1.amazonaws.com.cn
@@ -1413,6 +1351,8 @@ dcgmExporter:
     limits:
       cpu: 500m
       memory: 500Mi
+  ## Override root tolerations
+  # tolerations: []
   configmap: dcgm-exporter-config-map
   arguments:
     - --web-config-file=/etc/dcgm-exporter/web-config.yaml
@@ -1424,12 +1364,147 @@ dcgmExporter:
   kubeletPath: /var/lib/kubelet/pod-resources
   serviceAccount:
     name: # override exporter service account name
+  affinity:
+    nodeAffinity:
+      requiredDuringSchedulingIgnoredDuringExecution:
+        nodeSelectorTerms:
+          - matchExpressions:
+              - key: node.kubernetes.io/instance-type
+                operator: In
+                values:
+                  ## NVIDIA GPU instance types
+                  - g3.4xlarge
+                  - g3.8xlarge
+                  - g3.16xlarge
+                  - g3s.xlarge
+                  - g4ad.2xlarge
+                  - g4ad.4xlarge
+                  - g4ad.8xlarge
+                  - g4ad.16xlarge
+                  - g4ad.xlarge
+                  - g4dn.2xlarge
+                  - g4dn.4xlarge
+                  - g4dn.8xlarge
+                  - g4dn.12xlarge
+                  - g4dn.16xlarge
+                  - g4dn.metal
+                  - g4dn.xlarge
+                  - g5.2xlarge
+                  - g5.4xlarge
+                  - g5.8xlarge
+                  - g5.12xlarge
+                  - g5.16xlarge
+                  - g5.24xlarge
+                  - g5.48xlarge
+                  - g5.xlarge
+                  - g5g.2xlarge
+                  - g5g.4xlarge
+                  - g5g.8xlarge
+                  - g5g.16xlarge
+                  - g5g.metal
+                  - g5g.xlarge
+                  - g6.2xlarge
+                  - g6.4xlarge
+                  - g6.8xlarge
+                  - g6.12xlarge
+                  - g6.16xlarge
+                  - g6.24xlarge
+                  - g6.48xlarge
+                  - g6.xlarge
+                  - g6e.2xlarge
+                  - g6e.4xlarge
+                  - g6e.8xlarge
+                  - g6e.12xlarge
+                  - g6e.16xlarge
+                  - g6e.24xlarge
+                  - g6e.48xlarge
+                  - g6e.xlarge
+                  - gr6.4xlarge
+                  - gr6.8xlarge
+                  - p2.8xlarge
+                  - p2.16xlarge
+                  - p2.xlarge
+                  - p3.2xlarge
+                  - p3.8xlarge
+                  - p3.16xlarge
+                  - p3dn.24xlarge
+                  - p4d.24xlarge
+                  - p4de.24xlarge
+                  - p5.48xlarge
+                  - p5e.48xlarge
+                  - p5en.48xlarge
+                  - ml.g3.4xlarge
+                  - ml.g3.8xlarge
+                  - ml.g3.16xlarge
+                  - ml.g3s.xlarge
+                  - ml.g4ad.2xlarge
+                  - ml.g4ad.4xlarge
+                  - ml.g4ad.8xlarge
+                  - ml.g4ad.16xlarge
+                  - ml.g4ad.xlarge
+                  - ml.g4dn.2xlarge
+                  - ml.g4dn.4xlarge
+                  - ml.g4dn.8xlarge
+                  - ml.g4dn.12xlarge
+                  - ml.g4dn.16xlarge
+                  - ml.g4dn.metal
+                  - ml.g4dn.xlarge
+                  - ml.g5.2xlarge
+                  - ml.g5.4xlarge
+                  - ml.g5.8xlarge
+                  - ml.g5.12xlarge
+                  - ml.g5.16xlarge
+                  - ml.g5.24xlarge
+                  - ml.g5.48xlarge
+                  - ml.g5.xlarge
+                  - ml.g5g.2xlarge
+                  - ml.g5g.4xlarge
+                  - ml.g5g.8xlarge
+                  - ml.g5g.16xlarge
+                  - ml.g5g.metal
+                  - ml.g5g.xlarge
+                  - ml.g6.2xlarge
+                  - ml.g6.4xlarge
+                  - ml.g6.8xlarge
+                  - ml.g6.12xlarge
+                  - ml.g6.16xlarge
+                  - ml.g6.24xlarge
+                  - ml.g6.48xlarge
+                  - ml.g6.xlarge
+                  - ml.g6e.2xlarge
+                  - ml.g6e.4xlarge
+                  - ml.g6e.8xlarge
+                  - ml.g6e.12xlarge
+                  - ml.g6e.16xlarge
+                  - ml.g6e.24xlarge
+                  - ml.g6e.48xlarge
+                  - ml.g6e.xlarge
+                  - ml.gr6.4xlarge
+                  - ml.gr6.8xlarge
+                  - ml.p2.8xlarge
+                  - ml.p2.16xlarge
+                  - ml.p2.xlarge
+                  - ml.p3.2xlarge
+                  - ml.p3.8xlarge
+                  - ml.p3.16xlarge
+                  - ml.p3dn.24xlarge
+                  - ml.p4d.24xlarge
+                  - ml.p4de.24xlarge
+                  - ml.p5.48xlarge
+                  - ml.p5e.48xlarge
+                  - ml.p5en.48xlarge
+              - key: eks.amazonaws.com/compute-type
+                operator: NotIn
+                values:
+                  - fargate
+  nodeSelector:
+    kubernetes.io/os: linux
 neuronMonitor:
   enabled: true
   name:
   image:
     repository: neuron-monitor
-    tag: 1.3.0
+    tag: 1.5.0
     repositoryDomainMap:
       public: public.ecr.aws/neuron
   resources:
@@ -1439,6 +1514,8 @@ neuronMonitor:
     requests:
       cpu: 256m
       memory: 128Mi
+  ## Override root tolerations
+  # tolerations: []
   configmap: neuron-monitor-config-map
   service:
     enable: true
@@ -1453,5 +1530,47 @@ neuronMonitor:
         - SYS_ADMIN
   serviceAccount:
     name: # override exporter service account name
+  affinity:
+    nodeAffinity:
+      requiredDuringSchedulingIgnoredDuringExecution:
+        nodeSelectorTerms:
+          - matchExpressions:
+              - key: node.kubernetes.io/instance-type
+                operator: In
+                values:
+                  ## Tranium/Infrentia instance types
+                  - trn1.2xlarge
+                  - trn1.32xlarge
+                  - trn1n.32xlarge
+                  - trn2.3xlarge
+                  - trn2.48xlarge
+                  - trn2a.48xlarge
+                  - trn2n.48xlarge
+                  - trn2u.48xlarge
+                  - inf1.xlarge
+                  - inf1.2xlarge
+                  - inf1.6xlarge
+                  - inf1.24xlarge
+                  - inf2.xlarge
+                  - inf2.8xlarge
+                  - inf2.24xlarge
+                  - inf2.48xlarge
+                  - ml.trn1.2xlarge
+                  - ml.trn1.32xlarge
+                  - ml.trn1n.32xlarge
+                  - ml.inf1.xlarge
+                  - ml.inf1.2xlarge
+                  - ml.inf1.6xlarge
+                  - ml.inf1.24xlarge
+                  - ml.inf2.xlarge
+                  - ml.inf2.8xlarge
+                  - ml.inf2.24xlarge
+                  - ml.inf2.48xlarge
+              - key: eks.amazonaws.com/compute-type
+                operator: NotIn
+                values:
+                  - fargate
+  nodeSelector:
+    kubernetes.io/os: linux
 windows:
   enabled: true

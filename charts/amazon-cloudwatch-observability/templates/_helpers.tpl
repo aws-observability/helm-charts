@@ -5,6 +5,20 @@ Expand the name of the chart.
 {{- default .Chart.Name .Values.nameOverride | trunc 63 | trimSuffix "-" }}
 {{- end }}
 
+{{- define "amazon-cloudwatch-observability.common.tolerations" -}}
+{{- $tolerations := .context.Values.tolerations }}
+{{- if .component }}
+  {{- $componentTolerations := dig "tolerations" nil .component }}
+  {{- if ne nil $componentTolerations }}
+      {{- $tolerations = $componentTolerations }}
+  {{- end }}
+{{- end }}
+{{- with $tolerations }}
+tolerations:
+  {{- toYaml . | nindent 2 }}
+{{- end }}
+{{- end }}
+
 {{/*
 Helper function to modify cloudwatch-agent config
 */}}
@@ -19,14 +33,14 @@ Helper function to modify cloudwatch-agent config
 
 {{- $appSignals := pluck "application_signals" $configCopy.logs.metrics_collected | first }}
 {{- if and (hasKey $configCopy.logs.metrics_collected "application_signals") (empty $appSignals.hosted_in) }}
-{{- $clusterName := .Values.clusterName | required ".Values.clusterName is required." -}}
-{{- $appSignals := set $appSignals "hosted_in" .Values.clusterName }}
+{{- $clusterName := .Values.clusterName | toString | required ".Values.clusterName is required." -}}
+{{- $appSignals := set $appSignals "hosted_in" $clusterName }}
 {{- end }}
 
 {{- $containerInsights := pluck "kubernetes" $configCopy.logs.metrics_collected | first }}
 {{- if and (hasKey $configCopy.logs.metrics_collected "kubernetes") (empty $containerInsights.cluster_name) }}
-{{- $clusterName := .Values.clusterName | required ".Values.clusterName is required." -}}
-{{- $containerInsights := set $containerInsights "cluster_name" .Values.clusterName }}
+{{- $clusterName := .Values.clusterName | toString | required ".Values.clusterName is required." -}}
+{{- $containerInsights := set $containerInsights "cluster_name" $clusterName }}
 {{- end }}
 
 {{- default ""  $configCopy | toJson | quote }}
@@ -64,6 +78,22 @@ Helper function to modify cloudwatch-agent YAML config
 
 {{- $configCopy | toYaml | quote }}
 {{- end }}
+
+{{- define "cloudwatch-agent.rolloutStrategyMaxUnavailable" -}}
+{{- if eq .mode "daemonset" -}}
+1
+{{- else -}}
+25%
+{{- end -}}
+{{- end -}}
+
+{{- define "cloudwatch-agent.rolloutStrategyMaxSurge" -}}
+{{- if eq .mode "daemonset" -}}
+0
+{{- else -}}
+25%
+{{- end -}}
+{{- end -}}
 
 {{/*
 Name for cloudwatch-agent

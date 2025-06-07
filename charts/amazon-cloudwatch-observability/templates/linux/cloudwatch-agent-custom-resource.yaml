@@ -58,11 +58,19 @@ metadata:
   name: {{ $agent.name | default (include "cloudwatch-agent.name" $) }}
   namespace: {{ $.Release.Namespace }}
 spec:
+  updateStrategy:
+      type: {{ $agent.updateStrategy.type }}
+      {{- if eq $agent.updateStrategy.type "RollingUpdate" }}
+      rollingUpdate:
+        maxUnavailable: {{ $agent.updateStrategy.rollingUpdate.maxUnavailable | default (include "cloudwatch-agent.rolloutStrategyMaxUnavailable" (dict "mode" $agent.mode)) }}
+        maxSurge: {{ $agent.updateStrategy.rollingUpdate.maxSurge | default (include "cloudwatch-agent.rolloutStrategyMaxSurge" (dict "mode" $agent.mode)) }}
+      {{- end }}
   image: {{ template "cloudwatch-agent.image" (merge $agent.image (dict "region" $.Values.region)) }}
   mode: {{ $agent.mode }}
   replicas: {{ $agent.replicas }}
-  nodeSelector:
-    kubernetes.io/os: linux
+  {{- with $agent.nodeSelector }}
+  nodeSelector: {{- toYaml . | nindent 4 }}
+  {{- end }}
   serviceAccount: {{ $agent.serviceAccount.name | default (include "cloudwatch-agent.serviceAccountName" $) }}
   {{ if $isROSA }}
   securityContext:
@@ -72,15 +80,9 @@ spec:
         - SYS_ADMIN
   {{ end }}
   priorityClassName: {{ $agent.priorityClassName | default $.Values.agent.priorityClassName }}
-  affinity:
-    nodeAffinity:
-      requiredDuringSchedulingIgnoredDuringExecution:
-        nodeSelectorTerms:
-          - matchExpressions:
-              - key: {{ $.Values.fargateLabelKey }}
-                operator: NotIn
-                values:
-                  - fargate
+  {{- with $agent.affinity }}
+  affinity: {{- toYaml . | nindent 4 }}
+  {{- end }}
   hostNetwork: true
   {{- if $agent.config }}
   config: {{ include "cloudwatch-agent.modify-config" (merge (dict "Config" $agent.config) $ ) }}
@@ -231,10 +233,8 @@ spec:
     value: "True"
   {{ end }}
   - name: K8S_CLUSTER_NAME
-    value: {{ $.Values.clusterName }}
-  {{- with $.Values.tolerations }}
-  tolerations: {{- toYaml . | nindent 2}}
-  {{- end }}
+    value: {{ $.Values.clusterName | quote }}
+  {{- dict "component" $agent "context" $ | include "amazon-cloudwatch-observability.common.tolerations" | nindent 2 }}
 ---
 {{- end }}
 {{- end }}
