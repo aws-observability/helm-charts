@@ -27,6 +27,7 @@ containerLogs:
         cn-northwest-1: 128054284489.dkr.ecr.cn-northwest-1.amazonaws.com.cn
         us-gov-east-1: 161423150738.dkr.ecr.us-gov-east-1.amazonaws.com
         us-gov-west-1: 161423150738.dkr.ecr.us-gov-west-1.amazonaws.com
+    securityContext: {}
     resources:
       limits:
         cpu: 500m
