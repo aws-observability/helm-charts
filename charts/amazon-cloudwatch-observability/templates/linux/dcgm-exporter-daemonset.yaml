@@ -18,6 +18,9 @@ spec:
   {{- with .Values.dcgmExporter.resources }}
   resources: {{- toYaml . | nindent 4}}
   {{- end }}
+  {{- with .Values.dcgmExporter.securityContext }}
+  securityContext: {{- toYaml . | nindent 4 }}
+  {{- end }}
   env:
   - name: "DCGM_EXPORTER_KUBERNETES"
     value: "true"
@@ -43,7 +46,7 @@ spec:
       secretName: amazon-cloudwatch-observability-agent-cert
       items:
         - key: tls.crt
-          path: server.crt
+          path: server.crt``
         - key:  tls.key
           path: server.key
   - name: "pod-gpu-resources"
