@@ -1035,10 +1035,10 @@ containerLogs:
 manager:
   name:
   image:
-    repository: cwagent-operator-release
-    tag: latest
+    repository: cloudwatch-agent-operator
+    tag: 3.0.0
     repositoryDomainMap:
-      public: 231392302985.dkr.ecr.us-west-2.amazonaws.com
+      public: public.ecr.aws/cloudwatch-agent
       cn-north-1: 934860584483.dkr.ecr.cn-north-1.amazonaws.com.cn
       cn-northwest-1: 934860584483.dkr.ecr.cn-northwest-1.amazonaws.com.cn
       us-gov-east-1: 743662458514.dkr.ecr.us-gov-east-1.amazonaws.com
@@ -1525,6 +1525,8 @@ neuronMonitor:
     port: 8000
     address: :8000
   securityContext:
+    runAsNonRoot: false
+    runAsUser: 0
     capabilities:
       add:
         - SYS_ADMIN
