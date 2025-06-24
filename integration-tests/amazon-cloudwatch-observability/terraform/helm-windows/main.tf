@@ -203,7 +203,7 @@ resource "helm_release" "this" {
   name = "amazon-cloudwatch-observability"
   namespace = "amazon-cloudwatch"
   create_namespace = true
-  chart      = "${var.helm_dir}"`
+  chart      = "${var.helm_dir}"
   set = [
     {
       name  = "region"
