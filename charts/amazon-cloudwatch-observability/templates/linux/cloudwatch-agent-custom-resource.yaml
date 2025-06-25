@@ -118,7 +118,8 @@ spec:
     image: {{ template "target-allocator.image" (merge $agent.prometheus.targetAllocator.image (dict "region" $.Values.region)) }}
     allocationStrategy: "consistent-hashing"
     {{- if $agent.prometheus.targetAllocator.prometheusCR.enabled }}
-    prometheusCR: {{ $agent.prometheus.targetAllocator.prometheusCR.enabled | default false }}
+    prometheusCR:
+      enabled: {{ $agent.prometheus.targetAllocator.prometheusCR.enabled | default false }}
     {{- end }}
   {{- end }}
   {{- with $agent.resources }}
