@@ -87,6 +87,14 @@ Helper function to modify cloudwatch-agent YAML config
 {{- end -}}
 {{- end -}}
 
+{{- define "cloudwatch-agent.updateStrategy" -}}
+{{- if eq .mode "deployment" -}}
+deploymentUpdateStrategy
+{{- else -}}
+updateStrategy
+{{- end -}}
+{{- end -}}
+
 {{- define "cloudwatch-agent.rolloutStrategyMaxSurge" -}}
 {{- if eq .mode "daemonset" -}}
 0
