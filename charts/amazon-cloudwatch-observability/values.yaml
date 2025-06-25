@@ -1364,6 +1364,10 @@ dcgmExporter:
   kubeletPath: /var/lib/kubelet/pod-resources
   serviceAccount:
     name: # override exporter service account name
+  securityContext:
+    capabilities:
+      add:
+        - SYS_ADMIN
   affinity:
     nodeAffinity:
       requiredDuringSchedulingIgnoredDuringExecution:
