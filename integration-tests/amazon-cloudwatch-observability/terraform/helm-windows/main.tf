@@ -204,14 +204,16 @@ resource "helm_release" "this" {
   namespace = "amazon-cloudwatch"
   create_namespace = true
   chart      = "${var.helm_dir}"
-  set {
-    name  = "region"
-    value = "${var.region}"
-  }
-  set {
-    name  = "clusterName"
-    value = "${aws_eks_cluster.this.name}"
-  }
+  set = [
+    {
+      name  = "region"
+      value = "${var.region}"
+    },
+    {
+      name  = "clusterName"
+      value = "${aws_eks_cluster.this.name}"
+    }
+  ]
 }
 
 resource "null_resource" "deployment_wait" {
