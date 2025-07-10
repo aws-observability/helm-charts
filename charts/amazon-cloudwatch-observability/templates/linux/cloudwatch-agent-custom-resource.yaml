@@ -9,6 +9,7 @@
 {{- $cert := genSignedCert ("agent") nil $altNames ( .Values.admissionWebhooks.autoGenerateCert.expiryDays | int ) $ca -}}
 {{- $serverCert := genSignedCert ("agent-server") nil $agentAltNames ( .Values.admissionWebhooks.autoGenerateCert.expiryDays | int ) $ca -}}
 {{- $clientCert := genSignedCert ("agent-client") nil nil ( .Values.admissionWebhooks.autoGenerateCert.expiryDays | int ) $ca -}}
+{{- $agentTAClientCert := genSignedCert ("agent-ta-client") nil nil ( .Values.admissionWebhooks.autoGenerateCert.expiryDays | int ) $ca -}}
 apiVersion: v1
 kind: Secret
 metadata:
@@ -45,6 +46,18 @@ data:
   tls.crt: {{ $clientCert.Cert | b64enc }}
   tls.key: {{ $clientCert.Key | b64enc }}
 ---
+apiVersion: v1
+kind: Secret
+metadata:
+  labels:
+      {{- include "amazon-cloudwatch-observability.labels" . | nindent 4}}
+  name: "amazon-cloudwatch-observability-agent-ta-client-cert"
+  namespace: {{ .Release.Namespace }}
+data:
+  ca.crt: {{ $ca.Cert | b64enc }}
+  tls.crt: {{ $agentTAClientCert.Cert | b64enc }}
+  tls.key: {{ $agentTAClientCert.Key | b64enc }}
+---
 {{- end -}}
 
 {{- $clusterName := .Values.clusterName | required ".Values.clusterName is required." -}}
@@ -58,13 +71,13 @@ metadata:
   name: {{ $agent.name | default (include "cloudwatch-agent.name" $) }}
   namespace: {{ $.Release.Namespace }}
 spec:
-  updateStrategy:
-      type: {{ $agent.updateStrategy.type }}
-      {{- if eq $agent.updateStrategy.type "RollingUpdate" }}
-      rollingUpdate:
-        maxUnavailable: {{ $agent.updateStrategy.rollingUpdate.maxUnavailable | default (include "cloudwatch-agent.rolloutStrategyMaxUnavailable" (dict "mode" $agent.mode)) }}
-        maxSurge: {{ $agent.updateStrategy.rollingUpdate.maxSurge | default (include "cloudwatch-agent.rolloutStrategyMaxSurge" (dict "mode" $agent.mode)) }}
-      {{- end }}
+  {{ template "cloudwatch-agent.updateStrategy" (dict "mode" $agent.mode) }}:
+    type: {{ $agent.updateStrategy.type }}
+    {{- if eq $agent.updateStrategy.type "RollingUpdate" }}
+    rollingUpdate:
+      maxUnavailable: {{ $agent.updateStrategy.rollingUpdate.maxUnavailable | default (include "cloudwatch-agent.rolloutStrategyMaxUnavailable" (dict "mode" $agent.mode)) }}
+      maxSurge: {{ $agent.updateStrategy.rollingUpdate.maxSurge | default (include "cloudwatch-agent.rolloutStrategyMaxSurge" (dict "mode" $agent.mode)) }}
+    {{- end }}
   image: {{ template "cloudwatch-agent.image" (merge $agent.image (dict "region" $.Values.region)) }}
   mode: {{ $agent.mode }}
   replicas: {{ $agent.replicas }}
@@ -105,7 +118,8 @@ spec:
     image: {{ template "target-allocator.image" (merge $agent.prometheus.targetAllocator.image (dict "region" $.Values.region)) }}
     allocationStrategy: "consistent-hashing"
     {{- if $agent.prometheus.targetAllocator.prometheusCR.enabled }}
-    prometheusCR: {{ $agent.prometheus.targetAllocator.prometheusCR.enabled | default false }}
+    prometheusCR:
+      enabled: {{ $agent.prometheus.targetAllocator.prometheusCR.enabled | default false }}
     {{- end }}
   {{- end }}
   {{- with $agent.resources }}
@@ -146,6 +160,9 @@ spec:
     readOnly: true
   - mountPath: /etc/amazon-cloudwatch-observability-agent-server-cert
     name: agentservertls
+    readOnly: true
+  - mountPath: /etc/amazon-cloudwatch-observability-agent-ta-client-cert
+    name: agenttaclienttls
     readOnly: true
   - mountPath: /var/lib/kubelet/pod-resources
     name: kubelet-podresources
@@ -206,6 +223,14 @@ spec:
           path: server.crt
         - key: tls.key
           path: server.key
+  - name: agenttaclienttls
+    secret:
+      secretName: amazon-cloudwatch-observability-agent-ta-client-cert
+      items:
+        - key: tls.crt
+          path: client.crt
+        - key: tls.key
+          path: client.key
   {{ if $isROSA }}
   - name: kubelet-ca
     hostPath:

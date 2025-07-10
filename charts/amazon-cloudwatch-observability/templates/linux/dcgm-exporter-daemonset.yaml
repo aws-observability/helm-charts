@@ -19,6 +19,9 @@ spec:
   {{- with .Values.dcgmExporter.resources }}
   resources: {{- toYaml . | nindent 4}}
   {{- end }}
+  {{- with .Values.dcgmExporter.securityContext }}
+  securityContext: {{- toYaml . | nindent 4 }}
+  {{- end }}
   env:
   - name: "DCGM_EXPORTER_KUBERNETES"
     value: "true"

@@ -15,6 +15,19 @@ Bug Fixes:
 * No additional bug fixes.
 
 =======================================================================
+amazon-cloudwatch-observability v4.2.0 (2025-06-25)
+=======================================================================
+Bug Fixes:
+* Set deploymentUpdateStrategy when agent mode is deployment
+* Aggregrate neuroncore utilization across core/device pair
+* Fix bugs when enabling Prometheus CR
+
+Enhancements:
+* Extend support for DCGM scraping on Bottlerocket instances
+* Introduce AutoMonitor for EKS Application Signals
+* Allow overriding security context for FluentBit
+
+=======================================================================
 amazon-cloudwatch-observability v4.1.0 (2025-05-27)
 ========================================================================
 New Features:

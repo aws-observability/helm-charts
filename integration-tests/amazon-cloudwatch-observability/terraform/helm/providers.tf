@@ -6,7 +6,7 @@ provider "aws" {
 }
 
 provider "helm" {
-  kubernetes {
+  kubernetes = {
     config_path = "${var.kube_dir}/config"
   }
 }

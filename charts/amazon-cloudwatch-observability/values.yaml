@@ -19,7 +19,7 @@ containerLogs:
   fluentBit:
     image:
       repository: aws-for-fluent-bit
-      tag: 2.32.5.20250327
+      tag: 2.32.5.20250527
       tagWindows: 2.31.12-windowsservercore
       repositoryDomainMap:
         public: public.ecr.aws/aws-observability
@@ -27,6 +27,7 @@ containerLogs:
         cn-northwest-1: 128054284489.dkr.ecr.cn-northwest-1.amazonaws.com.cn
         us-gov-east-1: 161423150738.dkr.ecr.us-gov-east-1.amazonaws.com
         us-gov-west-1: 161423150738.dkr.ecr.us-gov-west-1.amazonaws.com
+    securityContext: {}
     resources:
       limits:
         cpu: 500m
@@ -1036,7 +1037,7 @@ manager:
   name:
   image:
     repository: cloudwatch-agent-operator
-    tag: 3.0.1
+    tag: 3.1.0
     repositoryDomainMap:
       public: public.ecr.aws/cloudwatch-agent
       cn-north-1: 934860584483.dkr.ecr.cn-north-1.amazonaws.com.cn
@@ -1245,7 +1246,7 @@ agent:
   replicas: 1 # The total number non-terminated pods targeted by this AmazonCloudWatchAgent's deployment or statefulSet.
   image:
     repository: cloudwatch-agent
-    tag: 1.300056.0b1123
+    tag: 1.300057.0b1161
     repositoryDomainMap:
       public: public.ecr.aws/cloudwatch-agent
       cn-north-1: 934860584483.dkr.ecr.cn-north-1.amazonaws.com.cn
@@ -1364,6 +1365,10 @@ dcgmExporter:
   kubeletPath: /var/lib/kubelet/pod-resources
   serviceAccount:
     name: # override exporter service account name
+  securityContext:
+    capabilities:
+      add:
+        - SYS_ADMIN
   affinity:
     nodeAffinity:
       requiredDuringSchedulingIgnoredDuringExecution:
@@ -1504,7 +1509,7 @@ neuronMonitor:
   name:
   image:
     repository: neuron-monitor
-    tag: 1.5.0
+    tag: 1.5.1
     repositoryDomainMap:
       public: public.ecr.aws/neuron
   resources:
