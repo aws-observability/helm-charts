@@ -1,3 +1,4 @@
+{{- if .Values.neuronMonitor.enabled }}
 apiVersion: cloudwatch.aws.amazon.com/v1alpha1
 kind: NeuronMonitor
 metadata:

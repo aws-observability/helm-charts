@@ -1334,6 +1334,7 @@ agent:
       prometheusCR:
         enabled: false
 dcgmExporter:
+  enabled: true
   name:
   image:
     repository: dcgm-exporter
@@ -1504,6 +1505,7 @@ dcgmExporter:
   nodeSelector:
     kubernetes.io/os: linux
 neuronMonitor:
+  enabled: true
   name:
   image:
     repository: neuron-monitor
