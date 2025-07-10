@@ -1,4 +1,4 @@
-{{- if .Values.windows.enabled }}
+{{- if .Values.containerLogs.enabled }}
 apiVersion: v1
 kind: ConfigMap
 metadata:

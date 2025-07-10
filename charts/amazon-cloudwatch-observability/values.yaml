@@ -1577,5 +1577,3 @@ neuronMonitor:
                   - fargate
   nodeSelector:
     kubernetes.io/os: linux
-windows:
-  enabled: true
