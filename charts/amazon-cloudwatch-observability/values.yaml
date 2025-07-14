@@ -19,7 +19,7 @@ containerLogs:
   fluentBit:
     image:
       repository: aws-for-fluent-bit
-      tag: 2.32.5.20250527
+      tag: 2.32.5.20250626
       tagWindows: 2.31.12-windowsservercore
       repositoryDomainMap:
         public: public.ecr.aws/aws-observability
@@ -1303,21 +1303,14 @@ agent:
   config: # optional config that can be provided to override the defaultConfig
   otelConfig: # optional YAML config that can be provided to combine with the config/defaultConfig
   defaultConfig:
-    {
-      "logs": {
-        "metrics_collected": {
-          "kubernetes": {
-            "enhanced_container_insights": true
-          },
-          "application_signals": { }
-        }
-      },
-      "traces": {
-        "traces_collected": {
-          "application_signals": { }
-        }
-      }
-    }
+    logs:
+      metrics_collected:
+        kubernetes:
+          enhanced_container_insights: true
+        application_signals: {}
+    traces:
+      traces_collected:
+        application_signals: {}
   prometheus:
     config:
     targetAllocator:
@@ -1337,7 +1330,7 @@ dcgmExporter:
   name:
   image:
     repository: dcgm-exporter
-    tag: 3.3.9-3.6.1-ubuntu22.04
+    tag: 3.3.9-3.6.1-ubuntu22.04-amd64
     repositoryDomainMap:
       public: nvcr.io/nvidia/k8s
       cn-north-1: 934860584483.dkr.ecr.cn-north-1.amazonaws.com.cn
