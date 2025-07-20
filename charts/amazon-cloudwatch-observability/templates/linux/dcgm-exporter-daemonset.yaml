@@ -68,3 +68,4 @@ spec:
       cert_file: /etc/amazon-cloudwatch-observability-dcgm-cert/server.crt
       key_file: /etc/amazon-cloudwatch-observability-dcgm-cert/server.key
   {{- dict "component" .Values.dcgmExporter "context" . | include "amazon-cloudwatch-observability.common.tolerations" | nindent 2 }}
+{{- end }}
