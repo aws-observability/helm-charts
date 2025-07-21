@@ -1,3 +1,4 @@
+{{- if .Values.neuronMonitor.enabled }}
 apiVersion: cloudwatch.aws.amazon.com/v1alpha1
 kind: NeuronMonitor
 metadata:
@@ -84,3 +85,4 @@ spec:
       ]
     }
   {{- dict "component" .Values.neuronMonitor "context" . | include "amazon-cloudwatch-observability.common.tolerations" | nindent 2 }}
+{{- end }}
