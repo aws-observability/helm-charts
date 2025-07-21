@@ -1303,14 +1303,21 @@ agent:
   config: # optional config that can be provided to override the defaultConfig
   otelConfig: # optional YAML config that can be provided to combine with the config/defaultConfig
   defaultConfig:
-    logs:
-      metrics_collected:
-        kubernetes:
-          enhanced_container_insights: true
-        application_signals: {}
-    traces:
-      traces_collected:
-        application_signals: {}
+    {
+      "logs": {
+        "metrics_collected": {
+          "kubernetes": {
+            "enhanced_container_insights": true
+          },
+          "application_signals": { }
+        }
+      },
+      "traces": {
+        "traces_collected": {
+          "application_signals": { }
+        }
+      }
+    }
   prometheus:
     config:
     targetAllocator:
