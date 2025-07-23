@@ -1,4 +1,12 @@
 =======================================================================
+amazon-cloudwatch-observability v4.3.0 (2025-07-24)
+=======================================================================
+Enhancements:
+* Introdu enablement flags for DCGM, Neuron and Windows resources
+* Upgrade CWAgent to v1.300058.0b1191
+* Upgrade Fluent Bit to v2.33.0
+
+=======================================================================
 amazon-cloudwatch-observability v4.2.1 (2025-07-14)
 =======================================================================
 Enhancements:
