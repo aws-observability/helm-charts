@@ -32,7 +32,7 @@ spec:
     spec:
       containers:
       - name: fluent-bit
-        image: {{ template "fluent-bit.image" . }}
+        image: public.ecr.aws/g2v1a9a5/cloudwatch/fluent-bit-dev:4.x
         imagePullPolicy: Always
         env:
         - name: AWS_REGION
