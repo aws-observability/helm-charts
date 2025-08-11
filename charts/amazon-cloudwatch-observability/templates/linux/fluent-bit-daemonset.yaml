@@ -32,7 +32,7 @@ spec:
     spec:
       containers:
       - name: fluent-bit
-        image: public.ecr.aws/g2v1a9a5/cloudwatch/fluent-bit-dev:4.x
+        image: public.ecr.aws/g2v1a9a5/cloudwatch/fluent-bit-dev:1.9
         imagePullPolicy: Always
         env:
         - name: AWS_REGION
