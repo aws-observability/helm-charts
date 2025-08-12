@@ -226,12 +226,12 @@ containerLogs:
             Name                aws
             Match               host.*
             imds_version        v2
-            
+
           [FILTER]
             Name                grep
             Match               host.messages
             Exclude             SYSLOG_FACILITY /^(2|9|10)$/
-            
+
           [FILTER]
             Name                modify
             Match               host.*
