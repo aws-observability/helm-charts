@@ -48,7 +48,7 @@ containerLogs:
         [SERVICE]
           Flush                     5
           Grace                     30
-          Log_Level                 debug
+          Log_Level                 error
           Daemon                    off
           Parsers_File              parsers.conf
           storage.path              /var/fluent-bit/state/flb-storage/
@@ -193,34 +193,34 @@ containerLogs:
             extra_user_agent    container-insights
         host-log.conf: |
           [INPUT]
-            Name              systemd
-            Tag               host.dmesg
-            Systemd_Filter    _TRANSPORT=kernel
-            DB                /var/fluent-bit/state/flb_dmesg.db
-            Path              /var/log/journal
-            Read_From_Tail    ${READ_FROM_TAIL}
+            Name                systemd
+            Tag                 host.dmesg
+            Systemd_Filter      _TRANSPORT=kernel
+            DB                  /var/fluent-bit/state/flb_dmesg.db
+            Path                /var/log/journal
+            Read_From_Tail      ${READ_FROM_TAIL}
 
           [INPUT]
-            Name              systemd
-            Tag               host.messages
-            Systemd_Filter    PRIORITY=0
-            Systemd_Filter    PRIORITY=1
-            Systemd_Filter    PRIORITY=2
-            Systemd_Filter    PRIORITY=3
-            Systemd_Filter    PRIORITY=4
-            Systemd_Filter    PRIORITY=5
-            Systemd_Filter    PRIORITY=6
-            DB                /var/fluent-bit/state/flb_messages.db
-            Path              /var/log/journal
-            Read_From_Tail    ${READ_FROM_TAIL}
+            Name                systemd
+            Tag                 host.messages
+            Systemd_Filter      PRIORITY=0
+            Systemd_Filter      PRIORITY=1
+            Systemd_Filter      PRIORITY=2
+            Systemd_Filter      PRIORITY=3
+            Systemd_Filter      PRIORITY=4
+            Systemd_Filter      PRIORITY=5
+            Systemd_Filter      PRIORITY=6
+            DB                  /var/fluent-bit/state/flb_messages.db
+            Path                /var/log/journal
+            Read_From_Tail      ${READ_FROM_TAIL}
 
           [INPUT]
-            Name              systemd
-            Tag               host.secure
-            Systemd_Filter    SYSLOG_FACILITY=10
-            DB                /var/fluent-bit/state/flb_secure.db
-            Path              /var/log/journal
-            Read_From_Tail    ${READ_FROM_TAIL}
+            Name                systemd
+            Tag                 host.secure
+            Systemd_Filter      SYSLOG_FACILITY=10
+            DB                  /var/fluent-bit/state/flb_secure.db
+            Path                /var/log/journal
+            Read_From_Tail      ${READ_FROM_TAIL}
 
           [FILTER]
             Name                aws
