@@ -1,4 +1,13 @@
 =======================================================================
+amazon-cloudwatch-observability v4.3.1 (2025-08-14)
+=======================================================================
+Enhancements:
+* Allow an option to set the env vars on CWAgent collector CR
+* Increase default memory limit of NVIDIA DCGM Exporter to 750Mi
+* Upgrade NVIDIA DCGM Exporter to v4.3.1-4.4.0-ubuntu22.04
+* Upgrade AWS for Fluent Bit to v2.33.0.20250731
+
+=======================================================================
 amazon-cloudwatch-observability v4.3.0 (2025-07-24)
 =======================================================================
 Enhancements:
