@@ -1352,7 +1352,7 @@ dcgmExporter:
       memory: 128Mi
     limits:
       cpu: 500m
-      memory: 500Mi
+      memory: 750Mi
   ## Override root tolerations
   # tolerations: []
   configmap: dcgm-exporter-config-map
