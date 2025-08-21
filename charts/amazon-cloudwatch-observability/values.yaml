@@ -19,7 +19,7 @@ containerLogs:
   fluentBit:
     image:
       repository: aws-for-fluent-bit
-      tag: 2.33.0
+      tag: 2.33.0.20250731
       tagWindows: 2.31.12-windowsservercore
       repositoryDomainMap:
         public: public.ecr.aws/aws-observability
@@ -1339,7 +1339,7 @@ dcgmExporter:
   name:
   image:
     repository: dcgm-exporter
-    tag: 3.3.9-3.6.1-ubuntu22.04
+    tag: 4.3.1-4.4.0-ubuntu22.04
     repositoryDomainMap:
       public: nvcr.io/nvidia/k8s
       cn-north-1: 934860584483.dkr.ecr.cn-north-1.amazonaws.com.cn
