@@ -1205,8 +1205,26 @@ admissionWebhooks:
   ## Defines the sidecar injection logic in Pods.
   ## - Ignore, the injection is fail-open. The pod will be created, but the sidecar won't be injected.
   ## - Fail, the injection is fail-close. If the webhook pod is not ready, pods cannot be created.
+  agents:
+    create: true
+    failurePolicy:
+    namespaceSelector:
+  instrumentations:
+    create: true
+    failurePolicy:
+    namespaceSelector:
   pods:
+    create: true
     failurePolicy: Ignore
+    namespaceSelector:
+  workloads:
+    create: true
+    failurePolicy:
+    namespaceSelector:
+  namespaces:
+    create: true
+    failurePolicy:
+    namespaceSelector:
   ## Adds a prefix to the mutating webhook name.
   ## This can be used to order this mutating webhook with all your cluster's mutating webhooks.
   namePrefix: ""
