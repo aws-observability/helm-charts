@@ -1,4 +1,16 @@
 =======================================================================
+amazon-cloudwatch-observability v4.4.0 (2025-09-04)
+=======================================================================
+Enhancements:
+* Upgrade CWAgent to v1.300059.0b1207
+* Add Tensor Core Utililzation metric to DCGM Exporter configuration
+* Upgrade CWAgent Operator to v3.1.1
+* Upgrade Fluent Bit to v2.33.2
+* Upgrade Java SDK to v2.11.2
+* Upgrade .NET SDK to v1.9.0
+* Upgrade NodeJS SDK to v0.7.0
+
+=======================================================================
 amazon-cloudwatch-observability v4.3.1 (2025-08-14)
 =======================================================================
 Enhancements:
