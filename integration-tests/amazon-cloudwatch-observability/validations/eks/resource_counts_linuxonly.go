@@ -2,9 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 //go:build linuxonly
-// +build linuxonly
 
-package validator
+package eks
 
 const (
 	// Services count on Linux:
@@ -28,13 +27,13 @@ const (
 	// - dcgm-exporter
 	// - fluent-bit
 	// - neuron-monitor
-	daemonsetCountLinux = 4
+	daemonSetCountLinux = 4
 
 	// DaemonSet count on Windows:
 	// - cloudwatch-agent-windows
 	// - cloudwatch-agent-windows-container-insights
 	// - fluent-bit-windows
-	daemonsetCountWindows = 3
+	daemonSetCountWindows = 3
 
 	// Pods count on Linux and Windows
 	podCountLinux   = 3
