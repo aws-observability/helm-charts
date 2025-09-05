@@ -1,4 +1,7 @@
-name: Run Image Scan for Amazon CloudWatch Observability Helm Chart
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+name: Image Scan for Amazon CloudWatch Observability
 
 on:
   schedule:

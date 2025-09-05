@@ -5,10 +5,14 @@ output "testing_id" {
   value = random_id.testing_id.hex
 }
 
-output "cwa_iam_role" {
-  value = "cwa-e2e-iam-role"
+output "security_group" {
+  value = data.aws_security_group.security_group.id
 }
 
-output "vpc_security_group" {
-  value = "vpc_security_group"
+output "public_subnet_ids" {
+  value = data.aws_subnets.public_subnet_ids.ids
+}
+
+output "role_arn" {
+  value = data.aws_iam_role.cwagent_iam_role.arn
 }
