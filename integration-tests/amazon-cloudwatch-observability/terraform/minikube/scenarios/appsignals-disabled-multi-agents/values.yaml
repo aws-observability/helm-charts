@@ -1,0 +1,27 @@
+region: us-west-2
+clusterName: minikube
+
+agents:
+  - name: cloudwatch-agent
+    config:
+      {
+        "logs": {
+          "metrics_collected": {
+            "kubernetes": {
+              "enhanced_container_insights": true
+            }
+          }
+        }
+      }
+  - name: cloudwatch-agent-prom
+    mode: deployment
+    config:
+      {
+        "metrics": {
+          "metrics_collected": {
+            "prometheus": {
+              "prometheus_config_path": "/test/path"
+            }
+          }
+        }
+      }

@@ -1063,7 +1063,7 @@ manager:
       tag: v0.7.0
   applicationSignals:
     autoMonitor:
-      monitorAllServices: false
+      monitorAllServices: true
       languages:
         - java
         - python
