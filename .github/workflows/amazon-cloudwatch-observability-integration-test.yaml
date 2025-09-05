@@ -1,7 +1,7 @@
 # Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-name: Run Integration Test for Amazon CloudWatch Observability Helm Chart
+name: Integration Test for Amazon CloudWatch Observability
 on:
   push:
     branches:
@@ -24,11 +24,19 @@ env:
   AWS_DEFAULT_REGION: us-west-2
 
 jobs:
-  HelmChartsIntegrationTest:
-    name: HelmChartsIntegrationTest
+  Build:
+    name: Build
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
+    steps:
+      - uses: actions/checkout@v3
+      - name: Build
+        run: make all
+
+  EKS-IntegrationTest:
+    name: EKS-IntegrationTest
+    needs: [ Build ]
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v3
         with:
@@ -85,11 +93,11 @@ jobs:
             cd integration-tests/amazon-cloudwatch-observability/terraform/helm
             terraform destroy --auto-approve
 
-  HelmChartsIntegrationTestWindows-2022:
-    name: HelmChartsIntegrationTestWindows-2022
+  EKS-IntegrationTest-Win2022:
+    name: EKS-IntegrationTest-Win2022
+    needs: [ Build ]
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v3
         with:
@@ -146,11 +154,11 @@ jobs:
             cd integration-tests/amazon-cloudwatch-observability/terraform/helm-windows
             terraform destroy --auto-approve
 
-  HelmChartsIntegrationTestWindows-2019:
-    name: HelmChartsIntegrationTestWindows-2019
+  EKS-IntegrationTest-Win2019:
+    name: EKS-IntegrationTest-Win2019
+    needs: [ Build ]
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v3
         with:
@@ -171,7 +179,7 @@ jobs:
 
       - name: Set KUBECONFIG environment variable
         run: echo KUBECONFIG="${{ github.workspace }}/../../../.kube/config" >> $GITHUB_ENV
-        
+
       - name: Install Terraform
         uses: hashicorp/setup-terraform@v3
         with:
