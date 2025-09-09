@@ -1199,13 +1199,13 @@ manager:
     kubernetes.io/os: linux
 ## Admission webhooks make sure only requests with correctly formatted rules will get into the Operator.
 admissionWebhooks:
-  ## Enable/disable admission webhooks entirely
   create: true
   failurePolicy: Ignore
   secretName: ""
   ## Defines the sidecar injection logic for each sub-resource.
   ## create:
-  ## - true/false, whether or not the webhook will be created.
+  ## - true/false, whether or not the webhook will be created. Can be used as an override if specified,
+  ##   otherwise will default to the parent create flag.
   ## failurePolicy:
   ## - Ignore, the injection is fail-open. The pod will be created, but the sidecar won't be injected.
   ## - Fail, the injection is fail-close. If the webhook pod is not ready, pods cannot be created.
