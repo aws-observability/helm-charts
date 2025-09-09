@@ -32,13 +32,10 @@ webhooks:
     caBundle: {{ $ca.Cert | b64enc }}
   failurePolicy: {{ .Values.admissionWebhooks.instrumentations.failurePolicy | default .Values.admissionWebhooks.failurePolicy }}
   name: minstrumentation.kb.io
-  {{- if .Values.admissionWebhooks.instrumentations.namespaceSelector }}
+  {{- with (default .Values.admissionWebhooks.namespaceSelector .Values.admissionWebhooks.instrumentations.namespaceSelector) }}
   namespaceSelector:
-  {{- toYaml .Values.admissionWebhooks.instrumentations.namespaceSelector | nindent 6 }}
-  {{- else if .Values.admissionWebhooks.namespaceSelector }}
-  namespaceSelector:
-  {{- toYaml .Values.admissionWebhooks.namespaceSelector | nindent 6 }}
-  {{- end }}
+    {{- toYaml . | nindent 4 }}
+  {{ end }}
   {{- if .Values.admissionWebhooks.objectSelector }}
   objectSelector:
   {{- toYaml .Values.admissionWebhooks.objectSelector | nindent 6 }}
@@ -67,13 +64,10 @@ webhooks:
     caBundle: {{ $ca.Cert | b64enc }}
   failurePolicy: {{ .Values.admissionWebhooks.agents.failurePolicy | default .Values.admissionWebhooks.failurePolicy }}
   name: mamazoncloudwatchagent.kb.io
-  {{- if .Values.admissionWebhooks.agents.namespaceSelector }}
+  {{- with (default .Values.admissionWebhooks.namespaceSelector .Values.admissionWebhooks.agents.namespaceSelector) }}
   namespaceSelector:
-  {{- toYaml .Values.admissionWebhooks.agents.namespaceSelector | nindent 6 }}
-  {{- else if .Values.admissionWebhooks.namespaceSelector }}
-  namespaceSelector:
-  {{- toYaml .Values.admissionWebhooks.namespaceSelector | nindent 6 }}
-  {{- end }}
+    {{- toYaml . | nindent 4 }}
+  {{ end }}
   {{- if .Values.admissionWebhooks.objectSelector }}
   objectSelector:
   {{- toYaml .Values.admissionWebhooks.objectSelector | nindent 6 }}
@@ -102,13 +96,10 @@ webhooks:
     caBundle: {{ $ca.Cert | b64enc }}
   failurePolicy: {{ .Values.admissionWebhooks.pods.failurePolicy | default .Values.admissionWebhooks.failurePolicy }}
   name: mpod.kb.io
-  {{- if .Values.admissionWebhooks.pods.namespaceSelector }}
+  {{- with (default .Values.admissionWebhooks.namespaceSelector .Values.admissionWebhooks.pods.namespaceSelector) }}
   namespaceSelector:
-  {{- toYaml .Values.admissionWebhooks.pods.namespaceSelector | nindent 6 }}
-  {{- else if .Values.admissionWebhooks.namespaceSelector }}
-  namespaceSelector:
-  {{- toYaml .Values.admissionWebhooks.namespaceSelector | nindent 6 }}
-  {{- end }}
+    {{- toYaml . | nindent 4 }}
+  {{ end }}
   {{- if .Values.admissionWebhooks.objectSelector }}
   objectSelector:
   {{- toYaml .Values.admissionWebhooks.objectSelector | nindent 6 }}
@@ -137,13 +128,10 @@ webhooks:
     caBundle: {{ $ca.Cert | b64enc }}
   failurePolicy: {{ .Values.admissionWebhooks.namespaces.failurePolicy | default .Values.admissionWebhooks.pods.failurePolicy | default .Values.admissionWebhooks.failurePolicy }}
   name: mnamespace.kb.io
-  {{- if .Values.admissionWebhooks.namespaces.namespaceSelector }}
+  {{- with (default .Values.admissionWebhooks.namespaceSelector .Values.admissionWebhooks.namespaces.namespaceSelector) }}
   namespaceSelector:
-  {{- toYaml .Values.admissionWebhooks.namespaces.namespaceSelector | nindent 6 }}
-  {{- else if .Values.admissionWebhooks.namespaceSelector }}
-  namespaceSelector:
-  {{- toYaml .Values.admissionWebhooks.namespaceSelector | nindent 6 }}
-  {{- end }}
+    {{- toYaml . | nindent 4 }}
+  {{ end }}
   {{- if .Values.admissionWebhooks.objectSelector }}
   objectSelector:
   {{- toYaml .Values.admissionWebhooks.objectSelector | nindent 6 }}
@@ -172,13 +160,10 @@ webhooks:
     caBundle: {{ $ca.Cert | b64enc }}
   failurePolicy: {{ .Values.admissionWebhooks.workloads.failurePolicy | default .Values.admissionWebhooks.pods.failurePolicy | default .Values.admissionWebhooks.failurePolicy }}
   name: mworkload.kb.io
-  {{- if .Values.admissionWebhooks.workloads.namespaceSelector }}
+  {{- with (default .Values.admissionWebhooks.namespaceSelector .Values.admissionWebhooks.workloads.namespaceSelector) }}
   namespaceSelector:
-  {{- toYaml .Values.admissionWebhooks.workloads.namespaceSelector | nindent 6 }}
-  {{- else if .Values.admissionWebhooks.namespaceSelector }}
-  namespaceSelector:
-  {{- toYaml .Values.admissionWebhooks.namespaceSelector | nindent 6 }}
-  {{- end }}
+    {{- toYaml . | nindent 4 }}
+  {{ end }}
   {{- if .Values.admissionWebhooks.objectSelector }}
   objectSelector:
   {{- toYaml .Values.admissionWebhooks.objectSelector | nindent 6 }}
@@ -217,13 +202,10 @@ webhooks:
     caBundle: {{ $ca.Cert | b64enc }}
   failurePolicy: {{ .Values.admissionWebhooks.instrumentations.failurePolicy | default .Values.admissionWebhooks.failurePolicy }}
   name: vinstrumentationcreateupdate.kb.io
-  {{- if .Values.admissionWebhooks.instrumentations.namespaceSelector }}
+  {{- with (default .Values.admissionWebhooks.namespaceSelector .Values.admissionWebhooks.instrumentations.namespaceSelector) }}
   namespaceSelector:
-  {{- toYaml .Values.admissionWebhooks.instrumentations.namespaceSelector | nindent 6 }}
-  {{- else if .Values.admissionWebhooks.namespaceSelector }}
-  namespaceSelector:
-  {{- toYaml .Values.admissionWebhooks.namespaceSelector | nindent 6 }}
-  {{- end }}
+    {{- toYaml . | nindent 4 }}
+  {{ end }}
   {{- if .Values.admissionWebhooks.objectSelector }}
   objectSelector:
   {{- toYaml .Values.admissionWebhooks.objectSelector | nindent 6 }}
@@ -252,13 +234,10 @@ webhooks:
     caBundle: {{ $ca.Cert | b64enc }}
   failurePolicy: Ignore
   name: vinstrumentationdelete.kb.io
-  {{- if .Values.admissionWebhooks.instrumentations.namespaceSelector }}
+  {{- with (default .Values.admissionWebhooks.namespaceSelector .Values.admissionWebhooks.instrumentations.namespaceSelector) }}
   namespaceSelector:
-  {{- toYaml .Values.admissionWebhooks.instrumentations.namespaceSelector | nindent 6 }}
-  {{- else if .Values.admissionWebhooks.namespaceSelector }}
-  namespaceSelector:
-  {{- toYaml .Values.admissionWebhooks.namespaceSelector | nindent 6 }}
-  {{- end }}
+    {{- toYaml . | nindent 4 }}
+  {{ end }}
   {{- if .Values.admissionWebhooks.objectSelector }}
   objectSelector:
   {{- toYaml .Values.admissionWebhooks.objectSelector | nindent 6 }}
@@ -286,13 +265,10 @@ webhooks:
     caBundle: {{ $ca.Cert | b64enc }}
   failurePolicy: {{ .Values.admissionWebhooks.agents.failurePolicy | default .Values.admissionWebhooks.failurePolicy }}
   name: vamazoncloudwatchagentcreateupdate.kb.io
-  {{- if .Values.admissionWebhooks.agents.namespaceSelector }}
+  {{- with (default .Values.admissionWebhooks.namespaceSelector .Values.admissionWebhooks.agents.namespaceSelector) }}
   namespaceSelector:
-  {{- toYaml .Values.admissionWebhooks.agents.namespaceSelector | nindent 6 }}
-  {{- else if .Values.admissionWebhooks.namespaceSelector }}
-  namespaceSelector:
-  {{- toYaml .Values.admissionWebhooks.namespaceSelector | nindent 6 }}
-  {{- end }}
+    {{- toYaml . | nindent 4 }}
+  {{ end }}
   {{- if .Values.admissionWebhooks.objectSelector }}
   objectSelector:
   {{- toYaml .Values.admissionWebhooks.objectSelector | nindent 6 }}
@@ -321,13 +297,10 @@ webhooks:
     caBundle: {{ $ca.Cert | b64enc }}
   failurePolicy: Ignore
   name: vamazoncloudwatchagentdelete.kb.io
-  {{- if .Values.admissionWebhooks.agents.namespaceSelector }}
+  {{- with (default .Values.admissionWebhooks.namespaceSelector .Values.admissionWebhooks.agents.namespaceSelector) }}
   namespaceSelector:
-  {{- toYaml .Values.admissionWebhooks.agents.namespaceSelector | nindent 6 }}
-  {{- else if .Values.admissionWebhooks.namespaceSelector }}
-  namespaceSelector:
-  {{- toYaml .Values.admissionWebhooks.namespaceSelector | nindent 6 }}
-  {{- end }}
+    {{- toYaml . | nindent 4 }}
+  {{ end }}
   {{- if .Values.admissionWebhooks.objectSelector }}
   objectSelector:
   {{- toYaml .Values.admissionWebhooks.objectSelector | nindent 6 }}
