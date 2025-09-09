@@ -1,4 +1,4 @@
-{{- if and (.Values.admissionWebhooks.create) (.Values.admissionWebhooks.certManager.enabled) (or .Values.admissionWebhooks.agents.create .Values.admissionWebhooks.instrumentations.create .Values.admissionWebhooks.pods.create .Values.admissionWebhooks.workloads.create .Values.admissionWebhooks.namespaces.create) }}
+{{- if and (.Values.admissionWebhooks.certManager.enabled) (include "amazon-cloudwatch-observability.webhookEnabled" .) }}
 apiVersion: admissionregistration.k8s.io/v1
 kind: MutatingWebhookConfiguration
 metadata:
@@ -8,7 +8,7 @@ metadata:
     {{- include "amazon-cloudwatch-observability.labels" . | nindent 4}}
   name: {{ template "amazon-cloudwatch-observability.name" . }}-mutating-webhook-configuration
 webhooks:
-{{- if .Values.admissionWebhooks.instrumentations.create }}
+{{- if include "amazon-cloudwatch-observability.isWebhookEnabled" (list . "instrumentations") }}
 - admissionReviewVersions:
   - v1
   clientConfig:
@@ -21,7 +21,7 @@ webhooks:
   {{- with (default .Values.admissionWebhooks.namespaceSelector .Values.admissionWebhooks.instrumentations.namespaceSelector) }}
   namespaceSelector:
     {{- toYaml . | nindent 4 }}
-  {{ end }}
+  {{- end }}
   {{- if .Values.admissionWebhooks.objectSelector }}
   objectSelector:
   {{- toYaml .Values.admissionWebhooks.objectSelector | nindent 6 }}
@@ -39,7 +39,7 @@ webhooks:
   sideEffects: None
   timeoutSeconds: {{ .Values.admissionWebhooks.timeoutSeconds }}
 {{- end }}
-{{- if .Values.admissionWebhooks.agents.create }}
+{{- if include "amazon-cloudwatch-observability.isWebhookEnabled" (list . "agents") }}
 - admissionReviewVersions:
   - v1
   clientConfig:
@@ -52,7 +52,7 @@ webhooks:
   {{- with (default .Values.admissionWebhooks.namespaceSelector .Values.admissionWebhooks.agents.namespaceSelector) }}
   namespaceSelector:
     {{- toYaml . | nindent 4 }}
-  {{ end }}
+  {{- end }}
   {{- if .Values.admissionWebhooks.objectSelector }}
   objectSelector:
   {{- toYaml .Values.admissionWebhooks.objectSelector | nindent 6 }}
@@ -70,7 +70,7 @@ webhooks:
   sideEffects: None
   timeoutSeconds: {{ .Values.admissionWebhooks.timeoutSeconds }}
 {{- end }}
-{{- if .Values.admissionWebhooks.pods.create }}
+{{- if include "amazon-cloudwatch-observability.isWebhookEnabled" (list . "pods") }}
 - admissionReviewVersions:
   - v1
   clientConfig:
@@ -83,7 +83,7 @@ webhooks:
   {{- with (default .Values.admissionWebhooks.namespaceSelector .Values.admissionWebhooks.pods.namespaceSelector) }}
   namespaceSelector:
     {{- toYaml . | nindent 4 }}
-  {{ end }}
+  {{- end }}
   {{- if .Values.admissionWebhooks.objectSelector }}
   objectSelector:
   {{- toYaml .Values.admissionWebhooks.objectSelector | nindent 6 }}
@@ -101,7 +101,7 @@ webhooks:
   sideEffects: None
   timeoutSeconds: {{ .Values.admissionWebhooks.timeoutSeconds }}
 {{- end }}
-{{- if .Values.admissionWebhooks.namespaces.create }}
+{{- if include "amazon-cloudwatch-observability.isWebhookEnabled" (list . "namespaces") }}
 - admissionReviewVersions:
   - v1
   clientConfig:
@@ -114,7 +114,7 @@ webhooks:
   {{- with (default .Values.admissionWebhooks.namespaceSelector .Values.admissionWebhooks.namespaces.namespaceSelector) }}
   namespaceSelector:
     {{- toYaml . | nindent 4 }}
-  {{ end }}
+  {{- end }}
   {{- if .Values.admissionWebhooks.objectSelector }}
   objectSelector:
   {{- toYaml .Values.admissionWebhooks.objectSelector | nindent 6 }}
@@ -132,7 +132,7 @@ webhooks:
   sideEffects: None
   timeoutSeconds: {{ .Values.admissionWebhooks.timeoutSeconds }}
 {{- end }}
-{{- if .Values.admissionWebhooks.workloads.create }}
+{{- if include "amazon-cloudwatch-observability.isWebhookEnabled" (list . "workloads") }}
 - admissionReviewVersions:
   - v1
   clientConfig:
@@ -145,7 +145,7 @@ webhooks:
   {{- with (default .Values.admissionWebhooks.namespaceSelector .Values.admissionWebhooks.workloads.namespaceSelector) }}
   namespaceSelector:
     {{- toYaml . | nindent 4 }}
-  {{ end }}
+  {{- end }}
   {{- if .Values.admissionWebhooks.objectSelector }}
   objectSelector:
   {{- toYaml .Values.admissionWebhooks.objectSelector | nindent 6 }}
@@ -175,7 +175,7 @@ metadata:
     {{- include "amazon-cloudwatch-observability.labels" . | nindent 4}}
   name: {{ template "amazon-cloudwatch-observability.name" . }}-validating-webhook-configuration
 webhooks:
-{{- if .Values.admissionWebhooks.instrumentations.create }}
+{{- if include "amazon-cloudwatch-observability.isWebhookEnabled" (list . "instrumentations") }}
 - admissionReviewVersions:
   - v1
   clientConfig:
@@ -188,7 +188,7 @@ webhooks:
   {{- with (default .Values.admissionWebhooks.namespaceSelector .Values.admissionWebhooks.instrumentations.namespaceSelector) }}
   namespaceSelector:
     {{- toYaml . | nindent 4 }}
-  {{ end }}
+  {{- end }}
   {{- if .Values.admissionWebhooks.objectSelector }}
   objectSelector:
   {{- toYaml .Values.admissionWebhooks.objectSelector | nindent 6 }}
@@ -206,7 +206,7 @@ webhooks:
   sideEffects: None
   timeoutSeconds: {{ .Values.admissionWebhooks.timeoutSeconds }}
 {{- end }}
-{{- if .Values.admissionWebhooks.instrumentations.create }}
+{{- if include "amazon-cloudwatch-observability.isWebhookEnabled" (list . "instrumentations") }}
 - admissionReviewVersions:
   - v1
   clientConfig:
@@ -219,7 +219,7 @@ webhooks:
   {{- with (default .Values.admissionWebhooks.namespaceSelector .Values.admissionWebhooks.instrumentations.namespaceSelector) }}
   namespaceSelector:
     {{- toYaml . | nindent 4 }}
-  {{ end }}
+  {{- end }}
   {{- if .Values.admissionWebhooks.objectSelector }}
   objectSelector:
   {{- toYaml .Values.admissionWebhooks.objectSelector | nindent 6 }}
@@ -236,7 +236,7 @@ webhooks:
   sideEffects: None
   timeoutSeconds: {{ .Values.admissionWebhooks.timeoutSeconds }}
 {{- end }}
-{{- if .Values.admissionWebhooks.agents.create }}
+{{- if include "amazon-cloudwatch-observability.isWebhookEnabled" (list . "agents") }}
 - admissionReviewVersions:
   - v1
   clientConfig:
@@ -249,7 +249,7 @@ webhooks:
   {{- with (default .Values.admissionWebhooks.namespaceSelector .Values.admissionWebhooks.agents.namespaceSelector) }}
   namespaceSelector:
     {{- toYaml . | nindent 4 }}
-  {{ end }}
+  {{- end }}
   {{- if .Values.admissionWebhooks.objectSelector }}
   objectSelector:
   {{- toYaml .Values.admissionWebhooks.objectSelector | nindent 6 }}
@@ -267,7 +267,7 @@ webhooks:
   sideEffects: None
   timeoutSeconds: {{ .Values.admissionWebhooks.timeoutSeconds }}
 {{- end }}
-{{- if .Values.admissionWebhooks.agents.create }}
+{{- if include "amazon-cloudwatch-observability.isWebhookEnabled" (list . "agents") }}
 - admissionReviewVersions:
   - v1
   clientConfig:
@@ -280,7 +280,7 @@ webhooks:
   {{- with (default .Values.admissionWebhooks.namespaceSelector .Values.admissionWebhooks.agents.namespaceSelector) }}
   namespaceSelector:
     {{- toYaml . | nindent 4 }}
-  {{ end }}
+  {{- end }}
   {{- if .Values.admissionWebhooks.objectSelector }}
   objectSelector:
   {{- toYaml .Values.admissionWebhooks.objectSelector | nindent 6 }}
