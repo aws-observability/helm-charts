@@ -16,6 +16,15 @@ import (
 const (
 	Namespace    = "amazon-cloudwatch"
 	operatorName = "amazon-cloudwatch-observability-controller-manager"
+
+	WebhookName                              = "amazon-cloudwatch-observability-mutating-webhook-configuration"
+	WebhookPathMutateInstrumentation         = "/mutate-cloudwatch-aws-amazon-com-v1alpha1-instrumentation"
+	WebhookPathMutateAmazonCloudWatchAgent   = "/mutate-cloudwatch-aws-amazon-com-v1alpha1-amazoncloudwatchagent"
+	WebhookPathMutatePod                     = "/mutate-v1-pod"
+	WebhookPathMutateNamespace               = "/mutate-v1-namespace"
+	WebhookPathMutateWorkload                = "/mutate-v1-workload"
+	WebhookPathValidateInstrumentation       = "/validate-cloudwatch-aws-amazon-com-v1alpha1-instrumentation"
+	WebhookPathValidateAmazonCloudWatchAgent = "/validate-cloudwatch-aws-amazon-com-v1alpha1-amazoncloudwatchagent"
 )
 
 func ValidateOperatorAutoMonitorConfig(t *testing.T, expectedConfig map[string]interface{}) {

@@ -1,0 +1,7 @@
+region: us-west-2
+clusterName: minikube
+
+admissionWebhooks:
+  create: false
+  pods:
+    create: true
