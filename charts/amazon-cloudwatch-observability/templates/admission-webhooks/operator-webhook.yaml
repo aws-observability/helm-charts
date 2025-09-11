@@ -32,10 +32,7 @@ webhooks:
     caBundle: {{ $ca.Cert | b64enc }}
   failurePolicy: {{ .Values.admissionWebhooks.instrumentations.failurePolicy | default .Values.admissionWebhooks.failurePolicy }}
   name: minstrumentation.kb.io
-  {{- with (default .Values.admissionWebhooks.namespaceSelector .Values.admissionWebhooks.instrumentations.namespaceSelector) }}
-  namespaceSelector:
-    {{- toYaml . | nindent 4 }}
-  {{- end }}
+  namespaceSelector: {{ include "amazon-cloudwatch-observability.namespaceSelector" (list . "instrumentations") }}
   {{- if .Values.admissionWebhooks.objectSelector }}
   objectSelector:
   {{- toYaml .Values.admissionWebhooks.objectSelector | nindent 6 }}
@@ -64,10 +61,7 @@ webhooks:
     caBundle: {{ $ca.Cert | b64enc }}
   failurePolicy: {{ .Values.admissionWebhooks.agents.failurePolicy | default .Values.admissionWebhooks.failurePolicy }}
   name: mamazoncloudwatchagent.kb.io
-  {{- with (default .Values.admissionWebhooks.namespaceSelector .Values.admissionWebhooks.agents.namespaceSelector) }}
-  namespaceSelector:
-    {{- toYaml . | nindent 4 }}
-  {{- end }}
+  namespaceSelector: {{ include "amazon-cloudwatch-observability.namespaceSelector" (list . "agents") }}
   {{- if .Values.admissionWebhooks.objectSelector }}
   objectSelector:
   {{- toYaml .Values.admissionWebhooks.objectSelector | nindent 6 }}
@@ -96,10 +90,7 @@ webhooks:
     caBundle: {{ $ca.Cert | b64enc }}
   failurePolicy: {{ .Values.admissionWebhooks.pods.failurePolicy | default .Values.admissionWebhooks.failurePolicy }}
   name: mpod.kb.io
-  {{- with (default .Values.admissionWebhooks.namespaceSelector .Values.admissionWebhooks.pods.namespaceSelector) }}
-  namespaceSelector:
-    {{- toYaml . | nindent 4 }}
-  {{- end }}
+  namespaceSelector: {{ include "amazon-cloudwatch-observability.namespaceSelector" (list . "pods") }}
   {{- if .Values.admissionWebhooks.objectSelector }}
   objectSelector:
   {{- toYaml .Values.admissionWebhooks.objectSelector | nindent 6 }}
@@ -128,10 +119,7 @@ webhooks:
     caBundle: {{ $ca.Cert | b64enc }}
   failurePolicy: {{ .Values.admissionWebhooks.namespaces.failurePolicy | default .Values.admissionWebhooks.pods.failurePolicy | default .Values.admissionWebhooks.failurePolicy }}
   name: mnamespace.kb.io
-  {{- with (default .Values.admissionWebhooks.namespaceSelector .Values.admissionWebhooks.namespaces.namespaceSelector) }}
-  namespaceSelector:
-    {{- toYaml . | nindent 4 }}
-  {{- end }}
+  namespaceSelector: {{ include "amazon-cloudwatch-observability.namespaceSelector" (list . "namespaces") }}
   {{- if .Values.admissionWebhooks.objectSelector }}
   objectSelector:
   {{- toYaml .Values.admissionWebhooks.objectSelector | nindent 6 }}
@@ -160,10 +148,7 @@ webhooks:
     caBundle: {{ $ca.Cert | b64enc }}
   failurePolicy: {{ .Values.admissionWebhooks.workloads.failurePolicy | default .Values.admissionWebhooks.pods.failurePolicy | default .Values.admissionWebhooks.failurePolicy }}
   name: mworkload.kb.io
-  {{- with (default .Values.admissionWebhooks.namespaceSelector .Values.admissionWebhooks.workloads.namespaceSelector) }}
-  namespaceSelector:
-    {{- toYaml . | nindent 4 }}
-  {{- end }}
+  namespaceSelector: {{ include "amazon-cloudwatch-observability.namespaceSelector" (list . "workloads") }}
   {{- if .Values.admissionWebhooks.objectSelector }}
   objectSelector:
   {{- toYaml .Values.admissionWebhooks.objectSelector | nindent 6 }}
@@ -202,10 +187,7 @@ webhooks:
     caBundle: {{ $ca.Cert | b64enc }}
   failurePolicy: {{ .Values.admissionWebhooks.instrumentations.failurePolicy | default .Values.admissionWebhooks.failurePolicy }}
   name: vinstrumentationcreateupdate.kb.io
-  {{- with (default .Values.admissionWebhooks.namespaceSelector .Values.admissionWebhooks.instrumentations.namespaceSelector) }}
-  namespaceSelector:
-    {{- toYaml . | nindent 4 }}
-  {{- end }}
+  namespaceSelector: {{ include "amazon-cloudwatch-observability.namespaceSelector" (list . "instrumentations") }}
   {{- if .Values.admissionWebhooks.objectSelector }}
   objectSelector:
   {{- toYaml .Values.admissionWebhooks.objectSelector | nindent 6 }}
@@ -234,10 +216,7 @@ webhooks:
     caBundle: {{ $ca.Cert | b64enc }}
   failurePolicy: Ignore
   name: vinstrumentationdelete.kb.io
-  {{- with (default .Values.admissionWebhooks.namespaceSelector .Values.admissionWebhooks.instrumentations.namespaceSelector) }}
-  namespaceSelector:
-    {{- toYaml . | nindent 4 }}
-  {{- end }}
+  namespaceSelector: {{ include "amazon-cloudwatch-observability.namespaceSelector" (list . "instrumentations") }}
   {{- if .Values.admissionWebhooks.objectSelector }}
   objectSelector:
   {{- toYaml .Values.admissionWebhooks.objectSelector | nindent 6 }}
@@ -265,10 +244,7 @@ webhooks:
     caBundle: {{ $ca.Cert | b64enc }}
   failurePolicy: {{ .Values.admissionWebhooks.agents.failurePolicy | default .Values.admissionWebhooks.failurePolicy }}
   name: vamazoncloudwatchagentcreateupdate.kb.io
-  {{- with (default .Values.admissionWebhooks.namespaceSelector .Values.admissionWebhooks.agents.namespaceSelector) }}
-  namespaceSelector:
-    {{- toYaml . | nindent 4 }}
-  {{- end }}
+  namespaceSelector: {{ include "amazon-cloudwatch-observability.namespaceSelector" (list . "agents") }}
   {{- if .Values.admissionWebhooks.objectSelector }}
   objectSelector:
   {{- toYaml .Values.admissionWebhooks.objectSelector | nindent 6 }}
@@ -297,10 +273,7 @@ webhooks:
     caBundle: {{ $ca.Cert | b64enc }}
   failurePolicy: Ignore
   name: vamazoncloudwatchagentdelete.kb.io
-  {{- with (default .Values.admissionWebhooks.namespaceSelector .Values.admissionWebhooks.agents.namespaceSelector) }}
-  namespaceSelector:
-    {{- toYaml . | nindent 4 }}
-  {{- end }}
+  namespaceSelector: {{ include "amazon-cloudwatch-observability.namespaceSelector" (list . "agents") }}
   {{- if .Values.admissionWebhooks.objectSelector }}
   objectSelector:
   {{- toYaml .Values.admissionWebhooks.objectSelector | nindent 6 }}
