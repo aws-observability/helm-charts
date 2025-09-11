@@ -20,6 +20,28 @@ tolerations:
 {{- end }}
 
 {{/*
+Helper function to modify auto-monitor config based on agent configurations
+*/}}
+{{- define "manager.modify-auto-monitor-config" -}}
+{{- $autoMonitorConfig := deepCopy .Values.manager.applicationSignals.autoMonitor -}}
+{{- $hasAppSignals := false -}}
+{{- range .Values.agents -}}
+{{- $agent := merge . (deepCopy $.Values.agent) -}}
+{{- $agentConfig := $agent.config | default $agent.defaultConfig -}}
+{{- if and (hasKey $agentConfig "logs") (hasKey $agentConfig.logs "metrics_collected") (hasKey $agentConfig.logs.metrics_collected "application_signals") -}}
+{{- $hasAppSignals = true -}}
+{{- end -}}
+{{- if and (hasKey $agentConfig "traces") (hasKey $agentConfig.traces "traces_collected") (hasKey $agentConfig.traces.traces_collected "application_signals") -}}
+{{- $hasAppSignals = true -}}
+{{- end -}}
+{{- end -}}
+{{- if not $hasAppSignals -}}
+{{- $_ := set $autoMonitorConfig "monitorAllServices" false -}}
+{{- end -}}
+{{- $autoMonitorConfig | toJson -}}
+{{- end -}}
+
+{{/*
 Helper function to modify cloudwatch-agent config
 */}}
 {{- define "cloudwatch-agent.config-modifier" -}}
