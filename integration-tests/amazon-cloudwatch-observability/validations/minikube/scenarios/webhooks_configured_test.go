@@ -35,13 +35,22 @@ func TestWebhooksConfigured(t *testing.T) {
 			switch path := *wh.ClientConfig.Service.Path; path {
 			case minikube.WebhookPathMutateAmazonCloudWatchAgent:
 				assert.Equal(t, admission.Ignore, *wh.FailurePolicy)
+				// Override namespaceSelector with null
 				assert.Empty(t, wh.NamespaceSelector.MatchExpressions)
-			case minikube.WebhookPathMutatePod, minikube.WebhookPathMutateWorkload, minikube.WebhookPathMutateNamespace:
+			case minikube.WebhookPathMutatePod, minikube.WebhookPathMutateWorkload:
 				assert.Equal(t, admission.Fail, *wh.FailurePolicy)
 				assert.Len(t, wh.NamespaceSelector.MatchExpressions, 1)
+				// Uses parent namespaceSelector
 				assert.Equal(t, "kubernetes.io/metadata.name", wh.NamespaceSelector.MatchExpressions[0].Key)
 				assert.Equal(t, meta.LabelSelectorOpNotIn, wh.NamespaceSelector.MatchExpressions[0].Operator)
 				assert.ElementsMatch(t, []string{"kube-system", "amazon-cloudwatch"}, wh.NamespaceSelector.MatchExpressions[0].Values)
+			case minikube.WebhookPathMutateNamespace:
+				assert.Equal(t, admission.Fail, *wh.FailurePolicy)
+				assert.Len(t, wh.NamespaceSelector.MatchExpressions, 1)
+				// Overrides namespaceSelector
+				assert.Equal(t, "kubernetes.io/metadata.name", wh.NamespaceSelector.MatchExpressions[0].Key)
+				assert.Equal(t, meta.LabelSelectorOpNotIn, wh.NamespaceSelector.MatchExpressions[0].Operator)
+				assert.ElementsMatch(t, []string{"kube-system", "amazon-cloudwatch", "test-value"}, wh.NamespaceSelector.MatchExpressions[0].Values)
 			default:
 				assert.Fail(t, "unexpected webhook found: %s", path)
 			}

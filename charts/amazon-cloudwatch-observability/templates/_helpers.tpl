@@ -377,11 +377,20 @@ Get namespaceSelector value for admission webhooks
 {{- $ctx := index . 0 -}}
 {{- $component := index . 1 -}}
 {{- $componentConfig := index $ctx.Values.admissionWebhooks $component -}}
-{{- $selector := default $ctx.Values.admissionWebhooks.namespaceSelector $componentConfig.namespaceSelector -}}
+{{- if hasKey $componentConfig "namespaceSelector" -}}
+{{- $selector := $componentConfig.namespaceSelector -}}
 {{- if $selector -}}
 {{- toYaml $selector | nindent 4 -}}
 {{- else -}}
 {}
+{{- end -}}
+{{- else -}}
+{{- $selector := $ctx.Values.admissionWebhooks.namespaceSelector -}}
+{{- if $selector -}}
+{{- toYaml $selector | nindent 4 -}}
+{{- else -}}
+{}
+{{- end -}}
 {{- end -}}
 {{- end -}}
 
