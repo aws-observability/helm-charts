@@ -8,13 +8,13 @@ variable "region" {
 
 variable "k8s_version" {
   type    = string
-  default = "1.30"
+  default = "1.33"
 }
 
 # eks addon and helm tests are similar
 variable "test_dir" {
   type    = string
-  default = "../../validator"
+  default = "../../validations/eks"
 }
 
 variable "helm_dir" {
