@@ -33,7 +33,7 @@ func TestWebhooksPartiallyEnabled(t *testing.T) {
 			// Only the pod webhook is configured
 			switch path := *wh.ClientConfig.Service.Path; path {
 			case minikube.WebhookPathMutatePod:
-				assert.Equal(t, v1.Ignore, wh.FailurePolicy)
+				assert.Equal(t, v1.Ignore, *wh.FailurePolicy)
 			default:
 				assert.Fail(t, "unexpected webhook found: %s", path)
 			}
