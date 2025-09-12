@@ -11,7 +11,7 @@ admissionWebhooks:
           - kube-system
           - amazon-cloudwatch
   agents:
-    namespaceSelector:
+    namespaceSelector: {}
   instrumentations:
     create: false
   pods:
