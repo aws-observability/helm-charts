@@ -377,7 +377,7 @@ Get namespaceSelector value for admission webhooks
 {{- $ctx := index . 0 -}}
 {{- $component := index . 1 -}}
 {{- $componentConfig := index $ctx.Values.admissionWebhooks $component -}}
-{{- if hasKey $componentConfig "namespaceSelector" -}}
+{{- if and (hasKey $componentConfig "namespaceSelector") (ne $componentConfig.namespaceSelector nil) -}}
 {{- $selector := $componentConfig.namespaceSelector -}}
 {{- if $selector -}}
 {{- toYaml $selector | nindent 4 -}}
