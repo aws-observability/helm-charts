@@ -39,7 +39,8 @@ jobs:
     timeout-minutes: 30
     strategy:
       matrix:
-        scenario: [default, appsignals-disabled, appsignals-disabled-multi-agents, appsignals-enabled-multi-agents]
+        # TODO: add webhooks-disabled
+        scenario: [default, appsignals-disabled, appsignals-disabled-multi-agents, appsignals-enabled-multi-agents, webhooks-partially-enabled, webhooks-configured]
     steps:
       - uses: actions/checkout@v3
 

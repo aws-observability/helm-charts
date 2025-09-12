@@ -1,0 +1,30 @@
+region: us-west-2
+clusterName: minikube
+
+admissionWebhooks:
+  failurePolicy: Ignore
+  namespaceSelector:
+    matchExpressions:
+      - key: kubernetes.io/metadata.name
+        operator: NotIn
+        values:
+          - kube-system
+          - amazon-cloudwatch
+  agents:
+    namespaceSelector: {}
+  instrumentations:
+    create: false
+  pods:
+    failurePolicy: Fail
+  workloads:
+    failurePolicy: Fail
+  namespaces:
+    failurePolicy: Fail
+    namespaceSelector:
+      matchExpressions:
+        - key: kubernetes.io/metadata.name
+          operator: NotIn
+          values:
+            - kube-system
+            - amazon-cloudwatch
+            - test-value
