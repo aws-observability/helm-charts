@@ -21,9 +21,10 @@ admissionWebhooks:
   namespaces:
     failurePolicy: Fail
     namespaceSelector:
-      - key: kubernetes.io/metadata.name
-        operator: NotIn
-        values:
-          - kube-system
-          - amazon-cloudwatch
-          - test-value
+      matchExpressions:
+        - key: kubernetes.io/metadata.name
+          operator: NotIn
+          values:
+            - kube-system
+            - amazon-cloudwatch
+            - test-value
