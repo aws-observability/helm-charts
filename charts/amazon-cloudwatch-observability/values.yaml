@@ -1209,7 +1209,7 @@ admissionWebhooks:
   ## failurePolicy:
   ## - Ignore, the injection is fail-open. The pod will be created, but the sidecar won't be injected.
   ## - Fail, the injection is fail-close. If the webhook pod is not ready, pods cannot be created.
-  ## namespaceSelector: Selector rule for particular namespaces
+  ## namespaceSelector: Selector rule for particular namespaces. To override from parent to be empty, set to `{}`.
   agents:
     # create: true
     failurePolicy:
