@@ -1197,6 +1197,8 @@ manager:
   affinity: {}
   nodeSelector:
     kubernetes.io/os: linux
+  # Enable automatic rolling by forcing a deployment spec change
+  rolling: false
 ## Admission webhooks make sure only requests with correctly formatted rules will get into the Operator.
 admissionWebhooks:
   create: true
