@@ -1247,6 +1247,7 @@ admissionWebhooks:
   autoGenerateCert:
     enabled: true
     expiryDays: 3650 # 10 years
+    recreate: true
   ## TLS Certificate Option 2: Use certManager to generate self-signed certificate.
   ## certManager must be enabled. If enabled, it takes precedence over option 1.
   certManager:
