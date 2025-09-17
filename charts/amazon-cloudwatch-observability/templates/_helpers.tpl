@@ -342,3 +342,33 @@ Define the default service name
 {{- define "amazon-cloudwatch-observability.webhookServiceName" -}}
 {{- default (printf "%s-webhook-service" (include "amazon-cloudwatch-observability.name" .)) .Values.manager.service.name }}
 {{- end -}}
+
+{{/*
+Returns auto-generated certificate and CA for admission webhooks.
+*/}}
+{{- define "amazon-cloudwatch-observability.webhookCert -}}
+{{- $tlsCrt := "" }}
+{{- $tlsKey := "" }}
+{{- $caCrt := "" }}
+{{- if .Values.admissionWebhooks.autoGenerateCert.enabled }}
+{{- $existingCert := ( lookup "v1" "Secrets" .Release.Namespace (template "amazon-cloudwatch-observability.certificateSecretName" .) ) }}
+{{- if and (not .Values.admissionWebhooks.autoGenerateCert.recreate) $existingCert }}
+{{- $tlsCrt = index $existingCert "data" "tls.crt" }}
+{{- $tlsKey = index $existingCert "data" "tls.key" }}
+{{- $caCrt = index $existingCert "data" "ca.crt" }}
+{{- if not $caCrt }}
+{{- $existingWebhook := ( lookup "admissionregistration.k8s.io/v1" "MutatingWebhookConfiguration" "" (printf "%s-mutating-webhook-configuration" (include "amazon-cloudwatch-observability.name" .)) ) }}
+{{- $caCrt = (first $existingWebhook.webhooks).clientConfig.caBundle }}
+{{- end }}
+{{- else }}
+{{- $altNames := list ( printf "%s-webhook-service.%s" (include "amazon-cloudwatch-observability.name" .) .Release.Namespace ) ( printf "%s-webhook-service.%s.svc" (include "amazon-cloudwatch-observability.name" .) .Release.Namespace ) ( printf "%s-webhook-service.%s.svc.cluster.local" (include "amazon-cloudwatch-observability.name" .) .Release.Namespace ) -}}
+{{- $ca := genCA ( printf "%s-ca" (include "amazon-cloudwatch-observability.name" .) ) ( .Values.admissionWebhooks.autoGenerateCert.expiryDays | int ) -}}
+{{- $cert := genSignedCert (include "amazon-cloudwatch-observability.name" .) nil $altNames ( .Values.admissionWebhooks.autoGenerateCert.expiryDays | int ) $ca -}}
+{{- $tlsCrt = b64enc $cert.Cert }}
+{{- $tlsKey = b64enc $cert.Key }}
+{{- $caCrt = b64enc $ca.Cert }}
+{{- end }}
+{{- $result := dict "Cert" $tlsCrt "Key" $tlsKey "Ca" $caCrt }}
+{{- $result | toYaml }}
+{{- end }}
+{{- end }}

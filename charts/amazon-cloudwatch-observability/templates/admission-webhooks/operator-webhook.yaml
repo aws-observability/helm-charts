@@ -1,7 +1,5 @@
 {{- if and (.Values.admissionWebhooks.create) (.Values.admissionWebhooks.autoGenerateCert.enabled) (not .Values.admissionWebhooks.certManager.enabled) }}
-{{- $altNames := list ( printf "%s-webhook-service.%s" (include "amazon-cloudwatch-observability.name" .) .Release.Namespace ) ( printf "%s-webhook-service.%s.svc" (include "amazon-cloudwatch-observability.name" .) .Release.Namespace ) ( printf "%s-webhook-service.%s.svc.cluster.local" (include "amazon-cloudwatch-observability.name" .) .Release.Namespace ) -}}
-{{- $ca := genCA ( printf "%s-ca" (include "amazon-cloudwatch-observability.name" .) ) ( .Values.admissionWebhooks.autoGenerateCert.expiryDays | int ) -}}
-{{- $cert := genSignedCert (include "amazon-cloudwatch-observability.name" .) nil $altNames ( .Values.admissionWebhooks.autoGenerateCert.expiryDays | int ) $ca -}}
+{{- $cert := fromYaml (include "amazon-cloudwatch-observability.webhookCert") }}
 apiVersion: v1
 kind: Secret
 type: kubernetes.io/tls
@@ -11,8 +9,8 @@ metadata:
   name: {{ template "amazon-cloudwatch-observability.certificateSecretName" . }}
   namespace: {{ .Release.Namespace }}
 data:
-  tls.crt: {{ $cert.Cert | b64enc }}
-  tls.key: {{ $cert.Key | b64enc }}
+  tls.crt: {{ $cert.Cert }}
+  tls.key: {{ $cert.Key }}
 ---
 apiVersion: admissionregistration.k8s.io/v1
 kind: MutatingWebhookConfiguration
@@ -28,7 +26,7 @@ webhooks:
       name: {{ template "amazon-cloudwatch-observability.webhookServiceName" . }}
       namespace: {{ .Release.Namespace }}
       path: /mutate-cloudwatch-aws-amazon-com-v1alpha1-instrumentation
-    caBundle: {{ $ca.Cert | b64enc }}
+    caBundle: {{ $cert.Ca }}
   failurePolicy: {{ .Values.admissionWebhooks.failurePolicy }}
   name: minstrumentation.kb.io
   {{- if .Values.admissionWebhooks.namespaceSelector }}
@@ -58,7 +56,7 @@ webhooks:
       name: {{ template "amazon-cloudwatch-observability.webhookServiceName" . }}
       namespace: {{ .Release.Namespace }}
       path: /mutate-cloudwatch-aws-amazon-com-v1alpha1-amazoncloudwatchagent
-    caBundle: {{ $ca.Cert | b64enc }}
+    caBundle: {{ $cert.Ca }}
   failurePolicy: {{ .Values.admissionWebhooks.failurePolicy }}
   name: mamazoncloudwatchagent.kb.io
   {{- if .Values.admissionWebhooks.namespaceSelector }}
@@ -88,7 +86,7 @@ webhooks:
       name: {{ template "amazon-cloudwatch-observability.webhookServiceName" . }}
       namespace: {{ .Release.Namespace }}
       path: /mutate-v1-pod
-    caBundle: {{ $ca.Cert | b64enc }}
+    caBundle: {{ $cert.Ca }}
   failurePolicy: {{ .Values.admissionWebhooks.pods.failurePolicy }}
   name: mpod.kb.io
   {{- if .Values.admissionWebhooks.namespaceSelector }}
@@ -118,7 +116,7 @@ webhooks:
       name: {{ template "amazon-cloudwatch-observability.webhookServiceName" . }}
       namespace: {{ .Release.Namespace }}
       path: /mutate-v1-namespace
-    caBundle: {{ $ca.Cert | b64enc }}
+    caBundle: {{ $cert.Ca }}
   failurePolicy: {{ .Values.admissionWebhooks.pods.failurePolicy }}
   name: mnamespace.kb.io
   {{- if .Values.admissionWebhooks.namespaceSelector }}
@@ -148,7 +146,7 @@ webhooks:
       name: {{ template "amazon-cloudwatch-observability.webhookServiceName" . }}
       namespace: {{ .Release.Namespace }}
       path: /mutate-v1-workload
-    caBundle: {{ $ca.Cert | b64enc }}
+    caBundle: {{ $cert.Ca }}
   failurePolicy: {{ .Values.admissionWebhooks.pods.failurePolicy }}
   name: mworkload.kb.io
   {{- if .Values.admissionWebhooks.namespaceSelector }}
@@ -188,7 +186,7 @@ webhooks:
       name: {{ template "amazon-cloudwatch-observability.webhookServiceName" . }}
       namespace: {{ .Release.Namespace }}
       path: /validate-cloudwatch-aws-amazon-com-v1alpha1-instrumentation
-    caBundle: {{ $ca.Cert | b64enc }}
+    caBundle: {{ $cert.Ca }}
   failurePolicy: {{ .Values.admissionWebhooks.failurePolicy }}
   name: vinstrumentationcreateupdate.kb.io
   {{- if .Values.admissionWebhooks.namespaceSelector }}
@@ -218,7 +216,7 @@ webhooks:
       name: {{ template "amazon-cloudwatch-observability.webhookServiceName" . }}
       namespace: {{ .Release.Namespace }}
       path: /validate-cloudwatch-aws-amazon-com-v1alpha1-instrumentation
-    caBundle: {{ $ca.Cert | b64enc }}
+    caBundle: {{ $cert.Ca }}
   failurePolicy: Ignore
   name: vinstrumentationdelete.kb.io
   {{- if .Values.admissionWebhooks.namespaceSelector }}
@@ -247,7 +245,7 @@ webhooks:
       name: {{ template "amazon-cloudwatch-observability.webhookServiceName" . }}
       namespace: {{ .Release.Namespace }}
       path: /validate-cloudwatch-aws-amazon-com-v1alpha1-amazoncloudwatchagent
-    caBundle: {{ $ca.Cert | b64enc }}
+    caBundle: {{ $cert.Ca }}
   failurePolicy: {{ .Values.admissionWebhooks.failurePolicy }}
   name: vamazoncloudwatchagentcreateupdate.kb.io
   {{- if .Values.admissionWebhooks.namespaceSelector }}
@@ -277,7 +275,7 @@ webhooks:
       name: {{ template "amazon-cloudwatch-observability.webhookServiceName" . }}
       namespace: {{ .Release.Namespace }}
       path: /validate-cloudwatch-aws-amazon-com-v1alpha1-amazoncloudwatchagent
-    caBundle: {{ $ca.Cert | b64enc }}
+    caBundle: {{ $cert.Ca }}
   failurePolicy: Ignore
   name: vamazoncloudwatchagentdelete.kb.io
   {{- if .Values.admissionWebhooks.namespaceSelector }}
