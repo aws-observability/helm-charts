@@ -375,10 +375,10 @@ Get namespaceSelector value for admission webhooks
 */}}
 {{- define "amazon-cloudwatch-observability.namespaceSelector" -}}
 {{- $ctx := index . 0 -}}
-{{- $component := index . 1 -}}
-{{- $componentConfig := index $ctx.Values.admissionWebhooks $component -}}
-{{- if and (hasKey $componentConfig "namespaceSelector") (ne $componentConfig.namespaceSelector nil) -}}
-{{- $selector := $componentConfig.namespaceSelector -}}
+{{- $webhook := index . 1 -}}
+{{- $webhookConfig := index $ctx.Values.admissionWebhooks $webhook -}}
+{{- if and (hasKey $webhookConfig "namespaceSelector") (ne $webhookConfig.namespaceSelector nil) -}}
+{{- $selector := $webhookConfig.namespaceSelector -}}
 {{- if $selector -}}
 {{- toYaml $selector | nindent 4 -}}
 {{- else -}}
