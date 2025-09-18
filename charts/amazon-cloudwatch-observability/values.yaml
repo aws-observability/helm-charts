@@ -1202,11 +1202,35 @@ admissionWebhooks:
   create: true
   failurePolicy: Ignore
   secretName: ""
-  ## Defines the sidecar injection logic in Pods.
+  ## Defines the sidecar injection logic for each sub-resource.
+  ## create:
+  ## - true/false, whether or not the webhook will be created. Can be used as an override if specified,
+  ##   otherwise will default to the parent create flag.
+  ## failurePolicy:
   ## - Ignore, the injection is fail-open. The pod will be created, but the sidecar won't be injected.
   ## - Fail, the injection is fail-close. If the webhook pod is not ready, pods cannot be created.
+  ## namespaceSelector: Selector rule for particular namespaces. To override from parent to be empty, set to `{}`.
+  agents:
+    # create: true
+    failurePolicy:
+    namespaceSelector:
+  instrumentations:
+    # create: true
+    failurePolicy:
+    namespaceSelector:
   pods:
+    # create: true
     failurePolicy: Ignore
+    namespaceSelector:
+  ## Workloads applies Deployments, DaemonSets, and StatefulSets.
+  workloads:
+    # create: true
+    failurePolicy:
+    namespaceSelector:
+  namespaces:
+    # create: true
+    failurePolicy:
+    namespaceSelector:
   ## Adds a prefix to the mutating webhook name.
   ## This can be used to order this mutating webhook with all your cluster's mutating webhooks.
   namePrefix: ""
