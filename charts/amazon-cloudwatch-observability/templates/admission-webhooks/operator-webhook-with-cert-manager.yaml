@@ -1,4 +1,4 @@
-{{- if and (.Values.admissionWebhooks.create) (.Values.admissionWebhooks.certManager.enabled) }}
+{{- if and (.Values.admissionWebhooks.certManager.enabled) (include "amazon-cloudwatch-observability.webhookEnabled" .) }}
 apiVersion: admissionregistration.k8s.io/v1
 kind: MutatingWebhookConfiguration
 metadata:
@@ -8,6 +8,7 @@ metadata:
     {{- include "amazon-cloudwatch-observability.labels" . | nindent 4}}
   name: {{ template "amazon-cloudwatch-observability.name" . }}-mutating-webhook-configuration
 webhooks:
+{{- if include "amazon-cloudwatch-observability.isWebhookEnabled" (list . "instrumentations") }}
 - admissionReviewVersions:
   - v1
   clientConfig:
@@ -15,16 +16,13 @@ webhooks:
       name: {{ template "amazon-cloudwatch-observability.webhookServiceName" . }}
       namespace: {{ .Release.Namespace }}
       path: /mutate-cloudwatch-aws-amazon-com-v1alpha1-instrumentation
-  failurePolicy: {{ .Values.admissionWebhooks.failurePolicy }}
+  failurePolicy: {{ .Values.admissionWebhooks.instrumentations.failurePolicy | default .Values.admissionWebhooks.failurePolicy }}
   name: minstrumentation.kb.io
-    {{- if .Values.admissionWebhooks.namespaceSelector }}
-  namespaceSelector:
-    {{- toYaml .Values.admissionWebhooks.namespaceSelector | nindent 6 }}
-    {{- end }}
-    {{- if .Values.admissionWebhooks.objectSelector }}
+  namespaceSelector: {{ include "amazon-cloudwatch-observability.namespaceSelector" (list . "instrumentations") }}
+  {{- if .Values.admissionWebhooks.objectSelector }}
   objectSelector:
-    {{- toYaml .Values.admissionWebhooks.objectSelector | nindent 6 }}
-    {{- end }}
+  {{- toYaml .Values.admissionWebhooks.objectSelector | nindent 6 }}
+  {{- end }}
   rules:
   - apiGroups:
     - cloudwatch.aws.amazon.com
@@ -37,6 +35,8 @@ webhooks:
     - instrumentations
   sideEffects: None
   timeoutSeconds: {{ .Values.admissionWebhooks.timeoutSeconds }}
+{{- end }}
+{{- if include "amazon-cloudwatch-observability.isWebhookEnabled" (list . "agents") }}
 - admissionReviewVersions:
   - v1
   clientConfig:
@@ -44,16 +44,13 @@ webhooks:
       name: {{ template "amazon-cloudwatch-observability.webhookServiceName" . }}
       namespace: {{ .Release.Namespace }}
       path: /mutate-cloudwatch-aws-amazon-com-v1alpha1-amazoncloudwatchagent
-  failurePolicy: {{ .Values.admissionWebhooks.failurePolicy }}
+  failurePolicy: {{ .Values.admissionWebhooks.agents.failurePolicy | default .Values.admissionWebhooks.failurePolicy }}
   name: mamazoncloudwatchagent.kb.io
-    {{- if .Values.admissionWebhooks.namespaceSelector }}
-  namespaceSelector:
-    {{- toYaml .Values.admissionWebhooks.namespaceSelector | nindent 6 }}
-    {{- end }}
-    {{- if .Values.admissionWebhooks.objectSelector }}
+  namespaceSelector: {{ include "amazon-cloudwatch-observability.namespaceSelector" (list . "agents") }}
+  {{- if .Values.admissionWebhooks.objectSelector }}
   objectSelector:
-    {{- toYaml .Values.admissionWebhooks.objectSelector | nindent 6 }}
-    {{- end }}
+  {{- toYaml .Values.admissionWebhooks.objectSelector | nindent 6 }}
+  {{- end }}
   rules:
   - apiGroups:
     - cloudwatch.aws.amazon.com
@@ -66,6 +63,8 @@ webhooks:
     - amazoncloudwatchagents
   sideEffects: None
   timeoutSeconds: {{ .Values.admissionWebhooks.timeoutSeconds }}
+{{- end }}
+{{- if include "amazon-cloudwatch-observability.isWebhookEnabled" (list . "pods") }}
 - admissionReviewVersions:
   - v1
   clientConfig:
@@ -73,16 +72,13 @@ webhooks:
       name: {{ template "amazon-cloudwatch-observability.webhookServiceName" . }}
       namespace: {{ .Release.Namespace }}
       path: /mutate-v1-pod
-  failurePolicy: {{ .Values.admissionWebhooks.pods.failurePolicy }}
+  failurePolicy: {{ .Values.admissionWebhooks.pods.failurePolicy | default .Values.admissionWebhooks.failurePolicy }}
   name: mpod.kb.io
-    {{- if .Values.admissionWebhooks.namespaceSelector }}
-  namespaceSelector:
-    {{- toYaml .Values.admissionWebhooks.namespaceSelector | nindent 6 }}
-    {{- end }}
-    {{- if .Values.admissionWebhooks.objectSelector }}
+  namespaceSelector: {{ include "amazon-cloudwatch-observability.namespaceSelector" (list . "pods") }}
+  {{- if .Values.admissionWebhooks.objectSelector }}
   objectSelector:
-    {{- toYaml .Values.admissionWebhooks.objectSelector | nindent 6 }}
-    {{- end }}
+  {{- toYaml .Values.admissionWebhooks.objectSelector | nindent 6 }}
+  {{- end }}
   rules:
   - apiGroups:
     - ""
@@ -95,6 +91,8 @@ webhooks:
     - pods
   sideEffects: None
   timeoutSeconds: {{ .Values.admissionWebhooks.timeoutSeconds }}
+{{- end }}
+{{- if include "amazon-cloudwatch-observability.isWebhookEnabled" (list . "namespaces") }}
 - admissionReviewVersions:
   - v1
   clientConfig:
@@ -102,16 +100,13 @@ webhooks:
       name: {{ template "amazon-cloudwatch-observability.webhookServiceName" . }}
       namespace: {{ .Release.Namespace }}
       path: /mutate-v1-namespace
-  failurePolicy: {{ .Values.admissionWebhooks.pods.failurePolicy }}
+  failurePolicy: {{ .Values.admissionWebhooks.namespaces.failurePolicy | default .Values.admissionWebhooks.pods.failurePolicy | default .Values.admissionWebhooks.failurePolicy }}
   name: mnamespace.kb.io
-    {{- if .Values.admissionWebhooks.namespaceSelector }}
-  namespaceSelector:
-    {{- toYaml .Values.admissionWebhooks.namespaceSelector | nindent 6 }}
-    {{- end }}
-    {{- if .Values.admissionWebhooks.objectSelector }}
+  namespaceSelector: {{ include "amazon-cloudwatch-observability.namespaceSelector" (list . "namespaces") }}
+  {{- if .Values.admissionWebhooks.objectSelector }}
   objectSelector:
-    {{- toYaml .Values.admissionWebhooks.objectSelector | nindent 6 }}
-    {{- end }}
+  {{- toYaml .Values.admissionWebhooks.objectSelector | nindent 6 }}
+  {{- end }}
   rules:
   - apiGroups:
     - ""
@@ -124,6 +119,8 @@ webhooks:
     - namespaces
   sideEffects: None
   timeoutSeconds: {{ .Values.admissionWebhooks.timeoutSeconds }}
+{{- end }}
+{{- if include "amazon-cloudwatch-observability.isWebhookEnabled" (list . "workloads") }}
 - admissionReviewVersions:
   - v1
   clientConfig:
@@ -131,16 +128,13 @@ webhooks:
       name: {{ template "amazon-cloudwatch-observability.webhookServiceName" . }}
       namespace: {{ .Release.Namespace }}
       path: /mutate-v1-workload
-  failurePolicy: {{ .Values.admissionWebhooks.pods.failurePolicy }}
+  failurePolicy: {{ .Values.admissionWebhooks.workloads.failurePolicy | default .Values.admissionWebhooks.pods.failurePolicy | default .Values.admissionWebhooks.failurePolicy }}
   name: mworkload.kb.io
-    {{- if .Values.admissionWebhooks.namespaceSelector }}
-  namespaceSelector:
-    {{- toYaml .Values.admissionWebhooks.namespaceSelector | nindent 6 }}
-    {{- end }}
-    {{- if .Values.admissionWebhooks.objectSelector }}
+  namespaceSelector: {{ include "amazon-cloudwatch-observability.namespaceSelector" (list . "workloads") }}
+  {{- if .Values.admissionWebhooks.objectSelector }}
   objectSelector:
-    {{- toYaml .Values.admissionWebhooks.objectSelector | nindent 6 }}
-    {{- end }}
+  {{- toYaml .Values.admissionWebhooks.objectSelector | nindent 6 }}
+  {{- end }}
   rules:
   - apiGroups:
     - apps
@@ -155,6 +149,7 @@ webhooks:
     - statefulsets
   sideEffects: None
   timeoutSeconds: {{ .Values.admissionWebhooks.timeoutSeconds }}
+{{- end }}
 ---
 apiVersion: admissionregistration.k8s.io/v1
 kind: ValidatingWebhookConfiguration
@@ -165,6 +160,7 @@ metadata:
     {{- include "amazon-cloudwatch-observability.labels" . | nindent 4}}
   name: {{ template "amazon-cloudwatch-observability.name" . }}-validating-webhook-configuration
 webhooks:
+{{- if include "amazon-cloudwatch-observability.isWebhookEnabled" (list . "instrumentations") }}
 - admissionReviewVersions:
   - v1
   clientConfig:
@@ -172,16 +168,13 @@ webhooks:
       name: {{ template "amazon-cloudwatch-observability.webhookServiceName" . }}
       namespace: {{ .Release.Namespace }}
       path: /validate-cloudwatch-aws-amazon-com-v1alpha1-instrumentation
-  failurePolicy: {{ .Values.admissionWebhooks.failurePolicy }}
+  failurePolicy: {{ .Values.admissionWebhooks.instrumentations.failurePolicy | default .Values.admissionWebhooks.failurePolicy }}
   name: vinstrumentationcreateupdate.kb.io
-    {{- if .Values.admissionWebhooks.namespaceSelector }}
-  namespaceSelector:
-    {{- toYaml .Values.admissionWebhooks.namespaceSelector | nindent 6 }}
-    {{- end }}
-    {{- if .Values.admissionWebhooks.objectSelector }}
+  namespaceSelector: {{ include "amazon-cloudwatch-observability.namespaceSelector" (list . "instrumentations") }}
+  {{- if .Values.admissionWebhooks.objectSelector }}
   objectSelector:
-    {{- toYaml .Values.admissionWebhooks.objectSelector | nindent 6 }}
-    {{- end }}
+  {{- toYaml .Values.admissionWebhooks.objectSelector | nindent 6 }}
+  {{- end }}
   rules:
   - apiGroups:
     - cloudwatch.aws.amazon.com
@@ -194,6 +187,8 @@ webhooks:
     - instrumentations
   sideEffects: None
   timeoutSeconds: {{ .Values.admissionWebhooks.timeoutSeconds }}
+{{- end }}
+{{- if include "amazon-cloudwatch-observability.isWebhookEnabled" (list . "instrumentations") }}
 - admissionReviewVersions:
   - v1
   clientConfig:
@@ -203,14 +198,11 @@ webhooks:
       path: /validate-cloudwatch-aws-amazon-com-v1alpha1-instrumentation
   failurePolicy: Ignore
   name: vinstrumentationdelete.kb.io
-    {{- if .Values.admissionWebhooks.namespaceSelector }}
-  namespaceSelector:
-    {{- toYaml .Values.admissionWebhooks.namespaceSelector | nindent 6 }}
-    {{- end }}
-    {{- if .Values.admissionWebhooks.objectSelector }}
+  namespaceSelector: {{ include "amazon-cloudwatch-observability.namespaceSelector" (list . "instrumentations") }}
+  {{- if .Values.admissionWebhooks.objectSelector }}
   objectSelector:
-    {{- toYaml .Values.admissionWebhooks.objectSelector | nindent 6 }}
-    {{- end }}
+  {{- toYaml .Values.admissionWebhooks.objectSelector | nindent 6 }}
+  {{- end }}
   rules:
   - apiGroups:
     - cloudwatch.aws.amazon.com
@@ -222,6 +214,8 @@ webhooks:
     - instrumentations
   sideEffects: None
   timeoutSeconds: {{ .Values.admissionWebhooks.timeoutSeconds }}
+{{- end }}
+{{- if include "amazon-cloudwatch-observability.isWebhookEnabled" (list . "agents") }}
 - admissionReviewVersions:
   - v1
   clientConfig:
@@ -229,16 +223,13 @@ webhooks:
       name: {{ template "amazon-cloudwatch-observability.webhookServiceName" . }}
       namespace: {{ .Release.Namespace }}
       path: /validate-cloudwatch-aws-amazon-com-v1alpha1-amazoncloudwatchagent
-  failurePolicy: {{ .Values.admissionWebhooks.failurePolicy }}
+  failurePolicy: {{ .Values.admissionWebhooks.agents.failurePolicy | default .Values.admissionWebhooks.failurePolicy }}
   name: vamazoncloudwatchagentcreateupdate.kb.io
-    {{- if .Values.admissionWebhooks.namespaceSelector }}
-  namespaceSelector:
-    {{- toYaml .Values.admissionWebhooks.namespaceSelector | nindent 6 }}
-    {{- end }}
-    {{- if .Values.admissionWebhooks.objectSelector }}
+  namespaceSelector: {{ include "amazon-cloudwatch-observability.namespaceSelector" (list . "agents") }}
+  {{- if .Values.admissionWebhooks.objectSelector }}
   objectSelector:
-    {{- toYaml .Values.admissionWebhooks.objectSelector | nindent 6 }}
-    {{- end }}
+  {{- toYaml .Values.admissionWebhooks.objectSelector | nindent 6 }}
+  {{- end }}
   rules:
   - apiGroups:
     - cloudwatch.aws.amazon.com
@@ -251,6 +242,8 @@ webhooks:
     - amazoncloudwatchagents
   sideEffects: None
   timeoutSeconds: {{ .Values.admissionWebhooks.timeoutSeconds }}
+{{- end }}
+{{- if include "amazon-cloudwatch-observability.isWebhookEnabled" (list . "agents") }}
 - admissionReviewVersions:
   - v1
   clientConfig:
@@ -260,14 +253,11 @@ webhooks:
       path: /validate-cloudwatch-aws-amazon-com-v1alpha1-amazoncloudwatchagent
   failurePolicy: Ignore
   name: vamazoncloudwatchagentdelete.kb.io
-    {{- if .Values.admissionWebhooks.namespaceSelector }}
-  namespaceSelector:
-    {{- toYaml .Values.admissionWebhooks.namespaceSelector | nindent 6 }}
-    {{- end }}
-    {{- if .Values.admissionWebhooks.objectSelector }}
+  namespaceSelector: {{ include "amazon-cloudwatch-observability.namespaceSelector" (list . "agents") }}
+  {{- if .Values.admissionWebhooks.objectSelector }}
   objectSelector:
-    {{- toYaml .Values.admissionWebhooks.objectSelector | nindent 6 }}
-    {{- end }}
+  {{- toYaml .Values.admissionWebhooks.objectSelector | nindent 6 }}
+  {{- end }}
   rules:
   - apiGroups:
     - cloudwatch.aws.amazon.com
@@ -279,4 +269,5 @@ webhooks:
     - amazoncloudwatchagents
   sideEffects: None
   timeoutSeconds: {{ .Values.admissionWebhooks.timeoutSeconds }}
+{{- end }}
 {{- end }}
