@@ -22,6 +22,7 @@ func TestCertificateRecreateEnabled_Save(t *testing.T) {
 	assert.NotNil(t, data)
 
 	err = os.WriteFile(certificateRecreateDisabledPath, data, 0644)
+	assert.NoError(t, err)
 }
 
 func TestCertificateRecreateEnabled_Compare(t *testing.T) {
