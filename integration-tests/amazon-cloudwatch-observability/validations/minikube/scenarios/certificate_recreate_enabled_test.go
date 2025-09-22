@@ -21,7 +21,7 @@ func TestCertificateRecreateEnabled_Save(t *testing.T) {
 	data := retrieveCABundle(t, *k8sClient)
 	assert.NotNil(t, data)
 
-	os.WriteFile(certificateRecreateEnabledPath, data, 0644)
+	err = os.WriteFile(certificateRecreateDisabledPath, data, 0644)
 }
 
 func TestCertificateRecreateEnabled_Compare(t *testing.T) {
