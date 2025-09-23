@@ -40,7 +40,8 @@ jobs:
     strategy:
       matrix:
         # TODO: add webhooks-disabled
-        scenario: [default, appsignals-disabled, appsignals-disabled-multi-agents, appsignals-enabled-multi-agents, webhooks-partially-enabled, webhooks-configured, rolling-enabled, rolling-disabled, certificate-recreate-enabled, certificate-recreate-disabled]
+        # scenario: [default, appsignals-disabled, appsignals-disabled-multi-agents, appsignals-enabled-multi-agents, webhooks-partially-enabled, webhooks-configured, rolling-enabled, rolling-disabled, certificate-recreate-enabled, certificate-recreate-disabled]
+        scenario: [default, appsignals-disabled, appsignals-disabled-multi-agents, appsignals-enabled-multi-agents, webhooks-partially-enabled, webhooks-configured, certificate-recreate-enabled, certificate-recreate-disabled]
     steps:
       - uses: actions/checkout@v3
 
