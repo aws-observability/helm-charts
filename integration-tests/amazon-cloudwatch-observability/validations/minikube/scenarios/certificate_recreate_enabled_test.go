@@ -21,7 +21,7 @@ func TestCertificateRecreateEnabled_Save(t *testing.T) {
 	data := retrieveCABundle(t, *k8sClient)
 	assert.NotNil(t, data)
 
-	err = os.WriteFile(certificateRecreateDisabledPath, data, 0644)
+	err = os.WriteFile(certificateRecreateEnabledPath, data, 0644)
 	assert.NoError(t, err)
 }
 
