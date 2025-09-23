@@ -17,9 +17,9 @@ resource "null_resource" "validator" {
 
   provisioner "local-exec" {
     command = <<-EOT
-      go test ${var.test_dir} -v -run=TestCertificateRecreateDisabled_Save"
+      go test ${var.test_dir} -v -run=TestCertificateRecreateDisabled_Save
       helm upgrade --wait --create-namespace --namespace amazon-cloudwatch amazon-cloudwatch-observability -f ${path.module}/values.yaml
-      go test ${var.test_dir} -v -run=TestCertificateRecreateDisabled_Compare"
+      go test ${var.test_dir} -v -run=TestCertificateRecreateDisabled_Compare
     EOT
   }
 }
