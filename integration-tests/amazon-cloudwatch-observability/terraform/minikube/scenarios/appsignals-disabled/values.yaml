@@ -1,0 +1,15 @@
+region: us-west-2
+clusterName: minikube
+
+agents:
+  - name: cloudwatch-agent
+    config:
+      {
+        "logs": {
+          "metrics_collected": {
+            "kubernetes": {
+              "enhanced_container_insights": true
+            }
+          }
+        }
+      }

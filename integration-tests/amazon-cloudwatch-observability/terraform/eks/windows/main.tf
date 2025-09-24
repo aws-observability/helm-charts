@@ -2,15 +2,11 @@
 // SPDX-License-Identifier: MIT
 
 module "common" {
-  source = "../common"
-}
-
-module "basic_components" {
-  source = "../basic_components"
+  source = "../../common"
 }
 
 locals {
-  aws_eks  = "aws eks --region ${var.region}"
+  aws_eks      = "aws eks --region ${var.region}"
   cluster_name = var.cluster_name != "" ? var.cluster_name : "cwagent-helm-chart-integ"
 }
 
@@ -30,11 +26,11 @@ output "account_id" {
 
 resource "aws_eks_cluster" "this" {
   name     = "${local.cluster_name}-${module.common.testing_id}"
-  role_arn = module.basic_components.role_arn
+  role_arn = module.common.role_arn
   version  = var.k8s_version
   vpc_config {
-    subnet_ids         = module.basic_components.public_subnet_ids
-    security_group_ids = [module.basic_components.security_group]
+    subnet_ids = module.common.public_subnet_ids
+    security_group_ids = [module.common.security_group]
   }
 }
 
@@ -94,7 +90,7 @@ resource "aws_eks_node_group" "this" {
   cluster_name    = aws_eks_cluster.this.name
   node_group_name = "${local.cluster_name}-node"
   node_role_arn   = aws_iam_role.node_role.arn
-  subnet_ids      = module.basic_components.public_subnet_ids
+  subnet_ids      = module.common.public_subnet_ids
 
   scaling_config {
     desired_size = 1
@@ -102,9 +98,9 @@ resource "aws_eks_node_group" "this" {
     min_size     = 1
   }
 
-  ami_type       = "AL2_x86_64"
-  capacity_type  = "ON_DEMAND"
-  disk_size      = 20
+  ami_type      = "AL2023_x86_64_STANDARD"
+  capacity_type = "ON_DEMAND"
+  disk_size     = 20
   instance_types = ["t3a.medium"]
 
   depends_on = [
@@ -120,7 +116,7 @@ resource "aws_eks_node_group" "node_group_windows" {
   cluster_name    = aws_eks_cluster.this.name
   node_group_name = "${local.cluster_name}-windows-node"
   node_role_arn   = aws_iam_role.node_role.arn
-  subnet_ids      = module.basic_components.public_subnet_ids
+  subnet_ids      = module.common.public_subnet_ids
 
   scaling_config {
     desired_size = 1
@@ -128,9 +124,9 @@ resource "aws_eks_node_group" "node_group_windows" {
     min_size     = 1
   }
 
-  ami_type       = var.windows_os_version
-  capacity_type  = "ON_DEMAND"
-  disk_size      = 50
+  ami_type      = var.windows_os_version
+  capacity_type = "ON_DEMAND"
+  disk_size     = 50
   instance_types = ["t3.large"]
 
   depends_on = [
@@ -200,18 +196,18 @@ resource "helm_release" "this" {
   depends_on = [
     null_resource.kubectl
   ]
-  name = "amazon-cloudwatch-observability"
-  namespace = "amazon-cloudwatch"
+  name             = "amazon-cloudwatch-observability"
+  namespace        = "amazon-cloudwatch"
   create_namespace = true
-  chart      = "${var.helm_dir}"
+  chart            = var.helm_dir
   set = [
     {
       name  = "region"
-      value = "${var.region}"
+      value = var.region
     },
     {
       name  = "clusterName"
-      value = "${aws_eks_cluster.this.name}"
+      value = aws_eks_cluster.this.name
     }
   ]
 }

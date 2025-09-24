@@ -63,6 +63,7 @@ spec:
     DCGM_FI_DEV_MEMORY_TEMP, gauge, Memory temperature (in C).
     DCGM_FI_DEV_GPU_TEMP,    gauge, GPU temperature (in C).
     DCGM_FI_DEV_POWER_USAGE,              gauge, Power draw (in W).
+    DCGM_FI_PROF_PIPE_TENSOR_ACTIVE, gauge, Tensor Core utilization (in %).
   tlsConfig: |
     tls_server_config:
       cert_file: /etc/amazon-cloudwatch-observability-dcgm-cert/server.crt

@@ -1,7 +1,7 @@
 # Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-name: Run Integration Test for Amazon CloudWatch Observability Helm Chart
+name: Integration Test for Amazon CloudWatch Observability
 on:
   push:
     branches:
@@ -24,11 +24,54 @@ env:
   AWS_DEFAULT_REGION: us-west-2
 
 jobs:
-  HelmChartsIntegrationTest:
-    name: HelmChartsIntegrationTest
+  Build:
+    name: Build
     runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Build
+        run: make all
+
+  Minikube-IntegrationTests:
+    name: Minikube
+    needs: [ Build ]
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
     strategy:
-      fail-fast: false
+      matrix:
+        # TODO: add webhooks-disabled
+        scenario: [default, appsignals-disabled, appsignals-disabled-multi-agents, appsignals-enabled-multi-agents, webhooks-partially-enabled, webhooks-configured]
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Start minikube
+        uses: medyagh/setup-minikube@master
+        with:
+          driver: docker
+
+      - name: Install Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.1.7"
+
+      - name: Run scenario test
+        run: |
+          cd integration-tests/amazon-cloudwatch-observability/terraform/minikube/scenarios/${{ matrix.scenario }}
+          terraform init
+          terraform apply -auto-approve
+          terraform destroy -auto-approve
+
+      - name: Cleanup on failure
+        if: ${{ cancelled() || failure() }}
+        run: |
+          cd integration-tests/amazon-cloudwatch-observability/terraform/minikube/scenarios/${{ matrix.scenario }}
+          terraform destroy -auto-approve || true
+
+  EKS-IntegrationTest:
+    name: EKS-IntegrationTest
+    needs: [ Minikube-IntegrationTests ]
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v3
         with:
@@ -65,7 +108,7 @@ jobs:
           timeout_minutes: 60 # EKS takes about 20 minutes to spin up a cluster and service on the cluster
           retry_wait_seconds: 5
           command: |
-            cd integration-tests/amazon-cloudwatch-observability/terraform/helm
+            cd integration-tests/amazon-cloudwatch-observability/terraform/eks
             terraform init
             if terraform apply -auto-approve \
                 -var="kube_dir=${{ github.workspace }}/../../../.kube"; then
@@ -82,14 +125,14 @@ jobs:
           timeout_minutes: 8
           retry_wait_seconds: 5
           command: |
-            cd integration-tests/amazon-cloudwatch-observability/terraform/helm
+            cd integration-tests/amazon-cloudwatch-observability/terraform/eks
             terraform destroy --auto-approve
 
-  HelmChartsIntegrationTestWindows-2022:
-    name: HelmChartsIntegrationTestWindows-2022
+  EKS-IntegrationTest-Win2022:
+    name: EKS-IntegrationTest-Win2022
+    needs: [ Minikube-IntegrationTests ]
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v3
         with:
@@ -126,7 +169,7 @@ jobs:
           timeout_minutes: 60 # EKS takes about 20 minutes to spin up a cluster and service on the cluster
           retry_wait_seconds: 5
           command: |
-            cd integration-tests/amazon-cloudwatch-observability/terraform/helm-windows
+            cd integration-tests/amazon-cloudwatch-observability/terraform/eks/windows
             terraform init
             if terraform apply -auto-approve \
                 -var="windows_os_version=WINDOWS_CORE_2022_x86_64" -var="kube_dir=${{ github.workspace }}/../../../.kube"; then
@@ -143,14 +186,14 @@ jobs:
           timeout_minutes: 8
           retry_wait_seconds: 5
           command: |
-            cd integration-tests/amazon-cloudwatch-observability/terraform/helm-windows
+            cd integration-tests/amazon-cloudwatch-observability/terraform/eks/windows
             terraform destroy --auto-approve
 
-  HelmChartsIntegrationTestWindows-2019:
-    name: HelmChartsIntegrationTestWindows-2019
+  EKS-IntegrationTest-Win2019:
+    name: EKS-IntegrationTest-Win2019
+    needs: [ Minikube-IntegrationTests ]
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v3
         with:
@@ -171,7 +214,7 @@ jobs:
 
       - name: Set KUBECONFIG environment variable
         run: echo KUBECONFIG="${{ github.workspace }}/../../../.kube/config" >> $GITHUB_ENV
-        
+
       - name: Install Terraform
         uses: hashicorp/setup-terraform@v3
         with:
@@ -187,7 +230,7 @@ jobs:
           timeout_minutes: 60 # EKS takes about 20 minutes to spin up a cluster and service on the cluster
           retry_wait_seconds: 5
           command: |
-            cd integration-tests/amazon-cloudwatch-observability/terraform/helm-windows
+            cd integration-tests/amazon-cloudwatch-observability/terraform/eks/windows
             terraform init
             if terraform apply -auto-approve \
                 -var="windows_os_version=WINDOWS_CORE_2019_x86_64" -var="kube_dir=${{ github.workspace }}/../../../.kube"; then
@@ -204,5 +247,5 @@ jobs:
           timeout_minutes: 8
           retry_wait_seconds: 5
           command: |
-            cd integration-tests/amazon-cloudwatch-observability/terraform/helm-windows
+            cd integration-tests/amazon-cloudwatch-observability/terraform/eks/windows
             terraform destroy --auto-approve

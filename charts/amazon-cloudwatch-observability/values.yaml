@@ -19,7 +19,7 @@ containerLogs:
   fluentBit:
     image:
       repository: aws-for-fluent-bit
-      tag: 2.33.0.20250731
+      tag: 2.33.2
       tagWindows: 2.31.12-windowsservercore
       repositoryDomainMap:
         public: public.ecr.aws/aws-observability
@@ -1037,7 +1037,7 @@ manager:
   name:
   image:
     repository: cloudwatch-agent-operator
-    tag: 3.1.0
+    tag: 3.1.1
     repositoryDomainMap:
       public: public.ecr.aws/cloudwatch-agent
       cn-north-1: 934860584483.dkr.ecr.cn-north-1.amazonaws.com.cn
@@ -1048,7 +1048,7 @@ manager:
     java:
       repositoryDomain: public.ecr.aws/aws-observability
       repository: adot-autoinstrumentation-java
-      tag: v2.10.0
+      tag: v2.11.2
     python:
       repositoryDomain: public.ecr.aws/aws-observability
       repository: adot-autoinstrumentation-python
@@ -1056,14 +1056,14 @@ manager:
     dotnet:
       repositoryDomain: public.ecr.aws/aws-observability
       repository: adot-autoinstrumentation-dotnet
-      tag: v1.7.0
+      tag: v1.9.0
     nodejs:
       repositoryDomain: public.ecr.aws/aws-observability
       repository: adot-autoinstrumentation-node
-      tag: v0.6.0
+      tag: v0.7.0
   applicationSignals:
     autoMonitor:
-      monitorAllServices: false
+      monitorAllServices: true
       languages:
         - java
         - python
@@ -1202,11 +1202,35 @@ admissionWebhooks:
   create: true
   failurePolicy: Ignore
   secretName: ""
-  ## Defines the sidecar injection logic in Pods.
+  ## Defines the sidecar injection logic for each sub-resource.
+  ## create:
+  ## - true/false, whether or not the webhook will be created. Can be used as an override if specified,
+  ##   otherwise will default to the parent create flag.
+  ## failurePolicy:
   ## - Ignore, the injection is fail-open. The pod will be created, but the sidecar won't be injected.
   ## - Fail, the injection is fail-close. If the webhook pod is not ready, pods cannot be created.
+  ## namespaceSelector: Selector rule for particular namespaces. To override from parent to be empty, set to `{}`.
+  agents:
+    # create: true
+    failurePolicy:
+    namespaceSelector:
+  instrumentations:
+    # create: true
+    failurePolicy:
+    namespaceSelector:
   pods:
+    # create: true
     failurePolicy: Ignore
+    namespaceSelector:
+  ## Workloads applies Deployments, DaemonSets, and StatefulSets.
+  workloads:
+    # create: true
+    failurePolicy:
+    namespaceSelector:
+  namespaces:
+    # create: true
+    failurePolicy:
+    namespaceSelector:
   ## Adds a prefix to the mutating webhook name.
   ## This can be used to order this mutating webhook with all your cluster's mutating webhooks.
   namePrefix: ""
@@ -1246,7 +1270,7 @@ agent:
   replicas: 1 # The total number non-terminated pods targeted by this AmazonCloudWatchAgent's deployment or statefulSet.
   image:
     repository: cloudwatch-agent
-    tag: 1.300058.0b1191
+    tag: 1.300059.0b1207
     repositoryDomainMap:
       public: public.ecr.aws/cloudwatch-agent
       cn-north-1: 934860584483.dkr.ecr.cn-north-1.amazonaws.com.cn
@@ -1403,6 +1427,12 @@ dcgmExporter:
                   - g5.24xlarge
                   - g5.48xlarge
                   - g5.xlarge
+                  - g5g.2xlarge
+                  - g5g.4xlarge
+                  - g5g.8xlarge
+                  - g5g.16xlarge
+                  - g5g.metal
+                  - g5g.xlarge
                   - g6.2xlarge
                   - g6.4xlarge
                   - g6.8xlarge
@@ -1457,6 +1487,12 @@ dcgmExporter:
                   - ml.g5.24xlarge
                   - ml.g5.48xlarge
                   - ml.g5.xlarge
+                  - ml.g5g.2xlarge
+                  - ml.g5g.4xlarge
+                  - ml.g5g.8xlarge
+                  - ml.g5g.16xlarge
+                  - ml.g5g.metal
+                  - ml.g5g.xlarge
                   - ml.g6.2xlarge
                   - ml.g6.4xlarge
                   - ml.g6.8xlarge
