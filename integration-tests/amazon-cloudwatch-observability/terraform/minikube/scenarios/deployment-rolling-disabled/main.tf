@@ -1,0 +1,32 @@
+// Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+// SPDX-License-Identifier: MIT
+
+module "base" {
+  source           = "../.."
+  helm_dir         = var.helm_dir
+  helm_values_file = "${path.module}/values.yaml"
+}
+
+variable "helm_dir" {
+  type    = string
+  default = "../../../../../../charts/amazon-cloudwatch-observability"
+}
+
+resource "null_resource" "validator" {
+  depends_on = [module.base.helm_release]
+
+  provisioner "local-exec" {
+    command = <<-EOT
+      go test ${var.test_dir} -v -run=TestDeploymentRollingDisabled_Save
+      helm upgrade --wait --create-namespace --namespace amazon-cloudwatch amazon-cloudwatch-observability ${var.helm_dir} -f ${path.module}/values.yaml
+      go test ${var.test_dir} -v -run=TestDeploymentRollingDisabled_Compare
+    EOT
+  }
+}
+
+variable "test_dir" {
+  type    = string
+  default = "../../../../validations/minikube/scenarios"
+}
+
+
