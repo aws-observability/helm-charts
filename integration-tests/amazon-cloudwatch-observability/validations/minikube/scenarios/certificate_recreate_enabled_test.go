@@ -12,7 +12,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-const certificateRecreateEnabledPath = "/tmp/test-certificate-recreate-disabled.bin"
+const certificateRecreateEnabledPath = "/tmp/test-certificate-recreate-enabled.bin"
 
 func TestCertificateRecreateEnabled_Save(t *testing.T) {
 	k8sClient, err := util.NewK8sClient()
@@ -35,5 +35,5 @@ func TestCertificateRecreateEnabled_Compare(t *testing.T) {
 	savedData, err := os.ReadFile(certificateRecreateEnabledPath)
 	assert.NoError(t, err)
 
-	assert.True(t, bytes.Equal(actualData, savedData))
+	assert.False(t, bytes.Equal(actualData, savedData))
 }

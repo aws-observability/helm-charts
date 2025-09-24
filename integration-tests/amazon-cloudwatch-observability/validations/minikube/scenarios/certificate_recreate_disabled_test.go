@@ -36,7 +36,7 @@ func TestCertificateRecreateDisabled_Compare(t *testing.T) {
 	savedData, err := os.ReadFile(certificateRecreateDisabledPath)
 	assert.NoError(t, err)
 
-	assert.False(t, bytes.Equal(actualData, savedData))
+	assert.True(t, bytes.Equal(actualData, savedData))
 }
 
 func retrieveCABundle(t *testing.T, k8sClient util.K8sClient) []byte {
