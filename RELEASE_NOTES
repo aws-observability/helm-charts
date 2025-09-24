@@ -1,4 +1,18 @@
 =======================================================================
+amazon-cloudwatch-observability v4.5.0 (2025-09-24)
+=======================================================================
+Enhancements:
+* Support custom configurations for admission webhook with managed resources
+* Support ARM GPU instances with DCGM Exporter
+* Upgrade CWAgent to v1.300060.0b1248
+* Upgrade CWAgent Operator to v3.2.0
+* Upgrade Fluent Bit to v2.34.0
+* Upgrade Java SDK to v2.11.5
+* Upgrade .NET SDK to v1.9.1
+* Upgrade DCGM Exporter to 4.4.0-4.5.0-ubuntu22.04
+* Upgrade Neuron Monitor to v1.6.0
+
+=======================================================================
 amazon-cloudwatch-observability v4.4.0 (2025-09-04)
 =======================================================================
 Enhancements:
