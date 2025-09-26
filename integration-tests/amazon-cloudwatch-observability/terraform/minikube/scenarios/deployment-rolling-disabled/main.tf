@@ -16,11 +16,7 @@ resource "null_resource" "validator" {
   depends_on = [module.base.helm_release]
 
   provisioner "local-exec" {
-    command = <<-EOT
-      go test ${var.test_dir} -v -run=TestDeploymentRollingDisabled_Save
-      helm upgrade --wait --create-namespace --namespace amazon-cloudwatch amazon-cloudwatch-observability ${var.helm_dir} -f ${path.module}/values.yaml
-      go test ${var.test_dir} -v -run=TestDeploymentRollingDisabled_Compare
-    EOT
+    command = "go test ${var.test_dir} -v -run=TestDeploymentRollingDisabled"
   }
 }
 

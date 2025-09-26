@@ -4,56 +4,31 @@
 package scenarios
 
 import (
-	"bytes"
 	"os"
 	"testing"
 
 	"github.com/aws-observability/helm-charts/integration-tests/amazon-cloudwatch-observability/util"
-	"github.com/aws-observability/helm-charts/integration-tests/amazon-cloudwatch-observability/validations/minikube"
 	"github.com/stretchr/testify/assert"
 )
 
-const deploymentRollingDisabledPath = "/tmp/test-deployment-rolling-disabled.bin"
-
-func TestDeploymentRollingDisabled_Save(t *testing.T) {
+func TestDeploymentRollingDisabled(t *testing.T) {
 	k8sClient, err := util.NewK8sClient()
 	assert.NoError(t, err)
 
-	data := retrieveCABundle(t, *k8sClient)
-	assert.NotNil(t, data)
 
-	err = os.WriteFile(deploymentRollingDisabledPath, data, 0644)
-	assert.NoError(t, err)
-}
-
-func TestDeploymentRollingDisabled_Compare(t *testing.T) {
-	k8sClient, err := util.NewK8sClient()
+	ds, err := k8sClient.ListDeployments("amazon-cloudwatch")
 	assert.NoError(t, err)
 
-	actualData := retrieveCABundle(t, *k8sClient)
-	assert.NotNil(t, actualData)
-
-	savedData, err := os.ReadFile(deploymentRollingDisabledPath)
-	assert.NoError(t, err)
-
-	assert.True(t, bytes.Equal(actualData, savedData))
-}
-
-func retrieveCABundle(t *testing.T, k8sClient util.K8sClient) []byte {
-	whs, err := k8sClient.ListMutatingWebhookConfigurations()
-	assert.NoError(t, err)
-	assert.NotEmpty(t, whs.Items)
-
-	for _, item := range whs.Items {
-		if item.ObjectMeta.Name != minikube.WebhookName {
+	found := false
+	for _, d := range ds.Items {
+		if d.GetName() != "amazon-cloudwatch-observability-controller-manager" {
 			continue
+		} else {
+			found = true
 		}
-		assert.NotEmpty(t, item.Webhooks)
-		assert.GreaterOrEqual(t, len(item.Webhooks), 1)
 
-		// Grab the first CA bundle
-		data := item.Webhooks[0].ClientConfig.CABundle
-		return data
+		_, exists := d.Spec.Template.Annotations["rollme"]
+		assert.False(t, exists)
 	}
-	return nil
+	assert.True(t, found)
 }

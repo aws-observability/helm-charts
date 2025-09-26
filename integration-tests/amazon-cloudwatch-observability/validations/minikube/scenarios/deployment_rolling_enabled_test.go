@@ -9,7 +9,6 @@ import (
 	"testing"
 
 	"github.com/aws-observability/helm-charts/integration-tests/amazon-cloudwatch-observability/util"
-	"github.com/aws-observability/helm-charts/integration-tests/amazon-cloudwatch-observability/validations/minikube"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -19,7 +18,7 @@ func TestDeploymentRollingEnabled_Save(t *testing.T) {
 	k8sClient, err := util.NewK8sClient()
 	assert.NoError(t, err)
 
-	data := retrieveCABundle(t, *k8sClient)
+	data := retrieveRollMe(t, *k8sClient)
 	assert.NotNil(t, data)
 
 	err = os.WriteFile(deploymentRollingEnabledPath, data, 0644)
@@ -30,31 +29,26 @@ func TestDeploymentRollingEnabled_Compare(t *testing.T) {
 	k8sClient, err := util.NewK8sClient()
 	assert.NoError(t, err)
 
-	actualData := retrieveCABundle(t, *k8sClient)
+	actualData := retrieveRollMe(t, *k8sClient)
 	assert.NotNil(t, actualData)
 
 	savedData, err := os.ReadFile(deploymentRollingEnabledPath)
 	assert.NoError(t, err)
 
-	assert.True(t, bytes.Equal(actualData, savedData))
+	assert.False(t, bytes.Equal(actualData, savedData))
 }
 
-func retrieveCABundle(t *testing.T, k8sClient util.K8sClient) []byte {
-	whs, err := k8sClient.ListMutatingWebhookConfigurations()
+func retrieveRollMe(t *testing.T, k8sClient util.K8sClient) []byte {
+	ds, err := k8sClient.ListDeployments("amazon-cloudwatch")
 	assert.NoError(t, err)
-	assert.NotEmpty(t, whs.Items)
 
-	for _, item := range whs.Items {
-		if item.ObjectMeta.Name != minikube.WebhookName {
+	for _, d := range ds.Items {
+		if d.GetName() != "amazon-cloudwatch-observability-controller-manager" {
 			continue
 		}
-		assert.NotEmpty(t, item.Webhooks)
-		assert.GreaterOrEqual(t, len(item.Webhooks), 1)
 
-		// Grab the first CA bundle
-		data := item.Webhooks[0].ClientConfig.CABundle
-		return data
+		value := d.Spec.Template.Annotations["rollme"]
+		return []byte(value)
 	}
 	return nil
 }
-
