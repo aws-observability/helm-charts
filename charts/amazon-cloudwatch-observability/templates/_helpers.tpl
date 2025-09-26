@@ -344,14 +344,65 @@ Define the default service name
 {{- end -}}
 
 {{/*
+Check if a specific admission webhook is enabled
+*/}}
+{{- define "amazon-cloudwatch-observability.isWebhookEnabled" -}}
+{{- $ctx := index . 0 -}}
+{{- $webhook := index . 1 -}}
+{{- $webhookConfig := index $ctx.Values.admissionWebhooks $webhook -}}
+{{- if hasKey $webhookConfig "create" -}}
+{{- if $webhookConfig.create }}true{{- end -}}
+{{- else -}}
+{{- if $ctx.Values.admissionWebhooks.create }}true{{- end -}}
+{{- end -}}
+{{- end -}}
+
+{{/*
+Check if any admission webhook is enabled
+*/}}
+{{- define "amazon-cloudwatch-observability.webhookEnabled" -}}
+{{- $webhooks := list "agents" "instrumentations" "pods" "workloads" "namespaces" -}}
+{{- range $webhook := $webhooks -}}
+{{- if include "amazon-cloudwatch-observability.isWebhookEnabled" (list $ $webhook) -}}
+true
+{{- break -}}
+{{- end -}}
+{{- end -}}
+{{- end -}}
+
+{{/*
+Get namespaceSelector value for admission webhooks
+*/}}
+{{- define "amazon-cloudwatch-observability.namespaceSelector" -}}
+{{- $ctx := index . 0 -}}
+{{- $webhook := index . 1 -}}
+{{- $webhookConfig := index $ctx.Values.admissionWebhooks $webhook -}}
+{{- if and (hasKey $webhookConfig "namespaceSelector") (ne $webhookConfig.namespaceSelector nil) -}}
+{{- $selector := $webhookConfig.namespaceSelector -}}
+{{- if $selector -}}
+{{- toYaml $selector | nindent 4 -}}
+{{- else -}}
+{}
+{{- end -}}
+{{- else -}}
+{{- $selector := $ctx.Values.admissionWebhooks.namespaceSelector -}}
+{{- if $selector -}}
+{{- toYaml $selector | nindent 4 -}}
+{{- else -}}
+{}
+{{- end -}}
+{{- end -}}
+{{- end -}}
+
+{{/*
 Returns auto-generated certificate and CA for admission webhooks.
 */}}
-{{- define "amazon-cloudwatch-observability.webhookCert -}}
+{{- define "amazon-cloudwatch-observability.webhookCert" -}}
 {{- $tlsCrt := "" }}
 {{- $tlsKey := "" }}
 {{- $caCrt := "" }}
 {{- if .Values.admissionWebhooks.autoGenerateCert.enabled }}
-{{- $existingCert := ( lookup "v1" "Secrets" .Release.Namespace (template "amazon-cloudwatch-observability.certificateSecretName" .) ) }}
+{{- $existingCert := ( lookup "v1" "Secret" .Release.Namespace (include "amazon-cloudwatch-observability.certificateSecretName" .) ) }}
 {{- if and (not .Values.admissionWebhooks.autoGenerateCert.recreate) $existingCert }}
 {{- $tlsCrt = index $existingCert "data" "tls.crt" }}
 {{- $tlsKey = index $existingCert "data" "tls.key" }}
