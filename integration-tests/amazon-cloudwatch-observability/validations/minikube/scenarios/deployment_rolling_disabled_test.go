@@ -4,7 +4,6 @@
 package scenarios
 
 import (
-	"os"
 	"testing"
 
 	"github.com/aws-observability/helm-charts/integration-tests/amazon-cloudwatch-observability/util"
@@ -14,7 +13,6 @@ import (
 func TestDeploymentRollingDisabled(t *testing.T) {
 	k8sClient, err := util.NewK8sClient()
 	assert.NoError(t, err)
-
 
 	ds, err := k8sClient.ListDeployments("amazon-cloudwatch")
 	assert.NoError(t, err)
