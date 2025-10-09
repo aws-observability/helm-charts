@@ -49,7 +49,7 @@ Helper function to modify auto-monitor config based on agent configurations
 {{- end -}}
 {{- if not $hasAppSignals -}}
 {{- $_ := set $autoMonitorConfig "monitorAllServices" false -}}
-{{- else -}}
+{{- else if not (hasKey $autoMonitorConfig "monitorAllServices") -}}
 {{- $_ := set $autoMonitorConfig "monitorAllServices" (include "manager.monitorAllServices" . | trim | eq "true") -}}
 {{- end -}}
 {{- $autoMonitorConfig | toJson -}}
