@@ -21,7 +21,7 @@ func TestAppSignalsUnsupported(t *testing.T) {
 	assert.True(t, exists)
 
 	// Validate auto-monitor-config has monitorAllServices: false
-	// for us-gov-west-1 (unsupported region) even with AppSignals enabled
+	// for ap-east-2 (unsupported region) even with AppSignals enabled
 	expectedConfig := map[string]interface{}{
 		"monitorAllServices": false,
 		"languages":          []interface{}{"java", "python", "dotnet", "nodejs"},

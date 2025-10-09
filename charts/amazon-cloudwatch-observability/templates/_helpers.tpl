@@ -24,7 +24,7 @@ Helper function to determine monitorAllServices based on region
 */}}
 {{- define "manager.monitorAllServices" -}}
 {{- $region := .Values.region | required ".Values.region is required." -}}
-{{- if regexMatch "ap-east-2|ap-southeast-6|us-gov-.*|cn-.*|.*-iso[a-z]*-.*" $region -}}
+{{- if regexMatch "ap-east-2|ap-southeast-6|cn-.*|.*-iso[a-z]*-.*" $region -}}
 false
 {{- else -}}
 true
