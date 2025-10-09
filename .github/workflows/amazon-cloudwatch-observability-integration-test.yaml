@@ -40,7 +40,14 @@ jobs:
     strategy:
       matrix:
         # TODO: add webhooks-disabled
-        scenario: [default, appsignals-disabled, appsignals-disabled-multi-agents, appsignals-enabled-multi-agents, webhooks-partially-enabled, webhooks-configured]
+        scenario:
+          - default
+          - appsignals-disabled
+          - appsignals-disabled-multi-agents
+          - appsignals-enabled-multi-agents
+          - appsignals-unsupported
+          - webhooks-partially-enabled
+          - webhooks-configured
     steps:
       - uses: actions/checkout@v3
 
