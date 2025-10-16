@@ -1,4 +1,18 @@
 =======================================================================
+amazon-cloudwatch-observability v5.0.0 (2025-10-16)
+=======================================================================
+Enhancements:
+* Enable Application Signals AutoMonitor by default
+
+=======================================================================
+amazon-cloudwatch-observability v4.6.0 (2025-10-16)
+=======================================================================
+Enhancements:
+* Upgrade CWAgent Operator to v3.3.0
+* Upgrade FluentBit to v3.0.0
+* Update FluentBit config to use systemd plugin for retrieving host logs
+
+=======================================================================
 amazon-cloudwatch-observability v4.5.0 (2025-09-24)
 =======================================================================
 Enhancements:
