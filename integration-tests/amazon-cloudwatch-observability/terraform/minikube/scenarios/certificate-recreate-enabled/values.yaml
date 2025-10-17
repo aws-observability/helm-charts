@@ -1,0 +1,6 @@
+region: us-west-2
+clusterName: minikube
+
+admissionWebhooks:
+  autoGenerateCert:
+    recreate: true

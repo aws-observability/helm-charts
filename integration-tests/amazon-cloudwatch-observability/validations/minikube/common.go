@@ -15,7 +15,7 @@ import (
 
 const (
 	Namespace    = "amazon-cloudwatch"
-	operatorName = "amazon-cloudwatch-observability-controller-manager"
+	OperatorName = "amazon-cloudwatch-observability-controller-manager"
 
 	WebhookName                              = "amazon-cloudwatch-observability-mutating-webhook-configuration"
 	WebhookPathMutateInstrumentation         = "/mutate-cloudwatch-aws-amazon-com-v1alpha1-instrumentation"
@@ -37,7 +37,7 @@ func ValidateOperatorAutoMonitorConfig(t *testing.T, expectedConfig map[string]i
 	// Find the operator deployment by name
 	var deployment *appsV1.Deployment
 	for i := range deployments.Items {
-		if deployments.Items[i].Name == operatorName {
+		if deployments.Items[i].Name == OperatorName {
 			deployment = &deployments.Items[i]
 			break
 		}

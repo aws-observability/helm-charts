@@ -48,6 +48,10 @@ jobs:
           - appsignals-unsupported
           - webhooks-partially-enabled
           - webhooks-configured
+          - deployment-rolling-enabled
+          - deployment-rolling-disabled
+          - certificate-recreate-enabled
+          - certificate-recreate-disabled
     steps:
       - uses: actions/checkout@v3
 
