@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/aws-observability/helm-charts/integration-tests/amazon-cloudwatch-observability/util"
+	"github.com/aws-observability/helm-charts/integration-tests/amazon-cloudwatch-observability/validations/minikube"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -39,11 +40,11 @@ func TestDeploymentRollingEnabled_Compare(t *testing.T) {
 }
 
 func retrieveRollMe(t *testing.T, k8sClient util.K8sClient) []byte {
-	ds, err := k8sClient.ListDeployments("amazon-cloudwatch")
+	ds, err := k8sClient.ListDeployments(minikube.Namespace)
 	assert.NoError(t, err)
 
 	for _, d := range ds.Items {
-		if d.GetName() != "amazon-cloudwatch-observability-controller-manager" {
+		if d.GetName() != minikube.OperatorName {
 			continue
 		}
 
