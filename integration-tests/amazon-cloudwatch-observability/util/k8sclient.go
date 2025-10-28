@@ -3,9 +3,10 @@ package util
 import (
 	"context"
 	"fmt"
-	"k8s.io/client-go/tools/clientcmd"
 	"os"
 	"path/filepath"
+
+	"k8s.io/client-go/tools/clientcmd"
 
 	arv1 "k8s.io/api/admissionregistration/v1"
 	appsV1 "k8s.io/api/apps/v1"
@@ -137,47 +138,80 @@ func (k *K8sClient) ListValidatingWebhookConfigurations() (*arv1.ValidatingWebho
 	return validatingWebhookConfigurations, nil
 }
 
-func ValidateServiceAccount(serviceAccounts *v1.ServiceAccountList, serviceAccountName string) bool {
+func (k *K8sClient) ValidateServiceAccountExists(namespace, serviceAccountName string) (bool, error) {
+	serviceAccounts, err := k.ListServiceAccounts(namespace)
+	if err != nil {
+		return false, err
+	}
 	for _, serviceAccount := range serviceAccounts.Items {
 		if serviceAccount.Name == serviceAccountName {
-			return true
+			return true, nil
 		}
 	}
-	return false
+	return false, nil
 }
 
-func ValidateClusterRoles(clusterRoles *rbacV1.ClusterRoleList, clusterRoleName string) bool {
+func (k *K8sClient) ValidateClusterRoleExists(clusterRoleName string) (bool, error) {
+	clusterRoles, err := k.ListClusterRoles()
+	if err != nil {
+		return false, err
+	}
 	for _, clusterRole := range clusterRoles.Items {
 		if clusterRole.Name == clusterRoleName {
-			return true
+			return true, nil
 		}
 	}
-	return false
+	return false, nil
 }
 
-func ValidateRoles(roles *rbacV1.RoleList, roleName string) bool {
+func (k *K8sClient) ValidateRoleExists(namespace, roleName string) (bool, error) {
+	roles, err := k.ListRoles(namespace)
+	if err != nil {
+		return false, err
+	}
 	for _, role := range roles.Items {
 		if role.Name == roleName {
-			return true
+			return true, nil
 		}
 	}
-	return false
+	return false, nil
 }
 
-func ValidateClusterRoleBindings(clusterRoleBindings *rbacV1.ClusterRoleBindingList, clusterRoleBindingName string) bool {
+func (k *K8sClient) ValidateClusterRoleBindingExists(clusterRoleBindingName string) (bool, error) {
+	clusterRoleBindings, err := k.ListClusterRoleBindings()
+	if err != nil {
+		return false, err
+	}
 	for _, clusterRoleBinding := range clusterRoleBindings.Items {
 		if clusterRoleBinding.Name == clusterRoleBindingName {
-			return true
+			return true, nil
 		}
 	}
-	return false
+	return false, nil
 }
 
-func ValidateRoleBindings(roleBindings *rbacV1.RoleBindingList, roleBindingName string) bool {
+func (k *K8sClient) ValidateRoleBindingExists(namespace, roleBindingName string) (bool, error) {
+	roleBindings, err := k.ListRoleBindings(namespace)
+	if err != nil {
+		return false, err
+	}
 	for _, roleBinding := range roleBindings.Items {
 		if roleBinding.Name == roleBindingName {
-			return true
+			return true, nil
 		}
 	}
-	return false
+	return false, nil
+}
+
+func (k *K8sClient) ValidateDeploymentExists(namespace, deploymentName string) (bool, error) {
+	deployments, err := k.ListDeployments(namespace)
+	if err != nil {
+		return false, err
+	}
+	for _, deployment := range deployments.Items {
+		if deployment.Name == deploymentName {
+			return true, nil
+		}
+	}
+	return false, nil
 }

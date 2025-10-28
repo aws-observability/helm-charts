@@ -102,34 +102,50 @@ func TestResourcesGenerated(t *testing.T) {
 	for _, sa := range serviceAccounts.Items {
 		t.Logf("serviceAccount: " + sa.Name + " namespace:" + sa.Namespace)
 	}
-	assert.True(t, util.ValidateServiceAccount(serviceAccounts, addOnName+"-controller-manager"))
-	assert.True(t, util.ValidateServiceAccount(serviceAccounts, agentName))
-	assert.True(t, util.ValidateServiceAccount(serviceAccounts, dcgmExporterName+"-service-acct"))
-	assert.True(t, util.ValidateServiceAccount(serviceAccounts, neuronMonitor+"-service-acct"))
+	exists, err := k8sClient.ValidateServiceAccountExists(namespace, addOnName+"-controller-manager")
+	assert.NoError(t, err)
+	assert.True(t, exists)
+	exists, err = k8sClient.ValidateServiceAccountExists(namespace, agentName)
+	assert.NoError(t, err)
+	assert.True(t, exists)
+	exists, err = k8sClient.ValidateServiceAccountExists(namespace, dcgmExporterName+"-service-acct")
+	assert.NoError(t, err)
+	assert.True(t, exists)
+	exists, err = k8sClient.ValidateServiceAccountExists(namespace, neuronMonitor+"-service-acct")
+	assert.NoError(t, err)
+	assert.True(t, exists)
 
 	// Validating ClusterRoles
-	clusterRoles, err := k8sClient.ListClusterRoles()
+	exists, err = k8sClient.ValidateClusterRoleExists(addOnName + "-manager-role")
 	assert.NoError(t, err)
-	assert.True(t, util.ValidateClusterRoles(clusterRoles, addOnName+"-manager-role"))
-	assert.True(t, util.ValidateClusterRoles(clusterRoles, agentName+"-role"))
+	assert.True(t, exists)
+	exists, err = k8sClient.ValidateClusterRoleExists(agentName + "-role")
+	assert.NoError(t, err)
+	assert.True(t, exists)
 
 	// Validating Roles
-	roles, err := k8sClient.ListRoles(namespace)
+	exists, err = k8sClient.ValidateRoleExists(namespace, dcgmExporterName+"-role")
 	assert.NoError(t, err)
-	assert.True(t, util.ValidateRoles(roles, dcgmExporterName+"-role"))
-	assert.True(t, util.ValidateRoles(roles, neuronMonitor+"-role"))
+	assert.True(t, exists)
+	exists, err = k8sClient.ValidateRoleExists(namespace, neuronMonitor+"-role")
+	assert.NoError(t, err)
+	assert.True(t, exists)
 
 	// Validating ClusterRoleBinding
-	clusterRoleBindings, err := k8sClient.ListClusterRoleBindings()
+	exists, err = k8sClient.ValidateClusterRoleBindingExists(addOnName + "-manager-rolebinding")
 	assert.NoError(t, err)
-	assert.True(t, util.ValidateClusterRoleBindings(clusterRoleBindings, addOnName+"-manager-rolebinding"))
-	assert.True(t, util.ValidateClusterRoleBindings(clusterRoleBindings, agentName+"-role-binding"))
+	assert.True(t, exists)
+	exists, err = k8sClient.ValidateClusterRoleBindingExists(agentName + "-role-binding")
+	assert.NoError(t, err)
+	assert.True(t, exists)
 
 	// Validating RoleBinding
-	roleBindings, err := k8sClient.ListRoleBindings(namespace)
+	exists, err = k8sClient.ValidateRoleBindingExists(namespace, dcgmExporterName+"-role-binding")
 	assert.NoError(t, err)
-	assert.True(t, util.ValidateRoleBindings(roleBindings, dcgmExporterName+"-role-binding"))
-	assert.True(t, util.ValidateRoleBindings(roleBindings, neuronMonitor+"-role-binding"))
+	assert.True(t, exists)
+	exists, err = k8sClient.ValidateRoleBindingExists(namespace, neuronMonitor+"-role-binding")
+	assert.NoError(t, err)
+	assert.True(t, exists)
 
 	// Validating MutatingWebhookConfiguration
 	mutatingWebhookConfigurations, err := k8sClient.ListMutatingWebhookConfigurations()

@@ -1074,7 +1074,7 @@ manager:
       tag: v0.7.0
   applicationSignals:
     autoMonitor:
-      monitorAllServices: false
+      # monitorAllServices: true; Defaults to true for regions where AppSignals is supported, false otherwise
       languages:
         - java
         - python
