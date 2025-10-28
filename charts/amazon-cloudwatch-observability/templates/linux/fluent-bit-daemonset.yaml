@@ -30,6 +30,20 @@ spec:
         version: v1
         kubernetes.io/cluster-service: "true"
     spec:
+      initContainers:
+        - name: cleanup-db
+          image: busybox
+          command:
+            - sh
+            - -c
+            - |
+              [ -f /var/fluent-bit/state/flb_dmesg.db ] && rm -f /var/fluent-bit/state/flb_dmesg.db
+              [ -f /var/fluent-bit/state/flb_messages.db ] && rm -f /var/fluent-bit/state/flb_messages.db
+              [ -f /var/fluent-bit/state/flb_secure.db ] && rm -f /var/fluent-bit/state/flb_secure.db
+              exit 0
+          volumeMounts:
+            - name: fluentbitstate
+              mountPath: /var/fluent-bit/state
       containers:
       - name: fluent-bit
         image: {{ template "fluent-bit.image" . }}
