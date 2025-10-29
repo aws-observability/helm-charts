@@ -1208,6 +1208,8 @@ manager:
   affinity: {}
   nodeSelector:
     kubernetes.io/os: linux
+  # Enable automatic rolling by forcing a deployment spec change
+  rolling: false
 ## Admission webhooks make sure only requests with correctly formatted rules will get into the Operator.
 admissionWebhooks:
   create: true
@@ -1256,6 +1258,7 @@ admissionWebhooks:
   autoGenerateCert:
     enabled: true
     expiryDays: 3650 # 10 years
+    recreate: true
   ## TLS Certificate Option 2: Use certManager to generate self-signed certificate.
   ## certManager must be enabled. If enabled, it takes precedence over option 1.
   certManager:

@@ -18,6 +18,9 @@ spec:
         {{- if .Values.manager.podAnnotations }}
         {{- include "amazon-cloudwatch-observability.podAnnotations" . | nindent 8 }}
         {{- end }}
+        {{- if .Values.manager.rolling }}
+        rollme: {{ randAlphaNum 5 | quote }}
+        {{- end }}
       labels:
         app.kubernetes.io/name: {{ template "amazon-cloudwatch-observability.name" . }}
         control-plane: controller-manager
