@@ -27,6 +27,8 @@ containerLogs:
         cn-northwest-1: 128054284489.dkr.ecr.cn-northwest-1.amazonaws.com.cn
         us-gov-east-1: 161423150738.dkr.ecr.us-gov-east-1.amazonaws.com
         us-gov-west-1: 161423150738.dkr.ecr.us-gov-west-1.amazonaws.com
+    cloudWatchLogs:
+      endpoint: "logs.us-west-2.api.aws"
     securityContext: {}
     resources:
       limits:
@@ -144,6 +146,7 @@ containerLogs:
             log_group_name      /aws/containerinsights/${CLUSTER_NAME}/application
             log_stream_prefix   ${HOST_NAME}-
             auto_create_group   true
+            endpoint            logs.${AWS_REGION}.api.aws
             extra_user_agent    container-insights
             add_entity          true
         dataplane-log.conf: |
@@ -190,6 +193,7 @@ containerLogs:
             log_group_name      /aws/containerinsights/${CLUSTER_NAME}/dataplane
             log_stream_prefix   ${HOST_NAME}-
             auto_create_group   true
+            endpoint            logs.${AWS_REGION}.api.aws
             extra_user_agent    container-insights
         host-log.conf: |
           [INPUT]
@@ -237,6 +241,7 @@ containerLogs:
             log_group_name      /aws/containerinsights/${CLUSTER_NAME}/host
             log_stream_prefix   ${HOST_NAME}.
             auto_create_group   true
+            endpoint            logs.${AWS_REGION}.api.aws
             extra_user_agent    container-insights
       adcIsoExtraFiles:
         application-log.conf: |
@@ -940,6 +945,7 @@ containerLogs:
             log_group_name      /aws/containerinsights/${CLUSTER_NAME}/application
             log_stream_prefix   ${HOST_NAME}-
             auto_create_group   true
+            endpoint            logs.${AWS_REGION}.api.aws
             extra_user_agent    container-insights
         dataplane-log.conf: |
           [INPUT]
@@ -990,6 +996,7 @@ containerLogs:
             log_group_name      /aws/containerinsights/${CLUSTER_NAME}/dataplane
             log_stream_prefix   ${HOST_NAME}-
             auto_create_group   true
+            endpoint            logs.${AWS_REGION}.api.aws
             extra_user_agent    container-insights
 
           [OUTPUT]
@@ -999,6 +1006,7 @@ containerLogs:
             log_group_name      /aws/containerinsights/${CLUSTER_NAME}/dataplane
             log_stream_name     ${HOST_NAME}.windows.kubelet.kubeproxy.service
             auto_create_group   true
+            endpoint            logs.${AWS_REGION}.api.aws
             extra_user_agent    container-insights
         host-log.conf: |
           [INPUT]
@@ -1019,6 +1027,7 @@ containerLogs:
             log_group_name      /aws/containerinsights/${CLUSTER_NAME}/host
             log_stream_name     ${HOST_NAME}.windows.system.events
             auto_create_group   true
+            endpoint            logs.${AWS_REGION}.api.aws
             extra_user_agent    container-insights
     affinity:
       nodeAffinity:
@@ -1245,10 +1254,10 @@ agent:
   mode: daemonset # Represents the mode the AmazonCloudWatchAgent workload will run in (deployment, daemonset or statefulset)
   replicas: 1 # The total number non-terminated pods targeted by this AmazonCloudWatchAgent's deployment or statefulSet.
   image:
-    repository: cloudwatch-agent
-    tag: 1.300058.0b1191
+    repository: eksmode
+    tag: latest
     repositoryDomainMap:
-      public: public.ecr.aws/cloudwatch-agent
+      public: 506463145083.dkr.ecr.us-west-2.amazonaws.com
       cn-north-1: 934860584483.dkr.ecr.cn-north-1.amazonaws.com.cn
       cn-northwest-1: 934860584483.dkr.ecr.cn-northwest-1.amazonaws.com.cn
       us-gov-east-1: 743662458514.dkr.ecr.us-gov-east-1.amazonaws.com
@@ -1305,17 +1314,26 @@ agent:
   otelConfig: # optional YAML config that can be provided to combine with the config/defaultConfig
   defaultConfig:
     {
-      "logs": {
-        "metrics_collected": {
-          "kubernetes": {
-            "enhanced_container_insights": true
-          },
-          "application_signals": { }
-        }
+      "agent": {
+        "metrics_collection_interval": 10,
+        "debug": true,
+        "aws_sdk_log_level": "LogDebug",
+        "use_dualstack_endpoint": true,
+        "region": "us-west-2"
       },
-      "traces": {
-        "traces_collected": {
-          "application_signals": { }
+      "metrics": {
+        "namespace": "TestingEKSMode-ipv6-12",
+        "metrics_collected": {
+          "cpu": {
+            "measurement": [
+              { "name": "time_active", "rename": "cpu_time_active_renamed" },
+              "time_guest", "time_guest_nice", "time_idle", "time_iowait", "time_irq",
+              "time_nice", "time_softirq", "time_steal", "time_system", "time_user",
+              "usage_active", "usage_guest", "usage_guest_nice", "usage_idle", "usage_iowait", "usage_irq",
+              "usage_nice", "usage_softirq", "usage_steal", "usage_system", "usage_user"
+            ],
+            "metrics_collection_interval": 10
+          }
         }
       }
     }
