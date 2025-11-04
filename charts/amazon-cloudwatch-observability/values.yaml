@@ -9,7 +9,7 @@ nameOverride: ""
 ## Provide the ClusterName (this is a required parameter)
 clusterName:
 ## Provide the Region (this is a required parameter)
-region:
+region: us-west-2
 k8sMode: EKS # can be EKS | ROSA | K8S
 ## Provide default tolerations
 tolerations:
@@ -27,8 +27,6 @@ containerLogs:
         cn-northwest-1: 128054284489.dkr.ecr.cn-northwest-1.amazonaws.com.cn
         us-gov-east-1: 161423150738.dkr.ecr.us-gov-east-1.amazonaws.com
         us-gov-west-1: 161423150738.dkr.ecr.us-gov-west-1.amazonaws.com
-    cloudWatchLogs:
-      endpoint: "logs.us-west-2.api.aws"
     securityContext: {}
     resources:
       limits:
@@ -146,7 +144,6 @@ containerLogs:
             log_group_name      /aws/containerinsights/${CLUSTER_NAME}/application
             log_stream_prefix   ${HOST_NAME}-
             auto_create_group   true
-            endpoint            logs.${AWS_REGION}.api.aws
             extra_user_agent    container-insights
             add_entity          true
         dataplane-log.conf: |
@@ -193,7 +190,6 @@ containerLogs:
             log_group_name      /aws/containerinsights/${CLUSTER_NAME}/dataplane
             log_stream_prefix   ${HOST_NAME}-
             auto_create_group   true
-            endpoint            logs.${AWS_REGION}.api.aws
             extra_user_agent    container-insights
         host-log.conf: |
           [INPUT]
@@ -241,7 +237,6 @@ containerLogs:
             log_group_name      /aws/containerinsights/${CLUSTER_NAME}/host
             log_stream_prefix   ${HOST_NAME}.
             auto_create_group   true
-            endpoint            logs.${AWS_REGION}.api.aws
             extra_user_agent    container-insights
       adcIsoExtraFiles:
         application-log.conf: |
@@ -945,7 +940,6 @@ containerLogs:
             log_group_name      /aws/containerinsights/${CLUSTER_NAME}/application
             log_stream_prefix   ${HOST_NAME}-
             auto_create_group   true
-            endpoint            logs.${AWS_REGION}.api.aws
             extra_user_agent    container-insights
         dataplane-log.conf: |
           [INPUT]
@@ -996,7 +990,6 @@ containerLogs:
             log_group_name      /aws/containerinsights/${CLUSTER_NAME}/dataplane
             log_stream_prefix   ${HOST_NAME}-
             auto_create_group   true
-            endpoint            logs.${AWS_REGION}.api.aws
             extra_user_agent    container-insights
 
           [OUTPUT]
@@ -1006,7 +999,6 @@ containerLogs:
             log_group_name      /aws/containerinsights/${CLUSTER_NAME}/dataplane
             log_stream_name     ${HOST_NAME}.windows.kubelet.kubeproxy.service
             auto_create_group   true
-            endpoint            logs.${AWS_REGION}.api.aws
             extra_user_agent    container-insights
         host-log.conf: |
           [INPUT]
@@ -1027,7 +1019,6 @@ containerLogs:
             log_group_name      /aws/containerinsights/${CLUSTER_NAME}/host
             log_stream_name     ${HOST_NAME}.windows.system.events
             auto_create_group   true
-            endpoint            logs.${AWS_REGION}.api.aws
             extra_user_agent    container-insights
     affinity:
       nodeAffinity:
@@ -1312,31 +1303,7 @@ agent:
     name: # override agent service account name
   config: # optional config that can be provided to override the defaultConfig
   otelConfig: # optional YAML config that can be provided to combine with the config/defaultConfig
-  defaultConfig:
-    {
-      "agent": {
-        "metrics_collection_interval": 10,
-        "debug": true,
-        "aws_sdk_log_level": "LogDebug",
-        "use_dualstack_endpoint": true,
-        "region": "us-west-2"
-      },
-      "metrics": {
-        "namespace": "TestingEKSMode-ipv6-12",
-        "metrics_collected": {
-          "cpu": {
-            "measurement": [
-              { "name": "time_active", "rename": "cpu_time_active_renamed" },
-              "time_guest", "time_guest_nice", "time_idle", "time_iowait", "time_irq",
-              "time_nice", "time_softirq", "time_steal", "time_system", "time_user",
-              "usage_active", "usage_guest", "usage_guest_nice", "usage_idle", "usage_iowait", "usage_irq",
-              "usage_nice", "usage_softirq", "usage_steal", "usage_system", "usage_user"
-            ],
-            "metrics_collection_interval": 10
-          }
-        }
-      }
-    }
+  defaultConfig: {}
   prometheus:
     config:
     targetAllocator:
