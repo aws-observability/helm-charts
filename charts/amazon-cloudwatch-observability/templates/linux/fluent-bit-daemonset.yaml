@@ -33,7 +33,7 @@ spec:
       containers:
       - name: fluent-bit
         image: {{ template "fluent-bit.image" . }}
-        imagePullPolicy: Always
+        imagePullPolicy: {{ .Values.containerLogs.fluentBit.image.pullPolicy | default "IfNotPresent" }}
         env:
         - name: AWS_REGION
           value: {{ .Values.region }}

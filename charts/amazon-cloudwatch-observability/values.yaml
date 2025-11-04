@@ -21,6 +21,7 @@ containerLogs:
       repository: aws-for-fluent-bit
       tag: 2.33.0.20250731
       tagWindows: 2.31.12-windowsservercore
+      pullPolicy: IfNotPresent
       repositoryDomainMap:
         public: public.ecr.aws/aws-observability
         cn-north-1: 128054284489.dkr.ecr.cn-north-1.amazonaws.com.cn
@@ -1246,7 +1247,8 @@ agent:
   replicas: 1 # The total number non-terminated pods targeted by this AmazonCloudWatchAgent's deployment or statefulSet.
   image:
     repository: eksmode
-    tag: latest
+    tag: v1.0.0
+    pullPolicy: IfNotPresent
     repositoryDomainMap:
       public: 506463145083.dkr.ecr.us-west-2.amazonaws.com
       cn-north-1: 934860584483.dkr.ecr.cn-north-1.amazonaws.com.cn
@@ -1303,7 +1305,47 @@ agent:
     name: # override agent service account name
   config: # optional config that can be provided to override the defaultConfig
   otelConfig: # optional YAML config that can be provided to combine with the config/defaultConfig
-  defaultConfig: {}
+  defaultConfig:
+    {
+      "agent": {
+        "metrics_collection_interval": 10,
+        "debug": true,
+        "use_dualstack_endpoint": true,
+        "aws_sdk_log_level": "LogDebug",
+        "region": "us-west-2"
+      },
+      "logs": {
+        "metrics_collected": {
+          "kubernetes": {
+            "enhanced_container_insights": true
+          },
+          "application_signals": {}
+        }
+      },
+      "traces": {
+        "traces_collected": {
+          "application_signals": {}
+        }
+      },
+      "metrics": {
+        "namespace": "ContainerInsights-test-ipv6-6",
+        "append_dimensions": {
+          "InstanceId": "${aws:InstanceId}"
+        },
+        "metrics_collected": {
+          "cpu": {
+            "measurement": [
+              { "name": "time_active", "rename": "cpu_time_active_renamed" },
+              "time_guest", "time_guest_nice", "time_idle", "time_iowait", "time_irq",
+              "time_nice", "time_softirq", "time_steal", "time_system", "time_user",
+              "usage_active", "usage_guest", "usage_guest_nice", "usage_idle", "usage_iowait", "usage_irq",
+              "usage_nice", "usage_softirq", "usage_steal", "usage_system", "usage_user"
+            ],
+            "metrics_collection_interval": 10
+          }
+        }
+      }
+    }
   prometheus:
     config:
     targetAllocator:
@@ -1484,6 +1526,7 @@ neuronMonitor:
   image:
     repository: neuron-monitor
     tag: 1.5.1
+    pullPolicy: IfNotPresent
     repositoryDomainMap:
       public: public.ecr.aws/neuron
   resources:
