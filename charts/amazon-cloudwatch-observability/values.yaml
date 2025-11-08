@@ -149,6 +149,8 @@ containerLogs:
             sts_endpoint        sts.${AWS_REGION}.api.aws
             net.dns.mode        ipv6
             net.dns.resolver    LEGACY
+            net.dns.prefer_ipv6 On
+            net.connect_timeout 10s
             net.keepalive       on
             net.keepalive_idle_timeout 30
             extra_user_agent    container-insights
@@ -201,6 +203,8 @@ containerLogs:
             sts_endpoint        sts.${AWS_REGION}.api.aws
             net.dns.mode        ipv6
             net.dns.resolver    LEGACY
+            net.dns.prefer_ipv6 On
+            net.connect_timeout 10s
             net.keepalive       on
             net.keepalive_idle_timeout 30
             extra_user_agent    container-insights
@@ -254,6 +258,8 @@ containerLogs:
             sts_endpoint        sts.${AWS_REGION}.api.aws
             net.dns.mode        ipv6
             net.dns.resolver    LEGACY
+            net.dns.prefer_ipv6 On
+            net.connect_timeout 10s
             net.keepalive       on
             net.keepalive_idle_timeout 30
             extra_user_agent    container-insights
@@ -318,6 +324,12 @@ containerLogs:
             log_stream_prefix   ${HOST_NAME}-
             auto_create_group   true
             endpoint            logs.${AWS_REGION}.c2s.ic.gov
+            net.dns.mode        ipv6
+            net.dns.resolver    LEGACY
+            net.dns.prefer_ipv6 On
+            net.connect_timeout 10s
+            net.keepalive       on
+            net.keepalive_idle_timeout 30
             extra_user_agent    container-insights
         dataplane-log.conf: |
           [INPUT]
@@ -364,6 +376,12 @@ containerLogs:
             log_stream_prefix   ${HOST_NAME}-
             auto_create_group   true
             endpoint            logs.${AWS_REGION}.c2s.ic.gov
+            net.dns.mode        ipv6
+            net.dns.resolver    LEGACY
+            net.dns.prefer_ipv6 On
+            net.connect_timeout 10s
+            net.keepalive       on
+            net.keepalive_idle_timeout 30
             extra_user_agent    container-insights
         host-log.conf: |
           [INPUT]
@@ -412,6 +430,12 @@ containerLogs:
             log_stream_prefix   ${HOST_NAME}.
             auto_create_group   true
             endpoint            logs.${AWS_REGION}.c2s.ic.gov
+            net.dns.mode        ipv6
+            net.dns.resolver    LEGACY
+            net.dns.prefer_ipv6 On
+            net.connect_timeout 10s
+            net.keepalive       on
+            net.keepalive_idle_timeout 30
             extra_user_agent    container-insights
       adcIsobExtraFiles:
         application-log.conf: |
@@ -474,6 +498,12 @@ containerLogs:
             log_stream_prefix   ${HOST_NAME}-
             auto_create_group   true
             endpoint            logs.${AWS_REGION}.sc2s.sgov.gov
+            net.dns.mode        ipv6
+            net.dns.resolver    LEGACY
+            net.dns.prefer_ipv6 On
+            net.connect_timeout 10s
+            net.keepalive       on
+            net.keepalive_idle_timeout 30
             extra_user_agent    container-insights
         dataplane-log.conf: |
           [INPUT]
@@ -520,6 +550,12 @@ containerLogs:
             log_stream_prefix   ${HOST_NAME}-
             auto_create_group   true
             endpoint            logs.${AWS_REGION}.sc2s.sgov.gov
+            net.dns.mode        ipv6
+            net.dns.resolver    LEGACY
+            net.dns.prefer_ipv6 On
+            net.connect_timeout 10s
+            net.keepalive       on
+            net.keepalive_idle_timeout 30
             extra_user_agent    container-insights
         host-log.conf: |
           [INPUT]
@@ -568,6 +604,12 @@ containerLogs:
             log_stream_prefix   ${HOST_NAME}.
             auto_create_group   true
             endpoint            logs.${AWS_REGION}.sc2s.sgov.gov
+            net.dns.mode        ipv6
+            net.dns.resolver    LEGACY
+            net.dns.prefer_ipv6 On
+            net.connect_timeout 10s
+            net.keepalive       on
+            net.keepalive_idle_timeout 30
             extra_user_agent    container-insights
       adcIsofExtraFiles:
         application-log.conf: |
@@ -630,6 +672,12 @@ containerLogs:
             log_stream_prefix   ${HOST_NAME}-
             auto_create_group   true
             endpoint            logs.${AWS_REGION}.csp.hci.ic.gov
+            net.dns.mode        ipv6
+            net.dns.resolver    LEGACY
+            net.dns.prefer_ipv6 On
+            net.connect_timeout 10s
+            net.keepalive       on
+            net.keepalive_idle_timeout 30
             extra_user_agent    container-insights
         dataplane-log.conf: |
           [INPUT]
@@ -676,6 +724,12 @@ containerLogs:
             log_stream_prefix   ${HOST_NAME}-
             auto_create_group   true
             endpoint            logs.${AWS_REGION}.csp.hci.ic.gov
+            net.dns.mode        ipv6
+            net.dns.resolver    LEGACY
+            net.dns.prefer_ipv6 On
+            net.connect_timeout 10s
+            net.keepalive       on
+            net.keepalive_idle_timeout 30
             extra_user_agent    container-insights
         host-log.conf: |
           [INPUT]
@@ -724,6 +778,12 @@ containerLogs:
             log_stream_prefix   ${HOST_NAME}.
             auto_create_group   true
             endpoint            logs.${AWS_REGION}.csp.hci.ic.gov
+            net.dns.mode        ipv6
+            net.dns.resolver    LEGACY
+            net.dns.prefer_ipv6 On
+            net.connect_timeout 10s
+            net.keepalive       on
+            net.keepalive_idle_timeout 30
             extra_user_agent    container-insights
       euAdcIsoeExtraFiles:
         application-log.conf: |
@@ -786,6 +846,12 @@ containerLogs:
             log_stream_prefix   ${HOST_NAME}-
             auto_create_group   true
             endpoint            logs.${AWS_REGION}.cloud.adc-e.uk
+            net.dns.mode        ipv6
+            net.dns.resolver    LEGACY
+            net.dns.prefer_ipv6 On
+            net.connect_timeout 10s
+            net.keepalive       on
+            net.keepalive_idle_timeout 30
             extra_user_agent    container-insights
         dataplane-log.conf: |
           [INPUT]
@@ -832,6 +898,12 @@ containerLogs:
             log_stream_prefix   ${HOST_NAME}-
             auto_create_group   true
             endpoint            logs.${AWS_REGION}.cloud.adc-e.uk
+            net.dns.mode        ipv6
+            net.dns.resolver    LEGACY
+            net.dns.prefer_ipv6 On
+            net.connect_timeout 10s
+            net.keepalive       on
+            net.keepalive_idle_timeout 30
             extra_user_agent    container-insights
         host-log.conf: |
           [INPUT]
@@ -880,6 +952,12 @@ containerLogs:
             log_stream_prefix   ${HOST_NAME}.
             auto_create_group   true
             endpoint            logs.${AWS_REGION}.cloud.adc-e.uk
+            net.dns.mode        ipv6
+            net.dns.resolver    LEGACY
+            net.dns.prefer_ipv6 On
+            net.connect_timeout 10s
+            net.keepalive       on
+            net.keepalive_idle_timeout 30
             extra_user_agent    container-insights
     configWindows:
       service: |
@@ -963,6 +1041,8 @@ containerLogs:
             sts_endpoint        sts.${AWS_REGION}.api.aws
             net.dns.mode        ipv6
             net.dns.resolver    LEGACY
+            net.dns.prefer_ipv6 On
+            net.connect_timeout 10s
             net.keepalive       on
             net.keepalive_idle_timeout 30
             extra_user_agent    container-insights
@@ -1019,6 +1099,8 @@ containerLogs:
             sts_endpoint        sts.${AWS_REGION}.api.aws
             net.dns.mode        ipv6
             net.dns.resolver    LEGACY
+            net.dns.prefer_ipv6 On
+            net.connect_timeout 10s
             net.keepalive       on
             net.keepalive_idle_timeout 30
             extra_user_agent    container-insights
@@ -1034,6 +1116,8 @@ containerLogs:
             sts_endpoint        sts.${AWS_REGION}.api.aws
             net.dns.mode        ipv6
             net.dns.resolver    LEGACY
+            net.dns.prefer_ipv6 On
+            net.connect_timeout 10s
             net.keepalive       on
             net.keepalive_idle_timeout 30
             extra_user_agent    container-insights
@@ -1060,6 +1144,8 @@ containerLogs:
             sts_endpoint        sts.${AWS_REGION}.api.aws
             net.dns.mode        ipv6
             net.dns.resolver    LEGACY
+            net.dns.prefer_ipv6 On
+            net.connect_timeout 10s
             net.keepalive       on
             net.keepalive_idle_timeout 30
             extra_user_agent    container-insights
@@ -1352,6 +1438,7 @@ agent:
       "agent": {
         "metrics_collection_interval": 10,
         "debug": true,
+        "use_dualstack_endpoint":true,
         "aws_sdk_log_level": "LogDebug",
         "region": "us-west-2"
       },
@@ -1370,7 +1457,7 @@ agent:
         }
       },
       "metrics": {
-        "namespace": "ContainerInsights-test-ipv6-6",
+        "namespace": "ContainerInsights-test-ipv6-10",
         "append_dimensions": {
           "InstanceId": "${aws:InstanceId}"
         },
