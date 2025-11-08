@@ -19,7 +19,7 @@ containerLogs:
   fluentBit:
     image:
       repository: aws-for-fluent-bit
-      tag: 2.33.0.20250731
+      tag: 3.0.0
       tagWindows: 2.31.12-windowsservercore
       pullPolicy: IfNotPresent
       repositoryDomainMap:
@@ -145,6 +145,12 @@ containerLogs:
             log_group_name      /aws/containerinsights/${CLUSTER_NAME}/application
             log_stream_prefix   ${HOST_NAME}-
             auto_create_group   true
+            endpoint            logs.${AWS_REGION}.api.aws
+            sts_endpoint        sts.${AWS_REGION}.api.aws
+            net.dns.mode        ipv6
+            net.dns.resolver    LEGACY
+            net.keepalive       on
+            net.keepalive_idle_timeout 30
             extra_user_agent    container-insights
             add_entity          true
         dataplane-log.conf: |
@@ -191,6 +197,12 @@ containerLogs:
             log_group_name      /aws/containerinsights/${CLUSTER_NAME}/dataplane
             log_stream_prefix   ${HOST_NAME}-
             auto_create_group   true
+            endpoint            logs.${AWS_REGION}.api.aws
+            sts_endpoint        sts.${AWS_REGION}.api.aws
+            net.dns.mode        ipv6
+            net.dns.resolver    LEGACY
+            net.keepalive       on
+            net.keepalive_idle_timeout 30
             extra_user_agent    container-insights
         host-log.conf: |
           [INPUT]
@@ -238,6 +250,12 @@ containerLogs:
             log_group_name      /aws/containerinsights/${CLUSTER_NAME}/host
             log_stream_prefix   ${HOST_NAME}.
             auto_create_group   true
+            endpoint            logs.${AWS_REGION}.api.aws
+            sts_endpoint        sts.${AWS_REGION}.api.aws
+            net.dns.mode        ipv6
+            net.dns.resolver    LEGACY
+            net.keepalive       on
+            net.keepalive_idle_timeout 30
             extra_user_agent    container-insights
       adcIsoExtraFiles:
         application-log.conf: |
@@ -941,6 +959,12 @@ containerLogs:
             log_group_name      /aws/containerinsights/${CLUSTER_NAME}/application
             log_stream_prefix   ${HOST_NAME}-
             auto_create_group   true
+            endpoint            logs.${AWS_REGION}.api.aws
+            sts_endpoint        sts.${AWS_REGION}.api.aws
+            net.dns.mode        ipv6
+            net.dns.resolver    LEGACY
+            net.keepalive       on
+            net.keepalive_idle_timeout 30
             extra_user_agent    container-insights
         dataplane-log.conf: |
           [INPUT]
@@ -991,6 +1015,12 @@ containerLogs:
             log_group_name      /aws/containerinsights/${CLUSTER_NAME}/dataplane
             log_stream_prefix   ${HOST_NAME}-
             auto_create_group   true
+            endpoint            logs.${AWS_REGION}.api.aws
+            sts_endpoint        sts.${AWS_REGION}.api.aws
+            net.dns.mode        ipv6
+            net.dns.resolver    LEGACY
+            net.keepalive       on
+            net.keepalive_idle_timeout 30
             extra_user_agent    container-insights
 
           [OUTPUT]
@@ -1000,6 +1030,12 @@ containerLogs:
             log_group_name      /aws/containerinsights/${CLUSTER_NAME}/dataplane
             log_stream_name     ${HOST_NAME}.windows.kubelet.kubeproxy.service
             auto_create_group   true
+            endpoint            logs.${AWS_REGION}.api.aws
+            sts_endpoint        sts.${AWS_REGION}.api.aws
+            net.dns.mode        ipv6
+            net.dns.resolver    LEGACY
+            net.keepalive       on
+            net.keepalive_idle_timeout 30
             extra_user_agent    container-insights
         host-log.conf: |
           [INPUT]
@@ -1020,6 +1056,12 @@ containerLogs:
             log_group_name      /aws/containerinsights/${CLUSTER_NAME}/host
             log_stream_name     ${HOST_NAME}.windows.system.events
             auto_create_group   true
+            endpoint            logs.${AWS_REGION}.api.aws
+            sts_endpoint        sts.${AWS_REGION}.api.aws
+            net.dns.mode        ipv6
+            net.dns.resolver    LEGACY
+            net.keepalive       on
+            net.keepalive_idle_timeout 30
             extra_user_agent    container-insights
     affinity:
       nodeAffinity:
@@ -1064,13 +1106,13 @@ manager:
       tag: v0.6.0
   applicationSignals:
     autoMonitor:
-      monitorAllServices: false
+      monitorAllServices: true
       languages:
         - java
         - python
         - dotnet
         - nodejs
-      restartPods: false
+      restartPods: true
       exclude:
         java:
           namespaces: []
@@ -1248,7 +1290,7 @@ agent:
   image:
     repository: eksmode
     tag: v1.0.0
-    pullPolicy: IfNotPresent
+    pullPolicy: Always
     repositoryDomainMap:
       public: 506463145083.dkr.ecr.us-west-2.amazonaws.com
       cn-north-1: 934860584483.dkr.ecr.cn-north-1.amazonaws.com.cn
@@ -1310,7 +1352,6 @@ agent:
       "agent": {
         "metrics_collection_interval": 10,
         "debug": true,
-        "use_dualstack_endpoint": true,
         "aws_sdk_log_level": "LogDebug",
         "region": "us-west-2"
       },
