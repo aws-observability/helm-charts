@@ -249,6 +249,26 @@ Get the current recommended neuron-monitor image for a region
 {{- end -}}
 
 {{/*
+Set DCGM_EXPORTER_INTERVAL environment variable for dcgmExporter if accelerated_compute_gpu_metrics_collection_interval is set and less than 60
+*/}}
+{{- define "dcgm-exporter.env" -}}
+{{- $intervalFound := false -}}
+{{- $intervalValue := 0 -}}
+{{- range .Values.agents -}}
+  {{- $agent := merge . (deepCopy $.Values.agent) -}}
+  {{- $agentConfig := $agent.config | default $agent.defaultConfig -}}
+  {{- if and (hasKey $agentConfig "logs") (hasKey $agentConfig.logs "metrics_collected") (hasKey $agentConfig.logs.metrics_collected "kubernetes") (hasKey $agentConfig.logs.metrics_collected.kubernetes "accelerated_compute_gpu_metrics_collection_interval") -}}
+    {{- $intervalFound = true -}}
+    {{- $intervalValue = $agentConfig.logs.metrics_collected.kubernetes.accelerated_compute_gpu_metrics_collection_interval -}}
+  {{- end -}}
+{{- end -}}
+{{- if and $intervalFound (lt ($intervalValue | int) 60) -}}
+- name: DCGM_EXPORTER_INTERVAL
+  value: "1000"
+{{- end -}}
+{{- end -}}
+
+{{/*
 Get the current recommended auto instrumentation java image
 */}}
 {{- define "auto-instrumentation-java.image" -}}
