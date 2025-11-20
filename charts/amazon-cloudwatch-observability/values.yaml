@@ -19,7 +19,7 @@ containerLogs:
   fluentBit:
     image:
       repository: aws-for-fluent-bit
-      tag: 3.0.0
+      tag: 3.0.1
       tagWindows: 2.31.12-windowsservercore
       repositoryDomainMap:
         public: public.ecr.aws/aws-observability
@@ -55,6 +55,7 @@ containerLogs:
           storage.sync              normal
           storage.checksum          off
           storage.backlog.mem_limit 5M
+          net.dns.prefer_ipv6       true
       customParsers: |
         [PARSER]
           Name                syslog
@@ -144,6 +145,8 @@ containerLogs:
             log_group_name      /aws/containerinsights/${CLUSTER_NAME}/application
             log_stream_prefix   ${HOST_NAME}-
             auto_create_group   true
+            endpoint            logs.${AWS_REGION}.api.aws
+            sts_endpoint        sts.${AWS_REGION}.api.aws
             extra_user_agent    container-insights
             add_entity          true
         dataplane-log.conf: |
@@ -190,6 +193,8 @@ containerLogs:
             log_group_name      /aws/containerinsights/${CLUSTER_NAME}/dataplane
             log_stream_prefix   ${HOST_NAME}-
             auto_create_group   true
+            endpoint            logs.${AWS_REGION}.api.aws
+            sts_endpoint        sts.${AWS_REGION}.api.aws
             extra_user_agent    container-insights
         host-log.conf: |
           [INPUT]
@@ -248,6 +253,8 @@ containerLogs:
             log_group_name      /aws/containerinsights/${CLUSTER_NAME}/host
             log_stream_prefix   ${HOST_NAME}.
             auto_create_group   true
+            endpoint            logs.${AWS_REGION}.api.aws
+            sts_endpoint        sts.${AWS_REGION}.api.aws
             extra_user_agent    container-insights
       adcIsoExtraFiles:
         application-log.conf: |
@@ -1074,7 +1081,7 @@ manager:
       tag: v0.7.0
   applicationSignals:
     autoMonitor:
-      # monitorAllServices: true; Defaults to true for regions where AppSignals is supported, false otherwise
+      monitorAllServices: false
       languages:
         - java
         - python
@@ -1208,8 +1215,6 @@ manager:
   affinity: {}
   nodeSelector:
     kubernetes.io/os: linux
-  # Enable automatic rolling by forcing a deployment spec change
-  rolling: false
 ## Admission webhooks make sure only requests with correctly formatted rules will get into the Operator.
 admissionWebhooks:
   create: true
@@ -1258,7 +1263,6 @@ admissionWebhooks:
   autoGenerateCert:
     enabled: true
     expiryDays: 3650 # 10 years
-    recreate: true
   ## TLS Certificate Option 2: Use certManager to generate self-signed certificate.
   ## certManager must be enabled. If enabled, it takes precedence over option 1.
   certManager:
@@ -1284,7 +1288,7 @@ agent:
   replicas: 1 # The total number non-terminated pods targeted by this AmazonCloudWatchAgent's deployment or statefulSet.
   image:
     repository: cloudwatch-agent
-    tag: 1.300060.0b1248
+    tag: 1.300062.0b1304
     repositoryDomainMap:
       public: public.ecr.aws/cloudwatch-agent
       cn-north-1: 934860584483.dkr.ecr.cn-north-1.amazonaws.com.cn
