@@ -1081,7 +1081,6 @@ manager:
       tag: v0.7.0
   applicationSignals:
     autoMonitor:
-      monitorAllServices: false
       languages:
         - java
         - python
