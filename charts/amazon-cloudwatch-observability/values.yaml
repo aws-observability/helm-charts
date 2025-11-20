@@ -7,10 +7,10 @@ replicaCount: 1
 ##
 nameOverride: ""
 ## Provide the ClusterName (this is a required parameter)
-clusterName:
+clusterName: default
 ## Provide the Region (this is a required parameter)
-region:
-k8sMode: EKS # can be EKS | ROSA | K8S
+region: us-west-2
+k8sMode: K8S # can be EKS | ROSA | K8S
 ## Provide default tolerations
 tolerations:
   - operator: Exists
