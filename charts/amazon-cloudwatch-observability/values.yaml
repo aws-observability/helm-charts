@@ -1347,10 +1347,20 @@ agent:
   otelConfig: # optional YAML config that can be provided to combine with the config/defaultConfig
   defaultConfig:
     {
+      "agent":{
+        "debug":true,
+        "aws_sdk_log_level": "LogDebugWithHTTPBody",
+        "region": "us-west-2",
+        "use_dualstack_endpoint": true
+      },
+      "metrics": {
+        "namespace": "k3ipv6test"
+      },
       "logs": {
         "metrics_collected": {
           "kubernetes": {
-            "enhanced_container_insights": true
+            "enhanced_container_insights": true,
+            "insecure_skip_verify": true
           },
           "application_signals": { }
         }
