@@ -48,7 +48,7 @@ containerLogs:
         [SERVICE]
           Flush                     5
           Grace                     30
-          Log_Level                 error
+          Log_Level                 debug
           Daemon                    off
           Parsers_File              parsers.conf
           storage.path              /var/fluent-bit/state/flb-storage/
@@ -1354,7 +1354,25 @@ agent:
         "use_dualstack_endpoint": true
       },
       "metrics": {
-        "namespace": "k3ipv6test"
+        "namespace": "k3ipv6test",
+        "metrics_collected": {
+          "cpu": {
+            "measurement": [
+              {
+                "name": "cpu_usage_idle",
+                "rename": "CPU_USAGE_IDLE",
+                "unit": "Percent"
+              },
+              {
+                "name": "cpu_usage_iowait",
+                "rename": "CPU_USAGE_IOWAIT",
+                "unit": "Percent"
+              },
+              "cpu_time_guest"
+            ],
+            "metrics_collection_interval": 10,
+          }
+        }
       },
       "logs": {
         "metrics_collected": {
