@@ -1379,7 +1379,7 @@ agent:
           "files": {
             "collect_list": [
               {
-                "file_path": "/var/log/cloud-init.log",
+                "file_path": "/tmp/tempLogs",
                 "log_group_name": "k3ipv6test",
                 "log_stream_name": "k3ipv6test-stream-{instance_id}",
                 "timezone": "UTC"
