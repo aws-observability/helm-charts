@@ -20,6 +20,42 @@ tolerations:
 {{- end }}
 
 {{/*
+Helper function to determine monitorAllServices based on region
+*/}}
+{{- define "manager.monitorAllServices" -}}
+{{- $region := .Values.region | required ".Values.region is required." -}}
+{{- if regexMatch "ap-east-2|ap-southeast-6|cn-.*|.*-iso[a-z]*-.*" $region -}}
+false
+{{- else -}}
+true
+{{- end -}}
+{{- end -}}
+
+{{/*
+Helper function to modify auto-monitor config based on agent configurations
+*/}}
+{{- define "manager.modify-auto-monitor-config" -}}
+{{- $autoMonitorConfig := deepCopy .Values.manager.applicationSignals.autoMonitor -}}
+{{- $hasAppSignals := false -}}
+{{- range .Values.agents -}}
+{{- $agent := merge . (deepCopy $.Values.agent) -}}
+{{- $agentConfig := $agent.config | default $agent.defaultConfig -}}
+{{- if and (hasKey $agentConfig "logs") (hasKey $agentConfig.logs "metrics_collected") (hasKey $agentConfig.logs.metrics_collected "application_signals") -}}
+{{- $hasAppSignals = true -}}
+{{- end -}}
+{{- if and (hasKey $agentConfig "traces") (hasKey $agentConfig.traces "traces_collected") (hasKey $agentConfig.traces.traces_collected "application_signals") -}}
+{{- $hasAppSignals = true -}}
+{{- end -}}
+{{- end -}}
+{{- if not $hasAppSignals -}}
+{{- $_ := set $autoMonitorConfig "monitorAllServices" false -}}
+{{- else if not (hasKey $autoMonitorConfig "monitorAllServices") -}}
+{{- $_ := set $autoMonitorConfig "monitorAllServices" (include "manager.monitorAllServices" . | trim | eq "true") -}}
+{{- end -}}
+{{- $autoMonitorConfig | toJson -}}
+{{- end -}}
+
+{{/*
 Helper function to modify cloudwatch-agent config
 */}}
 {{- define "cloudwatch-agent.config-modifier" -}}
@@ -392,4 +428,32 @@ Get namespaceSelector value for admission webhooks
 {{- end -}}
 {{- end -}}
 
-
+{{/*
+Returns auto-generated certificate and CA for admission webhooks.
+*/}}
+{{- define "amazon-cloudwatch-observability.webhookCert" -}}
+{{- $tlsCrt := "" }}
+{{- $tlsKey := "" }}
+{{- $caCrt := "" }}
+{{- if .Values.admissionWebhooks.autoGenerateCert.enabled }}
+{{- $existingCert := ( lookup "v1" "Secret" .Release.Namespace (include "amazon-cloudwatch-observability.certificateSecretName" .) ) }}
+{{- if and (not .Values.admissionWebhooks.autoGenerateCert.recreate) $existingCert }}
+{{- $tlsCrt = index $existingCert "data" "tls.crt" }}
+{{- $tlsKey = index $existingCert "data" "tls.key" }}
+{{- $caCrt = index $existingCert "data" "ca.crt" }}
+{{- if not $caCrt }}
+{{- $existingWebhook := ( lookup "admissionregistration.k8s.io/v1" "MutatingWebhookConfiguration" "" (printf "%s-mutating-webhook-configuration" (include "amazon-cloudwatch-observability.name" .)) ) }}
+{{- $caCrt = (first $existingWebhook.webhooks).clientConfig.caBundle }}
+{{- end }}
+{{- else }}
+{{- $altNames := list ( printf "%s-webhook-service.%s" (include "amazon-cloudwatch-observability.name" .) .Release.Namespace ) ( printf "%s-webhook-service.%s.svc" (include "amazon-cloudwatch-observability.name" .) .Release.Namespace ) ( printf "%s-webhook-service.%s.svc.cluster.local" (include "amazon-cloudwatch-observability.name" .) .Release.Namespace ) -}}
+{{- $ca := genCA ( printf "%s-ca" (include "amazon-cloudwatch-observability.name" .) ) ( .Values.admissionWebhooks.autoGenerateCert.expiryDays | int ) -}}
+{{- $cert := genSignedCert (include "amazon-cloudwatch-observability.name" .) nil $altNames ( .Values.admissionWebhooks.autoGenerateCert.expiryDays | int ) $ca -}}
+{{- $tlsCrt = b64enc $cert.Cert }}
+{{- $tlsKey = b64enc $cert.Key }}
+{{- $caCrt = b64enc $ca.Cert }}
+{{- end }}
+{{- $result := dict "Cert" $tlsCrt "Key" $tlsKey "Ca" $caCrt }}
+{{- $result | toYaml }}
+{{- end }}
+{{- end }}

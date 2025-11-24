@@ -18,6 +18,9 @@ spec:
         {{- if .Values.manager.podAnnotations }}
         {{- include "amazon-cloudwatch-observability.podAnnotations" . | nindent 8 }}
         {{- end }}
+        {{- if .Values.manager.rolling }}
+        rollme: {{ randAlphaNum 5 | quote }}
+        {{- end }}
       labels:
         app.kubernetes.io/name: {{ template "amazon-cloudwatch-observability.name" . }}
         control-plane: controller-manager
@@ -28,7 +31,7 @@ spec:
         args:
         - {{ printf "--auto-instrumentation-config=%s" (dict "java" (merge .Values.manager.autoInstrumentationResources.java .Values.manager.autoInstrumentationConfiguration.java) "python" (merge .Values.manager.autoInstrumentationResources.python .Values.manager.autoInstrumentationConfiguration.python) "dotnet" (merge .Values.manager.autoInstrumentationResources.dotnet .Values.manager.autoInstrumentationConfiguration.dotnet) "nodejs" (.Values.manager.autoInstrumentationResources.nodejs) | toJson) | quote }}
         - {{ printf "--auto-annotation-config=%s" (.Values.manager.autoAnnotateAutoInstrumentation | toJson) | quote }}
-        - {{ printf "--auto-monitor-config=%s" (.Values.manager.applicationSignals.autoMonitor | toJson) | quote }}
+        - {{ printf "--auto-monitor-config=%s" (include "manager.modify-auto-monitor-config" .) | quote }}
         - "--auto-instrumentation-java-image={{ template "auto-instrumentation-java.image" . }}"
         - "--auto-instrumentation-python-image={{ template "auto-instrumentation-python.image" . }}"
         - "--auto-instrumentation-dotnet-image={{ template "auto-instrumentation-dotnet.image" . }}"
@@ -42,6 +45,18 @@ spec:
         - containerPort: {{ .Values.manager.ports.containerPort }}
           name: webhook-server
           protocol: TCP
+        livenessProbe:
+          httpGet:
+            path: /healthz
+            port: 8081
+          initialDelaySeconds: 15
+          periodSeconds: 20
+        readinessProbe:
+          httpGet:
+            path: /readyz
+            port: 8081
+          initialDelaySeconds: 5
+          periodSeconds: 10
         resources: {{ toYaml .Values.manager.resources | nindent 10 }}
         volumeMounts:
         - mountPath: /tmp/k8s-webhook-server/serving-certs
