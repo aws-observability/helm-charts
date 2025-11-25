@@ -67,6 +67,13 @@ Helper function to modify cloudwatch-agent config
 {{- $agent := set $configCopy "agent" $agentRegion }}
 {{- end }}
 
+{{- if .Values.useDualstackEndpoint }}
+{{- if not (hasKey $configCopy "agent") }}
+{{- $_ := set $configCopy "agent" dict }}
+{{- end }}
+{{- $_ := set $configCopy.agent "use_dualstack_endpoint" true }}
+{{- end }}
+
 {{- $appSignals := pluck "application_signals" $configCopy.logs.metrics_collected | first }}
 {{- if and (hasKey $configCopy.logs.metrics_collected "application_signals") (empty $appSignals.hosted_in) }}
 {{- $clusterName := .Values.clusterName | toString | required ".Values.clusterName is required." -}}
@@ -208,6 +215,17 @@ Get the current recommended fluent-bit image for a region
 {{- $imageDomain = .Values.containerLogs.fluentBit.image.repositoryDomainMap.public -}}
 {{- end -}}
 {{- printf "%s/%s:%s" $imageDomain .Values.containerLogs.fluentBit.image.repository .Values.containerLogs.fluentBit.image.tag -}}
+{{- end -}}
+
+{{/*
+Helper function to add dualstack endpoints to fluent-bit OUTPUT sections
+*/}}
+{{- define "fluent-bit.add-dualstack-endpoints" -}}
+{{- $config := .config -}}
+{{- if .Values.useDualstackEndpoint -}}
+{{- $config = replace "region              ${AWS_REGION}" (printf "region              ${AWS_REGION}\n  endpoint            logs.${AWS_REGION}.api.aws\n  sts_endpoint        sts.${AWS_REGION}.api.aws") $config -}}
+{{- end -}}
+{{- $config -}}
 {{- end -}}
 
 {{/*
