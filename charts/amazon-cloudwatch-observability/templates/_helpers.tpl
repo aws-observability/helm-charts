@@ -222,7 +222,7 @@ Helper function to add dualstack endpoints to fluent-bit OUTPUT sections
 */}}
 {{- define "fluent-bit.add-dualstack-endpoints" -}}
 {{- $config := .config -}}
-{{- if .Values.useDualstackEndpoint -}}
+{{- if and .Values.useDualstackEndpoint (not (contains "endpoint" $config)) -}}
 {{- $config = replace "region              ${AWS_REGION}" (printf "region              ${AWS_REGION}\n  endpoint            logs.${AWS_REGION}.api.aws\n  sts_endpoint        sts.${AWS_REGION}.api.aws") $config -}}
 {{- end -}}
 {{- $config -}}
