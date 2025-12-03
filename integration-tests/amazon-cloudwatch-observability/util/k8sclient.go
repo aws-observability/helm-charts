@@ -20,7 +20,6 @@ import (
 type K8sClient struct {
 	client        kubernetes.Interface
 	dynamicClient dynamic.Interface
-	kubeConfig    string
 }
 
 func NewK8sClient() (*K8sClient, error) {
@@ -50,7 +49,6 @@ func NewK8sClient() (*K8sClient, error) {
 	return &K8sClient{
 		client:        client,
 		dynamicClient: dynamicClient,
-		kubeConfig:    kubeConfigPath,
 	}, nil
 }
 
