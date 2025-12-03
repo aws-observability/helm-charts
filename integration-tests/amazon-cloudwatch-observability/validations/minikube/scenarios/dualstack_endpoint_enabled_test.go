@@ -56,7 +56,7 @@ func validateCloudWatchAgentDualstackEndpoint(t *testing.T, k8sClient *util.K8sC
 
 	foundDualstackConfig := false
 	for _, agent := range agentList.Items {
-		spec, found := agent.Object["spec"].(map[string]interface{})
+		spec, found := agent.Object["spec"].(map[string]any)
 		if !found {
 			continue
 		}
@@ -66,12 +66,12 @@ func validateCloudWatchAgentDualstackEndpoint(t *testing.T, k8sClient *util.K8sC
 			continue
 		}
 
-		var config map[string]interface{}
+		var config map[string]any
 		if err := json.Unmarshal([]byte(configStr), &config); err != nil {
 			continue
 		}
 
-		if agentConfig, ok := config["agent"].(map[string]interface{}); ok {
+		if agentConfig, ok := config["agent"].(map[string]any); ok {
 			if useDualstack, ok := agentConfig["use_dualstack_endpoint"].(bool); ok && useDualstack {
 				foundDualstackConfig = true
 				break
@@ -93,6 +93,8 @@ func validateFluentBitDualstackEndpoints(t *testing.T, k8sClient *util.K8sClient
 		assert.True(t, exists, "%s should exist", configName)
 		assert.Contains(t, conf, "logs.${AWS_REGION}.api.aws", "%s should contain dualstack logs endpoint", configName)
 		assert.Contains(t, conf, "sts.${AWS_REGION}.api.aws", "%s should contain dualstack sts endpoint", configName)
+		// Verify standard endpoints are NOT present when dualstack is enabled
+		assert.NotContains(t, conf, "logs.${AWS_REGION}.amazonaws.com", "%s should not contain standard logs endpoint when dualstack is enabled", configName)
 	}
 }
 

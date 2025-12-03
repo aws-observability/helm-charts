@@ -219,11 +219,25 @@ Get the current recommended fluent-bit image for a region
 
 {{/*
 Helper function to add dualstack endpoints to fluent-bit OUTPUT sections
+Uses regex to handle variable whitespace in the region line
 */}}
 {{- define "fluent-bit.add-dualstack-endpoints" -}}
 {{- $config := .config -}}
 {{- if and .Values.useDualstackEndpoint (not (contains "endpoint" $config)) -}}
-{{- $config = replace "region              ${AWS_REGION}" (printf "region              ${AWS_REGION}\n  endpoint            logs.${AWS_REGION}.api.aws\n  sts_endpoint        sts.${AWS_REGION}.api.aws") $config -}}
+{{- $config = mustRegexReplaceAll "(region\\s+\\$\\{AWS_REGION\\})" $config "$1\n  endpoint            logs.$${AWS_REGION}.api.aws\n  sts_endpoint        sts.$${AWS_REGION}.api.aws" -}}
+{{- end -}}
+{{- $config -}}
+{{- end -}}
+
+{{/*
+Helper function to add IPv6 preference to fluent-bit SERVICE section
+Uses regex to handle variable whitespace - inserts after the last config line before blank line
+*/}}
+{{- define "fluent-bit.add-ipv6-preference" -}}
+{{- $config := .config -}}
+{{- $indent := .indent | default "  " -}}
+{{- if and .useDualstackEndpoint (not (contains "net.dns.prefer_ipv6" $config)) -}}
+{{- $config = mustRegexReplaceAll "((?:Parsers_File|storage\\.backlog\\.mem_limit)\\s+\\S+)" $config (printf "$1\n%snet.dns.prefer_ipv6       true" $indent) -}}
 {{- end -}}
 {{- $config -}}
 {{- end -}}
