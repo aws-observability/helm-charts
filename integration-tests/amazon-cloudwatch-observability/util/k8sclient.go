@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/tools/clientcmd"
 
 	arv1 "k8s.io/api/admissionregistration/v1"
@@ -17,7 +18,9 @@ import (
 )
 
 type K8sClient struct {
-	client kubernetes.Interface
+	client        kubernetes.Interface
+	dynamicClient dynamic.Interface
+	kubeConfig    string
 }
 
 func NewK8sClient() (*K8sClient, error) {
@@ -39,7 +42,16 @@ func NewK8sClient() (*K8sClient, error) {
 		return nil, err
 	}
 
-	return &K8sClient{client: client}, nil
+	dynamicClient, err := dynamic.NewForConfig(kubeConfig)
+	if err != nil {
+		return nil, err
+	}
+
+	return &K8sClient{
+		client:        client,
+		dynamicClient: dynamicClient,
+		kubeConfig:    kubeConfigPath,
+	}, nil
 }
 
 func (k *K8sClient) GetNamespace(namespace string) (*v1.Namespace, error) {
@@ -214,4 +226,16 @@ func (k *K8sClient) ValidateDeploymentExists(namespace, deploymentName string) (
 		}
 	}
 	return false, nil
+}
+
+func (k *K8sClient) GetConfigMap(namespace, name string) (*v1.ConfigMap, error) {
+	configMap, err := k.client.CoreV1().ConfigMaps(namespace).Get(context.Background(), name, metav1.GetOptions{})
+	if err != nil {
+		return nil, fmt.Errorf("error getting ConfigMap: %v", err)
+	}
+	return configMap, nil
+}
+
+func (k *K8sClient) GetDynamicClient() (dynamic.Interface, error) {
+	return k.dynamicClient, nil
 }

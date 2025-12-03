@@ -1,0 +1,29 @@
+region: us-west-2
+clusterName: minikube
+useDualstackEndpoint: true
+containerLogs:
+  enabled: true
+  fluentBit:
+    config:
+      extraFiles:
+        application-log.conf: |
+          [INPUT]
+            Name                tail
+            Tag                 application.*
+            Path                /var/log/containers/*.log
+            multiline.parser    docker, cri
+            DB                  /var/fluent-bit/state/flb_container.db
+            Mem_Buf_Limit       50MB
+            Skip_Long_Lines     On
+            Refresh_Interval    10
+            Read_from_Head      ${READ_FROM_HEAD}
+
+          [OUTPUT]
+            Name                cloudwatch_logs
+            Match               application.*
+            region              ${AWS_REGION}
+            log_group_name      /aws/containerinsights/${CLUSTER_NAME}/application
+            log_stream_prefix   ${HOST_NAME}-
+            auto_create_group   true
+            endpoint            logs.custom-endpoint.example.com
+            extra_user_agent    container-insights
