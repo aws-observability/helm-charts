@@ -8,7 +8,7 @@ metadata:
     k8s-app: fluent-bit
 data:
   fluent-bit.conf: |
-    {{- include "fluent-bit.add-ipv6-preference" (dict "config" .Values.containerLogs.fluentBit.configWindows.service "useDualstackEndpoint" .Values.useDualstackEndpoint "indent" "  ") | nindent 4 }}
+    {{- .Values.containerLogs.fluentBit.configWindows.service  | nindent 4 }}
     {{- range $key, $val := .Values.containerLogs.fluentBit.configWindows.extraFiles }}
     @INCLUDE {{ $key }}
     {{- end }}
@@ -16,6 +16,6 @@ data:
     {{- .Values.containerLogs.fluentBit.configWindows.customParsers  | nindent 4 }}
   {{- range $key, $val := .Values.containerLogs.fluentBit.configWindows.extraFiles }}
   {{ $key }}: |
-    {{- include "fluent-bit.add-dualstack-endpoints" (dict "Values" $.Values "config" (tpl $val $)) | nindent 4 }}
+    {{- (tpl $val $) | nindent 4 }}
   {{- end -}}
 {{- end -}}

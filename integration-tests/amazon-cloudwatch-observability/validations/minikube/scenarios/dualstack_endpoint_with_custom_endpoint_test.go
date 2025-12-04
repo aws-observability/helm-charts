@@ -54,8 +54,13 @@ func validateCustomEndpointNotOverwritten(t *testing.T, k8sClient *util.K8sClien
 	appLogConf, exists := configMap.Data["application-log.conf"]
 	assert.True(t, exists, "application-log.conf should exist")
 
+	// Validate custom endpoint is preserved
 	assert.Contains(t, appLogConf, "logs.custom-endpoint.example.com", "custom endpoint should be preserved")
 	assert.NotContains(t, appLogConf, "logs.${AWS_REGION}.api.aws", "dualstack endpoint should not be added when custom endpoint exists")
+
+	// Validate custom sts_endpoint is preserved
+	assert.Contains(t, appLogConf, "sts.custom-endpoint.example.com", "custom sts_endpoint should be preserved")
+	assert.NotContains(t, appLogConf, "sts.${AWS_REGION}.api.aws", "dualstack sts_endpoint should not be added when custom sts_endpoint exists")
 }
 
 func validateOtherConfigsStillGetDualstack(t *testing.T, k8sClient *util.K8sClient) {

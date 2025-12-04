@@ -26,4 +26,5 @@ containerLogs:
             log_stream_prefix   ${HOST_NAME}-
             auto_create_group   true
             endpoint            logs.custom-endpoint.example.com
+            sts_endpoint        sts.custom-endpoint.example.com
             extra_user_agent    container-insights

@@ -231,13 +231,13 @@ Uses regex to handle variable whitespace in the region line
 
 {{/*
 Helper function to add IPv6 preference to fluent-bit SERVICE section
-Uses regex to handle variable whitespace - inserts after the last config line before blank line
+Inserts net.dns.prefer_ipv6 right after [SERVICE] or [ SERVICE ] header
 */}}
 {{- define "fluent-bit.add-ipv6-preference" -}}
 {{- $config := .config -}}
 {{- $indent := .indent | default "  " -}}
 {{- if and .useDualstackEndpoint (not (contains "net.dns.prefer_ipv6" $config)) -}}
-{{- $config = mustRegexReplaceAll "((?:Parsers_File|storage\\.backlog\\.mem_limit)\\s+\\S+)" $config (printf "$1\n%snet.dns.prefer_ipv6       true" $indent) -}}
+{{- $config = mustRegexReplaceAll "(\\[\\s*SERVICE\\s*\\])" $config (printf "$1\n%snet.dns.prefer_ipv6       true" $indent) -}}
 {{- end -}}
 {{- $config -}}
 {{- end -}}
