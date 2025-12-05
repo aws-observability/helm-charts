@@ -1,0 +1,3 @@
+region: us-west-2
+clusterName: minikube
+useDualstackEndpoint: true

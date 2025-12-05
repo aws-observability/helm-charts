@@ -52,6 +52,8 @@ jobs:
           - deployment-rolling-disabled
           - certificate-recreate-enabled
           - certificate-recreate-disabled
+          - dualstack-endpoint-enabled
+          - dualstack-endpoint-with-custom-endpoint
     steps:
       - uses: actions/checkout@v3
 

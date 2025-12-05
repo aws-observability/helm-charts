@@ -67,6 +67,13 @@ Helper function to modify cloudwatch-agent config
 {{- $agent := set $configCopy "agent" $agentRegion }}
 {{- end }}
 
+{{- if .Values.useDualstackEndpoint }}
+{{- if not (hasKey $configCopy "agent") }}
+{{- $_ := set $configCopy "agent" dict }}
+{{- end }}
+{{- $_ := set $configCopy.agent "use_dualstack_endpoint" true }}
+{{- end }}
+
 {{- $appSignals := pluck "application_signals" $configCopy.logs.metrics_collected | first }}
 {{- if and (hasKey $configCopy.logs.metrics_collected "application_signals") (empty $appSignals.hosted_in) }}
 {{- $clusterName := .Values.clusterName | toString | required ".Values.clusterName is required." -}}
@@ -208,6 +215,31 @@ Get the current recommended fluent-bit image for a region
 {{- $imageDomain = .Values.containerLogs.fluentBit.image.repositoryDomainMap.public -}}
 {{- end -}}
 {{- printf "%s/%s:%s" $imageDomain .Values.containerLogs.fluentBit.image.repository .Values.containerLogs.fluentBit.image.tag -}}
+{{- end -}}
+
+{{/*
+Helper function to add dualstack endpoints to fluent-bit OUTPUT sections
+Uses regex to handle variable whitespace in the region line
+*/}}
+{{- define "fluent-bit.add-dualstack-endpoints" -}}
+{{- $config := .config -}}
+{{- if and .Values.useDualstackEndpoint (not (contains "endpoint" $config)) -}}
+{{- $config = mustRegexReplaceAll "(region\\s+\\$\\{AWS_REGION\\})" $config "$1\n  endpoint            logs.$${AWS_REGION}.api.aws\n  sts_endpoint        sts.$${AWS_REGION}.api.aws" -}}
+{{- end -}}
+{{- $config -}}
+{{- end -}}
+
+{{/*
+Helper function to add IPv6 preference to fluent-bit SERVICE section
+Inserts net.dns.prefer_ipv6 right after [SERVICE] or [ SERVICE ] header
+*/}}
+{{- define "fluent-bit.add-ipv6-preference" -}}
+{{- $config := .config -}}
+{{- $indent := .indent | default "  " -}}
+{{- if and .useDualstackEndpoint (not (contains "net.dns.prefer_ipv6" $config)) -}}
+{{- $config = mustRegexReplaceAll "(\\[\\s*SERVICE\\s*\\])" $config (printf "$1\n%snet.dns.prefer_ipv6       true" $indent) -}}
+{{- end -}}
+{{- $config -}}
 {{- end -}}
 
 {{/*

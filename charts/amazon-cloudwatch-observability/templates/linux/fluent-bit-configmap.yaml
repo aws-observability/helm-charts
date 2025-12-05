@@ -8,7 +8,7 @@ metadata:
     k8s-app: fluent-bit
 data:
   fluent-bit.conf: |
-    {{- .Values.containerLogs.fluentBit.config.service  | nindent 4 }}
+    {{- include "fluent-bit.add-ipv6-preference" (dict "config" .Values.containerLogs.fluentBit.config.service "useDualstackEndpoint" .Values.useDualstackEndpoint "indent" "  ") | nindent 4 }}
     {{- range $key, $val := .Values.containerLogs.fluentBit.config.extraFiles }}
     @INCLUDE {{ $key }}
     {{- end }}
@@ -17,27 +17,27 @@ data:
 {{- if hasPrefix "us-iso-" .Values.region }}
   {{- range $key, $val := .Values.containerLogs.fluentBit.config.adcIsoExtraFiles }}
   {{ $key }}: |
-    {{- (tpl $val $) | nindent 4 }}
+    {{- include "fluent-bit.add-dualstack-endpoints" (dict "Values" $.Values "config" (tpl $val $)) | nindent 4 }}
   {{- end -}}
 {{- else if hasPrefix "us-isob-" .Values.region }}
   {{- range $key, $val := .Values.containerLogs.fluentBit.config.adcIsobExtraFiles }}
   {{ $key }}: |
-    {{- (tpl $val $) | nindent 4 }}
+    {{- include "fluent-bit.add-dualstack-endpoints" (dict "Values" $.Values "config" (tpl $val $)) | nindent 4 }}
   {{- end -}}
 {{- else if hasPrefix "us-isof-" .Values.region }}
   {{- range $key, $val := .Values.containerLogs.fluentBit.config.adcIsofExtraFiles }}
   {{ $key }}: |
-    {{- (tpl $val $) | nindent 4 }}
+    {{- include "fluent-bit.add-dualstack-endpoints" (dict "Values" $.Values "config" (tpl $val $)) | nindent 4 }}
   {{- end -}}
 {{- else if hasPrefix "eu-isoe-" .Values.region }}
   {{- range $key, $val := .Values.containerLogs.fluentBit.config.euAdcIsoeExtraFiles }}
   {{ $key }}: |
-    {{- (tpl $val $) | nindent 4 }}
+    {{- include "fluent-bit.add-dualstack-endpoints" (dict "Values" $.Values "config" (tpl $val $)) | nindent 4 }}
   {{- end -}}
 {{- else }}
   {{- range $key, $val := .Values.containerLogs.fluentBit.config.extraFiles }}
   {{ $key }}: |
-    {{- (tpl $val $) | nindent 4 }}
+    {{- include "fluent-bit.add-dualstack-endpoints" (dict "Values" $.Values "config" (tpl $val $)) | nindent 4 }}
   {{- end -}}
 {{- end -}}
 {{- end -}}

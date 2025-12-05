@@ -11,6 +11,8 @@ clusterName:
 ## Provide the Region (this is a required parameter)
 region:
 k8sMode: EKS # can be EKS | ROSA | K8S
+## Enable dualstack endpoints for IPv6 support (default: false)
+useDualstackEndpoint: false
 ## Provide default tolerations
 tolerations:
   - operator: Exists
