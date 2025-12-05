@@ -4,14 +4,11 @@
 package scenarios
 
 import (
-	"context"
-	"encoding/json"
 	"testing"
 
 	"github.com/aws-observability/helm-charts/integration-tests/amazon-cloudwatch-observability/util"
 	"github.com/aws-observability/helm-charts/integration-tests/amazon-cloudwatch-observability/validations/minikube"
 	"github.com/stretchr/testify/assert"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 func TestDualstackEndpointWithCustomEndpoint(t *testing.T) {
@@ -39,7 +36,7 @@ func TestDualstackEndpointWithCustomEndpoint(t *testing.T) {
 	})
 
 	t.Run("CloudWatchAgentStillHasDualstack", func(t *testing.T) {
-		validateCloudWatchAgentStillHasDualstack(t, k8sClient)
+		validateCloudWatchAgentDualstackEndpoint(t, k8sClient)
 	})
 
 	t.Run("FluentBitIPv6PreferenceStillSet", func(t *testing.T) {
@@ -74,44 +71,6 @@ func validateOtherConfigsStillGetDualstack(t *testing.T, k8sClient *util.K8sClie
 		assert.Contains(t, conf, "logs.${AWS_REGION}.api.aws", "%s should contain dualstack logs endpoint since no custom endpoint is set", configName)
 		assert.Contains(t, conf, "sts.${AWS_REGION}.api.aws", "%s should contain dualstack sts endpoint since no custom endpoint is set", configName)
 	}
-}
-
-func validateCloudWatchAgentStillHasDualstack(t *testing.T, k8sClient *util.K8sClient) {
-	dynamicClient, err := k8sClient.GetDynamicClient()
-	assert.NoError(t, err)
-
-	agentList, err := dynamicClient.Resource(getAmazonCloudWatchAgentGVR()).
-		Namespace(minikube.Namespace).
-		List(context.Background(), metav1.ListOptions{})
-	assert.NoError(t, err)
-	assert.NotEmpty(t, agentList.Items, "No CloudWatch Agent resources found")
-
-	foundDualstackConfig := false
-	for _, agent := range agentList.Items {
-		spec, found := agent.Object["spec"].(map[string]any)
-		if !found {
-			continue
-		}
-
-		configStr, found := spec["config"].(string)
-		if !found {
-			continue
-		}
-
-		var config map[string]any
-		if err := json.Unmarshal([]byte(configStr), &config); err != nil {
-			continue
-		}
-
-		if agentConfig, ok := config["agent"].(map[string]any); ok {
-			if useDualstack, ok := agentConfig["use_dualstack_endpoint"].(bool); ok && useDualstack {
-				foundDualstackConfig = true
-				break
-			}
-		}
-	}
-
-	assert.True(t, foundDualstackConfig, "use_dualstack_endpoint should still be true in CloudWatch Agent config even with custom FluentBit endpoint")
 }
 
 func validateFluentBitIPv6PreferenceStillSet(t *testing.T, k8sClient *util.K8sClient) {
