@@ -14,6 +14,10 @@ data:
     {{- end }}
   parsers.conf: |
     {{- .Values.containerLogs.fluentBit.configWindows.customParsers  | nindent 4 }}
+  {{- range $key, $val := .Values.containerLogs.fluentBit.config.extraScripts }}
+  {{ $key }}: |
+    {{ $val | nindent 4}}
+  {{- end -}}
   {{- range $key, $val := .Values.containerLogs.fluentBit.configWindows.extraFiles }}
   {{ $key }}: |
     {{- (tpl $val $) | nindent 4 }}
