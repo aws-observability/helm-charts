@@ -14,7 +14,7 @@ data:
     {{- end }}
   parsers.conf: |
     {{- .Values.containerLogs.fluentBit.config.customParsers  | nindent 4 }}
-{{- if or (hasPrefix "us-iso-" .Values.region) (hasPrefix "us-isob-" .Values.region) (hasPrefix "us-isof-" .Values.region) (hasPrefix "eusc-de-" .Values.region) (hasPrefix "eu-isoe-" .Values.region) }}
+{{- if hasKey .Values.adcEndpointOverrides .Values.region }}
   {{- range $key, $val := .Values.containerLogs.fluentBit.config.adcRegionExtraFiles }}
   {{ $key }}: |
     {{- include "fluent-bit.add-dualstack-endpoints" (dict "Values" $.Values "config" (tpl $val $)) | nindent 4 }}
