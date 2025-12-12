@@ -14,23 +14,8 @@ data:
     {{- end }}
   parsers.conf: |
     {{- .Values.containerLogs.fluentBit.config.customParsers  | nindent 4 }}
-{{- if hasPrefix "us-iso-" .Values.region }}
-  {{- range $key, $val := .Values.containerLogs.fluentBit.config.adcIsoExtraFiles }}
-  {{ $key }}: |
-    {{- include "fluent-bit.add-dualstack-endpoints" (dict "Values" $.Values "config" (tpl $val $)) | nindent 4 }}
-  {{- end -}}
-{{- else if hasPrefix "us-isob-" .Values.region }}
-  {{- range $key, $val := .Values.containerLogs.fluentBit.config.adcIsobExtraFiles }}
-  {{ $key }}: |
-    {{- include "fluent-bit.add-dualstack-endpoints" (dict "Values" $.Values "config" (tpl $val $)) | nindent 4 }}
-  {{- end -}}
-{{- else if hasPrefix "us-isof-" .Values.region }}
-  {{- range $key, $val := .Values.containerLogs.fluentBit.config.adcIsofExtraFiles }}
-  {{ $key }}: |
-    {{- include "fluent-bit.add-dualstack-endpoints" (dict "Values" $.Values "config" (tpl $val $)) | nindent 4 }}
-  {{- end -}}
-{{- else if hasPrefix "eu-isoe-" .Values.region }}
-  {{- range $key, $val := .Values.containerLogs.fluentBit.config.euAdcIsoeExtraFiles }}
+{{- if hasKey .Values.adcEndpointOverrides .Values.region }}
+  {{- range $key, $val := .Values.containerLogs.fluentBit.config.adcRegionExtraFiles }}
   {{ $key }}: |
     {{- include "fluent-bit.add-dualstack-endpoints" (dict "Values" $.Values "config" (tpl $val $)) | nindent 4 }}
   {{- end -}}

@@ -54,6 +54,10 @@ spec:
               fieldPath: metadata.name
         - name: CI_VERSION
           value: "k8s/1.3.17"
+        {{- if hasKey .Values.adcEndpointOverrides .Values.region }}
+        - name: ADC_REGION_ENDPOINT
+          value: {{ index .Values.adcEndpointOverrides .Values.region | quote }}
+        {{- end }}
         {{- with .Values.containerLogs.fluentBit.resources }}
         resources: {{- toYaml . | nindent 10}}
         {{- end }}
