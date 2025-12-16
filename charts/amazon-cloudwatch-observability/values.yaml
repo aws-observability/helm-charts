@@ -1033,8 +1033,6 @@ dcgmExporter:
                   - p6-b200.48xlarge
                   - p6-b300.48xlarge
                   - p6e-gb200.36xlarge
-                  - u-p6e-gb200x36
-                  - u-p6e-gb200x72
                   - ml.g3.4xlarge
                   - ml.g3.8xlarge
                   - ml.g3.16xlarge
@@ -1097,8 +1095,6 @@ dcgmExporter:
                   - ml.p5en.48xlarge
                   - ml.p6-b200.48xlarge
                   - ml.p6e-gb200.36xlarge
-                  - ml.u-p6e-gb200x36
-                  - ml.u-p6e-gb200x72
               - key: eks.amazonaws.com/compute-type
                 operator: NotIn
                 values:
