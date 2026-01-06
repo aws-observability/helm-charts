@@ -944,6 +944,27 @@ containerLogs:
             Refresh_Interval    10
             Read_from_Head      ${READ_FROM_HEAD}
 
+          [FILTER]
+            Name                aws
+            Match               application.*
+            az                  false
+            ec2_instance_id     false
+
+          [FILTER]
+            Name                kubernetes
+            Match               application.*
+            Kube_URL            https://kubernetes.default.svc:443
+            Kube_Tag_Prefix     application.C.var.log.containers.
+            Merge_Log           On
+            Merge_Log_Key       log_processed
+            K8S-Logging.Parser  On
+            K8S-Logging.Exclude Off
+            Labels              Off
+            Annotations         Off
+            Use_Kubelet         On
+            Kubelet_Port        10250
+            Buffer_Size         0
+
           [OUTPUT]
             Name                cloudwatch_logs
             Match               application.*
