@@ -15,7 +15,7 @@ adcEndpointOverrides:
   us-isob-east-1: sc2s.sgov.gov
   us-isof-south-1: csp.hci.ic.gov
   eu-isoe-west-1: cloud.adc-e.uk
-  eusc-de-east-1: amazonaws.eu 
+  eusc-de-east-1: amazonaws.eu
 ## Provide the Region (this is a required parameter)
 region:
 k8sMode: EKS # can be EKS | ROSA | K8S
@@ -29,7 +29,7 @@ containerLogs:
   fluentBit:
     image:
       repository: aws-for-fluent-bit
-      tag: 3.0.1
+      tag: 3.1.1
       tagWindows: 2.31.12-windowsservercore
       repositoryDomainMap:
         public: public.ecr.aws/aws-observability
@@ -622,7 +622,7 @@ manager:
   name:
   image:
     repository: cloudwatch-agent-operator
-    tag: 3.3.0
+    tag: 3.3.1
     repositoryDomainMap:
       public: public.ecr.aws/cloudwatch-agent
       cn-north-1: 934860584483.dkr.ecr.cn-north-1.amazonaws.com.cn
@@ -858,7 +858,7 @@ agent:
   replicas: 1 # The total number non-terminated pods targeted by this AmazonCloudWatchAgent's deployment or statefulSet.
   image:
     repository: cloudwatch-agent
-    tag: 1.300062.0b1304
+    tag: 1.300063.0b1323
     repositoryDomainMap:
       public: public.ecr.aws/cloudwatch-agent
       cn-north-1: 934860584483.dkr.ecr.cn-north-1.amazonaws.com.cn
