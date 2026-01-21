@@ -32,11 +32,14 @@ spec:
   - name: "metrics"
     port: {{ .Values.neuronMonitor.service.port }}
   command:
-    - "/opt/bin/entrypoint.sh"
-  args:
-    port: "{{ .Values.neuronMonitor.service.port }}"
-    cert-file: "/etc/amazon-cloudwatch-observability-neuron-cert/server.crt"
-    key-file: "/etc/amazon-cloudwatch-observability-neuron-cert/server.key"
+  - "/bin/bash"
+  - "-c"
+  - |
+    /opt/bin/entrypoint.sh \
+      --cert-file /etc/amazon-cloudwatch-observability-neuron-cert/server.crt \
+      --key-file /etc/amazon-cloudwatch-observability-neuron-cert/server.key \
+      --port {{ .Values.neuronMonitor.service.port }} \
+      --neuron-monitor-config /etc/neuron-monitor-config/monitor.json
   securityContext:
     privileged: true
   volumeMounts:
@@ -45,6 +48,9 @@ spec:
     readOnly: true
   - mountPath: /opt-aws
     name: "aws-config"
+    readOnly: true
+  - mountPath: /neuron-monitor-blocker
+    name: neuron-monitor-blocker
     readOnly: true
   volumes:
   - name: neurontls
@@ -58,6 +64,10 @@ spec:
   - name: "aws-config"
     hostPath:
       path: /opt/aws
+  - name: neuron-monitor-blocker
+    hostPath:
+      path: /var/neuron-monitor-blocker
+      type: ""
   monitorConfig: |
     {
       "period": "5s",
