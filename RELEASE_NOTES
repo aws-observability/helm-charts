@@ -1,4 +1,13 @@
 =======================================================================
+amazon-cloudwatch-observability v4.10.0 (2026-01-23)
+=======================================================================
+Enhancements:
+* Add K8s metadata for FluentBit application logs on Windows
+* Upgrade CWAgent to v1.300064.0b1337
+* Upgrade DCGM Exporter to 4.4.2-4.7.1-ubuntu22.04
+* Upgrade Neuron Monitor to v1.7.0
+
+=======================================================================
 amazon-cloudwatch-observability v4.9.0 (2026-01-15)
 =======================================================================
 Enhancements:
