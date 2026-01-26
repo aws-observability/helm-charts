@@ -1,9 +1,51 @@
-==================================================================
+=======================================================================
+amazon-cloudwatch-observability v5.2.0 (2026-01-26)
+=======================================================================
+Enhancements:
+* All enhancements from v4.10.0
+
+=======================================================================
+amazon-cloudwatch-observability v4.10.0 (2026-01-23)
+=======================================================================
+Enhancements:
+* Add K8s metadata for FluentBit application logs on Windows
+* Upgrade CWAgent to v1.300064.0b1337
+* Upgrade DCGM Exporter to 4.4.2-4.7.1-ubuntu22.04
+* Upgrade Neuron Monitor to v1.7.0
+
+=======================================================================
 amazon-cloudwatch-observability v5.1.0 (2026-01-15)
 =======================================================================
 Enhancements:
 * All enhancements from v4.9.0
 
+=======================================================================
+amazon-cloudwatch-observability v4.9.0 (2026-01-15)
+=======================================================================
+Enhancements:
+* Upgrade Fluent Bit to v3.2.0
+
+=======================================================================
+amazon-cloudwatch-observability v4.8.1 (2026-01-14)
+=======================================================================
+Bug Fixes:
+* Disable auto instrumentation for resources that was enabled in v4.8.0
+
+=======================================================================
+amazon-cloudwatch-observability v4.8.0 (2025-11-12)
+=======================================================================
+Enhancements:
+* Upgrade CWAgent to v1.300063.0b1323
+* Upgrade CWAgent Operator to v3.3.1
+* Upgrade Fluent Bit to v3.1.1
+
+=======================================================================
+amazon-cloudwatch-observability v4.7.0 (2025-11-12)
+=======================================================================
+Enhancements:
+* Upgrade CWAgent to v1.300062.0b1304
+* Upgrade FluentBit to v3.0.1
+* Conditionally set DCGM Exporter Interval for high resolution collection
 
 =======================================================================
 amazon-cloudwatch-observability v5.0.0 (2025-10-16)
