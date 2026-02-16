@@ -1,4 +1,13 @@
 =======================================================================
+amazon-cloudwatch-observability v5.2.1 (2026-02-16)
+=======================================================================
+Enhancements:
+* Upgrade CWAgent to v1.300064.1b1344
+* Upgrade CWAgent Operator to v3.3.2
+* Upgrade Fluent Bit to v3.2.2
+* Upgrade DCGM Exporter to 4.5.2-4.8.1-ubuntu22.04
+
+=======================================================================
 amazon-cloudwatch-observability v5.2.0 (2026-01-26)
 =======================================================================
 Enhancements:
