@@ -243,6 +243,8 @@ Helper function to set Enable_Entity in fluent-bit aws filter based on Applicati
 {{- $hasAppSignals := include "fluent-bit.hasAppSignals" .context | trim | eq "true" -}}
 {{- if not $hasAppSignals -}}
 {{- $config = mustRegexReplaceAll "Enable_Entity\\s+true" $config "Enable_Entity       false" -}}
+{{- $config = mustRegexReplaceAll "add_entity\\s+true" $config "add_entity          false" -}}
+{{- $config = mustRegexReplaceAll "Use_Pod_Association\\s+On" $config "Use_Pod_Association Off" -}}
 {{- end -}}
 {{- $config -}}
 {{- end -}}
