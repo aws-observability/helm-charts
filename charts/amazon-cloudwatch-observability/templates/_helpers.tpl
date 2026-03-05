@@ -218,6 +218,38 @@ Get the current recommended fluent-bit image for a region
 {{- end -}}
 
 {{/*
+Helper function to check if Application Signals is enabled in any agent config
+*/}}
+{{- define "fluent-bit.hasAppSignals" -}}
+{{- $hasAppSignals := false -}}
+{{- range .Values.agents -}}
+{{- $agent := merge . (deepCopy $.Values.agent) -}}
+{{- $agentConfig := $agent.config | default $agent.defaultConfig -}}
+{{- if and (hasKey $agentConfig "logs") (hasKey $agentConfig.logs "metrics_collected") (hasKey $agentConfig.logs.metrics_collected "application_signals") -}}
+{{- $hasAppSignals = true -}}
+{{- end -}}
+{{- if and (hasKey $agentConfig "traces") (hasKey $agentConfig.traces "traces_collected") (hasKey $agentConfig.traces.traces_collected "application_signals") -}}
+{{- $hasAppSignals = true -}}
+{{- end -}}
+{{- end -}}
+{{- $hasAppSignals -}}
+{{- end -}}
+
+{{/*
+Helper function to set Enable_Entity in fluent-bit aws filter based on Application Signals status
+*/}}
+{{- define "fluent-bit.set-entity-flag" -}}
+{{- $config := .config -}}
+{{- $hasAppSignals := include "fluent-bit.hasAppSignals" .context | trim | eq "true" -}}
+{{- if not $hasAppSignals -}}
+{{- $config = mustRegexReplaceAll "Enable_Entity\\s+true" $config "Enable_Entity       false" -}}
+{{- $config = mustRegexReplaceAll "add_entity\\s+true" $config "add_entity          false" -}}
+{{- $config = mustRegexReplaceAll "Use_Pod_Association\\s+On" $config "Use_Pod_Association Off" -}}
+{{- end -}}
+{{- $config -}}
+{{- end -}}
+
+{{/*
 Helper function to add dualstack endpoints to fluent-bit OUTPUT sections
 Uses regex to handle variable whitespace in the region line
 */}}

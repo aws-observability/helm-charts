@@ -22,7 +22,7 @@ data:
 {{- else }}
   {{- range $key, $val := .Values.containerLogs.fluentBit.config.extraFiles }}
   {{ $key }}: |
-    {{- include "fluent-bit.add-dualstack-endpoints" (dict "Values" $.Values "config" (tpl $val $)) | nindent 4 }}
+    {{- include "fluent-bit.set-entity-flag" (dict "context" $ "config" (include "fluent-bit.add-dualstack-endpoints" (dict "Values" $.Values "config" (tpl $val $)))) | nindent 4 }}
   {{- end -}}
 {{- end -}}
 {{- end -}}
