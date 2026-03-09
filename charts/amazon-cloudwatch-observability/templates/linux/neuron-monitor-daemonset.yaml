@@ -32,14 +32,15 @@ spec:
   - name: "metrics"
     port: {{ .Values.neuronMonitor.service.port }}
   command:
-    - "/bin/bash"
-    - "-c"
-    - |
-      /opt/bin/entrypoint.sh \
-      --cert-file /etc/amazon-cloudwatch-observability-neuron-cert/server.crt \
-      --key-file /etc/amazon-cloudwatch-observability-neuron-cert/server.key \
-      --port "{{ .Values.neuronMonitor.service.port }}" \
-      --neuron-monitor-config /etc/neuron-monitor-config/monitor.json
+    - "/opt/bin/entrypoint.sh"
+    - "--cert-file"
+    - "/etc/amazon-cloudwatch-observability-neuron-cert/server.crt"
+    - "--key-file"
+    - "/etc/amazon-cloudwatch-observability-neuron-cert/server.key"
+    - "--port"
+    - "{{ .Values.neuronMonitor.service.port }}"
+    - "--neuron-monitor-config"
+    - "/etc/neuron-monitor-config/monitor.json"
   securityContext:
     privileged: true
   volumeMounts:
