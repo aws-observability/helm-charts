@@ -19,7 +19,7 @@ containerLogs:
   fluentBit:
     image:
       repository: aws-for-fluent-bit
-      tag: 3.2.2
+      tag: 3.2.3
       tagWindows: 2.31.12-windowsservercore
       repositoryDomainMap:
         public: public.ecr.aws/aws-observability
@@ -1571,7 +1571,7 @@ neuronMonitor:
   name:
   image:
     repository: neuron-monitor
-    tag: 1.7.0
+    tag: 1.8.0
     repositoryDomainMap:
       public: public.ecr.aws/neuron
   resources:
