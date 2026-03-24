@@ -6,3 +6,7 @@ build
 .attach_pid*
 bin
 .kiro
+.terraform/
+.terraform.lock.hcl
+*.tfstate
+*.tfstate.backup
