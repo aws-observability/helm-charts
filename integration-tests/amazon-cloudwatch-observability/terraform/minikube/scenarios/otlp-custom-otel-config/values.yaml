@@ -1,0 +1,32 @@
+region: us-west-2
+clusterName: minikube
+otelContainerInsights:
+  enabled: true
+agent:
+  otelConfig:
+    receivers:
+      prometheus/custom_test_scraper:
+        config:
+          scrape_configs:
+            - job_name: custom-test
+              static_configs:
+                - targets: ["localhost:9999"]
+    processors:
+      batch/custom_test:
+        send_batch_size: 100
+    exporters:
+      otlphttp/custom_test_dest:
+        endpoint: "https://example.com"
+    extensions:
+      custom_test_ext:
+        endpoint: "0.0.0.0:9998"
+      sigv4auth/cw_k8s_ci_v0_metrics_dest:
+        service: "should-be-overwritten"
+    service:
+      extensions:
+        - custom_test_ext
+      pipelines:
+        metrics/custom_test_pipeline:
+          receivers: [prometheus/custom_test_scraper]
+          processors: [batch/custom_test]
+          exporters: [otlphttp/custom_test_dest]
