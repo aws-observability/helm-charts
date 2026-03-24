@@ -27,6 +27,11 @@ rules:
 - apiGroups: [ "" ]
   resources: [ "nodes/stats", "configmaps", "events" ]
   verbs: [ "create", "get" ]
+{{- if .Values.otelContainerInsights.enabled }}
+- apiGroups: [ "" ]
+  resources: [ "nodes/metrics" ]
+  verbs: [ "get" ]
+{{- end }}
 - apiGroups: [ "" ]
   resources: [ "configmaps" ]
   verbs: [ "update" ]

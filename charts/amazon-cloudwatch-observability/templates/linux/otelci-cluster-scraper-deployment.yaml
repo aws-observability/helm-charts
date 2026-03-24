@@ -1,0 +1,111 @@
+{{- if .Values.otelContainerInsights.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ template "cloudwatch-agent.name" . }}-cluster-scraper-config
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "amazon-cloudwatch-observability.labels" . | nindent 4 }}
+data:
+  cwagent-config.json: |
+    {
+      "agent": {
+        "region": {{ .Values.region | quote }}
+      }
+    }
+  otel-config.yaml: |
+    {{- include "otel-container-insights-cluster-scraper.config" . | nindent 4 }}
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ template "cloudwatch-agent.name" . }}-cluster-scraper
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "amazon-cloudwatch-observability.labels" . | nindent 4 }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ template "cloudwatch-agent.name" . }}-cluster-scraper
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "amazon-cloudwatch-observability.labels" . | nindent 4 }}
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: {{ template "cloudwatch-agent.name" . }}-cluster-scraper
+  template:
+    metadata:
+      annotations:
+        checksum/config: {{ include "otel-container-insights-cluster-scraper.config" . | sha256sum }}
+      labels:
+        app.kubernetes.io/name: {{ template "cloudwatch-agent.name" . }}-cluster-scraper
+    spec:
+      serviceAccountName: {{ template "cloudwatch-agent.name" . }}-cluster-scraper
+      terminationGracePeriodSeconds: 60
+      nodeSelector:
+        kubernetes.io/os: linux
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: eks.amazonaws.com/compute-type
+                    operator: NotIn
+                    values:
+                      - fargate
+      {{- dict "component" .Values.otelContainerInsights.clusterScraper "context" . | include "amazon-cloudwatch-observability.common.tolerations" | nindent 6 }}
+      containers:
+        - name: cloudwatch-agent
+          image: {{ template "cloudwatch-agent.image" (merge .Values.agent.image (dict "region" .Values.region)) }}
+          env:
+            - name: RUN_IN_CONTAINER
+              value: "True"
+            - name: K8S_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+            - name: K8S_POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: CW_OTEL_CONFIG_CONTENT
+              valueFrom:
+                configMapKeyRef:
+                  name: {{ template "cloudwatch-agent.name" . }}-cluster-scraper-config
+                  key: otel-config.yaml
+          volumeMounts:
+            - name: cwagent-config
+              mountPath: /etc/cwagentconfig
+              readOnly: true
+            - name: cwagent-config
+              mountPath: /opt/aws/amazon-cloudwatch-agent/etc/amazon-cloudwatch-agent.yaml
+              subPath: otel-config.yaml
+              readOnly: true
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 13133
+            initialDelaySeconds: 30
+            periodSeconds: 30
+            timeoutSeconds: 5
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 13133
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+          resources:
+            {{- toYaml .Values.otelContainerInsights.clusterScraper.resources | nindent 12 }}
+      volumes:
+        - name: cwagent-config
+          configMap:
+            name: {{ template "cloudwatch-agent.name" . }}-cluster-scraper-config
+{{- end }}

@@ -5,3 +5,4 @@ build
 .idea
 .attach_pid*
 bin
+.kiro

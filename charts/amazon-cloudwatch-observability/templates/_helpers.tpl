@@ -86,6 +86,14 @@ Helper function to modify cloudwatch-agent config
 {{- $containerInsights := set $containerInsights "cluster_name" $clusterName }}
 {{- end }}
 
+{{- /* When containerInsights.enabled is false, strip the legacy kubernetes metrics section from the agent config.
+     This is independent of otelContainerInsights.enabled — see values.yaml for the feature flag matrix. */ -}}
+{{- if and (hasKey .Values "containerInsights") (not .Values.containerInsights.enabled) }}
+{{- if and (hasKey $configCopy "logs") (hasKey $configCopy.logs "metrics_collected") (hasKey $configCopy.logs.metrics_collected "kubernetes") }}
+{{- $_ := unset $configCopy.logs.metrics_collected "kubernetes" }}
+{{- end }}
+{{- end }}
+
 {{- default ""  $configCopy | toJson | quote }}
 {{- end }}
 
@@ -489,3 +497,90 @@ Returns auto-generated certificate and CA for admission webhooks.
 {{- $result | toYaml }}
 {{- end }}
 {{- end }}
+
+{{/*
+Name for node-exporter
+*/}}
+{{- define "node-exporter.name" -}}
+{{- default "node-exporter" .Values.nodeExporter.name }}
+{{- end }}
+
+{{/*
+Create the name of the service account to use for node exporter
+*/}}
+{{- define "node-exporter.serviceAccountName" -}}
+{{- default "node-exporter-service-acct" .Values.nodeExporter.serviceAccount.name }}
+{{- end }}
+
+{{/*
+Get the node-exporter image for the configured region using repositoryDomainMap
+*/}}
+{{- define "node-exporter.image" -}}
+{{- if and (hasKey .Values.nodeExporter.image.repositoryDomainMap .Values.region) (index .Values.nodeExporter.image.repositoryDomainMap .Values.region) -}}
+{{- $imageDomain := index .Values.nodeExporter.image.repositoryDomainMap .Values.region -}}
+{{- printf "%s/%s:%s" $imageDomain .Values.nodeExporter.image.restrictedRepository .Values.nodeExporter.image.restrictedTag -}}
+{{- else -}}
+{{- $imageDomain := .Values.nodeExporter.image.repositoryDomainMap.public -}}
+{{- printf "%s/%s:%s" $imageDomain .Values.nodeExporter.image.repository .Values.nodeExporter.image.tag -}}
+{{- end -}}
+{{- end -}}
+
+{{/*
+Get the kube-state-metrics image for the configured region using repositoryDomainMap
+*/}}
+{{- define "kube-state-metrics.image" -}}
+{{- if and (hasKey .Values.kubeStateMetrics.image.repositoryDomainMap .Values.region) (index .Values.kubeStateMetrics.image.repositoryDomainMap .Values.region) -}}
+{{- $imageDomain := index .Values.kubeStateMetrics.image.repositoryDomainMap .Values.region -}}
+{{- printf "%s/%s:%s" $imageDomain .Values.kubeStateMetrics.image.restrictedRepository .Values.kubeStateMetrics.image.restrictedTag -}}
+{{- else -}}
+{{- $imageDomain := .Values.kubeStateMetrics.image.repositoryDomainMap.public -}}
+{{- printf "%s/%s:%s" $imageDomain .Values.kubeStateMetrics.image.repository .Values.kubeStateMetrics.image.tag -}}
+{{- end -}}
+{{- end -}}
+
+{{/*
+Merge two OTEL configs. The generated OTLP CI config (Base) takes precedence over the
+user-supplied otelConfig (User) on name collision. For map sections (extensions, receivers,
+processors, exporters) both sets of entries are combined, with generated entries winning on
+key collision. For service.extensions (a list) both lists are concatenated and deduped.
+For service.pipelines (a map) both pipeline maps are combined, with generated pipelines
+winning on key collision.
+*/}}
+{{- define "cloudwatch-agent.merge-otel-configs" -}}
+{{- $base := .Base -}}
+{{- $user := .User -}}
+{{- if kindIs "string" $base }}
+  {{- $base = fromYaml $base }}
+{{- end }}
+{{- if kindIs "string" $user }}
+  {{- $user = fromYaml $user }}
+{{- end }}
+{{/* Merge top-level map sections: extensions, receivers, processors, exporters */}}
+{{- $merged := deepCopy $base -}}
+{{- range $section := list "extensions" "receivers" "processors" "exporters" -}}
+  {{- if and (hasKey $user $section) (hasKey $merged $section) -}}
+    {{- $_ := set $merged $section (mustMergeOverwrite (index $user $section) (index $merged $section)) -}}
+  {{- else if hasKey $user $section -}}
+    {{- $_ := set $merged $section (index $user $section) -}}
+  {{- end -}}
+{{- end -}}
+{{/* Merge service section */}}
+{{- if and (hasKey $user "service") (hasKey $merged "service") -}}
+  {{/* Concatenate service.extensions lists */}}
+  {{- if and (hasKey $user.service "extensions") (hasKey $merged.service "extensions") -}}
+    {{- $mergedExts := concat $merged.service.extensions $user.service.extensions | uniq -}}
+    {{- $_ := set $merged.service "extensions" $mergedExts -}}
+  {{- else if hasKey $user.service "extensions" -}}
+    {{- $_ := set $merged.service "extensions" $user.service.extensions -}}
+  {{- end -}}
+  {{/* Merge service.pipelines maps */}}
+  {{- if and (hasKey $user.service "pipelines") (hasKey $merged.service "pipelines") -}}
+    {{- $_ := set $merged.service "pipelines" (mustMergeOverwrite $user.service.pipelines $merged.service.pipelines) -}}
+  {{- else if hasKey $user.service "pipelines" -}}
+    {{- $_ := set $merged.service "pipelines" $user.service.pipelines -}}
+  {{- end -}}
+{{- else if hasKey $user "service" -}}
+  {{- $_ := set $merged "service" $user.service -}}
+{{- end -}}
+{{- $merged | toYaml -}}
+{{- end -}}
