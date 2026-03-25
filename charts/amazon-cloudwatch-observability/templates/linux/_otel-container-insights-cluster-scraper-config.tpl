@@ -134,6 +134,7 @@ processors:
       - namespace
       - uid
       - node
+      - container
 
   # Rename raw Prometheus label names (now in resource scope from groupbyattrs)
   # to OTel semantic convention names.
@@ -150,6 +151,8 @@ processors:
           - delete_key(attributes, "node") where attributes["node"] != nil
           - set(attributes["k8s.pod.uid"], attributes["uid"]) where attributes["uid"] != nil
           - delete_key(attributes, "uid") where attributes["uid"] != nil
+          - set(attributes["k8s.container.name"], attributes["container"]) where attributes["container"] != nil
+          - delete_key(attributes, "container") where attributes["container"] != nil
 
   transform/otelci_set_component:
     error_mode: ignore
@@ -189,6 +192,14 @@ processors:
   awsattributelimit/otelci:
     max_total_attributes: 150
 
+  transform/otelci_set_cloud_resource_id:
+    error_mode: ignore
+    metric_statements:
+      - context: resource
+        statements:
+          - set(resource.attributes["cloud.resource_id"], Concat(["arn:aws:eks:", resource.attributes["cloud.region"], ":", resource.attributes["cloud.account.id"], ":cluster/", resource.attributes["k8s.cluster.name"]], ""))
+            where resource.attributes["cloud.region"] != nil and resource.attributes["cloud.account.id"] != nil and resource.attributes["k8s.cluster.name"] != nil
+
   batch/otelci_cwotel:
     send_batch_size: 500
     send_batch_max_size: 500
@@ -218,6 +229,7 @@ service:
         - transform/otelci_promote_component
         - resourcedetection/otelci
         - transform/otelci_clear_schema_url
+        - transform/otelci_set_cloud_resource_id
         - awsattributelimit/otelci
         - batch/otelci_cwotel
       exporters:
@@ -234,6 +246,7 @@ service:
         - transform/otelci_ksm_promote
         - resourcedetection/otelci
         - transform/otelci_clear_schema_url
+        - transform/otelci_set_cloud_resource_id
         - awsattributelimit/otelci
         - batch/otelci_cwotel
       exporters:

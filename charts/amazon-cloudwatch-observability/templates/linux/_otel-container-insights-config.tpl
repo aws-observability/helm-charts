@@ -349,6 +349,14 @@ processors:
       - "k8s.pod.label.pod-template-hash"
       - "k8s.pod.label.controller-revision-hash"
 
+  transform/cw_k8s_ci_v0_set_cloud_resource_id:
+    error_mode: ignore
+    metric_statements:
+      - context: resource
+        statements:
+          - set(resource.attributes["cloud.resource_id"], Concat(["arn:aws:eks:", resource.attributes["cloud.region"], ":", resource.attributes["cloud.account.id"], ":cluster/", resource.attributes["k8s.cluster.name"]], ""))
+            where resource.attributes["cloud.region"] != nil and resource.attributes["cloud.account.id"] != nil and resource.attributes["k8s.cluster.name"] != nil
+
   metricstarttime/cw_k8s_ci_v0:
 
   transform/cw_k8s_ci_v0_set_workload:
@@ -538,6 +546,7 @@ service:
         - transform/cw_k8s_ci_v0_promote_node_name
         - resourcedetection/cw_k8s_ci_v0
         - transform/cw_k8s_ci_v0_clear_schema_url
+        - transform/cw_k8s_ci_v0_set_cloud_resource_id
         - k8sattributes/cw_k8s_ci_v0_node
         - transform/cw_k8s_ci_v0_set_workload
         - awsattributelimit/cw_k8s_ci_v0
@@ -560,6 +569,7 @@ service:
         - transform/cw_k8s_ci_v0_promote_node_name
         - resourcedetection/cw_k8s_ci_v0
         - transform/cw_k8s_ci_v0_clear_schema_url
+        - transform/cw_k8s_ci_v0_set_cloud_resource_id
         - k8sattributes/cw_k8s_ci_v0_node
         - k8sattributes/cw_k8s_ci_v0_pod
         - transform/cw_k8s_ci_v0_set_workload
@@ -571,7 +581,7 @@ service:
     {{- if .Values.dcgmExporter.enabled }}
     metrics/cw_k8s_ci_v0_dcgm:
       receivers: [prometheus/cw_k8s_ci_v0_dcgm]
-      processors: [transform/cw_k8s_ci_v0_set_unit, metricstarttime/cw_k8s_ci_v0, transform/cw_k8s_ci_v0_set_scope_dcgm, transform/cw_k8s_ci_v0_set_cluster_name, groupbyattrs/cw_k8s_ci_v0_dcgm, transform/cw_k8s_ci_v0_dcgm_promote, k8sattributes/cw_k8s_ci_v0_pod, transform/cw_k8s_ci_v0_set_node_name, transform/cw_k8s_ci_v0_promote_node_name, k8sattributes/cw_k8s_ci_v0_node, resourcedetection/cw_k8s_ci_v0, transform/cw_k8s_ci_v0_clear_schema_url, transform/cw_k8s_ci_v0_set_workload, awsattributelimit/cw_k8s_ci_v0, batch/cw_k8s_ci_v0_metrics_dest]
+      processors: [transform/cw_k8s_ci_v0_set_unit, metricstarttime/cw_k8s_ci_v0, transform/cw_k8s_ci_v0_set_scope_dcgm, transform/cw_k8s_ci_v0_set_cluster_name, groupbyattrs/cw_k8s_ci_v0_dcgm, transform/cw_k8s_ci_v0_dcgm_promote, k8sattributes/cw_k8s_ci_v0_pod, transform/cw_k8s_ci_v0_set_node_name, transform/cw_k8s_ci_v0_promote_node_name, k8sattributes/cw_k8s_ci_v0_node, resourcedetection/cw_k8s_ci_v0, transform/cw_k8s_ci_v0_clear_schema_url, transform/cw_k8s_ci_v0_set_cloud_resource_id, transform/cw_k8s_ci_v0_set_workload, awsattributelimit/cw_k8s_ci_v0, batch/cw_k8s_ci_v0_metrics_dest]
       exporters:
         - otlphttp/cw_k8s_ci_v0_metrics_dest
     {{- end }}
@@ -595,6 +605,7 @@ service:
         - transform/cw_k8s_ci_v0_promote_node_name
         - resourcedetection/cw_k8s_ci_v0
         - transform/cw_k8s_ci_v0_clear_schema_url
+        - transform/cw_k8s_ci_v0_set_cloud_resource_id
         - k8sattributes/cw_k8s_ci_v0_node
         - transform/cw_k8s_ci_v0_set_workload
         - awsattributelimit/cw_k8s_ci_v0
@@ -618,6 +629,7 @@ service:
         - k8sattributes/cw_k8s_ci_v0_node
         - resourcedetection/cw_k8s_ci_v0
         - transform/cw_k8s_ci_v0_clear_schema_url
+        - transform/cw_k8s_ci_v0_set_cloud_resource_id
         - transform/cw_k8s_ci_v0_set_workload
         - awsattributelimit/cw_k8s_ci_v0
         - batch/cw_k8s_ci_v0_metrics_dest
@@ -636,6 +648,7 @@ service:
         - transform/cw_k8s_ci_v0_promote_node_name
         - resourcedetection/cw_k8s_ci_v0
         - transform/cw_k8s_ci_v0_clear_schema_url
+        - transform/cw_k8s_ci_v0_set_cloud_resource_id
         - k8sattributes/cw_k8s_ci_v0_node
         - transform/cw_k8s_ci_v0_set_workload
         - awsattributelimit/cw_k8s_ci_v0
@@ -651,6 +664,7 @@ service:
         - transform/cw_k8s_ci_v0_set_cluster_name
         - resourcedetection/cw_k8s_ci_v0
         - transform/cw_k8s_ci_v0_clear_schema_url
+        - transform/cw_k8s_ci_v0_set_cloud_resource_id
         - k8sattributes/cw_k8s_ci_v0_pod
         - k8sattributes/cw_k8s_ci_v0_node
         - transform/cw_k8s_ci_v0_set_workload
