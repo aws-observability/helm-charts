@@ -43,6 +43,26 @@ receivers:
             - targets:
                 - cwagent-kube-state-metrics.{{ .Release.Namespace }}.svc:8080
 
+  prometheus/otelci_karpenter:
+    config:
+      scrape_configs:
+        - job_name: karpenter
+          scrape_interval: 30s
+          scrape_timeout: 10s
+          kubernetes_sd_configs:
+            - role: pod
+              namespaces:
+                names:
+                  - kube-system
+                  - karpenter
+          relabel_configs:
+            - source_labels: [__meta_kubernetes_pod_label_app_kubernetes_io_name]
+              regex: karpenter
+              action: keep
+            - source_labels: [__meta_kubernetes_pod_container_port_number]
+              regex: "8080"
+              action: keep
+
 processors:
   transform/otelci_set_unit:
     error_mode: ignore
@@ -94,6 +114,16 @@ processors:
       - context: scope
         statements:
           - set(scope.name, "otel-ci-kube_state_metrics-{{ .Values.clusterName }}")
+          - set(scope.schema_url, "")
+          - set(attributes["cloudwatch.source"], "cloudwatch-agent")
+          - set(attributes["cloudwatch.solution"], "k8s-otel-container-insights")
+
+  transform/otelci_set_scope_karpenter:
+    error_mode: ignore
+    metric_statements:
+      - context: scope
+        statements:
+          - set(scope.name, "otel-ci-karpenter-{{ .Values.clusterName }}")
           - set(scope.schema_url, "")
           - set(attributes["cloudwatch.source"], "cloudwatch-agent")
           - set(attributes["cloudwatch.solution"], "k8s-otel-container-insights")
@@ -244,6 +274,20 @@ service:
         - transform/otelci_ksm_clean_resource
         - groupbyattrs/otelci_ksm
         - transform/otelci_ksm_promote
+        - resourcedetection/otelci
+        - transform/otelci_clear_schema_url
+        - transform/otelci_set_cloud_resource_id
+        - awsattributelimit/otelci
+        - batch/otelci_cwotel
+      exporters:
+        - otlphttp/otelci_cwotel
+    metrics/otelci_karpenter:
+      receivers: [prometheus/otelci_karpenter]
+      processors:
+        - transform/otelci_set_unit
+        - metricstarttime/otelci
+        - transform/otelci_set_scope_karpenter
+        - transform/otelci_set_cluster_name
         - resourcedetection/otelci
         - transform/otelci_clear_schema_url
         - transform/otelci_set_cloud_resource_id
