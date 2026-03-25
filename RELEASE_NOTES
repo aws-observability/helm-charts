@@ -1,4 +1,66 @@
 =======================================================================
+amazon-cloudwatch-observability v5.2.3 (2026-03-20)
+=======================================================================
+Enhancements:
+* Upgrade Fluent Bit to v3.2.4
+
+=======================================================================
+amazon-cloudwatch-observability v5.2.2 (2026-03-16)
+=======================================================================
+Enhancements:
+* Upgrade Fluent Bit to v3.2.3
+* Upgrade Neuron Monitor to v1.8.0
+
+=======================================================================
+amazon-cloudwatch-observability v5.2.1 (2026-02-16)
+=======================================================================
+Enhancements:
+* Upgrade CWAgent to v1.300064.1b1344
+* Upgrade CWAgent Operator to v3.3.2
+* Upgrade Fluent Bit to v3.2.2
+* Upgrade DCGM Exporter to 4.5.2-4.8.1-ubuntu22.04
+
+=======================================================================
+amazon-cloudwatch-observability v5.2.0 (2026-01-26)
+=======================================================================
+Enhancements:
+* All enhancements from v4.10.0
+
+=======================================================================
+amazon-cloudwatch-observability v5.1.0 (2026-01-15)
+=======================================================================
+Enhancements:
+* All enhancements from v4.9.0
+
+=======================================================================
+amazon-cloudwatch-observability v5.0.0 (2025-10-16)
+=======================================================================
+Enhancements:
+* Enable Application Signals AutoMonitor by default
+
+=======================================================================
+amazon-cloudwatch-observability v4.10.3 (2026-03-18)
+=======================================================================
+Enhancements:
+* Upgrade Fluent Bit to v3.2.4
+
+=======================================================================
+amazon-cloudwatch-observability v4.10.2 (2026-03-16)
+=======================================================================
+Enhancements:
+* Upgrade Fluent Bit to v3.2.3
+* Upgrade Neuron Monitor to v1.8.0
+
+=======================================================================
+amazon-cloudwatch-observability v4.10.1 (2026-02-16)
+=======================================================================
+Enhancements:
+* Upgrade CWAgent to v1.300064.1b1344
+* Upgrade CWAgent Operator to v3.3.2
+* Upgrade Fluent Bit to v3.2.2
+* Upgrade DCGM Exporter to 4.5.2-4.8.1-ubuntu22.04
+
+=======================================================================
 amazon-cloudwatch-observability v4.8.0 (2025-11-12)
 =======================================================================
 Enhancements:

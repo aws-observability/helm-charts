@@ -29,7 +29,7 @@ containerLogs:
   fluentBit:
     image:
       repository: aws-for-fluent-bit
-      tag: 3.1.1
+      tag: 3.2.4
       tagWindows: 2.31.12-windowsservercore
       repositoryDomainMap:
         public: public.ecr.aws/aws-observability
@@ -622,7 +622,7 @@ manager:
   name:
   image:
     repository: cloudwatch-agent-operator
-    tag: 3.3.1
+    tag: 3.3.2
     repositoryDomainMap:
       public: public.ecr.aws/cloudwatch-agent
       cn-north-1: 934860584483.dkr.ecr.cn-north-1.amazonaws.com.cn
@@ -633,19 +633,19 @@ manager:
     java:
       repositoryDomain: public.ecr.aws/aws-observability
       repository: adot-autoinstrumentation-java
-      tag: v2.11.5
+      tag: v2.25.1
     python:
       repositoryDomain: public.ecr.aws/aws-observability
       repository: adot-autoinstrumentation-python
-      tag: v0.12.1
+      tag: v0.16.0
     dotnet:
       repositoryDomain: public.ecr.aws/aws-observability
       repository: adot-autoinstrumentation-dotnet
-      tag: v1.9.1
+      tag: v1.11.1
     nodejs:
       repositoryDomain: public.ecr.aws/aws-observability
       repository: adot-autoinstrumentation-node
-      tag: v0.7.0
+      tag: v0.9.0
   applicationSignals:
     autoMonitor:
       # monitorAllServices: true; Defaults to true for regions where AppSignals is supported, false otherwise
@@ -858,7 +858,7 @@ agent:
   replicas: 1 # The total number non-terminated pods targeted by this AmazonCloudWatchAgent's deployment or statefulSet.
   image:
     repository: cloudwatch-agent
-    tag: 1.300063.0b1323
+    tag: 1.300064.1b1344
     repositoryDomainMap:
       public: public.ecr.aws/cloudwatch-agent
       cn-north-1: 934860584483.dkr.ecr.cn-north-1.amazonaws.com.cn
@@ -951,7 +951,7 @@ dcgmExporter:
   name:
   image:
     repository: dcgm-exporter
-    tag: 4.4.0-4.5.0-ubuntu22.04
+    tag: 4.5.2-4.8.1-ubuntu22.04
     repositoryDomainMap:
       public: nvcr.io/nvidia/k8s
       cn-north-1: 934860584483.dkr.ecr.cn-north-1.amazonaws.com.cn
