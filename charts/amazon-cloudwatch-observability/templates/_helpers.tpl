@@ -39,12 +39,21 @@ Helper function to modify auto-monitor config based on agent configurations
 {{- $hasAppSignals := false -}}
 {{- range .Values.agents -}}
 {{- $agent := merge . (deepCopy $.Values.agent) -}}
-{{- $agentConfig := $agent.config | default $agent.defaultConfig -}}
-{{- if and (hasKey $agentConfig "logs") (hasKey $agentConfig.logs "metrics_collected") (hasKey $agentConfig.logs.metrics_collected "application_signals") -}}
-{{- $hasAppSignals = true -}}
-{{- end -}}
-{{- if and (hasKey $agentConfig "traces") (hasKey $agentConfig.traces "traces_collected") (hasKey $agentConfig.traces.traces_collected "application_signals") -}}
-{{- $hasAppSignals = true -}}
+{{- $agentName := $agent.name | default (include "cloudwatch-agent.name" $) -}}
+{{- $agentConfig := $agent.config -}}
+{{- if not $agentConfig -}}
+  {{- /* No user override — check if applicationSignals targets this agent */ -}}
+  {{- if and $.Values.applicationSignals.enabled (eq $agentName $.Values.applicationSignals.targetAgent) -}}
+    {{- $hasAppSignals = true -}}
+  {{- end -}}
+{{- else -}}
+  {{- /* User override — inspect the config directly */ -}}
+  {{- if and (hasKey $agentConfig "logs") (hasKey $agentConfig.logs "metrics_collected") (hasKey $agentConfig.logs.metrics_collected "application_signals") -}}
+  {{- $hasAppSignals = true -}}
+  {{- end -}}
+  {{- if and (hasKey $agentConfig "traces") (hasKey $agentConfig.traces "traces_collected") (hasKey $agentConfig.traces.traces_collected "application_signals") -}}
+  {{- $hasAppSignals = true -}}
+  {{- end -}}
 {{- end -}}
 {{- end -}}
 {{- if not $hasAppSignals -}}
@@ -56,10 +65,89 @@ Helper function to modify auto-monitor config based on agent configurations
 {{- end -}}
 
 {{/*
+Build the default CW Agent JSON config dynamically based on feature flags and targetAgent.
+Only features whose targetAgent matches the given agentName contribute config sections.
+Called with dict "agentName" <string> "root" <$>
+*/}}
+{{- define "cloudwatch-agent.build-default-config" -}}
+{{- $agentName := .agentName -}}
+{{- $root := .root -}}
+{{- $config := dict -}}
+{{- $agentSection := dict "region" $root.Values.region -}}
+{{- if $root.Values.useDualstackEndpoint -}}
+  {{- $_ := set $agentSection "use_dualstack_endpoint" true -}}
+{{- end -}}
+{{- $_ := set $config "agent" $agentSection -}}
+{{- $logs := dict -}}
+{{- $metricsCollected := dict -}}
+{{- $traces := dict -}}
+{{- $tracesCollected := dict -}}
+
+{{- if and $root.Values.containerInsights.enabled (eq $agentName $root.Values.containerInsights.targetAgent) -}}
+  {{- $clusterName := $root.Values.clusterName | toString | required ".Values.clusterName is required." -}}
+  {{- $_ := set $metricsCollected "kubernetes" (dict "enhanced_container_insights" true "cluster_name" $clusterName) -}}
+{{- end -}}
+
+{{- if and $root.Values.applicationSignals.enabled (eq $agentName $root.Values.applicationSignals.targetAgent) -}}
+  {{- $clusterName := $root.Values.clusterName | toString | required ".Values.clusterName is required." -}}
+  {{- $_ := set $metricsCollected "application_signals" (dict "hosted_in" $clusterName) -}}
+  {{- $_ := set $tracesCollected "application_signals" dict -}}
+{{- end -}}
+
+{{- if $metricsCollected -}}
+  {{- $_ := set $logs "metrics_collected" $metricsCollected -}}
+{{- end -}}
+{{- if $tracesCollected -}}
+  {{- $_ := set $traces "traces_collected" $tracesCollected -}}
+{{- end -}}
+{{- if $logs -}}
+  {{- $_ := set $config "logs" $logs -}}
+{{- end -}}
+{{- if $traces -}}
+  {{- $_ := set $config "traces" $traces -}}
+{{- end -}}
+
+{{- $config | toJson | quote -}}
+{{- end -}}
+
+{{/*
+Build the default OTEL config for an agent based on feature flags and targetAgent.
+Returns the generated OTLP CI YAML config string if otelContainerInsights targets this agent.
+For all agents, always includes a health_check extension so liveness/readiness probes work unconditionally.
+
+⚠️  WARNING: This is a behavior change. Previously, agents without otelConfig had no OTel collector
+running. Now every agent gets a minimal otelConfig with a health_check extension. This means the
+CW Agent binary will always start its OTel collector, even if there are no pipelines. This MUST be
+validated end-to-end to ensure the agent binary handles an otelConfig with only a health_check
+extension and no pipelines/receivers/exporters.
+
+Called with dict "agentName" <string> "root" <$>
+*/}}
+{{- define "cloudwatch-agent.build-default-otel-config" -}}
+{{- $agentName := .agentName -}}
+{{- $root := .root -}}
+{{- if and $root.Values.otelContainerInsights.enabled (eq $agentName $root.Values.otelContainerInsights.targetAgent) -}}
+  {{- include "otel-container-insights.config" $root -}}
+{{- else if and $root.Values.otelContainerInsights.enabled (eq $agentName $root.Values.otelContainerInsights.clusterScraperAgent) -}}
+  {{- include "otel-container-insights-cluster-scraper.config" $root -}}
+{{- else -}}
+extensions:
+  health_check:
+    endpoint: "0.0.0.0:13133"
+service:
+  extensions:
+    - health_check
+{{- end -}}
+{{- end -}}
+
+{{/*
 Helper function to modify cloudwatch-agent config
 */}}
 {{- define "cloudwatch-agent.config-modifier" -}}
 {{- $configCopy := deepCopy .Config }}
+{{- if kindIs "string" $configCopy }}
+  {{- $configCopy = fromJson $configCopy }}
+{{- end }}
 
 {{- $agent := pluck "agent" $configCopy | first }}
 {{- if and (empty $agent) (empty $agent.region) }}
@@ -74,6 +162,7 @@ Helper function to modify cloudwatch-agent config
 {{- $_ := set $configCopy.agent "use_dualstack_endpoint" true }}
 {{- end }}
 
+{{- if and (hasKey $configCopy "logs") (hasKey $configCopy.logs "metrics_collected") }}
 {{- $appSignals := pluck "application_signals" $configCopy.logs.metrics_collected | first }}
 {{- if and (hasKey $configCopy.logs.metrics_collected "application_signals") (empty $appSignals.hosted_in) }}
 {{- $clusterName := .Values.clusterName | toString | required ".Values.clusterName is required." -}}
@@ -85,13 +174,6 @@ Helper function to modify cloudwatch-agent config
 {{- $clusterName := .Values.clusterName | toString | required ".Values.clusterName is required." -}}
 {{- $containerInsights := set $containerInsights "cluster_name" $clusterName }}
 {{- end }}
-
-{{- /* When containerInsights.enabled is false, strip the legacy kubernetes metrics section from the agent config.
-     This is independent of otelContainerInsights.enabled — see values.yaml for the feature flag matrix. */ -}}
-{{- if and (hasKey .Values "containerInsights") (not .Values.containerInsights.enabled) }}
-{{- if and (hasKey $configCopy "logs") (hasKey $configCopy.logs "metrics_collected") (hasKey $configCopy.logs.metrics_collected "kubernetes") }}
-{{- $_ := unset $configCopy.logs.metrics_collected "kubernetes" }}
-{{- end }}
 {{- end }}
 
 {{- default ""  $configCopy | toJson | quote }}
@@ -101,10 +183,14 @@ Helper function to modify cloudwatch-agent config
 Helper function to modify customer supplied agent config if ContainerInsights or ApplicationSignals is enabled
 */}}
 {{- define "cloudwatch-agent.modify-config" -}}
-{{- if and (hasKey .Config "logs") (or (and (hasKey .Config.logs "metrics_collected") (hasKey .Config.logs.metrics_collected "application_signals")) (and (hasKey .Config.logs "metrics_collected") (hasKey .Config.logs.metrics_collected "kubernetes"))) }}
-{{- include "cloudwatch-agent.config-modifier" . }}
+{{- $config := .Config -}}
+{{- if kindIs "string" $config -}}
+  {{- $config = fromJson $config -}}
+{{- end -}}
+{{- if and (hasKey $config "logs") (or (and (hasKey $config.logs "metrics_collected") (hasKey $config.logs.metrics_collected "application_signals")) (and (hasKey $config.logs "metrics_collected") (hasKey $config.logs.metrics_collected "kubernetes"))) }}
+{{- include "cloudwatch-agent.config-modifier" (merge (dict "Config" $config) .) }}
 {{- else }}
-{{- default "" .Config | toJson | quote }}
+{{- default "" $config | toJson | quote }}
 {{- end }}
 {{- end }}
 
@@ -296,10 +382,18 @@ Set DCGM_EXPORTER_INTERVAL environment variable for dcgmExporter if accelerated_
 {{- $intervalValue := 0 -}}
 {{- range .Values.agents -}}
   {{- $agent := merge . (deepCopy $.Values.agent) -}}
-  {{- $agentConfig := $agent.config | default $agent.defaultConfig -}}
-  {{- if and (hasKey $agentConfig "logs") (hasKey $agentConfig.logs "metrics_collected") (hasKey $agentConfig.logs.metrics_collected "kubernetes") (hasKey $agentConfig.logs.metrics_collected.kubernetes "accelerated_compute_gpu_metrics_collection_interval") -}}
-    {{- $intervalFound = true -}}
-    {{- $intervalValue = $agentConfig.logs.metrics_collected.kubernetes.accelerated_compute_gpu_metrics_collection_interval -}}
+  {{- $agentConfig := $agent.config -}}
+  {{- if not $agentConfig -}}
+    {{- /* No user override — check if containerInsights targets this agent and use default */ -}}
+    {{- $agentName := $agent.name | default (include "cloudwatch-agent.name" $) -}}
+    {{- if and $.Values.containerInsights.enabled (eq $agentName $.Values.containerInsights.targetAgent) -}}
+      {{- /* Default config has enhanced_container_insights but no accelerated_compute interval — skip */ -}}
+    {{- end -}}
+  {{- else -}}
+    {{- if and (hasKey $agentConfig "logs") (hasKey $agentConfig.logs "metrics_collected") (hasKey $agentConfig.logs.metrics_collected "kubernetes") (hasKey $agentConfig.logs.metrics_collected.kubernetes "accelerated_compute_gpu_metrics_collection_interval") -}}
+      {{- $intervalFound = true -}}
+      {{- $intervalValue = $agentConfig.logs.metrics_collected.kubernetes.accelerated_compute_gpu_metrics_collection_interval -}}
+    {{- end -}}
   {{- end -}}
 {{- end -}}
 {{- if and $intervalFound (lt ($intervalValue | int) 60) -}}

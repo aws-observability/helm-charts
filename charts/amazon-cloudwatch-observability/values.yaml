@@ -852,6 +852,13 @@ admissionWebhooks:
 ## List of AmazonCloudWatchAgent workloads to install & manage, each representing an independent installation of the AmazonCloudWatchAgent CustomResource. Each entry in this list uses the schema & the defaults from $.agent, so only provide any overrides here.
 agents:
   - name: cloudwatch-agent
+  # Cluster-level metrics scraper for OTLP Container Insights.
+  # Skipped when otelContainerInsights.enabled is false.
+  - name: cloudwatch-agent-cluster-scraper
+    mode: deployment
+    replicas: 1
+    serviceAccount:
+      name: cloudwatch-agent-cluster-scraper
 agent:
   name:
   mode: daemonset # Represents the mode the AmazonCloudWatchAgent workload will run in (deployment, daemonset or statefulset)
@@ -913,24 +920,8 @@ agent:
     issuerAnnotations: {}
   serviceAccount:
     name: # override agent service account name
-  config: # optional config that can be provided to override the defaultConfig
-  otelConfig: # optional YAML config that can be provided to combine with the config/defaultConfig
-  defaultConfig:
-    {
-      "logs": {
-        "metrics_collected": {
-          "kubernetes": {
-            "enhanced_container_insights": true
-          },
-          "application_signals": { }
-        }
-      },
-      "traces": {
-        "traces_collected": {
-          "application_signals": { }
-        }
-      }
-    }
+  config: # optional config override — if set, bypasses dynamic config construction from feature flags
+  otelConfig: # optional OTEL YAML config — merged with generated otelConfig when otelContainerInsights targets this agent
   prometheus:
     config:
     targetAllocator:
@@ -1225,14 +1216,26 @@ nodeExporter:
   serviceAccount:
     name:
 
+## ── Feature flags ──────────────────────────────────────────────
+## Each feature has an `enabled` flag and a `targetAgent` that controls which agent
+## in the `agents` list receives the feature's config. Features only inject config
+## into the agent whose name matches `targetAgent`. This keeps multi-agent setups
+## safe — a Prometheus agent won't accidentally inherit Container Insights config.
+
 ## Controls the legacy Container Insights pipeline (CloudWatch Agent collecting kubernetes metrics via logs.metrics_collected.kubernetes).
-## When set to false, the kubernetes key is removed from the agent config, disabling legacy CI metrics collection.
-## Can run alongside otelContainerInsights — both pipelines are independent.
+## When set to false, the kubernetes section is omitted from the targeted agent's config.
 containerInsights:
   enabled: true
+  targetAgent: cloudwatch-agent
+
+## Controls Application Signals (logs + traces collection).
+## When set to false, application_signals sections are omitted from the targeted agent's config.
+applicationSignals:
+  enabled: true
+  targetAgent: cloudwatch-agent
 
 ## Controls the OTLP-based Container Insights pipeline (node-exporter, kube-state-metrics, cluster-scraper, OTEL collector config).
-## When enabled, deploys additional resources and injects OTEL config into the CloudWatch Agent for metrics collection via OTLP.
+## When enabled, deploys additional resources and injects OTEL config into the targeted agent for metrics collection via OTLP.
 ## Both containerInsights and otelContainerInsights can be enabled simultaneously — they run as independent pipelines.
 ## | containerInsights.enabled | otelContainerInsights.enabled | Result                    |
 ## |--------------------------|-------------------------------|---------------------------|
@@ -1242,6 +1245,8 @@ containerInsights:
 ## | false                    | false                         | No CI metrics             |
 otelContainerInsights:
   enabled: true
+  targetAgent: cloudwatch-agent
+  clusterScraperAgent: cloudwatch-agent-cluster-scraper
   metricResolution: "15s"
   # Override the CloudWatch Metrics OTLP endpoint. If empty, defaults to monitoring.<region>.amazonaws.com.
   cloudwatchMetricsEndpoint: ""
