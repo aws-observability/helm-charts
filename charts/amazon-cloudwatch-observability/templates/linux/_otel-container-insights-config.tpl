@@ -91,7 +91,7 @@ receivers:
   kubeletstats/cw_k8s_ci_v0:
     auth_type: serviceAccount
     collection_interval: {{ .Values.otelContainerInsights.metricResolution }}
-    endpoint: "https://${env:K8S_NODE_NAME}:10250"
+    endpoint: "https://${env:HOST_IP}:10250"
     insecure_skip_verify: true
     metric_groups:
       - pod

@@ -1,0 +1,67 @@
+{{- if and .Values.kubeStateMetrics.enabled .Values.otelContainerInsights.enabled }}
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ template "amazon-cloudwatch-observability.name" . }}-ksm-service-account
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "amazon-cloudwatch-observability.labels" . | nindent 4 }}
+---
+# ClusterRole is cluster-scoped — prefixed with chart name to avoid
+# collision with a customer's own kube-state-metrics ClusterRole.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ template "amazon-cloudwatch-observability.name" . }}-ksm-cluster-role
+  labels:
+    {{- include "amazon-cloudwatch-observability.labels" . | nindent 4 }}
+rules:
+  - apiGroups: [""]
+    resources: [configmaps, secrets, nodes, pods, services, serviceaccounts, resourcequotas, replicationcontrollers, limitranges, persistentvolumeclaims, persistentvolumes, namespaces, endpoints]
+    verbs: [list, watch]
+  - apiGroups: [apps]
+    resources: [statefulsets, daemonsets, deployments, replicasets]
+    verbs: [list, watch]
+  - apiGroups: [batch]
+    resources: [cronjobs, jobs]
+    verbs: [list, watch]
+  - apiGroups: [autoscaling]
+    resources: [horizontalpodautoscalers]
+    verbs: [list, watch]
+  - apiGroups: [policy]
+    resources: [poddisruptionbudgets]
+    verbs: [list, watch]
+  - apiGroups: [storage.k8s.io]
+    resources: [storageclasses, volumeattachments]
+    verbs: [list, watch]
+  - apiGroups: [networking.k8s.io]
+    resources: [networkpolicies, ingresses]
+    verbs: [list, watch]
+  - apiGroups: [discovery.k8s.io]
+    resources: [endpointslices]
+    verbs: [list, watch]
+  - apiGroups: [admissionregistration.k8s.io]
+    resources: [mutatingwebhookconfigurations, validatingwebhookconfigurations]
+    verbs: [list, watch]
+  - apiGroups: [certificates.k8s.io]
+    resources: [certificatesigningrequests]
+    verbs: [list, watch]
+  - apiGroups: [coordination.k8s.io]
+    resources: [leases]
+    verbs: [list, watch]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: {{ template "amazon-cloudwatch-observability.name" . }}-ksm-cluster-role-binding
+  labels:
+    {{- include "amazon-cloudwatch-observability.labels" . | nindent 4 }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: {{ template "amazon-cloudwatch-observability.name" . }}-ksm-cluster-role
+subjects:
+  - kind: ServiceAccount
+    name: {{ template "amazon-cloudwatch-observability.name" . }}-ksm-service-account
+    namespace: {{ .Release.Namespace }}
+{{- end }}

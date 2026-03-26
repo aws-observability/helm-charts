@@ -852,6 +852,11 @@ admissionWebhooks:
 ## List of AmazonCloudWatchAgent workloads to install & manage, each representing an independent installation of the AmazonCloudWatchAgent CustomResource. Each entry in this list uses the schema & the defaults from $.agent, so only provide any overrides here.
 agents:
   - name: cloudwatch-agent
+  - name: cloudwatch-agent-cluster-scraper
+    mode: deployment
+    replicas: 1
+    serviceAccount:
+      name: cloudwatch-agent-cluster-scraper
 agent:
   name:
   mode: daemonset # Represents the mode the AmazonCloudWatchAgent workload will run in (deployment, daemonset or statefulset)
@@ -913,24 +918,8 @@ agent:
     issuerAnnotations: {}
   serviceAccount:
     name: # override agent service account name
-  config: # optional config that can be provided to override the defaultConfig
-  otelConfig: # optional YAML config that can be provided to combine with the config/defaultConfig
-  defaultConfig:
-    {
-      "logs": {
-        "metrics_collected": {
-          "kubernetes": {
-            "enhanced_container_insights": true
-          },
-          "application_signals": { }
-        }
-      },
-      "traces": {
-        "traces_collected": {
-          "application_signals": { }
-        }
-      }
-    }
+  config: # optional config that can be provided to override the build-default-config output
+  otelConfig: # optional YAML config that can be provided to combine with the build-default-otel-config output
   prometheus:
     config:
     targetAllocator:
@@ -1197,6 +1186,7 @@ neuronMonitor:
     kubernetes.io/os: linux
 
 kubeStateMetrics:
+  enabled: true
   image:
     repository: kube-state-metrics/kube-state-metrics
     tag: v2.18.0
@@ -1206,10 +1196,30 @@ kubeStateMetrics:
       cn-northwest-1: 961992271922.dkr.ecr.cn-northwest-1.amazonaws.com.cn
       us-gov-east-1: 151742754352.dkr.ecr.us-gov-east-1.amazonaws.com
       us-gov-west-1: 013241004608.dkr.ecr.us-gov-west-1.amazonaws.com
+    # Used in China/GovCloud regions where the public upstream image isn't available; the helper falls back to repositoryDomainMap[region]/restrictedRepository:restrictedTag
     restrictedRepository: eks/kube-state-metrics
     restrictedTag: v2.18.0-eksbuild.1
+  resources:
+    limits:
+      cpu: 200m
+      memory: 256Mi
+    requests:
+      cpu: 50m
+      memory: 64Mi
+  securityContext: {}
+  ## Override root tolerations
+  # tolerations: []
+  affinity: {}
+  nodeSelector:
+    kubernetes.io/os: linux
+  service:
+    type: ClusterIP
+    port: 8443
+  serviceAccount:
+    name:
 
 nodeExporter:
+  enabled: true
   name:
   image:
     repository: prometheus/node-exporter
@@ -1220,8 +1230,23 @@ nodeExporter:
       cn-northwest-1: 961992271922.dkr.ecr.cn-northwest-1.amazonaws.com.cn
       us-gov-east-1: 151742754352.dkr.ecr.us-gov-east-1.amazonaws.com
       us-gov-west-1: 013241004608.dkr.ecr.us-gov-west-1.amazonaws.com
+    # Used in China/GovCloud regions where the public upstream image isn't available; the helper falls back to repositoryDomainMap[region]/restrictedRepository:restrictedTag
     restrictedRepository: eks/prometheus-node-exporter
     restrictedTag: v1.10.2-eksbuild.8
+  resources:
+    limits:
+      cpu: 200m
+      memory: 100Mi
+    requests:
+      cpu: 50m
+      memory: 30Mi
+  securityContext: {}
+  ## Override root tolerations
+  # tolerations: []
+  affinity: {}
+  nodeSelector:
+    kubernetes.io/os: linux
+  service: {}
   serviceAccount:
     name:
 
@@ -1230,6 +1255,14 @@ nodeExporter:
 ## Can run alongside otelContainerInsights — both pipelines are independent.
 containerInsights:
   enabled: true
+  ## The agent in the agents array that receives legacy Container Insights config.
+  targetAgent: "cloudwatch-agent"
+
+## Controls the Application Signals pipeline (application performance monitoring via traces and metrics).
+applicationSignals:
+  enabled: true
+  ## The agent in the agents array that receives Application Signals config.
+  targetAgent: "cloudwatch-agent"
 
 ## Controls the OTLP-based Container Insights pipeline (node-exporter, kube-state-metrics, cluster-scraper, OTEL collector config).
 ## When enabled, deploys additional resources and injects OTEL config into the CloudWatch Agent for metrics collection via OTLP.
@@ -1242,14 +1275,10 @@ containerInsights:
 ## | false                    | false                         | No CI metrics             |
 otelContainerInsights:
   enabled: true
-  metricResolution: "15s"
+  ## The agent in the agents array that receives node-level OTEL Container Insights config.
+  targetAgent: "cloudwatch-agent"
+  ## The agent in the agents array that receives cluster-level OTEL Container Insights config (apiserver, kube-state-metrics scraping).
+  clusterScraperAgent: "cloudwatch-agent-cluster-scraper"
+  metricResolution: "30s"
   # Override the CloudWatch Metrics OTLP endpoint. If empty, defaults to monitoring.<region>.amazonaws.com.
   cloudwatchMetricsEndpoint: ""
-  clusterScraper:
-    resources:
-      limits:
-        memory: 512Mi
-        cpu: 200m
-      requests:
-        memory: 256Mi
-        cpu: 100m

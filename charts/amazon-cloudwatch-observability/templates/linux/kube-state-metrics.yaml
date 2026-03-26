@@ -1,76 +1,4 @@
-{{- if .Values.otelContainerInsights.enabled }}
-apiVersion: v1
-kind: ServiceAccount
-metadata:
-  name: cwagent-kube-state-metrics
-  namespace: {{ .Release.Namespace }}
-  labels:
-    {{- include "amazon-cloudwatch-observability.labels" . | nindent 4 }}
----
-# ClusterRole is cluster-scoped — prefixed with "cwagent-" to avoid
-# collision with a customer's own kube-state-metrics ClusterRole.
-apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRole
-metadata:
-  name: cwagent-kube-state-metrics
-  labels:
-    {{- include "amazon-cloudwatch-observability.labels" . | nindent 4 }}
-rules:
-  - apiGroups: [""]
-    resources: [configmaps, secrets, nodes, pods, services, serviceaccounts, resourcequotas, replicationcontrollers, limitranges, persistentvolumeclaims, persistentvolumes, namespaces, endpoints]
-    verbs: [list, watch]
-  - apiGroups: [apps]
-    resources: [statefulsets, daemonsets, deployments, replicasets]
-    verbs: [list, watch]
-  - apiGroups: [batch]
-    resources: [cronjobs, jobs]
-    verbs: [list, watch]
-  - apiGroups: [autoscaling]
-    resources: [horizontalpodautoscalers]
-    verbs: [list, watch]
-  - apiGroups: [authentication.k8s.io]
-    resources: [tokenreviews]
-    verbs: [create]
-  - apiGroups: [authorization.k8s.io]
-    resources: [subjectaccessreviews]
-    verbs: [create]
-  - apiGroups: [policy]
-    resources: [poddisruptionbudgets]
-    verbs: [list, watch]
-  - apiGroups: [storage.k8s.io]
-    resources: [storageclasses, volumeattachments]
-    verbs: [list, watch]
-  - apiGroups: [networking.k8s.io]
-    resources: [networkpolicies, ingresses]
-    verbs: [list, watch]
-  - apiGroups: [discovery.k8s.io]
-    resources: [endpointslices]
-    verbs: [list, watch]
-  - apiGroups: [admissionregistration.k8s.io]
-    resources: [mutatingwebhookconfigurations, validatingwebhookconfigurations]
-    verbs: [list, watch]
-  - apiGroups: [certificates.k8s.io]
-    resources: [certificatesigningrequests]
-    verbs: [list, watch]
-  - apiGroups: [coordination.k8s.io]
-    resources: [leases]
-    verbs: [list, watch]
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRoleBinding
-metadata:
-  name: cwagent-kube-state-metrics
-  labels:
-    {{- include "amazon-cloudwatch-observability.labels" . | nindent 4 }}
-roleRef:
-  apiGroup: rbac.authorization.k8s.io
-  kind: ClusterRole
-  name: cwagent-kube-state-metrics
-subjects:
-  - kind: ServiceAccount
-    name: cwagent-kube-state-metrics
-    namespace: {{ .Release.Namespace }}
----
+{{- if and .Values.kubeStateMetrics.enabled .Values.otelContainerInsights.enabled }}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -89,16 +17,19 @@ spec:
       labels:
         app.kubernetes.io/component: cwagent-kube-state-metrics
     spec:
-      serviceAccountName: cwagent-kube-state-metrics
+      serviceAccountName: {{ template "amazon-cloudwatch-observability.name" . }}-ksm-service-account
       nodeSelector:
         kubernetes.io/os: linux
       {{- dict "component" .Values.kubeStateMetrics "context" . | include "amazon-cloudwatch-observability.common.tolerations" | nindent 6 }}
       containers:
         - name: kube-state-metrics
           image: {{ template "kube-state-metrics.image" . }}
+          args:
+            - --port=8443
+            - --tls-config=/etc/ksm-web-config/web.yml
           ports:
-            - name: http-metrics
-              containerPort: 8080
+            - name: https-metrics
+              containerPort: 8443
               protocol: TCP
             - name: telemetry
               containerPort: 8081
@@ -107,21 +38,37 @@ spec:
             httpGet:
               path: /
               port: 8081
+              scheme: HTTPS
             initialDelaySeconds: 5
             timeoutSeconds: 5
           livenessProbe:
             httpGet:
               path: /healthz
-              port: 8080
+              port: 8443
+              scheme: HTTPS
             initialDelaySeconds: 5
             timeoutSeconds: 5
           resources:
-            limits:
-              cpu: 200m
-              memory: 256Mi
-            requests:
-              cpu: 50m
-              memory: 64Mi
+            {{- toYaml .Values.kubeStateMetrics.resources | nindent 12 }}
+          volumeMounts:
+            - name: ksm-tls
+              mountPath: /etc/ksm-cert
+              readOnly: true
+            - name: ksm-web-config
+              mountPath: /etc/ksm-web-config
+              readOnly: true
+      volumes:
+        - name: ksm-tls
+          secret:
+            secretName: amazon-cloudwatch-observability-agent-cert
+            items:
+              - key: tls.crt
+                path: server.crt
+              - key: tls.key
+                path: server.key
+        - name: ksm-web-config
+          configMap:
+            name: {{ template "amazon-cloudwatch-observability.name" . }}-ksm-web-config
 ---
 apiVersion: v1
 kind: Service
@@ -131,13 +78,29 @@ metadata:
   labels:
     {{- include "amazon-cloudwatch-observability.labels" . | nindent 4 }}
     app.kubernetes.io/component: cwagent-kube-state-metrics
+  annotations:
+    prometheus.io/scrape: "true"
+    prometheus.io/port: "8443"
 spec:
   type: ClusterIP
   ports:
-    - name: http-metrics
-      port: 8080
-      targetPort: http-metrics
+    - name: https-metrics
+      port: 8443
+      targetPort: https-metrics
       protocol: TCP
   selector:
     app.kubernetes.io/component: cwagent-kube-state-metrics
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ template "amazon-cloudwatch-observability.name" . }}-ksm-web-config
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "amazon-cloudwatch-observability.labels" . | nindent 4 }}
+data:
+  web.yml: |
+    tls_server_config:
+      cert_file: /etc/ksm-cert/server.crt
+      key_file: /etc/ksm-cert/server.key
 {{- end }}

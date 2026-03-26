@@ -1,7 +1,7 @@
 # Amazon CloudWatch Observability Helm Chart
 
 ## Purpose
-Single Helm chart (v4.8.0) that deploys the full CloudWatch observability stack on Kubernetes: operator, agents, log collectors, GPU/accelerator exporters, and auto-instrumentation for application tracing.
+Single Helm chart that deploys the full CloudWatch observability stack on Kubernetes: operator, agents, log collectors, GPU/accelerator exporters, and auto-instrumentation for application tracing.
 
 ## Required Values
 Every install needs these two — templates use `required` and will hard-fail without them:
@@ -9,15 +9,99 @@ Every install needs these two — templates use `required` and will hard-fail wi
 - `clusterName` — EKS/K8s cluster name (injected into agent configs, log group paths)
 
 ## Configuration Architecture
-`values.yaml` key sections:
+
+### Feature Flag Structure with Target Agent Routing
+
+Each observability feature declares which agent in the `agents` array receives its configuration via a `targetAgent` field. This ensures config is only injected into the intended agent — not broadcast to all agents.
+
+```yaml
+containerInsights:
+  enabled: true                    # Legacy CI metrics via logs.metrics_collected.kubernetes
+  targetAgent: "cloudwatch-agent"  # Agent that receives legacy CI config
+
+applicationSignals:
+  enabled: true                    # Application performance monitoring (traces + metrics)
+  targetAgent: "cloudwatch-agent"  # Agent that receives AppSignals config
+
+otelContainerInsights:
+  enabled: true                                              # OTLP-based Container Insights pipeline
+  targetAgent: "cloudwatch-agent"                            # Agent that receives node-level OTEL CI config
+  clusterScraperAgent: "cloudwatch-agent-cluster-scraper"    # Agent that receives cluster-level OTEL CI config
+```
+
+When a feature's `targetAgent` does not match an agent's name, that agent simply doesn't receive that feature's config — no error, no crash.
+
+### Agents Array and Cluster-Scraper
+
+The `agents` list defines independent `AmazonCloudWatchAgent` CRs. The cluster-scraper is a CR entry in this array (not a standalone Deployment). It runs as `mode: deployment` and is managed by the operator like every other agent.
+
+```yaml
+agents:
+  - name: cloudwatch-agent                    # Default DaemonSet agent
+  - name: cloudwatch-agent-cluster-scraper    # Cluster-level metrics collector (apiserver, KSM scraping)
+    mode: deployment
+    replicas: 1
+    serviceAccount:
+      name: cloudwatch-agent-cluster-scraper
+```
+
+When `otelContainerInsights.enabled` is false, the CR template skips rendering the agent whose name matches `clusterScraperAgent`.
+
+### Dynamic Config Construction
+
+Agent configs are built at render time by two helpers — there is no static `defaultConfig`. Each helper checks which features target the current agent and constructs config accordingly.
+
+**`cloudwatch-agent.build-default-config`** — Constructs CW Agent JSON config per agent:
+- Always includes `agent.region`
+- Includes `logs.metrics_collected.kubernetes` only when `containerInsights.enabled` AND `containerInsights.targetAgent` matches
+- Includes `logs.metrics_collected.application_signals` + `traces.traces_collected.application_signals` only when `applicationSignals.enabled` AND `applicationSignals.targetAgent` matches
+- Returns minimal `{"agent":{"region":"<region>"}}` when no feature targets the agent
+- Called as: `include "cloudwatch-agent.build-default-config" (dict "agentName" $name "context" $)`
+
+**`cloudwatch-agent.build-default-otel-config`** — Constructs OTEL YAML config per agent:
+- When `otelContainerInsights.enabled` is false → health-check-only config
+- When `otelContainerInsights.targetAgent` matches → node-level OTEL CI config (delegates to `otel-container-insights.config`)
+- When `otelContainerInsights.clusterScraperAgent` matches → cluster-level OTEL CI config (delegates to `otel-container-insights-cluster-scraper.config`)
+- Default → health-check-only config
+- Health check (`0.0.0.0:13133`) is always present regardless of which branch is taken
+- Called as: `include "cloudwatch-agent.build-default-otel-config" (dict "agentName" $name "context" $)`
+
+### Config Override and Merge
+
+- When an agent entry provides an explicit `config` field, it is used instead of `build-default-config` output
+- When an agent provides `otelConfig`, it is merged with the generated OTEL config via `cloudwatch-agent.merge-otel-configs` — generated config wins on key collision for maps; `service.extensions` lists are concatenated and deduped; `service.pipelines` maps use generated pipelines winning on collision
+- The `config-modifier` helper still handles `cluster_name` injection and `hosted_in` injection for AppSignals
+
+### Universal Health Check
+
+Every agent receives a `health_check` OTEL extension (endpoint `0.0.0.0:13133`) and liveness/readiness probes unconditionally — regardless of `otelContainerInsights.enabled` or which features target it.
+
+### values.yaml Key Sections
+
+- `containerInsights` — Legacy CI feature flag with `targetAgent` routing
+- `applicationSignals` — AppSignals feature flag with `targetAgent` routing
+- `otelContainerInsights` — OTLP CI feature flag with `targetAgent` and `clusterScraperAgent` routing
+- `agents` — List of agent CRs to create (defaults to `cloudwatch-agent` DaemonSet + `cloudwatch-agent-cluster-scraper` Deployment)
+- `agent` — Shared defaults merged into each agent entry (mode, image, resources, etc.)
 - `containerLogs.fluentBit` — Fluent Bit DaemonSet config (Linux + Windows variants, ADC region overrides)
-- `manager` — Operator deployment, auto-instrumentation images (Java/Python/.NET/Node.js), Application Signals
-- `agent` — CloudWatch Agent CR defaults (mode, image, config, Prometheus target allocator)
-- `agents` — List of agent CRs to create (defaults to one named `cloudwatch-agent`; supports multiple)
+- `manager` — Operator deployment, auto-instrumentation images (Java/Python/.NET/Node.js)
+- `kubeStateMetrics` — KSM Deployment config (`enabled`, `resources`, `service.port: 8443` for TLS, `serviceAccount`)
+- `nodeExporter` — Node-exporter DaemonSet config (`enabled`, `resources`, `serviceAccount`)
 - `dcgmExporter` — NVIDIA GPU metrics (node affinity targets GPU instance types)
 - `neuronMonitor` — AWS Trainium/Inferentia metrics (node affinity targets trn/inf instance types)
 - `admissionWebhooks` — Webhook config with two TLS paths: auto-generated or cert-manager
-- `otelContainerInsights` — OTEL-based Container Insights (alternative pipeline, deploys kube-state-metrics + node-exporter + cluster-scraper)
+
+## Naming Conventions
+
+OTEL component names in the cluster-scraper config use the `otel_container_insights` prefix (underscores, per OTEL convention). Examples:
+- `sigv4auth/otel_container_insights_cwotel`
+- `prometheus/otel_container_insights_apiserver`
+- `prometheus/otel_container_insights_kube_state_metrics`
+- `transform/otel_container_insights_set_unit`
+- `batch/otel_container_insights_cwotel`
+- Pipeline names: `metrics/otel_container_insights_apiserver`, `metrics/otel_container_insights_kube_state_metrics`
+
+Template file names use `otel-container-insights` (kebab-case, per Helm convention). The `otelci` abbreviation is not used.
 
 ## Image Resolution Pattern
 All images resolve through `repositoryDomainMap` in `_helpers.tpl`. The pattern:
@@ -31,14 +115,16 @@ Note: `kubeStateMetrics` and `nodeExporter` use a variant of this pattern with `
 
 ## Template Helpers (`_helpers.tpl`)
 50+ helper functions. The critical ones:
+- `cloudwatch-agent.build-default-config` — dynamically constructs CW Agent JSON config per agent based on `targetAgent` routing
+- `cloudwatch-agent.build-default-otel-config` — dynamically constructs OTEL YAML config per agent based on `targetAgent` routing
 - `cloudwatch-agent.config-modifier` — injects `region`, `clusterName`, dualstack settings into agent JSON config
 - `cloudwatch-agent.modify-config` — entry point that decides whether config needs modification
 - `cloudwatch-agent.modify-otel-config` — handles YAML-based OTEL config
+- `cloudwatch-agent.merge-otel-configs` — merges generated OTLP CI config with user-supplied otelConfig; generated config wins on name collision
 - `manager.modify-auto-monitor-config` — derives Application Signals monitoring config from agent configs
 - `manager.monitorAllServices` — region-based feature gate (disabled for China, GovCloud, ADC, isolated regions)
 - `fluent-bit.add-dualstack-endpoints` — injects dualstack endpoints into Fluent Bit OUTPUT sections
 - `fluent-bit.add-ipv6-preference` — adds IPv6 DNS preference to Fluent Bit SERVICE section
-- `cloudwatch-agent.merge-otel-configs` — merges generated OTLP CI config with user-supplied otelConfig; generated config wins on name collision
 - `node-exporter.image` / `kube-state-metrics.image` — image helpers using repositoryDomainMap with restrictedRepository/restrictedTag for China/GovCloud
 - Image helpers: `cloudwatch-agent.image`, `fluent-bit.image`, `dcgm-exporter.image`, etc.
 
@@ -50,8 +136,11 @@ Set via `k8sMode` (default: `EKS`):
 
 ## Anti-Patterns
 - Don't put region-specific logic in templates — use `repositoryDomainMap` or `adcEndpointOverrides` in values.
-- Don't modify `defaultConfig` in `_helpers.tpl` — override via `agent.config` in values.
-- Don't create RBAC resources without checking the conditional guards (`agent.enabled`, `otelContainerInsights.enabled`, etc.).
+- Don't hardcode agent configs — use `build-default-config` and `build-default-otel-config` helpers to dynamically construct per-agent configs based on `targetAgent` routing.
+- Don't assume a single agent — the `agents` list supports multiple independent `AmazonCloudWatchAgent` CRs with different `targetAgent` routing.
+- Don't assume the cluster-scraper is a standalone Deployment — it is an `AmazonCloudWatchAgent` CR entry in the `agents` array, managed by the operator.
+- Don't create RBAC resources without checking the conditional guards (`agent.enabled`, `otelContainerInsights.enabled`, `kubeStateMetrics.enabled`, `nodeExporter.enabled`, etc.).
+- Don't mix `otelci` and `otel_container_insights` naming — use `otel_container_insights` for OTEL component names and `otel-container-insights` for file names.
 - The `agents` list merges each entry with `$.Values.agent` defaults — don't duplicate shared config in individual agent entries.
 
 ## Related Context

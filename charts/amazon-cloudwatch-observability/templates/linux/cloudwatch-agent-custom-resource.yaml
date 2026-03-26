@@ -65,6 +65,8 @@ data:
 {{- $isROSA := eq $.Values.k8sMode "ROSA" -}}
 {{- range .Values.agents }}
 {{- $agent := merge . (deepCopy $.Values.agent) }}
+{{/* Skip cluster-scraper agent when otelContainerInsights is disabled */}}
+{{- if not (and (not $.Values.otelContainerInsights.enabled) (eq $agent.name $.Values.otelContainerInsights.clusterScraperAgent)) }}
 apiVersion: cloudwatch.aws.amazon.com/v1alpha1
 kind: AmazonCloudWatchAgent
 metadata:
@@ -96,8 +98,9 @@ spec:
   {{- with $agent.affinity }}
   affinity: {{- toYaml . | nindent 4 }}
   {{- end }}
+  {{- if ne ($agent.mode | default "daemonset") "deployment" }}
   hostNetwork: true
-  {{- if $.Values.otelContainerInsights.enabled }}
+  {{- end }}
   livenessProbe:
     httpGet:
       path: /
@@ -114,18 +117,16 @@ spec:
     periodSeconds: 10
     timeoutSeconds: 5
     failureThreshold: 3
-  {{- end }}
   {{- if $agent.config }}
   config: {{ include "cloudwatch-agent.modify-config" (merge (dict "Config" $agent.config) $ ) }}
   {{- else }}
-  config: {{ include "cloudwatch-agent.modify-config" (merge (dict "Config" $agent.defaultConfig) $ ) }}
+  config: {{ include "cloudwatch-agent.modify-config" (merge (dict "Config" (include "cloudwatch-agent.build-default-config" (dict "agentName" $agent.name "context" $) | fromJson)) $ ) }}
   {{- end }}
-  {{- if and $.Values.otelContainerInsights.enabled $agent.otelConfig }}
-  otelConfig: {{ include "cloudwatch-agent.modify-otel-config" (merge (dict "OtelConfig" (include "cloudwatch-agent.merge-otel-configs" (dict "Base" (include "otel-container-insights.config" $) "User" $agent.otelConfig))) $) }}
-  {{- else if $.Values.otelContainerInsights.enabled }}
-  otelConfig: {{ include "cloudwatch-agent.modify-otel-config" (merge (dict "OtelConfig" (include "otel-container-insights.config" $)) $) }}
-  {{- else if $agent.otelConfig }}
-  otelConfig: {{ include "cloudwatch-agent.modify-otel-config" (merge (dict "OtelConfig" $agent.otelConfig) $ ) }}
+  {{- $generatedOtelConfig := include "cloudwatch-agent.build-default-otel-config" (dict "agentName" $agent.name "context" $) -}}
+  {{- if $agent.otelConfig }}
+  otelConfig: {{ include "cloudwatch-agent.modify-otel-config" (merge (dict "OtelConfig" (include "cloudwatch-agent.merge-otel-configs" (dict "Base" $generatedOtelConfig "User" $agent.otelConfig))) $) }}
+  {{- else }}
+  otelConfig: {{ include "cloudwatch-agent.modify-otel-config" (merge (dict "OtelConfig" $generatedOtelConfig) $) }}
   {{- end }}
   {{- if $agent.prometheus.config }}
   prometheus:
@@ -286,5 +287,6 @@ spec:
   {{- end }}
   {{- dict "component" $agent "context" $ | include "amazon-cloudwatch-observability.common.tolerations" | nindent 2 }}
 ---
+{{- end }}{{/* end skip gate: not (and (not otelContainerInsights.enabled) (eq name clusterScraperAgent)) */}}
 {{- end }}
 {{- end }}
