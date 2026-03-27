@@ -9,9 +9,5 @@ metadata:
 rules:
 - apiGroups: [""]
   resources: ["configmaps"]
-  verbs: ["create"]
-- apiGroups: [""]
-  resources: ["configmaps"]
-  resourceNames: ["cwagent-clusterleader"]
-  verbs: ["get", "update"]
+  verbs: ["create", "get", "update"]
 {{- end }}

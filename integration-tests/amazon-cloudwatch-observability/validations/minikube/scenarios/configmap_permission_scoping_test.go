@@ -31,19 +31,12 @@ func TestConfigMapPermissionScoping(t *testing.T) {
 	t.Run("NamespaceScopedRoleExists", func(t *testing.T) {
 		role, err := k8sClient.GetRole(minikube.Namespace, "cloudwatch-agent-role")
 		require.NoError(t, err)
-		require.Len(t, role.Rules, 2, "Role should have exactly two rules")
+		require.Len(t, role.Rules, 1, "Role should have exactly one rule")
 
-		// Rule 1: create configmaps, no resourceNames
 		assert.Equal(t, []string{""}, role.Rules[0].APIGroups)
 		assert.Equal(t, []string{"configmaps"}, role.Rules[0].Resources)
-		assert.Equal(t, []string{"create"}, role.Rules[0].Verbs)
-		assert.Empty(t, role.Rules[0].ResourceNames, "create rule should have no resourceNames")
-
-		// Rule 2: get/update configmaps with resourceNames
-		assert.Equal(t, []string{""}, role.Rules[1].APIGroups)
-		assert.Equal(t, []string{"configmaps"}, role.Rules[1].Resources)
-		assert.Equal(t, []string{"cwagent-clusterleader"}, role.Rules[1].ResourceNames)
-		assert.Equal(t, []string{"get", "update"}, role.Rules[1].Verbs)
+		assert.Equal(t, []string{"create", "get", "update"}, role.Rules[0].Verbs)
+		assert.Empty(t, role.Rules[0].ResourceNames)
 	})
 
 	t.Run("NamespaceScopedRoleBindingExists", func(t *testing.T) {
