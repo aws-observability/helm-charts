@@ -124,6 +124,9 @@ func TestResourcesGenerated(t *testing.T) {
 	assert.True(t, exists)
 
 	// Validating Roles
+	exists, err = k8sClient.ValidateRoleExists(namespace, agentName+"-role")
+	assert.NoError(t, err)
+	assert.True(t, exists)
 	exists, err = k8sClient.ValidateRoleExists(namespace, dcgmExporterName+"-role")
 	assert.NoError(t, err)
 	assert.True(t, exists)
@@ -140,6 +143,9 @@ func TestResourcesGenerated(t *testing.T) {
 	assert.True(t, exists)
 
 	// Validating RoleBinding
+	exists, err = k8sClient.ValidateRoleBindingExists(namespace, agentName+"-role-binding")
+	assert.NoError(t, err)
+	assert.True(t, exists)
 	exists, err = k8sClient.ValidateRoleBindingExists(namespace, dcgmExporterName+"-role-binding")
 	assert.NoError(t, err)
 	assert.True(t, exists)

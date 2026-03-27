@@ -226,6 +226,22 @@ func (k *K8sClient) ValidateDeploymentExists(namespace, deploymentName string) (
 	return false, nil
 }
 
+func (k *K8sClient) GetClusterRole(name string) (*rbacV1.ClusterRole, error) {
+	clusterRole, err := k.client.RbacV1().ClusterRoles().Get(context.Background(), name, metav1.GetOptions{})
+	if err != nil {
+		return nil, fmt.Errorf("error getting ClusterRole: %v", err)
+	}
+	return clusterRole, nil
+}
+
+func (k *K8sClient) GetRole(namespace, name string) (*rbacV1.Role, error) {
+	role, err := k.client.RbacV1().Roles(namespace).Get(context.Background(), name, metav1.GetOptions{})
+	if err != nil {
+		return nil, fmt.Errorf("error getting Role: %v", err)
+	}
+	return role, nil
+}
+
 func (k *K8sClient) GetConfigMap(namespace, name string) (*v1.ConfigMap, error) {
 	configMap, err := k.client.CoreV1().ConfigMaps(namespace).Get(context.Background(), name, metav1.GetOptions{})
 	if err != nil {
