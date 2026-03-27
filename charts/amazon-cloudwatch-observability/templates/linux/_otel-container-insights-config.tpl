@@ -6,10 +6,9 @@ extensions:
   sigv4auth/cw_k8s_ci_v0_metrics_dest:
     region: {{ .Values.region }}
     service: monitoring
-  health_check/cw_k8s_ci_v0:
-    endpoint: "0.0.0.0:13133"
 
 receivers:
+{{- if .Values.nodeExporter.enabled }}
   prometheus/cw_k8s_ci_v0_node_exporter:
     config:
       scrape_configs:
@@ -21,6 +20,7 @@ receivers:
           static_configs:
             - targets:
                 - ${env:HOST_IP}:9487
+{{- end }}
 
   prometheus/cw_k8s_ci_v0_cadvisor:
     config:
@@ -178,6 +178,7 @@ processors:
         statements:
           - set(resource.attributes["k8s.cluster.name"], "{{ .Values.clusterName }}")
 
+{{- if .Values.nodeExporter.enabled }}
   transform/cw_k8s_ci_v0_set_scope_node_exporter:
     error_mode: ignore
     metric_statements:
@@ -187,6 +188,7 @@ processors:
           - set(scope.schema_url, "")
           - set(attributes["cloudwatch.source"], "cloudwatch-agent")
           - set(attributes["cloudwatch.solution"], "k8s-otel-container-insights")
+{{- end }}
 
   transform/cw_k8s_ci_v0_set_scope_cadvisor:
     error_mode: ignore
@@ -533,8 +535,8 @@ exporters:
 service:
   extensions:
     - sigv4auth/cw_k8s_ci_v0_metrics_dest
-    - health_check/cw_k8s_ci_v0
   pipelines:
+{{- if .Values.nodeExporter.enabled }}
     metrics/cw_k8s_ci_v0_node_exporter:
       receivers: [prometheus/cw_k8s_ci_v0_node_exporter]
       processors:
@@ -553,6 +555,7 @@ service:
         - batch/cw_k8s_ci_v0_metrics_dest
       exporters:
         - otlphttp/cw_k8s_ci_v0_metrics_dest
+{{- end }}
 
     metrics/cw_k8s_ci_v0_cadvisor:
       receivers: [prometheus/cw_k8s_ci_v0_cadvisor]

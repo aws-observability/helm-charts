@@ -34,7 +34,6 @@ Feature flags (targetAgent routing):
 - **Feature-targeted routing**: each feature flag section (`containerInsights`, `applicationSignals`, `otelContainerInsights`) has a `targetAgent` field that determines which agent in the `agents` array receives that feature's config. Agents not targeted by a feature get minimal config.
 - **Cluster-scraper is a CR entry**: the cluster-scraper (`cloudwatch-agent-cluster-scraper`) is an entry in the `agents` array with `mode: deployment`, managed by the operator like all other agents. It is not a standalone Deployment.
 - **Dynamic config construction**: agent configs are built at render time by `build-default-config` (CW Agent JSON) and `build-default-otel-config` (OTEL YAML) based on `targetAgent` matching. There is no static `defaultConfig`.
-- **Universal health check**: every agent receives a `health_check` OTEL extension (endpoint `0.0.0.0:13133`) and liveness/readiness probes regardless of `otelContainerInsights.enabled`.
 
 ## Build & Validate
 ```bash

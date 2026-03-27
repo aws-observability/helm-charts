@@ -26,9 +26,9 @@ func TestOTLPDisabled(t *testing.T) {
 	assert.True(t, exists)
 
 	// Validate OTLP resources are NOT present
-	exists, err = k8sClient.ValidateDeploymentExists(minikube.Namespace, "cwagent-kube-state-metrics")
+	exists, err = k8sClient.ValidateDeploymentExists(minikube.Namespace, "kube-state-metrics")
 	assert.NoError(t, err)
-	assert.False(t, exists, "cwagent-kube-state-metrics deployment should not exist when OTLP is disabled")
+	assert.False(t, exists, "kube-state-metrics deployment should not exist when OTLP is disabled")
 
 	// Cluster-scraper is now an AmazonCloudWatchAgent CR (not a standalone Deployment).
 	// When OTLP is disabled, the CR is not rendered, so the operator doesn't create a Deployment.

@@ -66,7 +66,7 @@ data:
 {{- range .Values.agents }}
 {{- $agent := merge . (deepCopy $.Values.agent) }}
 {{/* Skip cluster-scraper agent when otelContainerInsights is disabled */}}
-{{- if not (and (not $.Values.otelContainerInsights.enabled) (eq $agent.name $.Values.otelContainerInsights.clusterScraperAgent)) }}
+{{- if or $.Values.otelContainerInsights.enabled (ne $agent.name $.Values.otelContainerInsights.clusterScraperAgent) }}
 apiVersion: cloudwatch.aws.amazon.com/v1alpha1
 kind: AmazonCloudWatchAgent
 metadata:
@@ -101,22 +101,6 @@ spec:
   {{- if ne ($agent.mode | default "daemonset") "deployment" }}
   hostNetwork: true
   {{- end }}
-  livenessProbe:
-    httpGet:
-      path: /
-      port: 13133
-    initialDelaySeconds: 30
-    periodSeconds: 30
-    timeoutSeconds: 5
-    failureThreshold: 3
-  readinessProbe:
-    httpGet:
-      path: /
-      port: 13133
-    initialDelaySeconds: 10
-    periodSeconds: 10
-    timeoutSeconds: 5
-    failureThreshold: 3
   {{- if $agent.config }}
   config: {{ include "cloudwatch-agent.modify-config" (merge (dict "Config" $agent.config) $ ) }}
   {{- else }}
@@ -125,7 +109,7 @@ spec:
   {{- $generatedOtelConfig := include "cloudwatch-agent.build-default-otel-config" (dict "agentName" $agent.name "context" $) -}}
   {{- if $agent.otelConfig }}
   otelConfig: {{ include "cloudwatch-agent.modify-otel-config" (merge (dict "OtelConfig" (include "cloudwatch-agent.merge-otel-configs" (dict "Base" $generatedOtelConfig "User" $agent.otelConfig))) $) }}
-  {{- else }}
+  {{- else if ne $generatedOtelConfig "{}" }}
   otelConfig: {{ include "cloudwatch-agent.modify-otel-config" (merge (dict "OtelConfig" $generatedOtelConfig) $) }}
   {{- end }}
   {{- if $agent.prometheus.config }}

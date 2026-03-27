@@ -25,7 +25,7 @@ const (
 	fluentBitNameWindows = "fluent-bit-windows"
 	dcgmExporterName     = "dcgm-exporter"
 	neuronMonitor        = "neuron-monitor"
-	kubeStateMetricsName = "cwagent-kube-state-metrics"
+	kubeStateMetricsName = "kube-state-metrics"
 	clusterScraperName   = "cloudwatch-agent-cluster-scraper"
 	nodeExporterName     = "node-exporter"
 	podNameRegex         = "(" + agentName + "|" + agentNameWindows + "|" + operatorName + "|" + fluentBitName + "|" + fluentBitNameWindows + "|" + kubeStateMetricsName + "|" + clusterScraperName + "|" + nodeExporterName + ")-*"

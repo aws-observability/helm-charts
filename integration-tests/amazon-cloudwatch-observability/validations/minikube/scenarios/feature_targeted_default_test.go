@@ -61,10 +61,6 @@ func TestFeatureTargetedDefault(t *testing.T) {
 		validateClusterScraperCRExists(t, agentMap)
 	})
 
-	t.Run("AllAgentsHaveHealthProbes", func(t *testing.T) {
-		validateAllAgentsHaveHealthProbes(t, agentMap)
-	})
-
 	t.Run("OTELConfigRouting", func(t *testing.T) {
 		validateOTELConfigRouting(t, agentMap)
 	})
@@ -95,39 +91,6 @@ func validateClusterScraperCRExists(t *testing.T, agentMap map[string]unstructur
 	assert.Equal(t, int64(1), replicas, "cluster-scraper CR should have replicas=1")
 }
 
-// validateAllAgentsHaveHealthProbes verifies Linux agent CRs have livenessProbe timing fields.
-// Note: The CRD strips livenessProbe.httpGet and readinessProbe (the operator auto-generates
-// the probe handler from the health_check extension). We only validate the timing fields that
-// the CRD preserves. Windows agents are excluded as they use different templates.
-func validateAllAgentsHaveHealthProbes(t *testing.T, agentMap map[string]unstructured.Unstructured) {
-	assert.NotEmpty(t, agentMap, "should have at least one agent CR")
-
-	// Only check Linux agents (skip Windows agents which use different templates)
-	linuxAgents := []string{"cloudwatch-agent", "cloudwatch-agent-cluster-scraper"}
-	for _, name := range linuxAgents {
-		agent, exists := agentMap[name]
-		if !exists {
-			continue
-		}
-		t.Run(name, func(t *testing.T) {
-			spec, ok := agent.Object["spec"].(map[string]interface{})
-			if !assert.True(t, ok, "spec should be a map for agent %s", name) {
-				return
-			}
-
-			// Check livenessProbe timing fields (CRD preserves these but strips httpGet)
-			livenessProbe, ok := spec["livenessProbe"].(map[string]interface{})
-			assert.True(t, ok, "agent %s should have livenessProbe", name)
-			if ok {
-				_, hasInitialDelay := livenessProbe["initialDelaySeconds"]
-				assert.True(t, hasInitialDelay, "agent %s livenessProbe should have initialDelaySeconds", name)
-				_, hasPeriod := livenessProbe["periodSeconds"]
-				assert.True(t, hasPeriod, "agent %s livenessProbe should have periodSeconds", name)
-			}
-		})
-	}
-}
-
 // validateOTELConfigRouting verifies that OTEL configs are correctly routed:
 // - cloudwatch-agent gets node-level pipelines (cadvisor, kubeletstats, node-exporter receivers)
 // - cloudwatch-agent-cluster-scraper gets cluster-level pipelines (apiserver, kube-state-metrics receivers)
@@ -153,8 +116,6 @@ func validateOTELConfigRouting(t *testing.T, agentMap map[string]unstructured.Un
 		// Node-level config should contain node-exporter, cadvisor, kubeletstats receivers
 		assert.True(t, strings.Contains(otelConfig, "kubeletstats"),
 			"cloudwatch-agent otelConfig should contain kubeletstats receiver (node-level)")
-		assert.True(t, strings.Contains(otelConfig, "health_check"),
-			"cloudwatch-agent otelConfig should contain health_check extension")
 
 		// Node-level config should NOT contain cluster-level receivers
 		assert.False(t, strings.Contains(otelConfig, "otel_container_insights_apiserver"),
@@ -186,8 +147,6 @@ func validateOTELConfigRouting(t *testing.T, agentMap map[string]unstructured.Un
 			"cluster-scraper otelConfig should contain apiserver receiver (cluster-level)")
 		assert.True(t, strings.Contains(otelConfig, "otel_container_insights_kube_state_metrics"),
 			"cluster-scraper otelConfig should contain kube_state_metrics receiver (cluster-level)")
-		assert.True(t, strings.Contains(otelConfig, "health_check"),
-			"cluster-scraper otelConfig should contain health_check extension")
 
 		// Cluster-level config should NOT contain node-level receivers
 		assert.False(t, strings.Contains(otelConfig, "kubeletstats"),

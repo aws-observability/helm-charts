@@ -127,8 +127,6 @@ func validateCIAgentConfig(t *testing.T, agentMap map[string]unstructured.Unstru
 
 	assert.True(t, strings.Contains(otelConfig, "kubeletstats"),
 		"ci-agent otelConfig should contain kubeletstats receiver (node-level OTEL CI targeted here)")
-	assert.True(t, strings.Contains(otelConfig, "health_check"),
-		"ci-agent otelConfig should contain health_check extension")
 	assert.False(t, strings.Contains(otelConfig, "otel_container_insights_apiserver"),
 		"ci-agent otelConfig should NOT contain apiserver receiver (cluster-level)")
 }
@@ -187,20 +185,17 @@ func validateAppSignalsAgentConfig(t *testing.T, agentMap map[string]unstructure
 		}
 	}
 
-	// Validate OTEL config is health-check-only (otelContainerInsights not targeted here)
+	// Validate OTEL config is absent or empty (otelContainerInsights not targeted here)
 	otelConfig, ok := spec["otelConfig"].(string)
-	if !assert.True(t, ok, "otelConfig should be a string") {
-		return
+	if ok {
+		assert.False(t, strings.Contains(otelConfig, "kubeletstats"),
+			"appsignals-agent otelConfig should NOT contain kubeletstats receiver")
+		assert.False(t, strings.Contains(otelConfig, "otel_container_insights_apiserver"),
+			"appsignals-agent otelConfig should NOT contain apiserver receiver")
+		assert.False(t, strings.Contains(otelConfig, "otel_container_insights_kube_state_metrics"),
+			"appsignals-agent otelConfig should NOT contain kube_state_metrics receiver")
 	}
-
-	assert.True(t, strings.Contains(otelConfig, "health_check"),
-		"appsignals-agent otelConfig should contain health_check extension")
-	assert.False(t, strings.Contains(otelConfig, "kubeletstats"),
-		"appsignals-agent otelConfig should NOT contain kubeletstats receiver")
-	assert.False(t, strings.Contains(otelConfig, "otel_container_insights_apiserver"),
-		"appsignals-agent otelConfig should NOT contain apiserver receiver")
-	assert.False(t, strings.Contains(otelConfig, "otel_container_insights_kube_state_metrics"),
-		"appsignals-agent otelConfig should NOT contain kube_state_metrics receiver")
+	// otelConfig may be absent entirely when no OTEL CI features target this agent — that's valid
 }
 
 // validateSplitFeaturesClusterScraperConfig verifies cluster-scraper gets minimal CW Agent
@@ -254,8 +249,6 @@ func validateSplitFeaturesClusterScraperConfig(t *testing.T, agentMap map[string
 		"cluster-scraper otelConfig should contain apiserver receiver (cluster-level)")
 	assert.True(t, strings.Contains(otelConfig, "otel_container_insights_kube_state_metrics"),
 		"cluster-scraper otelConfig should contain kube_state_metrics receiver (cluster-level)")
-	assert.True(t, strings.Contains(otelConfig, "health_check"),
-		"cluster-scraper otelConfig should contain health_check extension")
 	assert.False(t, strings.Contains(otelConfig, "kubeletstats"),
 		"cluster-scraper otelConfig should NOT contain kubeletstats receiver (node-level)")
 }

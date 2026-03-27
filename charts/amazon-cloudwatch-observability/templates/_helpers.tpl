@@ -38,14 +38,17 @@ Helper function to modify auto-monitor config based on agent configurations
 {{- $autoMonitorConfig := deepCopy .Values.manager.applicationSignals.autoMonitor -}}
 {{- $hasAppSignals := false -}}
 {{- range .Values.agents -}}
-{{- $agent := merge . (deepCopy $.Values.agent) -}}
-{{- $agentConfig := $agent.config | default dict -}}
-{{- if and (hasKey $agentConfig "logs") (hasKey $agentConfig.logs "metrics_collected") (hasKey $agentConfig.logs.metrics_collected "application_signals") -}}
-{{- $hasAppSignals = true -}}
-{{- end -}}
-{{- if and (hasKey $agentConfig "traces") (hasKey $agentConfig.traces "traces_collected") (hasKey $agentConfig.traces.traces_collected "application_signals") -}}
-{{- $hasAppSignals = true -}}
-{{- end -}}
+  {{- $agent := merge . (deepCopy $.Values.agent) -}}
+  {{- if and $.Values.applicationSignals.enabled (eq $.Values.applicationSignals.targetAgent $agent.name) -}}
+    {{- if $agent.config -}}
+      {{- $agentConfig := $agent.config -}}
+      {{- if or (and (hasKey $agentConfig "logs") (hasKey $agentConfig.logs "metrics_collected") (hasKey $agentConfig.logs.metrics_collected "application_signals")) (and (hasKey $agentConfig "traces") (hasKey $agentConfig.traces "traces_collected") (hasKey $agentConfig.traces.traces_collected "application_signals")) -}}
+        {{- $hasAppSignals = true -}}
+      {{- end -}}
+    {{- else -}}
+      {{- $hasAppSignals = true -}}
+    {{- end -}}
+  {{- end -}}
 {{- end -}}
 {{- if not $hasAppSignals -}}
 {{- $_ := set $autoMonitorConfig "monitorAllServices" false -}}
@@ -98,12 +101,10 @@ Accepts a dict with "agentName" (string) and "context" (root context $).
 Returns OTEL YAML string.
 
 Logic:
-  - When otelContainerInsights.enabled is false, return health-check-only config
+  - When otelContainerInsights.enabled is false, return empty config ({})
   - When otelContainerInsights.targetAgent matches agentName, return node-level OTEL CI config
-    (delegates to existing otel-container-insights.config template which includes health_check)
   - When otelContainerInsights.clusterScraperAgent matches agentName, return cluster-level OTEL CI config
-    (delegates to existing otel-container-insights-cluster-scraper.config template which includes health_check)
-  - Default: return health-check-only config (extensions.health_check.endpoint: 0.0.0.0:13133)
+  - Default: return empty config ({})
 */}}
 {{- define "cloudwatch-agent.build-default-otel-config" -}}
 {{- $agentName := .agentName -}}
@@ -112,23 +113,13 @@ Logic:
 {{- fail "otelContainerInsights.enabled must be a boolean (true/false)" }}
 {{- end }}
 {{- if not $ctx.Values.otelContainerInsights.enabled -}}
-extensions:
-  health_check:
-    endpoint: "0.0.0.0:13133"
-service:
-  extensions:
-    - health_check
+{}
 {{- else if eq $ctx.Values.otelContainerInsights.targetAgent $agentName -}}
 {{- include "otel-container-insights.config" $ctx -}}
 {{- else if eq $ctx.Values.otelContainerInsights.clusterScraperAgent $agentName -}}
 {{- include "otel-container-insights-cluster-scraper.config" $ctx -}}
 {{- else -}}
-extensions:
-  health_check:
-    endpoint: "0.0.0.0:13133"
-service:
-  extensions:
-    - health_check
+{}
 {{- end -}}
 {{- end -}}
 
@@ -186,6 +177,9 @@ Helper function to modify cloudwatch-agent YAML config
 {{- $configCopy := deepCopy .OtelConfig }}
 {{- if kindIs "string" $configCopy }}
   {{- $configCopy = fromYaml $configCopy }}
+  {{- if hasKey $configCopy "Error" }}
+    {{- fail (printf "Failed to parse otelConfig: %s" (index $configCopy "Error")) }}
+  {{- end }}
 {{- end }}
 
 {{- range $name, $component := $configCopy }}
@@ -200,6 +194,19 @@ Helper function to modify cloudwatch-agent YAML config
 
 {{- $configCopy | toYaml | quote }}
 {{- end }}
+
+{{/*
+Compute scrape_timeout: use metricResolution if it's less than 10s, otherwise 10s.
+Assumes metricResolution is in "<N>s" format.
+*/}}
+{{- define "otel-container-insights.scrapeTimeout" -}}
+{{- $resolution := trimSuffix "s" .Values.otelContainerInsights.metricResolution | int -}}
+{{- if lt $resolution 10 -}}
+{{ .Values.otelContainerInsights.metricResolution }}
+{{- else -}}
+10s
+{{- end -}}
+{{- end -}}
 
 {{- define "cloudwatch-agent.rolloutStrategyMaxUnavailable" -}}
 {{- if eq .mode "daemonset" -}}
@@ -597,6 +604,20 @@ Get the node-exporter image for the configured region using repositoryDomainMap
 {{- end -}}
 
 {{/*
+Name for kube-state-metrics
+*/}}
+{{- define "kube-state-metrics.name" -}}
+{{- default "kube-state-metrics" .Values.kubeStateMetrics.name }}
+{{- end }}
+
+{{/*
+Create the name of the service account to use for kube-state-metrics
+*/}}
+{{- define "kube-state-metrics.serviceAccountName" -}}
+{{- default "kube-state-metrics-service-acct" .Values.kubeStateMetrics.serviceAccount.name }}
+{{- end }}
+
+{{/*
 Get the kube-state-metrics image for the configured region using repositoryDomainMap
 */}}
 {{- define "kube-state-metrics.image" -}}
@@ -622,9 +643,15 @@ winning on key collision.
 {{- $user := .User -}}
 {{- if kindIs "string" $base }}
   {{- $base = fromYaml $base }}
+  {{- if hasKey $base "Error" }}
+    {{- fail (printf "Failed to parse generated otelConfig: %s" (index $base "Error")) }}
+  {{- end }}
 {{- end }}
 {{- if kindIs "string" $user }}
   {{- $user = fromYaml $user }}
+  {{- if hasKey $user "Error" }}
+    {{- fail (printf "Failed to parse user-supplied otelConfig: %s" (index $user "Error")) }}
+  {{- end }}
 {{- end }}
 {{/* Merge top-level map sections: extensions, receivers, processors, exporters */}}
 {{- $merged := deepCopy $base -}}

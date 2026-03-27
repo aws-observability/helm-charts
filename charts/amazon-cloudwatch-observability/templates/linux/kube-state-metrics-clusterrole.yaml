@@ -1,18 +1,10 @@
 {{- if and .Values.kubeStateMetrics.enabled .Values.otelContainerInsights.enabled }}
-apiVersion: v1
-kind: ServiceAccount
-metadata:
-  name: {{ template "amazon-cloudwatch-observability.name" . }}-ksm-service-account
-  namespace: {{ .Release.Namespace }}
-  labels:
-    {{- include "amazon-cloudwatch-observability.labels" . | nindent 4 }}
----
-# ClusterRole is cluster-scoped — prefixed with chart name to avoid
+# ClusterRole is cluster-scoped — prefixed with component name to avoid
 # collision with a customer's own kube-state-metrics ClusterRole.
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
-  name: {{ template "amazon-cloudwatch-observability.name" . }}-ksm-cluster-role
+  name: {{ template "kube-state-metrics.name" . }}-cluster-role
   labels:
     {{- include "amazon-cloudwatch-observability.labels" . | nindent 4 }}
 rules:
@@ -49,19 +41,4 @@ rules:
   - apiGroups: [coordination.k8s.io]
     resources: [leases]
     verbs: [list, watch]
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRoleBinding
-metadata:
-  name: {{ template "amazon-cloudwatch-observability.name" . }}-ksm-cluster-role-binding
-  labels:
-    {{- include "amazon-cloudwatch-observability.labels" . | nindent 4 }}
-roleRef:
-  apiGroup: rbac.authorization.k8s.io
-  kind: ClusterRole
-  name: {{ template "amazon-cloudwatch-observability.name" . }}-ksm-cluster-role
-subjects:
-  - kind: ServiceAccount
-    name: {{ template "amazon-cloudwatch-observability.name" . }}-ksm-service-account
-    namespace: {{ .Release.Namespace }}
 {{- end }}

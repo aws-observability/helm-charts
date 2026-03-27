@@ -4,14 +4,15 @@ otelContainerInsights:
   enabled: true
 
 # Supply a per-agent otelConfig on cloudwatch-agent that contains:
-# 1. A colliding key: health_check/cw_k8s_ci_v0 with a different endpoint (should be overwritten by generated config)
+# 1. A colliding key: sigv4auth/cw_k8s_ci_v0_metrics_dest with a different region (should be overwritten by generated config)
 # 2. A non-colliding key: a custom receiver, processor, exporter, and pipeline (should be preserved)
 agents:
   - name: cloudwatch-agent
     otelConfig:
       extensions:
-        health_check/cw_k8s_ci_v0:
-          endpoint: "0.0.0.0:19999"
+        sigv4auth/cw_k8s_ci_v0_metrics_dest:
+          region: "us-fake-99"
+          service: monitoring
       receivers:
         prometheus/custom_user_scraper:
           config:
@@ -27,7 +28,7 @@ agents:
           endpoint: "https://custom-user-endpoint.example.com"
       service:
         extensions:
-          - health_check/cw_k8s_ci_v0
+          - sigv4auth/cw_k8s_ci_v0_metrics_dest
         pipelines:
           metrics/custom_user_pipeline:
             receivers: [prometheus/custom_user_scraper]

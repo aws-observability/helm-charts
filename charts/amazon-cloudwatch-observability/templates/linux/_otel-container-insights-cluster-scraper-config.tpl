@@ -6,8 +6,6 @@ extensions:
   sigv4auth/otel_container_insights_cwotel:
     region: {{ .Values.region }}
     service: monitoring
-  health_check/otel_container_insights:
-    endpoint: "0.0.0.0:13133"
 
 receivers:
   prometheus/otel_container_insights_apiserver:
@@ -15,7 +13,7 @@ receivers:
       scrape_configs:
         - job_name: kubernetes-apiserver
           scrape_interval: {{ .Values.otelContainerInsights.metricResolution }}
-          scrape_timeout: 10s
+          scrape_timeout: {{ include "otel-container-insights.scrapeTimeout" . }}
           scheme: https
           tls_config:
             ca_file: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
@@ -36,18 +34,20 @@ receivers:
             - target_label: __metrics_path__
               replacement: /metrics
 
+{{- if .Values.kubeStateMetrics.enabled }}
   prometheus/otel_container_insights_kube_state_metrics:
     config:
       scrape_configs:
         - job_name: kube-state-metrics
           scrape_interval: {{ .Values.otelContainerInsights.metricResolution }}
-          scrape_timeout: 10s
+          scrape_timeout: {{ include "otel-container-insights.scrapeTimeout" . }}
           scheme: https
           tls_config:
             ca_file: /etc/amazon-cloudwatch-observability-agent-cert/tls-ca.crt
           static_configs:
             - targets:
-                - cwagent-kube-state-metrics.{{ .Release.Namespace }}.svc:8443
+                - {{ include "kube-state-metrics.name" . }}.{{ .Release.Namespace }}.svc:8443
+{{- end }}
 
 processors:
   transform/otel_container_insights_set_unit:
@@ -94,6 +94,7 @@ processors:
           - set(attributes["cloudwatch.source"], "cloudwatch-agent")
           - set(attributes["cloudwatch.solution"], "k8s-otel-container-insights")
 
+{{- if .Values.kubeStateMetrics.enabled }}
   transform/otel_container_insights_set_scope_kube_state_metrics:
     error_mode: ignore
     metric_statements:
@@ -103,6 +104,7 @@ processors:
           - set(scope.schema_url, "")
           - set(attributes["cloudwatch.source"], "cloudwatch-agent")
           - set(attributes["cloudwatch.solution"], "k8s-otel-container-insights")
+{{- end }}
 
   transform/otel_container_insights_set_cluster_name:
     error_mode: ignore
@@ -111,6 +113,7 @@ processors:
         statements:
           - set(resource.attributes["k8s.cluster.name"], "{{ .Values.clusterName }}")
 
+{{- if .Values.kubeStateMetrics.enabled }}
   transform/otel_container_insights_ksm_clean_resource:
     error_mode: ignore
     metric_statements:
@@ -165,6 +168,7 @@ processors:
           - set(attributes["k8s.workload.type"], attributes["owner_kind"]) where attributes["owner_kind"] != nil
           - delete_key(attributes, "owner_name") where attributes["owner_name"] != nil
           - delete_key(attributes, "owner_kind") where attributes["owner_kind"] != nil
+{{- end }}
 
   transform/otel_container_insights_set_component:
     error_mode: ignore
@@ -227,7 +231,6 @@ exporters:
 
 service:
   extensions:
-    - health_check/otel_container_insights
     - sigv4auth/otel_container_insights_cwotel
   pipelines:
     metrics/otel_container_insights_apiserver:
@@ -246,6 +249,7 @@ service:
         - batch/otel_container_insights_cwotel
       exporters:
         - otlphttp/otel_container_insights_cwotel
+{{- if .Values.kubeStateMetrics.enabled }}
     metrics/otel_container_insights_kube_state_metrics:
       receivers: [prometheus/otel_container_insights_kube_state_metrics]
       processors:
@@ -263,4 +267,6 @@ service:
         - batch/otel_container_insights_cwotel
       exporters:
         - otlphttp/otel_container_insights_cwotel
+{{- end }}
 {{- end -}}
+

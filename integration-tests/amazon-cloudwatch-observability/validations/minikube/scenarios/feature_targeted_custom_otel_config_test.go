@@ -68,8 +68,8 @@ func TestFeatureTargetedCustomOtelConfig(t *testing.T) {
 }
 
 // validateGeneratedConfigWinsOnCollision verifies that when the user supplies an otelConfig
-// with a colliding health_check/cw_k8s_ci_v0 extension (endpoint "0.0.0.0:19999"), the
-// generated config's endpoint ("0.0.0.0:13133") wins (Requirement 4.4, 12.1).
+// with a colliding sigv4auth/cw_k8s_ci_v0_metrics_dest extension (region "us-fake-99"), the
+// generated config's region ("us-west-2") wins (Requirement 4.4, 12.1).
 func validateGeneratedConfigWinsOnCollision(t *testing.T, agentMap map[string]unstructured.Unstructured) {
 	agent, exists := agentMap["cloudwatch-agent"]
 	if !assert.True(t, exists, "cloudwatch-agent CR should exist") {
@@ -87,13 +87,13 @@ func validateGeneratedConfigWinsOnCollision(t *testing.T, agentMap map[string]un
 	}
 	assert.NotEmpty(t, otelConfig, "otelConfig should not be empty")
 
-	// The generated health_check endpoint (0.0.0.0:13133) should be present
-	assert.True(t, strings.Contains(otelConfig, "0.0.0.0:13133"),
-		"merged otelConfig should contain generated health_check endpoint 0.0.0.0:13133")
+	// The generated sigv4auth region (us-west-2) should be present
+	assert.True(t, strings.Contains(otelConfig, "us-west-2"),
+		"merged otelConfig should contain generated sigv4auth region us-west-2")
 
-	// The user's colliding endpoint (0.0.0.0:19999) should NOT be present
-	assert.False(t, strings.Contains(otelConfig, "0.0.0.0:19999"),
-		"merged otelConfig should NOT contain user's colliding health_check endpoint 0.0.0.0:19999")
+	// The user's colliding region (us-fake-99) should NOT be present
+	assert.False(t, strings.Contains(otelConfig, "us-fake-99"),
+		"merged otelConfig should NOT contain user's colliding sigv4auth region us-fake-99")
 }
 
 // validateUserNonCollidingKeysPreserved verifies that user-supplied keys that do not collide
@@ -157,7 +157,7 @@ func validateGeneratedPipelinesPresent(t *testing.T, agentMap map[string]unstruc
 	assert.True(t, strings.Contains(otelConfig, "kubeletstats"),
 		"merged otelConfig should contain generated kubeletstats receiver")
 
-	// Generated health_check extension should be present
-	assert.True(t, strings.Contains(otelConfig, "health_check"),
-		"merged otelConfig should contain generated health_check extension")
+	// Generated sigv4auth extension should be present
+	assert.True(t, strings.Contains(otelConfig, "sigv4auth"),
+		"merged otelConfig should contain generated sigv4auth extension")
 }

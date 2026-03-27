@@ -59,22 +59,18 @@ Agent configs are built at render time by two helpers — there is no static `de
 - Called as: `include "cloudwatch-agent.build-default-config" (dict "agentName" $name "context" $)`
 
 **`cloudwatch-agent.build-default-otel-config`** — Constructs OTEL YAML config per agent:
-- When `otelContainerInsights.enabled` is false → health-check-only config
+- When `otelContainerInsights.enabled` is false → empty config (`{}`); the CR template omits the `otelConfig` field entirely
 - When `otelContainerInsights.targetAgent` matches → node-level OTEL CI config (delegates to `otel-container-insights.config`)
 - When `otelContainerInsights.clusterScraperAgent` matches → cluster-level OTEL CI config (delegates to `otel-container-insights-cluster-scraper.config`)
-- Default → health-check-only config
-- Health check (`0.0.0.0:13133`) is always present regardless of which branch is taken
+- Default → empty config (`{}`); the CR template omits the `otelConfig` field entirely
 - Called as: `include "cloudwatch-agent.build-default-otel-config" (dict "agentName" $name "context" $)`
 
 ### Config Override and Merge
 
 - When an agent entry provides an explicit `config` field, it is used instead of `build-default-config` output
 - When an agent provides `otelConfig`, it is merged with the generated OTEL config via `cloudwatch-agent.merge-otel-configs` — generated config wins on key collision for maps; `service.extensions` lists are concatenated and deduped; `service.pipelines` maps use generated pipelines winning on collision
+- The `merge-otel-configs` helper validates `fromYaml` results — malformed YAML will cause `helm install` to fail with a descriptive error instead of silently producing corrupt config
 - The `config-modifier` helper still handles `cluster_name` injection and `hosted_in` injection for AppSignals
-
-### Universal Health Check
-
-Every agent receives a `health_check` OTEL extension (endpoint `0.0.0.0:13133`) and liveness/readiness probes unconditionally — regardless of `otelContainerInsights.enabled` or which features target it.
 
 ### values.yaml Key Sections
 
@@ -85,7 +81,7 @@ Every agent receives a `health_check` OTEL extension (endpoint `0.0.0.0:13133`) 
 - `agent` — Shared defaults merged into each agent entry (mode, image, resources, etc.)
 - `containerLogs.fluentBit` — Fluent Bit DaemonSet config (Linux + Windows variants, ADC region overrides)
 - `manager` — Operator deployment, auto-instrumentation images (Java/Python/.NET/Node.js)
-- `kubeStateMetrics` — KSM Deployment config (`enabled`, `resources`, `service.port: 8443` for TLS, `serviceAccount`)
+- `kubeStateMetrics` — KSM Deployment config (`enabled`, `name`, `resources`, `service.port: 8443` for TLS, `serviceAccount`). Resources only created when both `kubeStateMetrics.enabled` and `otelContainerInsights.enabled` are true.
 - `nodeExporter` — Node-exporter DaemonSet config (`enabled`, `resources`, `serviceAccount`)
 - `dcgmExporter` — NVIDIA GPU metrics (node affinity targets GPU instance types)
 - `neuronMonitor` — AWS Trainium/Inferentia metrics (node affinity targets trn/inf instance types)
@@ -121,10 +117,12 @@ Note: `kubeStateMetrics` and `nodeExporter` use a variant of this pattern with `
 - `cloudwatch-agent.modify-config` — entry point that decides whether config needs modification
 - `cloudwatch-agent.modify-otel-config` — handles YAML-based OTEL config
 - `cloudwatch-agent.merge-otel-configs` — merges generated OTLP CI config with user-supplied otelConfig; generated config wins on name collision
-- `manager.modify-auto-monitor-config` — derives Application Signals monitoring config from agent configs
+- `manager.modify-auto-monitor-config` — derives Application Signals monitoring config; checks `applicationSignals.enabled` + `targetAgent` routing, and when the targeted agent has an explicit `config`, verifies it contains `application_signals` keys
 - `manager.monitorAllServices` — region-based feature gate (disabled for China, GovCloud, ADC, isolated regions)
 - `fluent-bit.add-dualstack-endpoints` — injects dualstack endpoints into Fluent Bit OUTPUT sections
 - `fluent-bit.add-ipv6-preference` — adds IPv6 DNS preference to Fluent Bit SERVICE section
+- `otel-container-insights.scrapeTimeout` — computes `scrape_timeout` as `min(metricResolution, 10s)` to prevent Prometheus rejection when `metricResolution` < 10s
+- `kube-state-metrics.name` / `kube-state-metrics.serviceAccountName` — naming helpers for KSM resources (follows same pattern as dcgm/neuron/node-exporter)
 - `node-exporter.image` / `kube-state-metrics.image` — image helpers using repositoryDomainMap with restrictedRepository/restrictedTag for China/GovCloud
 - Image helpers: `cloudwatch-agent.image`, `fluent-bit.image`, `dcgm-exporter.image`, etc.
 

@@ -14,7 +14,7 @@ Feature-targeted routing: each feature flag (`containerInsights`, `applicationSi
 
 Cluster-scraper skip gate: when `otelContainerInsights.enabled` is false, the CR template skips rendering the agent whose name matches `otelContainerInsights.clusterScraperAgent`.
 
-Health probes (liveness/readiness on port 13133) are unconditional for every agent — no `otelContainerInsights.enabled` guard.
+No health probes or `health_check` OTEL extensions are added to agent CRs — the operator manages agent health and bubbles errors to the addon level.
 
 ### Fluent Bit (`fluent-bit-configmap.yaml`, `fluent-bit-daemonset.yaml`)
 Container log collection via DaemonSet. Gated by `containerLogs.enabled`.
@@ -36,12 +36,14 @@ Alternative metrics pipeline using OpenTelemetry. Config is dynamically construc
 - The standalone `otel-container-insights-cluster-scraper-deployment.yaml` has been deleted — the cluster-scraper is now an entry in the `agents` array (`cloudwatch-agent-cluster-scraper` with `mode: deployment`), managed by the operator as an `AmazonCloudWatchAgent` CR like all other agents.
 
 ### Kube-State-Metrics
-Split across two files, gated by `kubeStateMetrics.enabled`:
-- **`kube-state-metrics-rbac.yaml`** — ServiceAccount, ClusterRole, ClusterRoleBinding. RBAC is separated from the Deployment following the node-exporter pattern. Naming uses `{{ template "amazon-cloudwatch-observability.name" . }}-ksm-*`. ClusterRole contains only `list` and `watch` verbs (no `create` permissions for `tokenreviews`/`subjectaccessreviews`).
-- **`kube-state-metrics.yaml`** — Deployment, Service, and web-config ConfigMap. The Deployment serves metrics over HTTPS (port 8443) using TLS certificates from the agent cert Secret, configured via a `--web-config-file` argument pointing to the KSM web-config ConfigMap. Service includes Prometheus scrape annotations. Container resources are configurable via `kubeStateMetrics.resources`.
+Split across multiple files, gated by `kubeStateMetrics.enabled` AND `otelContainerInsights.enabled`:
+- **`kube-state-metrics.yaml`** — ServiceAccount, Deployment, Service, and web-config ConfigMap. The Deployment serves metrics over HTTPS (port 8443) using TLS certificates from the agent cert Secret, configured via a `--tls-config` argument pointing to the KSM web-config ConfigMap. Container resources are configurable via `kubeStateMetrics.resources`. Naming uses `kube-state-metrics.name` and `kube-state-metrics.serviceAccountName` helpers (same pattern as dcgm/neuron/node-exporter).
+- **`kube-state-metrics-clusterrole.yaml`** — ClusterRole with `list` and `watch` verbs only.
+- **`kube-state-metrics-clusterrolebinding.yaml`** — ClusterRoleBinding.
+- The KSM receiver and pipeline in the cluster-scraper OTEL config are gated by `kubeStateMetrics.enabled` — when disabled, the cluster-scraper only runs the apiserver pipeline.
 
 ### Node Exporter (`node-exporter-daemonset.yaml`)
-Prometheus node-exporter DaemonSet for host-level metrics. Gated by `nodeExporter.enabled`. Has own RBAC (`node-exporter-role.yaml`, `node-exporter-rolebinding.yaml`). Excludes Fargate nodes. Serves metrics over HTTPS using TLS via `--web.config.file=/etc/node-exporter/web.yml` referencing the `node-exporter-web-config` ConfigMap. Container resources are configurable via `nodeExporter.resources`.
+Prometheus node-exporter DaemonSet for host-level metrics. Gated by `nodeExporter.enabled` AND `otelContainerInsights.enabled`. Has own RBAC (`node-exporter-role.yaml`, `node-exporter-rolebinding.yaml`). Excludes Fargate nodes. Serves metrics over HTTPS using TLS via `--web.config.file=/etc/node-exporter/web.yml` referencing the `node-exporter-web-config` ConfigMap. Container resources are configurable via `nodeExporter.resources`. The node-exporter receiver and pipeline in the node-level OTEL config are gated by `nodeExporter.enabled`.
 
 ## Patterns
 - All DaemonSets exclude Fargate nodes via `eks.amazonaws.com/compute-type NotIn fargate`
@@ -51,13 +53,15 @@ Prometheus node-exporter DaemonSet for host-level metrics. Gated by `nodeExporte
 - The cluster-scraper is an `AmazonCloudWatchAgent` CR entry in the `agents` array (not a standalone Deployment) — the operator manages its lifecycle
 - KSM and node-exporter both use TLS via web-config ConfigMaps referencing the agent cert Secret
 - KSM and node-exporter RBAC are in dedicated files, separate from their Deployment/DaemonSet definitions
+- KSM and node-exporter naming follows the sidecar component pattern (`kube-state-metrics.name`, `node-exporter.name` helpers) — same as dcgm/neuron
 - OTEL component names in the cluster-scraper config use `otel_container_insights` prefix (underscore convention for OTEL names)
-- Every agent gets a health-check-only OTEL config (with `health_check` extension on `0.0.0.0:13133`) when not targeted by any OTEL CI feature, ensuring unconditional liveness/readiness probes
+- KSM receiver/pipeline in cluster-scraper config and node-exporter receiver/pipeline in node-level config are gated by their respective `enabled` flags
+- Agents not targeted by any OTEL CI feature have no `otelConfig` field on the CR (the field is omitted entirely)
 
 ## Pitfalls
 - The DCGM and Neuron templates create CRs, not DaemonSets — don't add DaemonSet-specific fields to them.
 - Fluent Bit config uses `tpl` for variable interpolation — environment variables like `${AWS_REGION}` are resolved at runtime, not template time.
 - The OTEL cluster scraper config templates (`_otel-*.tpl`) generate YAML, not JSON — don't mix formats.
-- Don't add RBAC resources to `kube-state-metrics.yaml` — they belong in `kube-state-metrics-rbac.yaml`.
+- Don't add RBAC resources to `kube-state-metrics.yaml` — they belong in `kube-state-metrics-clusterrole.yaml` and `kube-state-metrics-clusterrolebinding.yaml`.
 - Don't use `otelci` prefix for new OTEL component names — use `otel_container_insights` for consistency.
 - Don't assume the cluster-scraper is a standalone Deployment — it is a CR entry in the `agents` array managed by the operator.

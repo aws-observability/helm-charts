@@ -66,10 +66,6 @@ func TestFeatureTargetedOTLPDisabled(t *testing.T) {
 		validateCloudWatchAgentHealthCheckOnly(t, agentMap)
 	})
 
-	t.Run("CloudWatchAgentHasHealthProbes", func(t *testing.T) {
-		validateCloudWatchAgentHasHealthProbes(t, agentMap)
-	})
-
 	t.Run("NodeExporterNotDeployed", func(t *testing.T) {
 		validateNodeExporterNotDeployed(t, k8sClient)
 	})
@@ -106,53 +102,18 @@ func validateCloudWatchAgentHealthCheckOnly(t *testing.T, agentMap map[string]un
 	}
 
 	otelConfig, ok := spec["otelConfig"].(string)
-	if !assert.True(t, ok, "otelConfig should be a string") {
-		return
-	}
-	assert.NotEmpty(t, otelConfig, "otelConfig should not be empty")
-
-	// Health-check-only config should contain health_check extension
-	assert.True(t, strings.Contains(otelConfig, "health_check"),
-		"cloudwatch-agent otelConfig should contain health_check extension")
-
-	// Should NOT contain any node-level receivers
-	assert.False(t, strings.Contains(otelConfig, "kubeletstats"),
-		"cloudwatch-agent otelConfig should NOT contain kubeletstats receiver when OTLP disabled")
-	assert.False(t, strings.Contains(otelConfig, "cadvisor"),
-		"cloudwatch-agent otelConfig should NOT contain cadvisor receiver when OTLP disabled")
-
-	// Should NOT contain any cluster-level receivers
-	assert.False(t, strings.Contains(otelConfig, "otel_container_insights_apiserver"),
-		"cloudwatch-agent otelConfig should NOT contain apiserver receiver when OTLP disabled")
-	assert.False(t, strings.Contains(otelConfig, "otel_container_insights_kube_state_metrics"),
-		"cloudwatch-agent otelConfig should NOT contain kube_state_metrics receiver when OTLP disabled")
-}
-
-// validateCloudWatchAgentHasHealthProbes verifies the cloudwatch-agent CR still has
-// livenessProbe timing fields even when OTLP is disabled (Requirement 5.2).
-// Note: The CRD strips livenessProbe.httpGet and readinessProbe (the operator auto-generates
-// the probe handler from the health_check extension). We only validate the timing fields that
-// the CRD preserves.
-func validateCloudWatchAgentHasHealthProbes(t *testing.T, agentMap map[string]unstructured.Unstructured) {
-	agent, exists := agentMap["cloudwatch-agent"]
-	if !assert.True(t, exists, "cloudwatch-agent CR should exist") {
-		return
-	}
-
-	spec, ok := agent.Object["spec"].(map[string]interface{})
-	if !assert.True(t, ok, "spec should be a map") {
-		return
-	}
-
-	// Check livenessProbe timing fields (CRD preserves these but strips httpGet)
-	livenessProbe, ok := spec["livenessProbe"].(map[string]interface{})
-	assert.True(t, ok, "cloudwatch-agent should have livenessProbe when OTLP disabled")
 	if ok {
-		_, hasInitialDelay := livenessProbe["initialDelaySeconds"]
-		assert.True(t, hasInitialDelay, "livenessProbe should have initialDelaySeconds")
-		_, hasPeriod := livenessProbe["periodSeconds"]
-		assert.True(t, hasPeriod, "livenessProbe should have periodSeconds")
+		// If otelConfig is present, it should NOT contain any CI receivers
+		assert.False(t, strings.Contains(otelConfig, "kubeletstats"),
+			"cloudwatch-agent otelConfig should NOT contain kubeletstats receiver when OTLP disabled")
+		assert.False(t, strings.Contains(otelConfig, "cadvisor"),
+			"cloudwatch-agent otelConfig should NOT contain cadvisor receiver when OTLP disabled")
+		assert.False(t, strings.Contains(otelConfig, "otel_container_insights_apiserver"),
+			"cloudwatch-agent otelConfig should NOT contain apiserver receiver when OTLP disabled")
+		assert.False(t, strings.Contains(otelConfig, "otel_container_insights_kube_state_metrics"),
+			"cloudwatch-agent otelConfig should NOT contain kube_state_metrics receiver when OTLP disabled")
 	}
+	// otelConfig may be absent entirely when no OTEL CI features target this agent — that's valid
 }
 
 // validateNodeExporterNotDeployed verifies node-exporter resources are NOT present
@@ -168,9 +129,9 @@ func validateNodeExporterNotDeployed(t *testing.T, k8sClient *util.K8sClient) {
 // when otelContainerInsights is disabled (guarded by kubeStateMetrics.enabled which defaults
 // to following otelContainerInsights.enabled).
 func validateKubeStateMetricsNotDeployed(t *testing.T, k8sClient *util.K8sClient) {
-	exists, err := k8sClient.ValidateDeploymentExists(minikube.Namespace, "cwagent-kube-state-metrics")
+	exists, err := k8sClient.ValidateDeploymentExists(minikube.Namespace, "kube-state-metrics")
 	assert.NoError(t, err)
-	assert.False(t, exists, "cwagent-kube-state-metrics deployment should NOT exist when OTLP is disabled")
+	assert.False(t, exists, "kube-state-metrics deployment should NOT exist when OTLP is disabled")
 }
 
 // validateCIConfigStillPresentWhenOTLPDisabled verifies that the CW Agent JSON config

@@ -1,23 +1,31 @@
 {{- if and .Values.kubeStateMetrics.enabled .Values.otelContainerInsights.enabled }}
-apiVersion: apps/v1
-kind: Deployment
+apiVersion: v1
+kind: ServiceAccount
 metadata:
-  name: cwagent-kube-state-metrics
+  name: {{ template "kube-state-metrics.serviceAccountName" . }}
   namespace: {{ .Release.Namespace }}
   labels:
     {{- include "amazon-cloudwatch-observability.labels" . | nindent 4 }}
-    app.kubernetes.io/component: cwagent-kube-state-metrics
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "kube-state-metrics.name" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "amazon-cloudwatch-observability.labels" . | nindent 4 }}
+    app.kubernetes.io/component: {{ include "kube-state-metrics.name" . }}
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app.kubernetes.io/component: cwagent-kube-state-metrics
+      app.kubernetes.io/component: {{ include "kube-state-metrics.name" . }}
   template:
     metadata:
       labels:
-        app.kubernetes.io/component: cwagent-kube-state-metrics
+        app.kubernetes.io/component: {{ include "kube-state-metrics.name" . }}
     spec:
-      serviceAccountName: {{ template "amazon-cloudwatch-observability.name" . }}-ksm-service-account
+      serviceAccountName: {{ template "kube-state-metrics.serviceAccountName" . }}
       nodeSelector:
         kubernetes.io/os: linux
       {{- dict "component" .Values.kubeStateMetrics "context" . | include "amazon-cloudwatch-observability.common.tolerations" | nindent 6 }}
@@ -68,19 +76,18 @@ spec:
                 path: server.key
         - name: ksm-web-config
           configMap:
-            name: {{ template "amazon-cloudwatch-observability.name" . }}-ksm-web-config
+            name: {{ include "kube-state-metrics.name" . }}-web-config
 ---
 apiVersion: v1
 kind: Service
 metadata:
-  name: cwagent-kube-state-metrics
+  name: {{ include "kube-state-metrics.name" . }}
   namespace: {{ .Release.Namespace }}
   labels:
     {{- include "amazon-cloudwatch-observability.labels" . | nindent 4 }}
-    app.kubernetes.io/component: cwagent-kube-state-metrics
-  annotations:
-    prometheus.io/scrape: "true"
-    prometheus.io/port: "8443"
+    app.kubernetes.io/component: {{ include "kube-state-metrics.name" . }}
+  # Exposes the KSM metrics endpoint (8443/HTTPS) for the cluster-scraper's static_configs.
+  # No prometheus scrape annotations — the cluster-scraper uses explicit service DNS targets, not annotation-based discovery.
 spec:
   type: ClusterIP
   ports:
@@ -89,12 +96,12 @@ spec:
       targetPort: https-metrics
       protocol: TCP
   selector:
-    app.kubernetes.io/component: cwagent-kube-state-metrics
+    app.kubernetes.io/component: {{ include "kube-state-metrics.name" . }}
 ---
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: {{ template "amazon-cloudwatch-observability.name" . }}-ksm-web-config
+  name: {{ include "kube-state-metrics.name" . }}-web-config
   namespace: {{ .Release.Namespace }}
   labels:
     {{- include "amazon-cloudwatch-observability.labels" . | nindent 4 }}

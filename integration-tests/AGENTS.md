@@ -26,9 +26,9 @@ Tests require a live cluster. The typical flow:
 ### Feature-Targeted Agent Scenarios
 These scenarios validate the feature-targeted agent routing architecture where each feature (`containerInsights`, `applicationSignals`, `otelContainerInsights`) declares a `targetAgent` field that controls which agent receives its config.
 
-- **`feature-targeted-default`** — Deploys with default values. Validates that the cluster-scraper CR is rendered as a Deployment-mode agent, all agents have liveness/readiness health probes on port 13133, and OTEL configs are correctly routed (node-level pipelines to `cloudwatch-agent`, cluster-level pipelines to `cloudwatch-agent-cluster-scraper`).
-- **`feature-targeted-multi-agent`** — Deploys with multiple agents where `cloudwatch-agent` is targeted by all features and a second agent (`prometheus-agent`) is not targeted by any feature. Validates that `cloudwatch-agent` receives full CI + AppSignals + OTLP CI config while `prometheus-agent` receives only minimal JSON config and health-check-only OTEL config.
-- **`feature-targeted-otlp-disabled`** — Deploys with `otelContainerInsights.enabled: false`. Validates that the cluster-scraper CR is not rendered, remaining agents still receive health-check-only OTEL config, and liveness/readiness probes are present unconditionally.
+- **`feature-targeted-default`** — Deploys with default values. Validates that the cluster-scraper CR is rendered as a Deployment-mode agent and OTEL configs are correctly routed (node-level pipelines to `cloudwatch-agent`, cluster-level pipelines to `cloudwatch-agent-cluster-scraper`).
+- **`feature-targeted-multi-agent`** — Deploys with multiple agents where `cloudwatch-agent` is targeted by all features and a second agent (`prometheus-agent`) is not targeted by any feature. Validates that `cloudwatch-agent` receives full CI + AppSignals + OTLP CI config while `prometheus-agent` receives only minimal JSON config and no `otelConfig` field.
+- **`feature-targeted-otlp-disabled`** — Deploys with `otelContainerInsights.enabled: false`. Validates that the cluster-scraper CR is not rendered and remaining agents have no `otelConfig` field.
 - **`feature-targeted-custom-otel-config`** — Deploys with user-supplied `otelConfig` containing keys that collide with generated config. Validates merge precedence: generated config wins on collision (via `mustMergeOverwrite`), while user-supplied non-colliding keys are preserved in the merged output.
 
 ## Pitfalls

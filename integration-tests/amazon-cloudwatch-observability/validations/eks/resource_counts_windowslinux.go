@@ -13,7 +13,7 @@ const (
 	// - cloudwatch-agent-monitoring
 	// - dcgm-exporter-service
 	// - neuron-monitor-service
-	// - cwagent-kube-state-metrics
+	// - kube-state-metrics
 	serviceCountLinux = 7
 
 	// Services count on Windows:
@@ -38,7 +38,7 @@ const (
 	daemonSetCountWindows = 3
 
 	// Pods count on Linux and Windows
-	// podCountLinux includes 2 OTLP deployment pods (cwagent-kube-state-metrics, cloudwatch-agent-cluster-scraper)
+	// podCountLinux includes 2 OTLP deployment pods (kube-state-metrics, cloudwatch-agent-cluster-scraper)
 	// + 1 node-exporter daemonset pod
 	podCountLinux   = 6
 	podCountWindows = 3
