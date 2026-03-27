@@ -16,7 +16,7 @@ receivers:
           scrape_interval: {{ .Values.otelContainerInsights.metricResolution }}
           scheme: https
           tls_config:
-            insecure_skip_verify: true
+            ca_file: /etc/amazon-cloudwatch-observability-agent-client-cert/tls-ca.crt
           static_configs:
             - targets:
                 - ${env:HOST_IP}:9487
