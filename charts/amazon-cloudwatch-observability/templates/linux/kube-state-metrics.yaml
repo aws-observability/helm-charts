@@ -26,8 +26,15 @@ spec:
         app.kubernetes.io/component: {{ include "kube-state-metrics.name" . }}
     spec:
       serviceAccountName: {{ template "kube-state-metrics.serviceAccountName" . }}
-      nodeSelector:
-        kubernetes.io/os: linux
+      {{- with .Values.kubeStateMetrics.nodeSelector }}
+      nodeSelector: {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.kubeStateMetrics.affinity }}
+      affinity: {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.kubeStateMetrics.securityContext }}
+      securityContext: {{- toYaml . | nindent 8 }}
+      {{- end }}
       {{- dict "component" .Values.kubeStateMetrics "context" . | include "amazon-cloudwatch-observability.common.tolerations" | nindent 6 }}
       containers:
         - name: kube-state-metrics
@@ -44,8 +51,8 @@ spec:
               protocol: TCP
           readinessProbe:
             httpGet:
-              path: /
-              port: 8081
+              path: /healthz
+              port: 8443
               scheme: HTTPS
             initialDelaySeconds: 5
             timeoutSeconds: 5
@@ -89,10 +96,10 @@ metadata:
   # Exposes the KSM metrics endpoint (8443/HTTPS) for the cluster-scraper's static_configs.
   # No prometheus scrape annotations — the cluster-scraper uses explicit service DNS targets, not annotation-based discovery.
 spec:
-  type: ClusterIP
+  type: {{ .Values.kubeStateMetrics.service.type | default "ClusterIP" }}
   ports:
     - name: https-metrics
-      port: 8443
+      port: {{ .Values.kubeStateMetrics.service.port | default 8443 }}
       targetPort: https-metrics
       protocol: TCP
   selector:

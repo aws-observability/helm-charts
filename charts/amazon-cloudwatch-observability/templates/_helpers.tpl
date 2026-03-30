@@ -197,12 +197,19 @@ Helper function to modify cloudwatch-agent YAML config
 
 {{/*
 Compute scrape_timeout: use metricResolution if it's less than 10s, otherwise 10s.
-Assumes metricResolution is in "<N>s" format.
+Validates metricResolution is in "<N>s" format.
 */}}
 {{- define "otel-container-insights.scrapeTimeout" -}}
-{{- $resolution := trimSuffix "s" .Values.otelContainerInsights.metricResolution | int -}}
-{{- if lt $resolution 10 -}}
-{{ .Values.otelContainerInsights.metricResolution }}
+{{- $raw := .Values.otelContainerInsights.metricResolution -}}
+{{- if not (hasSuffix "s" $raw) -}}
+  {{- fail (printf "otelContainerInsights.metricResolution must be in \"<N>s\" format (e.g. \"30s\"), got: %s" $raw) -}}
+{{- end -}}
+{{- $seconds := trimSuffix "s" $raw -}}
+{{- if not (regexMatch "^[0-9]+$" $seconds) -}}
+  {{- fail (printf "otelContainerInsights.metricResolution must be in \"<N>s\" format (e.g. \"30s\"), got: %s" $raw) -}}
+{{- end -}}
+{{- if lt ($seconds | int) 10 -}}
+{{ $raw }}
 {{- else -}}
 10s
 {{- end -}}

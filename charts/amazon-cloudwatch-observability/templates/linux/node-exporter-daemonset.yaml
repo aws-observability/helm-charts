@@ -25,17 +25,15 @@ spec:
         k8s-app: {{ include "node-exporter.name" . }}
     spec:
       serviceAccountName: {{ template "node-exporter.serviceAccountName" . }}
-      nodeSelector:
-        kubernetes.io/os: linux
-      affinity:
-        nodeAffinity:
-          requiredDuringSchedulingIgnoredDuringExecution:
-            nodeSelectorTerms:
-              - matchExpressions:
-                  - key: eks.amazonaws.com/compute-type
-                    operator: NotIn
-                    values:
-                      - fargate
+      {{- with .Values.nodeExporter.nodeSelector }}
+      nodeSelector: {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.nodeExporter.affinity }}
+      affinity: {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.nodeExporter.securityContext }}
+      securityContext: {{- toYaml . | nindent 8 }}
+      {{- end }}
       {{- dict "component" .Values.nodeExporter "context" . | include "amazon-cloudwatch-observability.common.tolerations" | nindent 6 }}
       containers:
         - name: node-exporter

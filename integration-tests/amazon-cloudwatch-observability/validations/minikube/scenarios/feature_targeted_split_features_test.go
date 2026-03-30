@@ -127,7 +127,7 @@ func validateCIAgentConfig(t *testing.T, agentMap map[string]unstructured.Unstru
 
 	assert.True(t, strings.Contains(otelConfig, "kubeletstats"),
 		"ci-agent otelConfig should contain kubeletstats receiver (node-level OTEL CI targeted here)")
-	assert.False(t, strings.Contains(otelConfig, "otel_container_insights_apiserver"),
+	assert.False(t, strings.Contains(otelConfig, "cw_k8s_ci_v0_apiserver"),
 		"ci-agent otelConfig should NOT contain apiserver receiver (cluster-level)")
 }
 
@@ -190,9 +190,9 @@ func validateAppSignalsAgentConfig(t *testing.T, agentMap map[string]unstructure
 	if ok {
 		assert.False(t, strings.Contains(otelConfig, "kubeletstats"),
 			"appsignals-agent otelConfig should NOT contain kubeletstats receiver")
-		assert.False(t, strings.Contains(otelConfig, "otel_container_insights_apiserver"),
+		assert.False(t, strings.Contains(otelConfig, "cw_k8s_ci_v0_apiserver"),
 			"appsignals-agent otelConfig should NOT contain apiserver receiver")
-		assert.False(t, strings.Contains(otelConfig, "otel_container_insights_kube_state_metrics"),
+		assert.False(t, strings.Contains(otelConfig, "cw_k8s_ci_v0_kube_state_metrics"),
 			"appsignals-agent otelConfig should NOT contain kube_state_metrics receiver")
 	}
 	// otelConfig may be absent entirely when no OTEL CI features target this agent — that's valid
@@ -245,9 +245,9 @@ func validateSplitFeaturesClusterScraperConfig(t *testing.T, agentMap map[string
 		return
 	}
 
-	assert.True(t, strings.Contains(otelConfig, "otel_container_insights_apiserver"),
+	assert.True(t, strings.Contains(otelConfig, "cw_k8s_ci_v0_apiserver"),
 		"cluster-scraper otelConfig should contain apiserver receiver (cluster-level)")
-	assert.True(t, strings.Contains(otelConfig, "otel_container_insights_kube_state_metrics"),
+	assert.True(t, strings.Contains(otelConfig, "cw_k8s_ci_v0_kube_state_metrics"),
 		"cluster-scraper otelConfig should contain kube_state_metrics receiver (cluster-level)")
 	assert.False(t, strings.Contains(otelConfig, "kubeletstats"),
 		"cluster-scraper otelConfig should NOT contain kubeletstats receiver (node-level)")

@@ -62,8 +62,8 @@ func TestFeatureTargetedOTLPDisabled(t *testing.T) {
 		validateClusterScraperCRNotRendered(t, agentMap)
 	})
 
-	t.Run("CloudWatchAgentHealthCheckOnlyOTELConfig", func(t *testing.T) {
-		validateCloudWatchAgentHealthCheckOnly(t, agentMap)
+	t.Run("CloudWatchAgentNoOtelConfig", func(t *testing.T) {
+		validateCloudWatchAgentNoOtelConfig(t, agentMap)
 	})
 
 	t.Run("NodeExporterNotDeployed", func(t *testing.T) {
@@ -88,9 +88,9 @@ func validateClusterScraperCRNotRendered(t *testing.T, agentMap map[string]unstr
 	assert.False(t, exists, "cloudwatch-agent-cluster-scraper CR should NOT exist when otelContainerInsights is disabled")
 }
 
-// validateCloudWatchAgentHealthCheckOnly verifies the cloudwatch-agent CR has a health-check-only
-// otelConfig with no node-level or cluster-level pipelines (Requirement 4.5).
-func validateCloudWatchAgentHealthCheckOnly(t *testing.T, agentMap map[string]unstructured.Unstructured) {
+// validateCloudWatchAgentNoOtelConfig verifies the cloudwatch-agent CR has no otelConfig
+// field when otelContainerInsights is disabled — no node-level or cluster-level pipelines.
+func validateCloudWatchAgentNoOtelConfig(t *testing.T, agentMap map[string]unstructured.Unstructured) {
 	agent, exists := agentMap["cloudwatch-agent"]
 	if !assert.True(t, exists, "cloudwatch-agent CR should exist") {
 		return
@@ -108,9 +108,9 @@ func validateCloudWatchAgentHealthCheckOnly(t *testing.T, agentMap map[string]un
 			"cloudwatch-agent otelConfig should NOT contain kubeletstats receiver when OTLP disabled")
 		assert.False(t, strings.Contains(otelConfig, "cadvisor"),
 			"cloudwatch-agent otelConfig should NOT contain cadvisor receiver when OTLP disabled")
-		assert.False(t, strings.Contains(otelConfig, "otel_container_insights_apiserver"),
+		assert.False(t, strings.Contains(otelConfig, "cw_k8s_ci_v0_apiserver"),
 			"cloudwatch-agent otelConfig should NOT contain apiserver receiver when OTLP disabled")
-		assert.False(t, strings.Contains(otelConfig, "otel_container_insights_kube_state_metrics"),
+		assert.False(t, strings.Contains(otelConfig, "cw_k8s_ci_v0_kube_state_metrics"),
 			"cloudwatch-agent otelConfig should NOT contain kube_state_metrics receiver when OTLP disabled")
 	}
 	// otelConfig may be absent entirely when no OTEL CI features target this agent — that's valid

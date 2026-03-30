@@ -118,9 +118,9 @@ func validateOTELConfigRouting(t *testing.T, agentMap map[string]unstructured.Un
 			"cloudwatch-agent otelConfig should contain kubeletstats receiver (node-level)")
 
 		// Node-level config should NOT contain cluster-level receivers
-		assert.False(t, strings.Contains(otelConfig, "otel_container_insights_apiserver"),
+		assert.False(t, strings.Contains(otelConfig, "cw_k8s_ci_v0_apiserver"),
 			"cloudwatch-agent otelConfig should NOT contain apiserver receiver (cluster-level)")
-		assert.False(t, strings.Contains(otelConfig, "otel_container_insights_kube_state_metrics"),
+		assert.False(t, strings.Contains(otelConfig, "cw_k8s_ci_v0_kube_state_metrics"),
 			"cloudwatch-agent otelConfig should NOT contain kube_state_metrics receiver (cluster-level)")
 	})
 
@@ -143,9 +143,9 @@ func validateOTELConfigRouting(t *testing.T, agentMap map[string]unstructured.Un
 		assert.NotEmpty(t, otelConfig, "otelConfig should not be empty")
 
 		// Cluster-level config should contain apiserver and kube-state-metrics receivers
-		assert.True(t, strings.Contains(otelConfig, "otel_container_insights_apiserver"),
+		assert.True(t, strings.Contains(otelConfig, "cw_k8s_ci_v0_apiserver"),
 			"cluster-scraper otelConfig should contain apiserver receiver (cluster-level)")
-		assert.True(t, strings.Contains(otelConfig, "otel_container_insights_kube_state_metrics"),
+		assert.True(t, strings.Contains(otelConfig, "cw_k8s_ci_v0_kube_state_metrics"),
 			"cluster-scraper otelConfig should contain kube_state_metrics receiver (cluster-level)")
 
 		// Cluster-level config should NOT contain node-level receivers

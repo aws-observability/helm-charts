@@ -1,14 +1,11 @@
 {{- define "otel-container-insights-cluster-scraper.config" -}}
-{{- if not (kindIs "bool" .Values.otelContainerInsights.enabled) }}
-{{- fail "otelContainerInsights.enabled must be a boolean (true/false)" }}
-{{- end }}
 extensions:
-  sigv4auth/otel_container_insights_cwotel:
+  sigv4auth/cw_k8s_ci_v0_cwotel:
     region: {{ .Values.region }}
     service: monitoring
 
 receivers:
-  prometheus/otel_container_insights_apiserver:
+  prometheus/cw_k8s_ci_v0_apiserver:
     config:
       scrape_configs:
         - job_name: kubernetes-apiserver
@@ -35,7 +32,7 @@ receivers:
               replacement: /metrics
 
 {{- if .Values.kubeStateMetrics.enabled }}
-  prometheus/otel_container_insights_kube_state_metrics:
+  prometheus/cw_k8s_ci_v0_kube_state_metrics:
     config:
       scrape_configs:
         - job_name: kube-state-metrics
@@ -50,7 +47,13 @@ receivers:
 {{- end }}
 
 processors:
-  transform/otel_container_insights_set_unit:
+  filter/cw_k8s_ci_v0_scrape_metadata:
+    error_mode: ignore
+    metrics:
+      metric:
+        - IsMatch(name, "^(up|scrape_duration_seconds|scrape_samples_scraped|scrape_samples_post_metric_relabeling|scrape_series_added)$")
+
+  transform/cw_k8s_ci_v0_set_unit:
     error_mode: ignore
     metric_statements:
       - context: metric
@@ -82,9 +85,9 @@ processors:
           # ── Counters with only _total suffix (dimensionless count) ──
           - set(unit, "1") where unit == "" and IsMatch(name, ".*_total$")
 
-  metricstarttime/otel_container_insights:
+  metricstarttime/cw_k8s_ci_v0:
 
-  transform/otel_container_insights_set_scope_apiserver:
+  transform/cw_k8s_ci_v0_set_scope_apiserver:
     error_mode: ignore
     metric_statements:
       - context: scope
@@ -95,7 +98,7 @@ processors:
           - set(attributes["cloudwatch.solution"], "k8s-otel-container-insights")
 
 {{- if .Values.kubeStateMetrics.enabled }}
-  transform/otel_container_insights_set_scope_kube_state_metrics:
+  transform/cw_k8s_ci_v0_set_scope_kube_state_metrics:
     error_mode: ignore
     metric_statements:
       - context: scope
@@ -106,7 +109,7 @@ processors:
           - set(attributes["cloudwatch.solution"], "k8s-otel-container-insights")
 {{- end }}
 
-  transform/otel_container_insights_set_cluster_name:
+  transform/cw_k8s_ci_v0_set_cluster_name:
     error_mode: ignore
     metric_statements:
       - context: datapoint
@@ -114,7 +117,7 @@ processors:
           - set(resource.attributes["k8s.cluster.name"], "{{ .Values.clusterName }}")
 
 {{- if .Values.kubeStateMetrics.enabled }}
-  transform/otel_container_insights_ksm_clean_resource:
+  transform/cw_k8s_ci_v0_ksm_clean_resource:
     error_mode: ignore
     metric_statements:
       - context: resource
@@ -137,7 +140,7 @@ processors:
   # Split the single Prometheus scrape resource into per-pod resources.
   # groupbyattrs moves datapoint labels to resource scope, creating one resource
   # per unique (pod, namespace, uid, node) combination.
-  groupbyattrs/otel_container_insights_ksm:
+  groupbyattrs/cw_k8s_ci_v0_ksm:
     keys:
       - pod
       - namespace
@@ -149,7 +152,7 @@ processors:
 
   # Rename raw Prometheus label names (now in resource scope from groupbyattrs)
   # to OTel semantic convention names.
-  transform/otel_container_insights_ksm_promote:
+  transform/cw_k8s_ci_v0_ksm_promote:
     error_mode: ignore
     metric_statements:
       - context: resource
@@ -170,21 +173,21 @@ processors:
           - delete_key(attributes, "owner_kind") where attributes["owner_kind"] != nil
 {{- end }}
 
-  transform/otel_container_insights_set_component:
+  transform/cw_k8s_ci_v0_set_component:
     error_mode: ignore
     metric_statements:
       - context: datapoint
         statements:
           - set(attributes["component"], "apiserver")
 
-  transform/otel_container_insights_promote_component:
+  transform/cw_k8s_ci_v0_promote_component:
     error_mode: ignore
     metric_statements:
       - context: datapoint
         statements:
           - set(resource.attributes["k8s.component.name"], attributes["component"])
 
-  resourcedetection/otel_container_insights:
+  resourcedetection/cw_k8s_ci_v0:
     detectors: [ec2, eks]
     ec2:
       resource_attributes:
@@ -198,17 +201,17 @@ processors:
         cloud.availability_zone: { enabled: true }
         cloud.account.id: { enabled: true }
 
-  transform/otel_container_insights_clear_schema_url:
+  transform/cw_k8s_ci_v0_clear_schema_url:
     error_mode: ignore
     metric_statements:
       - context: resource
         statements:
           - set(resource.schema_url, "")
 
-  awsattributelimit/otel_container_insights:
+  awsattributelimit/cw_k8s_ci_v0:
     max_total_attributes: 150
 
-  transform/otel_container_insights_set_cloud_resource_id:
+  transform/cw_k8s_ci_v0_set_cloud_resource_id:
     error_mode: ignore
     metric_statements:
       - context: resource
@@ -216,57 +219,58 @@ processors:
           - set(resource.attributes["cloud.resource_id"], Concat(["arn:aws:eks:", resource.attributes["cloud.region"], ":", resource.attributes["cloud.account.id"], ":cluster/", resource.attributes["k8s.cluster.name"]], ""))
             where resource.attributes["cloud.region"] != nil and resource.attributes["cloud.account.id"] != nil and resource.attributes["k8s.cluster.name"] != nil
 
-  batch/otel_container_insights_cwotel:
+  batch/cw_k8s_ci_v0_cwotel:
     send_batch_size: 500
     send_batch_max_size: 500
     timeout: 10s
 
 exporters:
-  otlphttp/otel_container_insights_cwotel:
+  otlphttp/cw_k8s_ci_v0_cwotel:
     endpoint: {{ if .Values.otelContainerInsights.cloudwatchMetricsEndpoint }}{{ .Values.otelContainerInsights.cloudwatchMetricsEndpoint | quote }}{{ else }}"https://monitoring.{{ .Values.region }}.amazonaws.com:443"{{ end }}
     tls:
       insecure: false
     auth:
-      authenticator: sigv4auth/otel_container_insights_cwotel
+      authenticator: sigv4auth/cw_k8s_ci_v0_cwotel
 
 service:
   extensions:
-    - sigv4auth/otel_container_insights_cwotel
+    - sigv4auth/cw_k8s_ci_v0_cwotel
   pipelines:
-    metrics/otel_container_insights_apiserver:
-      receivers: [prometheus/otel_container_insights_apiserver]
+    metrics/cw_k8s_ci_v0_apiserver:
+      receivers: [prometheus/cw_k8s_ci_v0_apiserver]
       processors:
-        - transform/otel_container_insights_set_unit
-        - metricstarttime/otel_container_insights
-        - transform/otel_container_insights_set_scope_apiserver
-        - transform/otel_container_insights_set_cluster_name
-        - transform/otel_container_insights_set_component
-        - transform/otel_container_insights_promote_component
-        - resourcedetection/otel_container_insights
-        - transform/otel_container_insights_clear_schema_url
-        - transform/otel_container_insights_set_cloud_resource_id
-        - awsattributelimit/otel_container_insights
-        - batch/otel_container_insights_cwotel
+        - transform/cw_k8s_ci_v0_set_unit
+        - metricstarttime/cw_k8s_ci_v0
+        - transform/cw_k8s_ci_v0_set_scope_apiserver
+        - transform/cw_k8s_ci_v0_set_cluster_name
+        - transform/cw_k8s_ci_v0_set_component
+        - transform/cw_k8s_ci_v0_promote_component
+        - resourcedetection/cw_k8s_ci_v0
+        - transform/cw_k8s_ci_v0_clear_schema_url
+        - transform/cw_k8s_ci_v0_set_cloud_resource_id
+        - awsattributelimit/cw_k8s_ci_v0
+        - batch/cw_k8s_ci_v0_cwotel
       exporters:
-        - otlphttp/otel_container_insights_cwotel
+        - otlphttp/cw_k8s_ci_v0_cwotel
 {{- if .Values.kubeStateMetrics.enabled }}
-    metrics/otel_container_insights_kube_state_metrics:
-      receivers: [prometheus/otel_container_insights_kube_state_metrics]
+    metrics/cw_k8s_ci_v0_kube_state_metrics:
+      receivers: [prometheus/cw_k8s_ci_v0_kube_state_metrics]
       processors:
-        - transform/otel_container_insights_set_unit
-        - metricstarttime/otel_container_insights
-        - transform/otel_container_insights_set_scope_kube_state_metrics
-        - transform/otel_container_insights_set_cluster_name
-        - transform/otel_container_insights_ksm_clean_resource
-        - groupbyattrs/otel_container_insights_ksm
-        - transform/otel_container_insights_ksm_promote
-        - resourcedetection/otel_container_insights
-        - transform/otel_container_insights_clear_schema_url
-        - transform/otel_container_insights_set_cloud_resource_id
-        - awsattributelimit/otel_container_insights
-        - batch/otel_container_insights_cwotel
+        - filter/cw_k8s_ci_v0_scrape_metadata
+        - transform/cw_k8s_ci_v0_set_unit
+        - metricstarttime/cw_k8s_ci_v0
+        - transform/cw_k8s_ci_v0_set_scope_kube_state_metrics
+        - transform/cw_k8s_ci_v0_set_cluster_name
+        - transform/cw_k8s_ci_v0_ksm_clean_resource
+        - groupbyattrs/cw_k8s_ci_v0_ksm
+        - transform/cw_k8s_ci_v0_ksm_promote
+        - resourcedetection/cw_k8s_ci_v0
+        - transform/cw_k8s_ci_v0_clear_schema_url
+        - transform/cw_k8s_ci_v0_set_cloud_resource_id
+        - awsattributelimit/cw_k8s_ci_v0
+        - batch/cw_k8s_ci_v0_cwotel
       exporters:
-        - otlphttp/otel_container_insights_cwotel
+        - otlphttp/cw_k8s_ci_v0_cwotel
 {{- end }}
 {{- end -}}
 
