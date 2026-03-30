@@ -92,7 +92,6 @@ processors:
     metric_statements:
       - context: scope
         statements:
-          - set(scope.name, "otel-ci-apiserver-{{ .Values.clusterName }}")
           - set(scope.schema_url, "")
           - set(attributes["cloudwatch.source"], "cloudwatch-agent")
           - set(attributes["cloudwatch.solution"], "k8s-otel-container-insights")
@@ -103,7 +102,6 @@ processors:
     metric_statements:
       - context: scope
         statements:
-          - set(scope.name, "otel-ci-kube_state_metrics-{{ .Values.clusterName }}")
           - set(scope.schema_url, "")
           - set(attributes["cloudwatch.source"], "cloudwatch-agent")
           - set(attributes["cloudwatch.solution"], "k8s-otel-container-insights")
