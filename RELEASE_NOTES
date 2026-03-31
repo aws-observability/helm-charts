@@ -8,6 +8,13 @@ Enhancements:
 * Upgrade Python SDK to v0.16.0
 * Upgrade .NET SDK to v.11.1
 * Upgrade NodeJS SDK to v0.9.0
+* Add automatic rolling deployment and option to re-create admission webhook certs (#242)
+* Add liveness and readiness probes to operator deployment (#245)
+* Configure DCGM Exporter interval for high resolution accelerated compute GPU metrics collection (#248)
+* Add top level useDualstackEndpoint configuration (#254)
+* Refactor Fluent Bit config parsing logic for isolated regions (#257)
+* Support Blackwell GPU instances (#258)
+* Move args into command and add neuron-monitor-blocker volume (#275)
 
 =======================================================================
 amazon-cloudwatch-observability v5.2.3 (2026-03-20)
