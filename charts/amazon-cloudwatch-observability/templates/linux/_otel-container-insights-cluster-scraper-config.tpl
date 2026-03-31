@@ -43,7 +43,7 @@ receivers:
             ca_file: /etc/amazon-cloudwatch-observability-agent-cert/tls-ca.crt
           static_configs:
             - targets:
-                - {{ include "kube-state-metrics.name" . }}.{{ .Release.Namespace }}.svc:8443
+                - {{ include "kube-state-metrics.name" . }}.{{ .Release.Namespace }}.svc:{{ .Values.kubeStateMetrics.service.port }}
 {{- end }}
 
 processors:
@@ -277,6 +277,7 @@ service:
     metrics/cw_k8s_ci_v0_apiserver:
       receivers: [prometheus/cw_k8s_ci_v0_apiserver]
       processors:
+        - filter/cw_k8s_ci_v0_scrape_metadata
         - transform/cw_k8s_ci_v0_set_unit
         - metricstarttime/cw_k8s_ci_v0
         - transform/cw_k8s_ci_v0_apiserver_extract_version
