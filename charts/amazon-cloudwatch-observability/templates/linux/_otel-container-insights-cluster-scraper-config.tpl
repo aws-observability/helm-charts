@@ -87,14 +87,35 @@ processors:
 
   metricstarttime/cw_k8s_ci_v0:
 
+  transform/cw_k8s_ci_v0_apiserver_extract_version:
+    error_mode: ignore
+    metric_statements:
+      - context: datapoint
+        statements:
+          - set(resource.attributes["k8s.apiserver.version"], attributes["git_version"]) where attributes["git_version"] != nil and attributes["git_version"] != ""
+
+  filter/cw_k8s_ci_v0_apiserver_build_info:
+    error_mode: ignore
+    metrics:
+      metric:
+        - name == "kubernetes_build_info"
+
   transform/cw_k8s_ci_v0_set_scope_apiserver:
     error_mode: ignore
     metric_statements:
       - context: scope
         statements:
+          - set(scope.version, resource.attributes["k8s.apiserver.version"]) where resource.attributes["k8s.apiserver.version"] != nil
           - set(scope.schema_url, "")
           - set(attributes["cloudwatch.source"], "cloudwatch-agent")
           - set(attributes["cloudwatch.solution"], "k8s-otel-container-insights")
+
+  transform/cw_k8s_ci_v0_apiserver_cleanup_version:
+    error_mode: ignore
+    metric_statements:
+      - context: resource
+        statements:
+          - delete_key(attributes, "k8s.apiserver.version") where attributes["k8s.apiserver.version"] != nil
 
 {{- if .Values.kubeStateMetrics.enabled }}
   transform/cw_k8s_ci_v0_set_scope_kube_state_metrics:
@@ -102,6 +123,8 @@ processors:
     metric_statements:
       - context: scope
         statements:
+          - set(scope.name, "github.com/kubernetes/kube-state-metrics")
+          - set(scope.version, "{{ include "kube-state-metrics.scopeVersion" . }}")
           - set(scope.schema_url, "")
           - set(attributes["cloudwatch.source"], "cloudwatch-agent")
           - set(attributes["cloudwatch.solution"], "k8s-otel-container-insights")
@@ -239,7 +262,10 @@ service:
       processors:
         - transform/cw_k8s_ci_v0_set_unit
         - metricstarttime/cw_k8s_ci_v0
+        - transform/cw_k8s_ci_v0_apiserver_extract_version
+        - filter/cw_k8s_ci_v0_apiserver_build_info
         - transform/cw_k8s_ci_v0_set_scope_apiserver
+        - transform/cw_k8s_ci_v0_apiserver_cleanup_version
         - transform/cw_k8s_ci_v0_set_cluster_name
         - transform/cw_k8s_ci_v0_set_component
         - transform/cw_k8s_ci_v0_promote_component

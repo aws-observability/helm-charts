@@ -598,6 +598,18 @@ Create the name of the service account to use for node exporter
 {{- end }}
 
 {{/*
+Get the node-exporter scope version (image tag) for the configured region.
+Uses restrictedTag for regions with a repositoryDomainMap entry, public tag otherwise.
+*/}}
+{{- define "node-exporter.scopeVersion" -}}
+{{- if and (hasKey .Values.nodeExporter.image.repositoryDomainMap .Values.region) (index .Values.nodeExporter.image.repositoryDomainMap .Values.region) -}}
+{{- .Values.nodeExporter.image.restrictedTag -}}
+{{- else -}}
+{{- .Values.nodeExporter.image.tag -}}
+{{- end -}}
+{{- end -}}
+
+{{/*
 Get the node-exporter image for the configured region using repositoryDomainMap
 */}}
 {{- define "node-exporter.image" -}}
@@ -623,6 +635,18 @@ Create the name of the service account to use for kube-state-metrics
 {{- define "kube-state-metrics.serviceAccountName" -}}
 {{- default "kube-state-metrics-service-acct" .Values.kubeStateMetrics.serviceAccount.name }}
 {{- end }}
+
+{{/*
+Get the kube-state-metrics scope version (image tag) for the configured region.
+Uses restrictedTag for regions with a repositoryDomainMap entry, public tag otherwise.
+*/}}
+{{- define "kube-state-metrics.scopeVersion" -}}
+{{- if and (hasKey .Values.kubeStateMetrics.image.repositoryDomainMap .Values.region) (index .Values.kubeStateMetrics.image.repositoryDomainMap .Values.region) -}}
+{{- .Values.kubeStateMetrics.image.restrictedTag -}}
+{{- else -}}
+{{- .Values.kubeStateMetrics.image.tag -}}
+{{- end -}}
+{{- end -}}
 
 {{/*
 Get the kube-state-metrics image for the configured region using repositoryDomainMap

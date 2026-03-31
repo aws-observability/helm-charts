@@ -189,6 +189,8 @@ processors:
     metric_statements:
       - context: scope
         statements:
+          - set(scope.name, "github.com/prometheus/node_exporter")
+          - set(scope.version, "{{ include "node-exporter.scopeVersion" . }}")
           - set(scope.schema_url, "")
           - set(attributes["cloudwatch.source"], "cloudwatch-agent")
           - set(attributes["cloudwatch.solution"], "k8s-otel-container-insights")
@@ -199,7 +201,7 @@ processors:
     metric_statements:
       - context: scope
         statements:
-          - set(scope.name, "github.com/open-telemetry/opentelemetry-collector-contrib/receiver/prometheusreceiver")
+          - set(scope.name, "github.com/google/cadvisor")
           - set(scope.schema_url, "")
           - set(attributes["cloudwatch.source"], "cloudwatch-agent")
           - set(attributes["cloudwatch.solution"], "k8s-otel-container-insights")
@@ -210,6 +212,8 @@ processors:
     metric_statements:
       - context: scope
         statements:
+          - set(scope.name, "github.com/NVIDIA/dcgm-exporter")
+          - set(scope.version, "{{ .Values.dcgmExporter.image.tag }}")
           - set(scope.schema_url, "")
           - set(attributes["cloudwatch.source"], "cloudwatch-agent")
           - set(attributes["cloudwatch.solution"], "k8s-otel-container-insights")
@@ -221,6 +225,8 @@ processors:
     metric_statements:
       - context: scope
         statements:
+          - set(scope.name, "awsneuron")
+          - set(scope.version, "{{ .Values.neuronMonitor.image.tag }}")
           - set(scope.schema_url, "")
           - set(attributes["cloudwatch.source"], "cloudwatch-agent")
           - set(attributes["cloudwatch.solution"], "k8s-otel-container-insights")
