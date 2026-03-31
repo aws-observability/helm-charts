@@ -194,6 +194,21 @@ processors:
           - set(attributes["k8s.workload.type"], attributes["owner_kind"]) where attributes["owner_kind"] != nil
           - delete_key(attributes, "owner_name") where attributes["owner_name"] != nil
           - delete_key(attributes, "owner_kind") where attributes["owner_kind"] != nil
+
+  k8sattributes/cw_k8s_ci_v0_node:
+    auth_type: serviceAccount
+    passthrough: false
+    extract:
+      metadata:
+        - k8s.node.name
+      labels:
+        - tag_name: "k8s.node.label.$$$1"
+          key_regex: "(.*)"
+          from: node
+    pod_association:
+      - sources:
+          - from: resource_attribute
+            name: k8s.node.name
 {{- end }}
 
   transform/cw_k8s_ci_v0_set_component:
@@ -290,6 +305,7 @@ service:
         - transform/cw_k8s_ci_v0_ksm_clean_resource
         - groupbyattrs/cw_k8s_ci_v0_ksm
         - transform/cw_k8s_ci_v0_ksm_promote
+        - k8sattributes/cw_k8s_ci_v0_node
         - resourcedetection/cw_k8s_ci_v0
         - transform/cw_k8s_ci_v0_clear_schema_url
         - transform/cw_k8s_ci_v0_set_cloud_resource_id
