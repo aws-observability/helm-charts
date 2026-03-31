@@ -194,6 +194,7 @@ processors:
           - set(scope.schema_url, "")
           - set(attributes["cloudwatch.source"], "cloudwatch-agent")
           - set(attributes["cloudwatch.solution"], "k8s-otel-container-insights")
+          - set(attributes["cloudwatch.pipeline"], "node-exporter")
 {{- end }}
 
   transform/cw_k8s_ci_v0_set_scope_cadvisor:
@@ -205,6 +206,7 @@ processors:
           - set(scope.schema_url, "")
           - set(attributes["cloudwatch.source"], "cloudwatch-agent")
           - set(attributes["cloudwatch.solution"], "k8s-otel-container-insights")
+          - set(attributes["cloudwatch.pipeline"], "cadvisor")
 
   {{- if .Values.dcgmExporter.enabled }}
   transform/cw_k8s_ci_v0_set_scope_dcgm:
@@ -217,6 +219,7 @@ processors:
           - set(scope.schema_url, "")
           - set(attributes["cloudwatch.source"], "cloudwatch-agent")
           - set(attributes["cloudwatch.solution"], "k8s-otel-container-insights")
+          - set(attributes["cloudwatch.pipeline"], "dcgm")
   {{- end }}
 
   {{- if .Values.neuronMonitor.enabled }}
@@ -230,6 +233,7 @@ processors:
           - set(scope.schema_url, "")
           - set(attributes["cloudwatch.source"], "cloudwatch-agent")
           - set(attributes["cloudwatch.solution"], "k8s-otel-container-insights")
+          - set(attributes["cloudwatch.pipeline"], "neuron-monitor")
   {{- end }}
 
   transform/cw_k8s_ci_v0_set_scope_efa:
@@ -240,6 +244,7 @@ processors:
           - set(scope.schema_url, "")
           - set(attributes["cloudwatch.source"], "cloudwatch-agent")
           - set(attributes["cloudwatch.solution"], "k8s-otel-container-insights")
+          - set(attributes["cloudwatch.pipeline"], "efa")
 
   transform/cw_k8s_ci_v0_set_scope_ebs_csi:
     error_mode: ignore
@@ -249,6 +254,7 @@ processors:
           - set(scope.schema_url, "")
           - set(attributes["cloudwatch.source"], "cloudwatch-agent")
           - set(attributes["cloudwatch.solution"], "k8s-otel-container-insights")
+          - set(attributes["cloudwatch.pipeline"], "ebs-csi")
 
   transform/cw_k8s_ci_v0_set_scope_kubeletstats:
     error_mode: ignore
@@ -258,6 +264,7 @@ processors:
           - set(scope.schema_url, "")
           - set(attributes["cloudwatch.source"], "cloudwatch-agent")
           - set(attributes["cloudwatch.solution"], "k8s-otel-container-insights")
+          - set(attributes["cloudwatch.pipeline"], "kubeletstats")
 
   transform/cw_k8s_ci_v0_set_node_name:
     error_mode: ignore

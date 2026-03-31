@@ -109,6 +109,7 @@ processors:
           - set(scope.schema_url, "")
           - set(attributes["cloudwatch.source"], "cloudwatch-agent")
           - set(attributes["cloudwatch.solution"], "k8s-otel-container-insights")
+          - set(attributes["cloudwatch.pipeline"], "apiserver")
 
   transform/cw_k8s_ci_v0_apiserver_cleanup_version:
     error_mode: ignore
@@ -128,6 +129,7 @@ processors:
           - set(scope.schema_url, "")
           - set(attributes["cloudwatch.source"], "cloudwatch-agent")
           - set(attributes["cloudwatch.solution"], "k8s-otel-container-insights")
+          - set(attributes["cloudwatch.pipeline"], "kube-state-metrics")
 {{- end }}
 
   transform/cw_k8s_ci_v0_set_cluster_name:
