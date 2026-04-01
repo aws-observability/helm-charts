@@ -656,6 +656,7 @@ service:
     metrics/cw_k8s_ci_v0_ebs_csi_node:
       receivers: [prometheus/cw_k8s_ci_v0_ebs_csi_node]
       processors:
+        - filter/cw_k8s_ci_v0_scrape_metadata
         - transform/cw_k8s_ci_v0_set_unit
         - metricstarttime/cw_k8s_ci_v0
         - transform/cw_k8s_ci_v0_set_cluster_name
