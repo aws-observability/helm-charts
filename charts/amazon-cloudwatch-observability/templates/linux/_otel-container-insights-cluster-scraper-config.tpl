@@ -3,6 +3,8 @@ extensions:
   sigv4auth/cw_k8s_ci_v0_cwotel:
     region: {{ .Values.region }}
     service: monitoring
+  nodemetadatacache/cw_k8s_ci_v0:
+    namespace: {{ .Release.Namespace }}
 
 receivers:
   prometheus/cw_k8s_ci_v0_apiserver:
@@ -155,10 +157,6 @@ processors:
           - delete_key(attributes, "k8s.replicaset.name")
           - delete_key(attributes, "k8s.workload.name")
           - delete_key(attributes, "k8s.workload.type")
-          - delete_key(attributes, "host.id")
-          - delete_key(attributes, "host.name")
-          - delete_key(attributes, "host.type")
-          - delete_key(attributes, "host.image.id")
 
   # Split the single Prometheus scrape resource into per-pod resources.
   # groupbyattrs moves datapoint labels to resource scope, creating one resource
@@ -239,6 +237,8 @@ processors:
         cloud.availability_zone: { enabled: true }
         cloud.account.id: { enabled: true }
 
+  nodemetadataenricher/cw_k8s_ci_v0: {}
+
   transform/cw_k8s_ci_v0_clear_schema_url:
     error_mode: ignore
     metric_statements:
@@ -248,6 +248,23 @@ processors:
 
   awsattributelimit/cw_k8s_ci_v0:
     max_total_attributes: 150
+    unconditional_removal_prefixes:
+      - "k8s.node.label.feature.node.kubernetes.io/"
+      - "k8s.node.label.beta.kubernetes.io/"
+      - "k8s.node.label.failure-domain.beta.kubernetes.io/"
+      - "k8s.node.label.alpha.eksctl.io/"
+    unconditional_removal_keys:
+      - "k8s.node.label.topology.kubernetes.io/region"
+      - "k8s.node.label.topology.kubernetes.io/zone"
+      - "k8s.node.label.topology.ebs.csi.aws.com/zone"
+      - "k8s.node.label.node.kubernetes.io/instance-type"
+      - "k8s.node.label.kubernetes.io/hostname"
+      - "k8s.node.label.helm.sh/chart"
+      - "k8s.node.label.release"
+      - "k8s.node.label.eks.amazonaws.com/nodegroup-image"
+      - "k8s.node.label.k8s.io/cloud-provider-aws"
+      - "k8s.node.label.eks.amazonaws.com/sourceLaunchTemplateId"
+      - "k8s.node.label.eks.amazonaws.com/sourceLaunchTemplateVersion"
 
   transform/cw_k8s_ci_v0_set_cloud_resource_id:
     error_mode: ignore
@@ -273,6 +290,7 @@ exporters:
 service:
   extensions:
     - sigv4auth/cw_k8s_ci_v0_cwotel
+    - nodemetadatacache/cw_k8s_ci_v0
   pipelines:
     metrics/cw_k8s_ci_v0_apiserver:
       receivers: [prometheus/cw_k8s_ci_v0_apiserver]
@@ -308,6 +326,7 @@ service:
         - transform/cw_k8s_ci_v0_ksm_promote
         - k8sattributes/cw_k8s_ci_v0_node
         - resourcedetection/cw_k8s_ci_v0
+        - nodemetadataenricher/cw_k8s_ci_v0
         - transform/cw_k8s_ci_v0_clear_schema_url
         - transform/cw_k8s_ci_v0_set_cloud_resource_id
         - awsattributelimit/cw_k8s_ci_v0
