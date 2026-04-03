@@ -31,8 +31,8 @@ AWS Trainium/Inferentia metrics via `NeuronMonitor` CR. Gated by `neuronMonitor.
 ### OTEL Container Insights (gated by `otelContainerInsights.enabled`)
 Alternative metrics pipeline using OpenTelemetry. Config is dynamically constructed by `build-default-otel-config` and routed to agents via `targetAgent` matching:
 - **Node-level config** (`_otel-container-insights-config.tpl`) — injected into the agent matching `otelContainerInsights.targetAgent`. Collects node-exporter, cadvisor, kubeletstats, EFA, EBS CSI, DCGM, and Neuron pipelines.
-- **Cluster-level config** (`_otel-container-insights-cluster-scraper-config.tpl`) — injected into the agent matching `otelContainerInsights.clusterScraperAgent`. Scrapes kube-state-metrics and apiserver. Uses `cw_k8s_ci_v0` naming prefix for all OTEL component names (receivers, processors, exporters, pipelines). Includes `nodemetadatacache` extension (watches Kubernetes Leases for per-node IMDS metadata) and `nodemetadataenricher` processor (enriches KSM node-scoped metrics with `host.*` and `cloud.availability_zone` from the Lease cache). The `awsattributelimit` processor includes `unconditional_removal_prefixes` and `unconditional_removal_keys` for redundant node/pod labels (parity with DaemonSet config).
-- **Cluster-scraper ClusterRole** (`otel-container-insights-cluster-scraper-clusterrole.yaml`) — RBAC for the cluster-scraper agent. Contains ServiceAccount, ClusterRole/ClusterRoleBinding (for pods/nodes/endpoints/services access), and a namespace-scoped Role/RoleBinding for Lease read access (`get`, `list`, `watch` on `coordination.k8s.io/leases`). The Lease permissions enable the `nodemetadatacache` extension to watch node metadata Leases written by the DaemonSet agents. Gated by `otelContainerInsights.enabled`.
+- **Cluster-level config** (`_otel-container-insights-cluster-scraper-config.tpl`) — injected into the agent matching `otelContainerInsights.clusterScraperAgent`. Scrapes kube-state-metrics and apiserver. Uses `otel_container_insights` naming prefix for all OTEL component names (receivers, processors, exporters, pipelines).
+- **Cluster-scraper ClusterRole** (`otel-container-insights-cluster-scraper-clusterrole.yaml`) — RBAC for the cluster-scraper agent. Gated by `otelContainerInsights.enabled`.
 - The standalone `otel-container-insights-cluster-scraper-deployment.yaml` has been deleted — the cluster-scraper is now an entry in the `agents` array (`cloudwatch-agent-cluster-scraper` with `mode: deployment`), managed by the operator as an `AmazonCloudWatchAgent` CR like all other agents.
 
 ### Kube-State-Metrics
@@ -54,7 +54,7 @@ Prometheus node-exporter DaemonSet for host-level metrics. Gated by `nodeExporte
 - KSM and node-exporter both use TLS via web-config ConfigMaps referencing the agent cert Secret
 - KSM and node-exporter RBAC are in dedicated files, separate from their Deployment/DaemonSet definitions
 - KSM and node-exporter naming follows the sidecar component pattern (`kube-state-metrics.name`, `node-exporter.name` helpers) — same as dcgm/neuron
-- OTEL component names in the cluster-scraper config use `cw_k8s_ci_v0` prefix (underscore convention for OTEL names)
+- OTEL component names in the cluster-scraper config use `otel_container_insights` prefix (underscore convention for OTEL names)
 - KSM receiver/pipeline in cluster-scraper config and node-exporter receiver/pipeline in node-level config are gated by their respective `enabled` flags
 - Agents not targeted by any OTEL CI feature have no `otelConfig` field on the CR (the field is omitted entirely)
 
@@ -63,5 +63,5 @@ Prometheus node-exporter DaemonSet for host-level metrics. Gated by `nodeExporte
 - Fluent Bit config uses `tpl` for variable interpolation — environment variables like `${AWS_REGION}` are resolved at runtime, not template time.
 - The OTEL cluster scraper config templates (`_otel-*.tpl`) generate YAML, not JSON — don't mix formats.
 - Don't add RBAC resources to `kube-state-metrics.yaml` — they belong in `kube-state-metrics-clusterrole.yaml` and `kube-state-metrics-clusterrolebinding.yaml`.
-- Don't use `otelci` or other abbreviations for new OTEL component names — use `cw_k8s_ci_v0` for consistency.
+- Don't use `otelci` prefix for new OTEL component names — use `otel_container_insights` for consistency.
 - Don't assume the cluster-scraper is a standalone Deployment — it is a CR entry in the `agents` array managed by the operator.

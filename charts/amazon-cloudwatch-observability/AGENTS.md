@@ -89,15 +89,15 @@ Agent configs are built at render time by two helpers — there is no static `de
 
 ## Naming Conventions
 
-OTEL component names in the cluster-scraper config use the `cw_k8s_ci_v0` prefix (CloudWatch K8s Container Insights V0). Examples:
-- `sigv4auth/cw_k8s_ci_v0_cwotel`
-- `prometheus/cw_k8s_ci_v0_apiserver`
-- `prometheus/cw_k8s_ci_v0_kube_state_metrics`
-- `transform/cw_k8s_ci_v0_set_unit`
-- `batch/cw_k8s_ci_v0_cwotel`
-- Pipeline names: `metrics/cw_k8s_ci_v0_apiserver`, `metrics/cw_k8s_ci_v0_kube_state_metrics`
+OTEL component names in the cluster-scraper config use the `otel_container_insights` prefix (underscores, per OTEL convention). Examples:
+- `sigv4auth/otel_container_insights_cwotel`
+- `prometheus/otel_container_insights_apiserver`
+- `prometheus/otel_container_insights_kube_state_metrics`
+- `transform/otel_container_insights_set_unit`
+- `batch/otel_container_insights_cwotel`
+- Pipeline names: `metrics/otel_container_insights_apiserver`, `metrics/otel_container_insights_kube_state_metrics`
 
-Template file names use `otel-container-insights` (kebab-case, per Helm convention).
+Template file names use `otel-container-insights` (kebab-case, per Helm convention). The `otelci` abbreviation is not used.
 
 ## Image Resolution Pattern
 All images resolve through `repositoryDomainMap` in `_helpers.tpl`. The pattern:
@@ -138,7 +138,7 @@ Set via `k8sMode` (default: `EKS`):
 - Don't assume a single agent — the `agents` list supports multiple independent `AmazonCloudWatchAgent` CRs with different `targetAgent` routing.
 - Don't assume the cluster-scraper is a standalone Deployment — it is an `AmazonCloudWatchAgent` CR entry in the `agents` array, managed by the operator.
 - Don't create RBAC resources without checking the conditional guards (`agent.enabled`, `otelContainerInsights.enabled`, `kubeStateMetrics.enabled`, `nodeExporter.enabled`, etc.).
-- Don't mix naming prefixes — use `cw_k8s_ci_v0` for OTEL component names and `otel-container-insights` for file names.
+- Don't mix `otelci` and `otel_container_insights` naming — use `otel_container_insights` for OTEL component names and `otel-container-insights` for file names.
 - The `agents` list merges each entry with `$.Values.agent` defaults — don't duplicate shared config in individual agent entries.
 
 ## Related Context
