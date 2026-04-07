@@ -14,7 +14,7 @@ rules:
   verbs: ["list", "watch", "get"]
 - apiGroups: [ "" ]
   resources: [ "services" ]
-  verbs: [ "list", "watch" ]
+  verbs: [ "get", "list", "watch" ]
 - apiGroups: [ "apps" ]
   resources: [ "replicasets", "daemonsets", "deployments", "statefulsets" ]
   verbs: [ "list", "watch", "get" ]
