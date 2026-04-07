@@ -33,6 +33,9 @@ rules:
   verbs: [ "get" ]
 {{- end }}
 - apiGroups: [ "" ]
+  resources: [ "configmaps" ]
+  verbs: [ "get" ]
+- apiGroups: [ "" ]
   resources: [ "persistentvolumeclaims", "persistentvolumes" ]
   verbs: [ "get", "list", "watch" ]
 - nonResourceURLs: [ "/metrics" ]
