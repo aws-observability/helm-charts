@@ -12,12 +12,14 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+const agentName = "cloudwatch-agent"
+
 func TestConfigMapPermissionScoping(t *testing.T) {
 	k8sClient, err := util.NewK8sClient()
 	require.NoError(t, err)
 
 	t.Run("ClusterRoleHasNoConfigMapRules", func(t *testing.T) {
-		clusterRole, err := k8sClient.GetClusterRole("cloudwatch-agent-role")
+		clusterRole, err := k8sClient.GetClusterRole(agentName + "-role")
 		require.NoError(t, err)
 
 		for _, rule := range clusterRole.Rules {
@@ -29,7 +31,7 @@ func TestConfigMapPermissionScoping(t *testing.T) {
 	})
 
 	t.Run("NamespaceScopedRoleExists", func(t *testing.T) {
-		role, err := k8sClient.GetRole(minikube.Namespace, "cloudwatch-agent-role")
+		role, err := k8sClient.GetRole(minikube.Namespace, agentName+"-role")
 		require.NoError(t, err)
 		require.Len(t, role.Rules, 1, "Role should have exactly one rule")
 
@@ -45,18 +47,18 @@ func TestConfigMapPermissionScoping(t *testing.T) {
 
 		var found bool
 		for _, rb := range roleBindings.Items {
-			if rb.Name != "cloudwatch-agent-role-binding" {
+			if rb.Name != agentName+"-role-binding" {
 				continue
 			}
 			found = true
 			assert.Equal(t, "Role", rb.RoleRef.Kind)
-			assert.Equal(t, "cloudwatch-agent-role", rb.RoleRef.Name)
+			assert.Equal(t, agentName+"-role", rb.RoleRef.Name)
 			require.Len(t, rb.Subjects, 1)
 			assert.Equal(t, "ServiceAccount", rb.Subjects[0].Kind)
-			assert.Equal(t, "cloudwatch-agent", rb.Subjects[0].Name)
+			assert.Equal(t, agentName, rb.Subjects[0].Name)
 			assert.Equal(t, minikube.Namespace, rb.Subjects[0].Namespace)
 		}
-		assert.True(t, found, "RoleBinding cloudwatch-agent-role-binding not found in namespace %s", minikube.Namespace)
+		assert.True(t, found, "RoleBinding %s-role-binding not found in namespace %s", agentName, minikube.Namespace)
 	})
 
 	t.Log("ConfigMap permission scoping validation passed")
