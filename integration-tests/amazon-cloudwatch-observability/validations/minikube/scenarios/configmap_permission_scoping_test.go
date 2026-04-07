@@ -18,14 +18,16 @@ func TestConfigMapPermissionScoping(t *testing.T) {
 	k8sClient, err := util.NewK8sClient()
 	require.NoError(t, err)
 
-	t.Run("ClusterRoleHasNoConfigMapRules", func(t *testing.T) {
+	t.Run("ClusterRoleHasOnlyGetForConfigMaps", func(t *testing.T) {
 		clusterRole, err := k8sClient.GetClusterRole(agentName + "-role")
 		require.NoError(t, err)
 
 		for _, rule := range clusterRole.Rules {
 			for _, resource := range rule.Resources {
-				assert.NotEqual(t, "configmaps", resource,
-					"ClusterRole should not have any configmaps rules")
+				if resource == "configmaps" {
+					assert.Equal(t, []string{"get"}, rule.Verbs,
+						"ClusterRole should only have get verb for configmaps")
+				}
 			}
 		}
 	})
@@ -37,7 +39,7 @@ func TestConfigMapPermissionScoping(t *testing.T) {
 
 		assert.Equal(t, []string{""}, role.Rules[0].APIGroups)
 		assert.Equal(t, []string{"configmaps"}, role.Rules[0].Resources)
-		assert.Equal(t, []string{"create", "get", "update"}, role.Rules[0].Verbs)
+		assert.Equal(t, []string{"create", "update"}, role.Rules[0].Verbs)
 		assert.Empty(t, role.Rules[0].ResourceNames)
 	})
 
