@@ -170,6 +170,12 @@ processors:
       - container
       - owner_name
       - owner_kind
+      - deployment
+      - daemonset
+      - statefulset
+      - replicaset
+      - job_name
+      - cronjob
 
   # Rename raw Prometheus label names (now in resource scope from groupbyattrs)
   # to OTel semantic convention names.
@@ -188,10 +194,67 @@ processors:
           - delete_key(attributes, "uid") where attributes["uid"] != nil
           - set(attributes["k8s.container.name"], attributes["container"]) where attributes["container"] != nil
           - delete_key(attributes, "container") where attributes["container"] != nil
+          # Workload identity from owner references (pod-level metrics)
           - set(attributes["k8s.workload.name"], attributes["owner_name"]) where attributes["owner_name"] != nil
           - set(attributes["k8s.workload.type"], attributes["owner_kind"]) where attributes["owner_kind"] != nil
           - delete_key(attributes, "owner_name") where attributes["owner_name"] != nil
           - delete_key(attributes, "owner_kind") where attributes["owner_kind"] != nil
+          # K8s object names from object-level metrics (deployment, daemonset, etc.)
+          - set(attributes["k8s.deployment.name"], attributes["deployment"]) where attributes["deployment"] != nil
+          - delete_key(attributes, "deployment") where attributes["deployment"] != nil
+          - set(attributes["k8s.daemonset.name"], attributes["daemonset"]) where attributes["daemonset"] != nil
+          - delete_key(attributes, "daemonset") where attributes["daemonset"] != nil
+          - set(attributes["k8s.statefulset.name"], attributes["statefulset"]) where attributes["statefulset"] != nil
+          - delete_key(attributes, "statefulset") where attributes["statefulset"] != nil
+          - set(attributes["k8s.job.name"], attributes["job_name"]) where attributes["job_name"] != nil
+          - delete_key(attributes, "job_name") where attributes["job_name"] != nil
+          - set(attributes["k8s.cronjob.name"], attributes["cronjob"]) where attributes["cronjob"] != nil
+          - delete_key(attributes, "cronjob") where attributes["cronjob"] != nil
+          - set(attributes["k8s.replicaset.name"], attributes["replicaset"]) where attributes["replicaset"] != nil
+          - delete_key(attributes, "replicaset") where attributes["replicaset"] != nil
+
+  k8sattributes/cw_k8s_ci_v0_pod:
+    auth_type: serviceAccount
+    passthrough: false
+    extract:
+      metadata:
+        - k8s.pod.uid
+        - k8s.node.name
+        - k8s.deployment.name
+        - k8s.statefulset.name
+        - k8s.daemonset.name
+        - k8s.replicaset.name
+        - k8s.job.name
+        - k8s.cronjob.name
+      labels:
+        # $$$1 is Helm escaping: $$$ → $$ (Helm) → $ (OTel env resolver) → literal $1 backreference
+        - tag_name: "k8s.pod.label.$$$1"
+          key_regex: "(.*)"
+          from: pod
+    pod_association:
+      - sources:
+          - from: resource_attribute
+            name: k8s.pod.name
+          - from: resource_attribute
+            name: k8s.namespace.name
+
+  transform/cw_k8s_ci_v0_set_workload:
+    error_mode: ignore
+    metric_statements:
+      - context: datapoint
+        statements:
+          - set(resource.attributes["k8s.workload.name"], resource.attributes["k8s.deployment.name"]) where resource.attributes["k8s.workload.name"] == nil and resource.attributes["k8s.deployment.name"] != nil
+          - set(resource.attributes["k8s.workload.type"], "Deployment") where resource.attributes["k8s.workload.type"] == nil and resource.attributes["k8s.deployment.name"] != nil
+          - set(resource.attributes["k8s.workload.name"], resource.attributes["k8s.statefulset.name"]) where resource.attributes["k8s.workload.name"] == nil and resource.attributes["k8s.statefulset.name"] != nil
+          - set(resource.attributes["k8s.workload.type"], "StatefulSet") where resource.attributes["k8s.workload.type"] == nil and resource.attributes["k8s.statefulset.name"] != nil
+          - set(resource.attributes["k8s.workload.name"], resource.attributes["k8s.daemonset.name"]) where resource.attributes["k8s.workload.name"] == nil and resource.attributes["k8s.daemonset.name"] != nil
+          - set(resource.attributes["k8s.workload.type"], "DaemonSet") where resource.attributes["k8s.workload.type"] == nil and resource.attributes["k8s.daemonset.name"] != nil
+          - set(resource.attributes["k8s.workload.name"], resource.attributes["k8s.job.name"]) where resource.attributes["k8s.workload.name"] == nil and resource.attributes["k8s.job.name"] != nil
+          - set(resource.attributes["k8s.workload.type"], "Job") where resource.attributes["k8s.workload.type"] == nil and resource.attributes["k8s.job.name"] != nil
+          - set(resource.attributes["k8s.workload.name"], resource.attributes["k8s.cronjob.name"]) where resource.attributes["k8s.workload.name"] == nil and resource.attributes["k8s.cronjob.name"] != nil
+          - set(resource.attributes["k8s.workload.type"], "CronJob") where resource.attributes["k8s.workload.type"] == nil and resource.attributes["k8s.cronjob.name"] != nil
+          - set(resource.attributes["k8s.workload.name"], resource.attributes["k8s.replicaset.name"]) where resource.attributes["k8s.workload.name"] == nil and resource.attributes["k8s.replicaset.name"] != nil
+          - set(resource.attributes["k8s.workload.type"], "ReplicaSet") where resource.attributes["k8s.workload.type"] == nil and resource.attributes["k8s.replicaset.name"] != nil
 
   k8sattributes/cw_k8s_ci_v0_node:
     auth_type: serviceAccount
@@ -265,6 +328,8 @@ processors:
       - "k8s.node.label.k8s.io/cloud-provider-aws"
       - "k8s.node.label.eks.amazonaws.com/sourceLaunchTemplateId"
       - "k8s.node.label.eks.amazonaws.com/sourceLaunchTemplateVersion"
+      - "k8s.pod.label.pod-template-hash"
+      - "k8s.pod.label.controller-revision-hash"
 
   transform/cw_k8s_ci_v0_set_cloud_resource_id:
     error_mode: ignore
@@ -324,7 +389,9 @@ service:
         - transform/cw_k8s_ci_v0_ksm_clean_resource
         - groupbyattrs/cw_k8s_ci_v0_ksm
         - transform/cw_k8s_ci_v0_ksm_promote
+        - k8sattributes/cw_k8s_ci_v0_pod
         - k8sattributes/cw_k8s_ci_v0_node
+        - transform/cw_k8s_ci_v0_set_workload
         - resourcedetection/cw_k8s_ci_v0
         - nodemetadataenricher/cw_k8s_ci_v0
         - transform/cw_k8s_ci_v0_clear_schema_url
