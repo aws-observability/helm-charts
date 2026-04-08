@@ -56,15 +56,19 @@ containerLogs:
     config:
       service: |
         [SERVICE]
-          Flush                     5
+          Flush                     2
           Grace                     30
           Log_Level                 error
           Daemon                    off
           Parsers_File              parsers.conf
+          # The following storage options only apply to inputs using storage.type filesystem.
+          # Filesystem storage is not used by default, but these options are specified here
+          # as a recommendation in case any inputs are switched to filesystem storage.
           storage.path              /var/fluent-bit/state/flb-storage/
           storage.sync              normal
           storage.checksum          off
           storage.backlog.mem_limit 5M
+          storage.max_chunks_up     16
       customParsers: |
         [PARSER]
           Name                syslog
@@ -95,11 +99,10 @@ containerLogs:
             Path                /var/log/containers/*.log
             multiline.parser    docker, cri
             DB                  /var/fluent-bit/state/flb_container.db
-            Mem_Buf_Limit       50MB
+            Mem_Buf_Limit       10MB
             Skip_Long_Lines     On
             Refresh_Interval    10
             Rotate_Wait         30
-            storage.type        filesystem
             Read_from_Head      ${READ_FROM_HEAD}
 
           [INPUT]
@@ -108,7 +111,7 @@ containerLogs:
             Path                /var/log/containers/fluent-bit*
             multiline.parser    docker, cri
             DB                  /var/fluent-bit/state/flb_log.db
-            Mem_Buf_Limit       5MB
+            Mem_Buf_Limit       10MB
             Skip_Long_Lines     On
             Refresh_Interval    10
             Read_from_Head      ${READ_FROM_HEAD}
@@ -119,7 +122,7 @@ containerLogs:
             Path                /var/log/containers/cloudwatch-agent*
             multiline.parser    docker, cri
             DB                  /var/fluent-bit/state/flb_cwagent.db
-            Mem_Buf_Limit       5MB
+            Mem_Buf_Limit       10MB
             Skip_Long_Lines     On
             Refresh_Interval    10
             Read_from_Head      ${READ_FROM_HEAD}
@@ -156,6 +159,7 @@ containerLogs:
             auto_create_group   true
             extra_user_agent    container-insights
             add_entity          true
+            retry_limit         5
         dataplane-log.conf: |
           [INPUT]
             Name                systemd
@@ -166,6 +170,7 @@ containerLogs:
             DB                  /var/fluent-bit/state/systemd.db
             Path                /var/log/journal
             Read_From_Tail      ${READ_FROM_TAIL}
+            Mem_Buf_Limit       10MB
 
           [INPUT]
             Name                tail
@@ -173,11 +178,10 @@ containerLogs:
             Path                /var/log/containers/aws-node*, /var/log/containers/kube-proxy*
             multiline.parser    docker, cri
             DB                  /var/fluent-bit/state/flb_dataplane_tail.db
-            Mem_Buf_Limit       50MB
+            Mem_Buf_Limit       10MB
             Skip_Long_Lines     On
             Refresh_Interval    10
             Rotate_Wait         30
-            storage.type        filesystem
             Read_from_Head      ${READ_FROM_HEAD}
 
           [FILTER]
@@ -201,6 +205,7 @@ containerLogs:
             log_stream_prefix   ${HOST_NAME}-
             auto_create_group   true
             extra_user_agent    container-insights
+            retry_limit         5
         host-log.conf: |
           [INPUT]
             Name                systemd
@@ -209,6 +214,7 @@ containerLogs:
             DB                  /var/fluent-bit/state/flb_dmesg.db
             Path                /var/log/journal
             Read_From_Tail      ${READ_FROM_TAIL}
+            Mem_Buf_Limit       10MB
 
           [INPUT]
             Name                systemd
@@ -223,6 +229,7 @@ containerLogs:
             DB                  /var/fluent-bit/state/flb_messages.db
             Path                /var/log/journal
             Read_From_Tail      ${READ_FROM_TAIL}
+            Mem_Buf_Limit       10MB
 
           [INPUT]
             Name                systemd
@@ -231,6 +238,7 @@ containerLogs:
             DB                  /var/fluent-bit/state/flb_secure.db
             Path                /var/log/journal
             Read_From_Tail      ${READ_FROM_TAIL}
+            Mem_Buf_Limit       10MB
 
           [FILTER]
             Name                aws
@@ -259,6 +267,7 @@ containerLogs:
             log_stream_prefix   ${HOST_NAME}.
             auto_create_group   true
             extra_user_agent    container-insights
+            retry_limit         5
       adcRegionExtraFiles:
         application-log.conf: |
           [INPUT]
@@ -268,11 +277,10 @@ containerLogs:
             Path                /var/log/containers/*.log
             multiline.parser    docker, cri
             DB                  /var/fluent-bit/state/flb_container.db
-            Mem_Buf_Limit       50MB
+            Mem_Buf_Limit       10MB
             Skip_Long_Lines     On
             Refresh_Interval    10
             Rotate_Wait         30
-            storage.type        filesystem
             Read_from_Head      ${READ_FROM_HEAD}
 
           [INPUT]
@@ -281,7 +289,7 @@ containerLogs:
             Path                /var/log/containers/fluent-bit*
             multiline.parser    docker, cri
             DB                  /var/fluent-bit/state/flb_log.db
-            Mem_Buf_Limit       5MB
+            Mem_Buf_Limit       10MB
             Skip_Long_Lines     On
             Refresh_Interval    10
             Read_from_Head      ${READ_FROM_HEAD}
@@ -292,7 +300,7 @@ containerLogs:
             Path                /var/log/containers/cloudwatch-agent*
             multiline.parser    docker, cri
             DB                  /var/fluent-bit/state/flb_cwagent.db
-            Mem_Buf_Limit       5MB
+            Mem_Buf_Limit       10MB
             Skip_Long_Lines     On
             Refresh_Interval    10
             Read_from_Head      ${READ_FROM_HEAD}
@@ -321,6 +329,7 @@ containerLogs:
             auto_create_group   true
             endpoint            logs.${AWS_REGION}.${ADC_REGION_ENDPOINT}
             extra_user_agent    container-insights
+            retry_limit         5
         dataplane-log.conf: |
           [INPUT]
             Name                systemd
@@ -331,6 +340,7 @@ containerLogs:
             DB                  /var/fluent-bit/state/systemd.db
             Path                /var/log/journal
             Read_From_Tail      ${READ_FROM_TAIL}
+            Mem_Buf_Limit       10MB
 
           [INPUT]
             Name                tail
@@ -338,11 +348,10 @@ containerLogs:
             Path                /var/log/containers/aws-node*, /var/log/containers/kube-proxy*
             multiline.parser    docker, cri
             DB                  /var/fluent-bit/state/flb_dataplane_tail.db
-            Mem_Buf_Limit       50MB
+            Mem_Buf_Limit       10MB
             Skip_Long_Lines     On
             Refresh_Interval    10
             Rotate_Wait         30
-            storage.type        filesystem
             Read_from_Head      ${READ_FROM_HEAD}
 
           [FILTER]
@@ -367,6 +376,7 @@ containerLogs:
             auto_create_group   true
             endpoint            logs.${AWS_REGION}.${ADC_REGION_ENDPOINT}
             extra_user_agent    container-insights
+            retry_limit         5
         host-log.conf: |
           [INPUT]
             Name                systemd
@@ -375,6 +385,7 @@ containerLogs:
             DB                  /var/fluent-bit/state/flb_dmesg.db
             Path                /var/log/journal
             Read_From_Tail      ${READ_FROM_TAIL}
+            Mem_Buf_Limit       10MB
 
           [INPUT]
             Name                systemd
@@ -389,6 +400,7 @@ containerLogs:
             DB                  /var/fluent-bit/state/flb_messages.db
             Path                /var/log/journal
             Read_From_Tail      ${READ_FROM_TAIL}
+            Mem_Buf_Limit       10MB
 
           [INPUT]
             Name                systemd
@@ -397,6 +409,7 @@ containerLogs:
             DB                  /var/fluent-bit/state/flb_secure.db
             Path                /var/log/journal
             Read_From_Tail      ${READ_FROM_TAIL}
+            Mem_Buf_Limit       10MB
 
           [FILTER]
             Name                aws
@@ -426,6 +439,7 @@ containerLogs:
             auto_create_group   true
             endpoint            logs.${AWS_REGION}.${ADC_REGION_ENDPOINT}
             extra_user_agent    container-insights
+            retry_limit         5
     configWindows:
       service: |
         [ SERVICE ]
@@ -479,7 +493,7 @@ containerLogs:
             Path                C:\\var\\log\\containers\\fluent-bit*
             Parser              docker
             DB                  C:\\var\\fluent-bit\\state\\flb_log.db
-            Mem_Buf_Limit       5MB
+            Mem_Buf_Limit       10MB
             Skip_Long_Lines     On
             Rotate_Wait         30
             Refresh_Interval    10
@@ -491,7 +505,7 @@ containerLogs:
             Path                C:\\var\\log\\containers\\cloudwatch-agent*
             Parser              docker
             DB                  C:\\var\\fluent-bit\\state\\flb_cwagent.db
-            Mem_Buf_Limit       5MB
+            Mem_Buf_Limit       10MB
             Skip_Long_Lines     On
             Rotate_Wait         30
             Refresh_Interval    10
@@ -533,7 +547,7 @@ containerLogs:
             Path                C:\\ProgramData\\containerd\\root\\*.log, C:\\ProgramData\\Amazon\\EKS\\logs\\*.log
             Parser              dataplane_firstline
             DB                  C:\\var\\fluent-bit\\state\\flb_dataplane_tail.db
-            Mem_Buf_Limit       5MB
+            Mem_Buf_Limit       10MB
             Skip_Long_Lines     On
             Rotate_Wait         30
             Refresh_Interval    10
@@ -546,7 +560,7 @@ containerLogs:
             Path_Key            file_name
             Parser              dataplane_firstline
             DB                  C:\\var\\fluent-bit\\state\\flb_dataplane_cni_tail.db
-            Mem_Buf_Limit       5MB
+            Mem_Buf_Limit       10MB
             Skip_Long_Lines     On
             Rotate_Wait         30
             Refresh_Interval    10
