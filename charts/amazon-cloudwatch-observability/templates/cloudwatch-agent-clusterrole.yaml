@@ -25,13 +25,16 @@ rules:
   resources: [ "ingresses" ]
   verbs: [ "list", "watch", "get" ]
 - apiGroups: [ "" ]
-  resources: [ "nodes/stats", "events" ]
+  resources: [ "nodes/stats", "configmaps", "events" ]
   verbs: [ "create", "get" ]
 {{- if .Values.otelContainerInsights.enabled }}
 - apiGroups: [ "" ]
   resources: [ "nodes/metrics" ]
   verbs: [ "get" ]
 {{- end }}
+- apiGroups: [ "" ]
+  resources: [ "configmaps" ]
+  verbs: [ "update" ]
 - apiGroups: [ "" ]
   resources: [ "persistentvolumeclaims", "persistentvolumes" ]
   verbs: [ "get", "list", "watch" ]
