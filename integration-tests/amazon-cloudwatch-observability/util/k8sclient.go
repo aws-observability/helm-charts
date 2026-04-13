@@ -250,6 +250,8 @@ func (k *K8sClient) ValidateServiceExists(namespace, serviceName string) (bool, 
 		}
 	}
 	return false, nil
+}
+
 func (k *K8sClient) GetClusterRole(name string) (*rbacV1.ClusterRole, error) {
 	clusterRole, err := k.client.RbacV1().ClusterRoles().Get(context.Background(), name, metav1.GetOptions{})
 	if err != nil {

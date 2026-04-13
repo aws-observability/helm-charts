@@ -89,6 +89,11 @@ func validateClusterScraperCRExists(t *testing.T, agentMap map[string]unstructur
 	replicas, ok := spec["replicas"].(int64)
 	assert.True(t, ok, "replicas should be an int64")
 	assert.Equal(t, int64(1), replicas, "cluster-scraper CR should have replicas=1")
+
+	// Verify hostNetwork is true (explicitly set in values.yaml for cluster-scraper)
+	hostNetwork, ok := spec["hostNetwork"].(bool)
+	assert.True(t, ok, "hostNetwork should be a bool")
+	assert.True(t, hostNetwork, "cluster-scraper CR should have hostNetwork=true")
 }
 
 // validateOTELConfigRouting verifies that OTEL configs are correctly routed:
