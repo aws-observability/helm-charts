@@ -856,8 +856,6 @@ agents:
     mode: deployment
     replicas: 1
     hostNetwork: true
-    serviceAccount:
-      name: cloudwatch-agent-cluster-scraper
 agent:
   name:
   mode: daemonset # Represents the mode the AmazonCloudWatchAgent workload will run in (deployment, daemonset or statefulset)
