@@ -98,7 +98,9 @@ spec:
   {{- with $agent.affinity }}
   affinity: {{- toYaml . | nindent 4 }}
   {{- end }}
-  {{- if ne ($agent.mode | default "daemonset") "deployment" }}
+  {{- if hasKey $agent "hostNetwork" }}
+  hostNetwork: {{ $agent.hostNetwork }}
+  {{- else if eq $agent.mode "daemonset" }}
   hostNetwork: true
   {{- end }}
   {{- if $agent.config }}
