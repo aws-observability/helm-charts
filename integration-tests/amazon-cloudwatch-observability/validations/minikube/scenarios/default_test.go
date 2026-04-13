@@ -33,6 +33,35 @@ func TestDefault(t *testing.T) {
 	}
 	minikube.ValidateOperatorAutoMonitorConfig(t, expectedConfig)
 
+	// Validating OTLP Container Insights resources
+	exists, err = k8sClient.ValidateDeploymentExists(minikube.Namespace, "kube-state-metrics")
+	assert.NoError(t, err)
+	assert.True(t, exists, "kube-state-metrics deployment should exist")
+
+	exists, err = k8sClient.ValidateDeploymentExists(minikube.Namespace, "cloudwatch-agent-cluster-scraper")
+	assert.NoError(t, err)
+	assert.True(t, exists, "cloudwatch-agent-cluster-scraper deployment should exist")
+
+	exists, err = k8sClient.ValidateDaemonSetExists(minikube.Namespace, "node-exporter")
+	assert.NoError(t, err)
+	assert.True(t, exists, "node-exporter daemonset should exist")
+
+	exists, err = k8sClient.ValidateServiceExists(minikube.Namespace, "kube-state-metrics")
+	assert.NoError(t, err)
+	assert.True(t, exists, "kube-state-metrics service should exist")
+
+	exists, err = k8sClient.ValidateServiceAccountExists(minikube.Namespace, "kube-state-metrics-service-acct")
+	assert.NoError(t, err)
+	assert.True(t, exists, "kube-state-metrics-service-acct service account should exist")
+
+	exists, err = k8sClient.ValidateServiceAccountExists(minikube.Namespace, "node-exporter-service-acct")
+	assert.NoError(t, err)
+	assert.True(t, exists, "node-exporter-service-acct service account should exist")
+
+	exists, err = k8sClient.ValidateServiceAccountExists(minikube.Namespace, "cloudwatch-agent-cluster-scraper")
+	assert.NoError(t, err)
+	assert.True(t, exists, "cloudwatch-agent-cluster-scraper service account should exist")
+
 	t.Run("DualstackEndpointsNotPresent", func(t *testing.T) {
 		validateDualstackEndpointsNotPresent(t, k8sClient)
 	})

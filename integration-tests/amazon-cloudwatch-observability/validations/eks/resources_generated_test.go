@@ -25,13 +25,16 @@ const (
 	fluentBitNameWindows = "fluent-bit-windows"
 	dcgmExporterName     = "dcgm-exporter"
 	neuronMonitor        = "neuron-monitor"
-	podNameRegex         = "(" + agentName + "|" + agentNameWindows + "|" + operatorName + "|" + fluentBitName + "|" + fluentBitNameWindows + ")-*"
-	serviceNameRegex     = agentName + "(-headless|-monitoring)?|" + agentNameWindows + "(-headless|-monitoring)?|" + addOnName + "-webhook-service|" + dcgmExporterName + "-service|" + neuronMonitor + "-service"
-	daemonSetNameRegex   = agentName + "|" + agentNameWindows + "|" + fluentBitName + "|" + fluentBitNameWindows + "|" + dcgmExporterName + "|" + neuronMonitor
+	kubeStateMetricsName = "kube-state-metrics"
+	clusterScraperName   = "cloudwatch-agent-cluster-scraper"
+	nodeExporterName     = "node-exporter"
+	podNameRegex         = "(" + agentName + "|" + agentNameWindows + "|" + operatorName + "|" + fluentBitName + "|" + fluentBitNameWindows + "|" + kubeStateMetricsName + "|" + clusterScraperName + "|" + nodeExporterName + ")-*"
+	serviceNameRegex     = agentName + "(-headless|-monitoring)?|" + agentNameWindows + "(-headless|-monitoring)?|" + addOnName + "-webhook-service|" + dcgmExporterName + "-service|" + neuronMonitor + "-service|" + kubeStateMetricsName + "|" + clusterScraperName + "-monitoring"
+	daemonSetNameRegex   = agentName + "|" + agentNameWindows + "|" + fluentBitName + "|" + fluentBitNameWindows + "|" + dcgmExporterName + "|" + neuronMonitor + "|" + nodeExporterName
 )
 
 const (
-	deploymentCount = 1
+	deploymentCount = 3
 	podCount        = podCountLinux + podCountWindows
 	serviceCount    = serviceCountLinux + serviceCountWindows
 	daemonSetCount  = daemonSetCountLinux + daemonSetCountWindows
@@ -144,6 +147,35 @@ func TestResourcesGenerated(t *testing.T) {
 	assert.NoError(t, err)
 	assert.True(t, exists)
 	exists, err = k8sClient.ValidateRoleBindingExists(namespace, neuronMonitor+"-role-binding")
+	assert.NoError(t, err)
+	assert.True(t, exists)
+
+	// Validating OTLP Container Insights RBAC
+	exists, err = k8sClient.ValidateServiceAccountExists(namespace, kubeStateMetricsName+"-service-acct")
+	assert.NoError(t, err)
+	assert.True(t, exists)
+	exists, err = k8sClient.ValidateServiceAccountExists(namespace, nodeExporterName+"-service-acct")
+	assert.NoError(t, err)
+	assert.True(t, exists)
+	exists, err = k8sClient.ValidateServiceAccountExists(namespace, clusterScraperName)
+	assert.NoError(t, err)
+	assert.True(t, exists)
+	exists, err = k8sClient.ValidateClusterRoleExists(kubeStateMetricsName + "-cluster-role")
+	assert.NoError(t, err)
+	assert.True(t, exists)
+	exists, err = k8sClient.ValidateClusterRoleExists(clusterScraperName + "-role")
+	assert.NoError(t, err)
+	assert.True(t, exists)
+	exists, err = k8sClient.ValidateClusterRoleBindingExists(kubeStateMetricsName + "-cluster-role-binding")
+	assert.NoError(t, err)
+	assert.True(t, exists)
+	exists, err = k8sClient.ValidateClusterRoleBindingExists(clusterScraperName + "-rolebinding")
+	assert.NoError(t, err)
+	assert.True(t, exists)
+	exists, err = k8sClient.ValidateRoleExists(namespace, nodeExporterName+"-role")
+	assert.NoError(t, err)
+	assert.True(t, exists)
+	exists, err = k8sClient.ValidateRoleBindingExists(namespace, nodeExporterName+"-role-binding")
 	assert.NoError(t, err)
 	assert.True(t, exists)
 

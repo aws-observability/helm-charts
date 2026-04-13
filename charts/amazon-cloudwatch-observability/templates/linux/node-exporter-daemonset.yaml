@@ -1,0 +1,108 @@
+{{- if and .Values.nodeExporter.enabled .Values.otelContainerInsights.enabled }}
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ template "node-exporter.serviceAccountName" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "amazon-cloudwatch-observability.labels" . | nindent 4 }}
+---
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: {{ include "node-exporter.name" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "amazon-cloudwatch-observability.labels" . | nindent 4 }}
+    k8s-app: {{ include "node-exporter.name" . }}
+spec:
+  selector:
+    matchLabels:
+      k8s-app: {{ include "node-exporter.name" . }}
+  template:
+    metadata:
+      labels:
+        k8s-app: {{ include "node-exporter.name" . }}
+    spec:
+      serviceAccountName: {{ template "node-exporter.serviceAccountName" . }}
+      {{- with .Values.nodeExporter.nodeSelector }}
+      nodeSelector: {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.nodeExporter.affinity }}
+      affinity: {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.nodeExporter.securityContext }}
+      securityContext: {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- dict "component" .Values.nodeExporter "context" . | include "amazon-cloudwatch-observability.common.tolerations" | nindent 6 }}
+      containers:
+        - name: node-exporter
+          image: {{ template "node-exporter.image" . }}
+          args:
+            - --path.rootfs=/host/root
+            - --path.sysfs=/host/sys
+            - --path.procfs=/host/proc
+            - --web.listen-address=:9487
+            # TLS configuration: node-exporter loads TLS settings from the web config file below,
+            # which references the node-exporter-web-config ConfigMap mounted at /etc/node-exporter.
+            # The ConfigMap contains tls_server_config pointing to certs from the agent-cert Secret.
+            - --web.config.file=/etc/node-exporter/web.yml
+          ports:
+            - name: metrics
+              containerPort: 9487
+              hostPort: 9487
+              protocol: TCP
+          resources:
+            {{- toYaml .Values.nodeExporter.resources | nindent 12 }}
+          volumeMounts:
+            - name: rootfs
+              mountPath: /host/root
+              readOnly: true
+              mountPropagation: HostToContainer
+            - name: sys
+              mountPath: /host/sys
+              readOnly: true
+            - name: proc
+              mountPath: /host/proc
+              readOnly: true
+            - name: nodeexportertls
+              mountPath: /etc/node-exporter-cert
+              readOnly: true
+            - name: web-config
+              mountPath: /etc/node-exporter
+              readOnly: true
+      volumes:
+        - name: rootfs
+          hostPath:
+            path: /
+        - name: sys
+          hostPath:
+            path: /sys
+        - name: proc
+          hostPath:
+            path: /proc
+        - name: nodeexportertls
+          secret:
+            secretName: amazon-cloudwatch-observability-agent-cert
+            items:
+              - key: tls.crt
+                path: server.crt
+              - key: tls.key
+                path: server.key
+        - name: web-config
+          configMap:
+            name: {{ include "node-exporter.name" . }}-web-config
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "node-exporter.name" . }}-web-config
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "amazon-cloudwatch-observability.labels" . | nindent 4 }}
+data:
+  web.yml: |
+    tls_server_config:
+      cert_file: /etc/node-exporter-cert/server.crt
+      key_file: /etc/node-exporter-cert/server.key
+{{- end }}

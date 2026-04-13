@@ -1,0 +1,120 @@
+{{- if and .Values.kubeStateMetrics.enabled .Values.otelContainerInsights.enabled }}
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ template "kube-state-metrics.serviceAccountName" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "amazon-cloudwatch-observability.labels" . | nindent 4 }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "kube-state-metrics.name" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "amazon-cloudwatch-observability.labels" . | nindent 4 }}
+    app.kubernetes.io/component: {{ include "kube-state-metrics.name" . }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/component: {{ include "kube-state-metrics.name" . }}
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/component: {{ include "kube-state-metrics.name" . }}
+    spec:
+      serviceAccountName: {{ template "kube-state-metrics.serviceAccountName" . }}
+      {{- with .Values.kubeStateMetrics.nodeSelector }}
+      nodeSelector: {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.kubeStateMetrics.affinity }}
+      affinity: {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.kubeStateMetrics.securityContext }}
+      securityContext: {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- dict "component" .Values.kubeStateMetrics "context" . | include "amazon-cloudwatch-observability.common.tolerations" | nindent 6 }}
+      containers:
+        - name: kube-state-metrics
+          image: {{ template "kube-state-metrics.image" . }}
+          args:
+            - --port=8443
+            - --tls-config=/etc/ksm-web-config/web.yml
+          ports:
+            - name: https-metrics
+              containerPort: 8443
+              protocol: TCP
+            - name: telemetry
+              containerPort: 8081
+              protocol: TCP
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: 8443
+              scheme: HTTPS
+            initialDelaySeconds: 5
+            timeoutSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 8443
+              scheme: HTTPS
+            initialDelaySeconds: 5
+            timeoutSeconds: 5
+          resources:
+            {{- toYaml .Values.kubeStateMetrics.resources | nindent 12 }}
+          volumeMounts:
+            - name: ksm-tls
+              mountPath: /etc/ksm-cert
+              readOnly: true
+            - name: ksm-web-config
+              mountPath: /etc/ksm-web-config
+              readOnly: true
+      volumes:
+        - name: ksm-tls
+          secret:
+            secretName: amazon-cloudwatch-observability-agent-cert
+            items:
+              - key: tls.crt
+                path: server.crt
+              - key: tls.key
+                path: server.key
+        - name: ksm-web-config
+          configMap:
+            name: {{ include "kube-state-metrics.name" . }}-web-config
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "kube-state-metrics.name" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "amazon-cloudwatch-observability.labels" . | nindent 4 }}
+    app.kubernetes.io/component: {{ include "kube-state-metrics.name" . }}
+  # Exposes the KSM metrics endpoint (8443/HTTPS) for the cluster-scraper's static_configs.
+  # No prometheus scrape annotations — the cluster-scraper uses explicit service DNS targets, not annotation-based discovery.
+spec:
+  type: {{ .Values.kubeStateMetrics.service.type | default "ClusterIP" }}
+  ports:
+    - name: https-metrics
+      port: {{ .Values.kubeStateMetrics.service.port | default 8443 }}
+      targetPort: https-metrics
+      protocol: TCP
+  selector:
+    app.kubernetes.io/component: {{ include "kube-state-metrics.name" . }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "kube-state-metrics.name" . }}-web-config
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "amazon-cloudwatch-observability.labels" . | nindent 4 }}
+data:
+  web.yml: |
+    tls_server_config:
+      cert_file: /etc/ksm-cert/server.crt
+      key_file: /etc/ksm-cert/server.key
+{{- end }}
