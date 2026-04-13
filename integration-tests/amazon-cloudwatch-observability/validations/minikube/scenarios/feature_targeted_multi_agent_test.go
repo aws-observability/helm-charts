@@ -87,7 +87,7 @@ func validateCloudWatchAgentFullConfig(t *testing.T, agentMap map[string]unstruc
 		return
 	}
 
-	// Verify hostNetwork is true (daemonset mode defaults to hostNetwork: true)
+	// Verify hostNetwork is true (default for all agents)
 	hostNetwork, ok := spec["hostNetwork"].(bool)
 	assert.True(t, ok, "hostNetwork should be a bool")
 	assert.True(t, hostNetwork, "cloudwatch-agent should have hostNetwork=true")
@@ -156,9 +156,10 @@ func validatePrometheusAgentMinimalConfig(t *testing.T, agentMap map[string]unst
 		return
 	}
 
-	// Verify hostNetwork is not set (deployment mode without explicit hostNetwork)
-	_, hasHostNetwork := spec["hostNetwork"]
-	assert.False(t, hasHostNetwork, "prometheus-agent should not have hostNetwork (deployment mode, not explicitly set)")
+	// Verify hostNetwork is false (explicitly overridden in values.yaml)
+	hostNetwork, ok := spec["hostNetwork"].(bool)
+	assert.True(t, ok, "hostNetwork should be a bool")
+	assert.False(t, hostNetwork, "prometheus-agent should have hostNetwork=false (explicit override)")
 
 	// Validate CW Agent config is minimal (only region, no CI or AppSignals)
 	configStr, ok := spec["config"].(string)
@@ -214,7 +215,7 @@ func validateClusterScraperConfig(t *testing.T, agentMap map[string]unstructured
 		return
 	}
 
-	// Verify hostNetwork is true (explicitly set in values.yaml for cluster-scraper)
+	// Verify hostNetwork is true (default for all agents)
 	hostNetwork, ok := spec["hostNetwork"].(bool)
 	assert.True(t, ok, "hostNetwork should be a bool")
 	assert.True(t, hostNetwork, "cluster-scraper should have hostNetwork=true")

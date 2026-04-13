@@ -98,11 +98,7 @@ spec:
   {{- with $agent.affinity }}
   affinity: {{- toYaml . | nindent 4 }}
   {{- end }}
-  {{- if hasKey $agent "hostNetwork" }}
   hostNetwork: {{ $agent.hostNetwork }}
-  {{- else if eq $agent.mode "daemonset" }}
-  hostNetwork: true
-  {{- end }}
   {{- if $agent.config }}
   config: {{ include "cloudwatch-agent.modify-config" (merge (dict "Config" $agent.config) $ ) }}
   {{- else }}
