@@ -151,7 +151,7 @@ func TestResourcesGenerated(t *testing.T) {
 	assert.True(t, exists)
 
 	// Validating OTLP Container Insights RBAC
-	exists, err = k8sClient.ValidateServiceAccountExists(namespace, kubeStateMetricsName)
+	exists, err = k8sClient.ValidateServiceAccountExists(namespace, kubeStateMetricsName+"-service-acct")
 	assert.NoError(t, err)
 	assert.True(t, exists)
 	exists, err = k8sClient.ValidateServiceAccountExists(namespace, nodeExporterName+"-service-acct")
