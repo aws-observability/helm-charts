@@ -1,4 +1,10 @@
 =======================================================================
+amazon-cloudwatch-observability v6.0.1 (2026-04-08)
+=======================================================================
+Enhancements:
+* [Container Insights] Cluster-scraper deployment now uses cloudwatch-agent SA instead of cluster-scraper SA
+
+=======================================================================
 amazon-cloudwatch-observability v6.0.0 (2026-04-02)
 =======================================================================
 New Features:
