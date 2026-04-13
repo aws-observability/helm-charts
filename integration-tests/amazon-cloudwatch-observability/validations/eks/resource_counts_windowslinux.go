@@ -14,7 +14,8 @@ const (
 	// - dcgm-exporter-service
 	// - neuron-monitor-service
 	// - kube-state-metrics
-	serviceCountLinux = 7
+	// - cloudwatch-agent-cluster-scraper-monitoring
+	serviceCountLinux = 8
 
 	// Services count on Windows:
 	// - cloudwatch-agent-windows
