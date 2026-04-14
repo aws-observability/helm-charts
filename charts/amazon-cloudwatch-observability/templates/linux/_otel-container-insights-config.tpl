@@ -279,10 +279,9 @@ processors:
       - context: datapoint
         statements:
           - set(resource.attributes["k8s.node.name"], attributes["node_name"]) where attributes["node_name"] != nil
-          - delete_key(attributes, "node_name") where attributes["node_name"] != nil
 
   resourcedetection/cw_k8s_ci_v0:
-    detectors: [ec2, eks]
+    detectors: [eks, ec2]
     ec2:
       resource_attributes:
         host.id: { enabled: true }
@@ -425,9 +424,12 @@ processors:
           - set(attributes["k8s.container.name"], attributes["container"]) where attributes["container"] != nil and attributes["container"] != ""
           - set(attributes["k8s.pod.name"], attributes["pod"]) where attributes["pod"] != nil
           - set(attributes["k8s.namespace.name"], attributes["namespace"]) where attributes["namespace"] != nil
-          - delete_key(attributes, "container") where attributes["container"] != nil
-          - delete_key(attributes, "pod") where attributes["pod"] != nil
-          - delete_key(attributes, "namespace") where attributes["namespace"] != nil
+      - context: datapoint
+        statements:
+          # Restore raw Prometheus names to datapoint scope (groupbyattrs removed them).
+          - set(attributes["container"], resource.attributes["container"]) where resource.attributes["container"] != nil
+          - set(attributes["pod"], resource.attributes["pod"]) where resource.attributes["pod"] != nil
+          - set(attributes["namespace"], resource.attributes["namespace"]) where resource.attributes["namespace"] != nil
 
   {{- if .Values.dcgmExporter.enabled }}
   groupbyattrs/cw_k8s_ci_v0_dcgm:
@@ -441,16 +443,16 @@ processors:
     metric_statements:
       - context: resource
         statements:
-          # Rename pod/namespace/container from Prometheus names to OTel semantic conventions.
-          # These are already in resource scope from groupbyattrs/cw_k8s_ci_v0_dcgm.
           - set(attributes["k8s.pod.name"], attributes["pod"]) where attributes["pod"] != nil
           - set(attributes["k8s.namespace.name"], attributes["namespace"]) where attributes["namespace"] != nil
           - set(attributes["k8s.container.name"], attributes["container"]) where attributes["container"] != nil
-          - delete_key(attributes, "pod") where attributes["pod"] != nil
-          - delete_key(attributes, "namespace") where attributes["namespace"] != nil
-          - delete_key(attributes, "container") where attributes["container"] != nil
       - context: datapoint
         statements:
+          # Restore raw Prometheus names to datapoint scope (groupbyattrs removed them).
+          # Raw labels are still at resource scope (not deleted), so copy them back down.
+          - set(attributes["pod"], resource.attributes["pod"]) where resource.attributes["pod"] != nil
+          - set(attributes["namespace"], resource.attributes["namespace"]) where resource.attributes["namespace"] != nil
+          - set(attributes["container"], resource.attributes["container"]) where resource.attributes["container"] != nil
           # Clean up leftover datapoint attributes not needed downstream.
           - delete_key(attributes, "Hostname") where attributes["Hostname"] != nil
           - delete_key(attributes, "pci_bus_id") where attributes["pci_bus_id"] != nil

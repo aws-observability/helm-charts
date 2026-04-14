@@ -178,40 +178,44 @@ processors:
       - cronjob
 
   # Rename raw Prometheus label names (now in resource scope from groupbyattrs)
-  # to OTel semantic convention names.
+  # to OTel semantic convention names. Raw labels stay at resource scope and are
+  # copied back to datapoint scope for dashboard compatibility.
   transform/cw_k8s_ci_v0_ksm_promote:
     error_mode: ignore
     metric_statements:
       - context: resource
         statements:
           - set(attributes["k8s.pod.name"], attributes["pod"]) where attributes["pod"] != nil
-          - delete_key(attributes, "pod") where attributes["pod"] != nil
           - set(attributes["k8s.namespace.name"], attributes["namespace"]) where attributes["namespace"] != nil
-          - delete_key(attributes, "namespace") where attributes["namespace"] != nil
           - set(attributes["k8s.node.name"], attributes["node"]) where attributes["node"] != nil
-          - delete_key(attributes, "node") where attributes["node"] != nil
           - set(attributes["k8s.pod.uid"], attributes["uid"]) where attributes["uid"] != nil
-          - delete_key(attributes, "uid") where attributes["uid"] != nil
           - set(attributes["k8s.container.name"], attributes["container"]) where attributes["container"] != nil
-          - delete_key(attributes, "container") where attributes["container"] != nil
-          # Workload identity from owner references (pod-level metrics)
+          # Workload identity from owner references (kube_pod_owner metric)
           - set(attributes["k8s.workload.name"], attributes["owner_name"]) where attributes["owner_name"] != nil
           - set(attributes["k8s.workload.type"], attributes["owner_kind"]) where attributes["owner_kind"] != nil
-          - delete_key(attributes, "owner_name") where attributes["owner_name"] != nil
-          - delete_key(attributes, "owner_kind") where attributes["owner_kind"] != nil
           # K8s object names from object-level metrics (deployment, daemonset, etc.)
           - set(attributes["k8s.deployment.name"], attributes["deployment"]) where attributes["deployment"] != nil
-          - delete_key(attributes, "deployment") where attributes["deployment"] != nil
           - set(attributes["k8s.daemonset.name"], attributes["daemonset"]) where attributes["daemonset"] != nil
-          - delete_key(attributes, "daemonset") where attributes["daemonset"] != nil
           - set(attributes["k8s.statefulset.name"], attributes["statefulset"]) where attributes["statefulset"] != nil
-          - delete_key(attributes, "statefulset") where attributes["statefulset"] != nil
           - set(attributes["k8s.job.name"], attributes["job_name"]) where attributes["job_name"] != nil
-          - delete_key(attributes, "job_name") where attributes["job_name"] != nil
           - set(attributes["k8s.cronjob.name"], attributes["cronjob"]) where attributes["cronjob"] != nil
-          - delete_key(attributes, "cronjob") where attributes["cronjob"] != nil
           - set(attributes["k8s.replicaset.name"], attributes["replicaset"]) where attributes["replicaset"] != nil
-          - delete_key(attributes, "replicaset") where attributes["replicaset"] != nil
+      - context: datapoint
+        statements:
+          # Restore raw Prometheus names to datapoint scope (groupbyattrs removed them).
+          - set(attributes["pod"], resource.attributes["pod"]) where resource.attributes["pod"] != nil
+          - set(attributes["namespace"], resource.attributes["namespace"]) where resource.attributes["namespace"] != nil
+          - set(attributes["node"], resource.attributes["node"]) where resource.attributes["node"] != nil
+          - set(attributes["uid"], resource.attributes["uid"]) where resource.attributes["uid"] != nil
+          - set(attributes["container"], resource.attributes["container"]) where resource.attributes["container"] != nil
+          - set(attributes["deployment"], resource.attributes["deployment"]) where resource.attributes["deployment"] != nil
+          - set(attributes["daemonset"], resource.attributes["daemonset"]) where resource.attributes["daemonset"] != nil
+          - set(attributes["statefulset"], resource.attributes["statefulset"]) where resource.attributes["statefulset"] != nil
+          - set(attributes["replicaset"], resource.attributes["replicaset"]) where resource.attributes["replicaset"] != nil
+          - set(attributes["job_name"], resource.attributes["job_name"]) where resource.attributes["job_name"] != nil
+          - set(attributes["cronjob"], resource.attributes["cronjob"]) where resource.attributes["cronjob"] != nil
+          - set(attributes["owner_name"], resource.attributes["owner_name"]) where resource.attributes["owner_name"] != nil
+          - set(attributes["owner_kind"], resource.attributes["owner_kind"]) where resource.attributes["owner_kind"] != nil
 
   k8sattributes/cw_k8s_ci_v0_pod:
     auth_type: serviceAccount
@@ -287,7 +291,7 @@ processors:
           - set(resource.attributes["k8s.component.name"], attributes["component"])
 
   resourcedetection/cw_k8s_ci_v0:
-    detectors: [ec2, eks]
+    detectors: [eks, ec2]
     ec2:
       resource_attributes:
         host.id: { enabled: false }

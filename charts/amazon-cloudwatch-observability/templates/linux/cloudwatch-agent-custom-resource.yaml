@@ -264,6 +264,13 @@ spec:
   {{ end }}
   - name: K8S_CLUSTER_NAME
     value: {{ $.Values.clusterName | quote }}
+  {{- if $.Values.otelContainerInsights.enabled }}
+  - name: OTEL_CI_VERSION
+    value: "v2"
+  {{- else }}
+  - name: OTEL_CI_VERSION
+    value: "v1"
+  {{- end }}
   {{- with $agent.env }}
   {{- . | toYaml | nindent 2 }}
   {{- end }}
