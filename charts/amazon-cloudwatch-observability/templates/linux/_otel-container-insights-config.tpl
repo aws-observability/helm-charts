@@ -11,10 +11,10 @@ receivers:
       scrape_configs:
         - job_name: node-exporter
           scrape_interval: {{ .Values.otelContainerInsights.metricResolution }}
+          scrape_timeout: {{ include "otel-container-insights.scrapeTimeout" . }}
           scheme: https
           tls_config:
             ca_file: /etc/amazon-cloudwatch-observability-agent-client-cert/tls-ca.crt
-            insecure_skip_verify: true
           static_configs:
             - targets:
                 - ${env:HOST_IP}:9487
@@ -25,6 +25,7 @@ receivers:
       scrape_configs:
         - job_name: cadvisor
           scrape_interval: {{ .Values.otelContainerInsights.metricResolution }}
+          scrape_timeout: {{ include "otel-container-insights.scrapeTimeout" . }}
           scheme: https
           tls_config:
             insecure_skip_verify: true
@@ -40,6 +41,7 @@ receivers:
       scrape_configs:
         - job_name: dcgm-exporter
           scrape_interval: {{ .Values.otelContainerInsights.metricResolution }}
+          scrape_timeout: {{ include "otel-container-insights.scrapeTimeout" . }}
           scheme: https
           tls_config:
             ca_file: /etc/amazon-cloudwatch-observability-agent-client-cert/tls-ca.crt
@@ -54,6 +56,7 @@ receivers:
       scrape_configs:
         - job_name: neuron-monitor
           scrape_interval: {{ .Values.otelContainerInsights.metricResolution }}
+          scrape_timeout: {{ include "otel-container-insights.scrapeTimeout" . }}
           scheme: https
           tls_config:
             ca_file: /etc/amazon-cloudwatch-observability-agent-client-cert/tls-ca.crt

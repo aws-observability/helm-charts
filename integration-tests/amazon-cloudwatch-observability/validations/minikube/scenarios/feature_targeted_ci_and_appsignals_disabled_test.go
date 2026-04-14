@@ -16,7 +16,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 )
 
-func TestFeatureTargetedBothDisabled(t *testing.T) {
+func TestFeatureTargetedCIAndAppSignalsDisabled(t *testing.T) {
 	k8sClient, err := util.NewK8sClient()
 	if !assert.NoError(t, err) {
 		t.Fatal("failed to create k8s client")
@@ -61,7 +61,7 @@ func TestFeatureTargetedBothDisabled(t *testing.T) {
 		validateMinimalConfigOnly(t, agentMap)
 	})
 
-	t.Log("Feature targeted both disabled scenario validation passed")
+	t.Log("Feature targeted CI and AppSignals disabled scenario validation passed")
 }
 
 // validateMinimalConfigOnly verifies that when both containerInsights and applicationSignals

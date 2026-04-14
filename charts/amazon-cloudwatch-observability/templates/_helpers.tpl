@@ -209,7 +209,7 @@ Validates metricResolution is in "<N>s" format.
   {{- fail (printf "otelContainerInsights.metricResolution must be in \"<N>s\" format (e.g. \"30s\"), got: %s" $raw) -}}
 {{- end -}}
 {{- if lt ($seconds | int) 10 -}}
-{{ $raw }}
+{{- $raw }}
 {{- else -}}
 10s
 {{- end -}}
