@@ -266,10 +266,7 @@ spec:
     value: {{ $.Values.clusterName | quote }}
   {{- if $.Values.otelContainerInsights.enabled }}
   - name: OTEL_CI_VERSION
-    value: "v2"
-  {{- else }}
-  - name: OTEL_CI_VERSION
-    value: "v1"
+    value: "1.0.0"
   {{- end }}
   {{- with $agent.env }}
   {{- . | toYaml | nindent 2 }}
