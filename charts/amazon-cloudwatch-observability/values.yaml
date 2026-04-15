@@ -855,8 +855,6 @@ agents:
   - name: cloudwatch-agent-cluster-scraper
     mode: deployment
     config: "default" # the reserved string "default" indicates building the default config dynamically
-    replicas: 1
-    hostNetwork: true
 agent:
   name:
   mode: daemonset # Represents the mode the AmazonCloudWatchAgent workload will run in (deployment, daemonset or statefulset)
