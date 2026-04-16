@@ -8,7 +8,7 @@ Primary deployment templates for all Linux-based observability components. This 
 ### CloudWatch Agent (`cloudwatch-agent-custom-resource.yaml`)
 Creates `AmazonCloudWatchAgent` CRs from the `agents` list. Each agent entry merges with `$.Values.agent` defaults. Also generates TLS certificates (auto-gen or cert-manager) as Secrets for agent-to-exporter mTLS.
 
-Key behavior: iterates over `.Values.agents`, merges each with `.Values.agent`, calls `build-default-config` and `build-default-otel-config` to dynamically construct per-agent configs based on `targetAgent` routing, and creates one CR per entry. Injects `OTEL_CI_VERSION` env var (`v2` when `otelContainerInsights.enabled`, `v1` otherwise) to gate agent features like the LeaseWriter.
+Key behavior: iterates over `.Values.agents`, merges each with `.Values.agent`, calls `build-default-config` and `build-default-otel-config` to dynamically construct per-agent configs based on `targetAgent` routing, and creates one CR per entry. Injects `OTEL_CI_VERSION` env var (set to `1.0.0` when `otelContainerInsights.enabled`, omitted otherwise) to gate agent features like the LeaseWriter.
 
 Feature-targeted routing: each feature flag (`containerInsights`, `applicationSignals`, `otelContainerInsights`) has a `targetAgent` field. The CR template passes the agent name to the config helpers, which only inject a feature's config when `targetAgent` matches. Agents not targeted by any feature get minimal configs.
 
