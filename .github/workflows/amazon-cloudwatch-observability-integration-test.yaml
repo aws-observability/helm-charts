@@ -56,6 +56,18 @@ jobs:
           - dualstack-endpoint-enabled
           - dualstack-endpoint-with-custom-endpoint
           - configmap-permission-scoping
+          - feature-targeted-default
+          - feature-targeted-appsignals-disabled
+          - feature-targeted-ci-disabled
+          - feature-targeted-both-disabled
+          - feature-targeted-otlp-disabled
+          - feature-targeted-multi-agent
+          - feature-targeted-split-features
+          - feature-targeted-custom-otel-config
+          - feature-targeted-user-config-override
+          - feature-targeted-agent-config-override
+          - otlp-custom-otel-config
+          - otlp-disabled
     steps:
       - uses: actions/checkout@v3
 
