@@ -38,9 +38,9 @@ Helper function to modify auto-monitor config based on agent configurations
 {{- $autoMonitorConfig := deepCopy .Values.manager.applicationSignals.autoMonitor -}}
 {{- $hasAppSignals := false -}}
 {{- range .Values.agents -}}
-  {{- $agent := merge . (deepCopy $.Values.agent) -}}
+  {{- $agent := mergeOverwrite (deepCopy $.Values.agent) . -}}
   {{- if and $.Values.applicationSignals.enabled (eq $.Values.applicationSignals.targetAgent $agent.name) -}}
-    {{- if $agent.config -}}
+    {{- if and $agent.config (ne ($agent.config | toString) "default") -}}
       {{- $agentConfig := $agent.config -}}
       {{- if or (and (hasKey $agentConfig "logs") (hasKey $agentConfig.logs "metrics_collected") (hasKey $agentConfig.logs.metrics_collected "application_signals")) (and (hasKey $agentConfig "traces") (hasKey $agentConfig.traces "traces_collected") (hasKey $agentConfig.traces.traces_collected "application_signals")) -}}
         {{- $hasAppSignals = true -}}
@@ -380,8 +380,11 @@ Set DCGM_EXPORTER_INTERVAL environment variable for dcgmExporter if accelerated_
 {{- $intervalFound := false -}}
 {{- $intervalValue := 0 -}}
 {{- range .Values.agents -}}
-  {{- $agent := merge . (deepCopy $.Values.agent) -}}
-  {{- $agentConfig := $agent.config | default dict -}}
+  {{- $agent := mergeOverwrite (deepCopy $.Values.agent) . -}}
+  {{- $agentConfig := $agent.config -}}
+  {{- if or (not $agentConfig) (eq ($agentConfig | toString) "default") -}}
+    {{- $agentConfig = dict -}}
+  {{- end -}}
   {{- if and (hasKey $agentConfig "logs") (hasKey $agentConfig.logs "metrics_collected") (hasKey $agentConfig.logs.metrics_collected "kubernetes") (hasKey $agentConfig.logs.metrics_collected.kubernetes "accelerated_compute_gpu_metrics_collection_interval") -}}
     {{- $intervalFound = true -}}
     {{- $intervalValue = $agentConfig.logs.metrics_collected.kubernetes.accelerated_compute_gpu_metrics_collection_interval -}}
