@@ -34,6 +34,20 @@ receivers:
             - targets:
                 - ${env:HOST_IP}:10250
 
+  prometheus/cw_k8s_ci_v0_kubelet:
+    config:
+      scrape_configs:
+        - job_name: kubelet
+          scrape_interval: {{ .Values.otelContainerInsights.metricResolution }}
+          scheme: https
+          tls_config:
+            insecure_skip_verify: true
+          bearer_token_file: /var/run/secrets/kubernetes.io/serviceaccount/token
+          metrics_path: /metrics
+          static_configs:
+            - targets:
+                - ${env:HOST_IP}:10250
+
   {{- if .Values.dcgmExporter.enabled }}
   prometheus/cw_k8s_ci_v0_dcgm:
     config:
@@ -207,6 +221,17 @@ processors:
           - set(attributes["cloudwatch.source"], "cloudwatch-agent")
           - set(attributes["cloudwatch.solution"], "k8s-otel-container-insights")
           - set(attributes["cloudwatch.pipeline"], "cadvisor")
+
+  transform/cw_k8s_ci_v0_set_scope_kubelet:
+    error_mode: ignore
+    metric_statements:
+      - context: scope
+        statements:
+          - set(scope.name, "k8s.io/kubelet")
+          - set(scope.schema_url, "")
+          - set(attributes["cloudwatch.source"], "cloudwatch-agent")
+          - set(attributes["cloudwatch.solution"], "k8s-otel-container-insights")
+          - set(attributes["cloudwatch.pipeline"], "kubelet")
 
   {{- if .Values.dcgmExporter.enabled }}
   transform/cw_k8s_ci_v0_set_scope_dcgm:
@@ -589,6 +614,26 @@ service:
         - k8sattributes/cw_k8s_ci_v0_node
         - k8sattributes/cw_k8s_ci_v0_pod
         - transform/cw_k8s_ci_v0_set_scope_cadvisor
+        - transform/cw_k8s_ci_v0_clear_schema_url
+        - transform/cw_k8s_ci_v0_set_workload
+        - awsattributelimit/cw_k8s_ci_v0
+        - batch/cw_k8s_ci_v0_metrics_dest
+      exporters:
+        - otlphttp/cw_k8s_ci_v0_metrics_dest
+
+    metrics/cw_k8s_ci_v0_kubelet:
+      receivers: [prometheus/cw_k8s_ci_v0_kubelet]
+      processors:
+        - filter/cw_k8s_ci_v0_scrape_metadata
+        - transform/cw_k8s_ci_v0_set_unit
+        - metricstarttime/cw_k8s_ci_v0
+        - transform/cw_k8s_ci_v0_set_cluster_name
+        - transform/cw_k8s_ci_v0_set_node_name
+        - transform/cw_k8s_ci_v0_promote_node_name
+        - resourcedetection/cw_k8s_ci_v0
+        - transform/cw_k8s_ci_v0_set_cloud_resource_id
+        - k8sattributes/cw_k8s_ci_v0_node
+        - transform/cw_k8s_ci_v0_set_scope_kubelet
         - transform/cw_k8s_ci_v0_clear_schema_url
         - transform/cw_k8s_ci_v0_set_workload
         - awsattributelimit/cw_k8s_ci_v0

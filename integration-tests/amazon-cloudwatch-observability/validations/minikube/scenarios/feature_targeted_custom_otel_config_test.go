@@ -157,6 +157,10 @@ func validateGeneratedPipelinesPresent(t *testing.T, agentMap map[string]unstruc
 	assert.True(t, strings.Contains(otelConfig, "kubeletstats"),
 		"merged otelConfig should contain generated kubeletstats receiver")
 
+	// Generated kubelet receiver should be present (node-level)
+	assert.True(t, strings.Contains(otelConfig, "cw_k8s_ci_v0_kubelet"),
+		"merged otelConfig should contain generated kubelet receiver")
+
 	// Generated sigv4auth extension should be present
 	assert.True(t, strings.Contains(otelConfig, "sigv4auth"),
 		"merged otelConfig should contain generated sigv4auth extension")

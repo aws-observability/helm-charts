@@ -118,9 +118,11 @@ func validateOTELConfigRouting(t *testing.T, agentMap map[string]unstructured.Un
 		}
 		assert.NotEmpty(t, otelConfig, "otelConfig should not be empty")
 
-		// Node-level config should contain node-exporter, cadvisor, kubeletstats receivers
+		// Node-level config should contain node-exporter, cadvisor, kubeletstats, kubelet receivers
 		assert.True(t, strings.Contains(otelConfig, "kubeletstats"),
 			"cloudwatch-agent otelConfig should contain kubeletstats receiver (node-level)")
+		assert.True(t, strings.Contains(otelConfig, "cw_k8s_ci_v0_kubelet"),
+			"cloudwatch-agent otelConfig should contain kubelet receiver (node-level)")
 
 		// Node-level config should NOT contain cluster-level receivers
 		assert.False(t, strings.Contains(otelConfig, "cw_k8s_ci_v0_apiserver"),
@@ -156,5 +158,7 @@ func validateOTELConfigRouting(t *testing.T, agentMap map[string]unstructured.Un
 		// Cluster-level config should NOT contain node-level receivers
 		assert.False(t, strings.Contains(otelConfig, "kubeletstats"),
 			"cluster-scraper otelConfig should NOT contain kubeletstats receiver (node-level)")
+		assert.False(t, strings.Contains(otelConfig, "cw_k8s_ci_v0_kubelet"),
+			"cluster-scraper otelConfig should NOT contain kubelet receiver (node-level)")
 	})
 }

@@ -106,6 +106,8 @@ func validateCloudWatchAgentNoOtelConfig(t *testing.T, agentMap map[string]unstr
 		// If otelConfig is present, it should NOT contain any CI receivers
 		assert.False(t, strings.Contains(otelConfig, "kubeletstats"),
 			"cloudwatch-agent otelConfig should NOT contain kubeletstats receiver when OTLP disabled")
+		assert.False(t, strings.Contains(otelConfig, "cw_k8s_ci_v0_kubelet"),
+			"cloudwatch-agent otelConfig should NOT contain kubelet receiver when OTLP disabled")
 		assert.False(t, strings.Contains(otelConfig, "cadvisor"),
 			"cloudwatch-agent otelConfig should NOT contain cadvisor receiver when OTLP disabled")
 		assert.False(t, strings.Contains(otelConfig, "cw_k8s_ci_v0_apiserver"),
