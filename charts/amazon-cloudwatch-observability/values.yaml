@@ -854,7 +854,7 @@ agents:
   - name: cloudwatch-agent
   - name: cloudwatch-agent-cluster-scraper
     mode: deployment
-    config: "default"
+    config: "default" # the reserved string "default" indicates building the default config dynamically
     replicas: 1
     hostNetwork: true
 agent:
@@ -919,7 +919,7 @@ agent:
     issuerAnnotations: {}
   serviceAccount:
     name: # override agent service account name
-  config: # optional config that can be provided to override the build-default-config output
+  config: # optional config that can be provided to override the default config
   otelConfig: # optional YAML config that can be provided to combine with the build-default-otel-config output
   prometheus:
     config:
