@@ -59,7 +59,7 @@ jobs:
           - feature-targeted-default
           - feature-targeted-appsignals-disabled
           - feature-targeted-ci-disabled
-          - feature-targeted-both-disabled
+          - feature-targeted-ci-and-appsignals-disabled
           - feature-targeted-otlp-disabled
           - feature-targeted-multi-agent
           - feature-targeted-split-features

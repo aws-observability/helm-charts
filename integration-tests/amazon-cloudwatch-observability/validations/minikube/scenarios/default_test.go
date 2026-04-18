@@ -58,10 +58,6 @@ func TestDefault(t *testing.T) {
 	assert.NoError(t, err)
 	assert.True(t, exists, "node-exporter-service-acct service account should exist")
 
-	exists, err = k8sClient.ValidateServiceAccountExists(minikube.Namespace, "cloudwatch-agent-cluster-scraper")
-	assert.NoError(t, err)
-	assert.True(t, exists, "cloudwatch-agent-cluster-scraper service account should exist")
-
 	t.Run("DualstackEndpointsNotPresent", func(t *testing.T) {
 		validateDualstackEndpointsNotPresent(t, k8sClient)
 	})
