@@ -1294,3 +1294,6 @@ otelContainerInsights:
   metricResolution: "30s"
   # Override the CloudWatch Metrics OTLP endpoint. If empty, defaults to monitoring.<region>.amazonaws.com.
   cloudwatchMetricsEndpoint: ""
+  ## Kubernetes Events collection. Events are collected on the cluster-scraper agent and exported as logs.
+  events:
+    enabled: true

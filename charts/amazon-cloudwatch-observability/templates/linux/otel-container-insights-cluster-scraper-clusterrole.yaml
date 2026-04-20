@@ -15,7 +15,7 @@ metadata:
     {{- include "amazon-cloudwatch-observability.labels" . | nindent 4 }}
 rules:
   - apiGroups: [""]
-    resources: ["pods", "nodes", "namespaces", "endpoints", "services"]
+    resources: ["pods", "nodes", "namespaces", "endpoints", "services", "events"]
     verbs: ["get", "list", "watch"]
   - apiGroups: ["discovery.k8s.io"]
     resources: ["endpointslices"]

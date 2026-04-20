@@ -3,6 +3,11 @@ extensions:
   sigv4auth/cw_k8s_ci_v0_cwotel:
     region: {{ .Values.region }}
     service: monitoring
+{{- if .Values.otelContainerInsights.events.enabled }}
+  sigv4auth/cw_k8s_ci_v0_cwlogs:
+    region: {{ .Values.region }}
+    service: logs
+{{- end }}
   nodemetadatacache/cw_k8s_ci_v0:
     namespace: {{ .Release.Namespace }}
 
@@ -46,6 +51,12 @@ receivers:
           static_configs:
             - targets:
                 - {{ include "kube-state-metrics.name" . }}.{{ .Release.Namespace }}.svc:{{ .Values.kubeStateMetrics.service.port }}
+{{- end }}
+
+{{- if .Values.otelContainerInsights.events.enabled }}
+  k8s_events/cw_k8s_ci_v0:
+    auth_type: serviceAccount
+    namespaces: []
 {{- end }}
 
 processors:
@@ -216,7 +227,9 @@ processors:
           - set(attributes["cronjob"], resource.attributes["cronjob"]) where resource.attributes["cronjob"] != nil
           - set(attributes["owner_name"], resource.attributes["owner_name"]) where resource.attributes["owner_name"] != nil
           - set(attributes["owner_kind"], resource.attributes["owner_kind"]) where resource.attributes["owner_kind"] != nil
+{{- end }}
 
+{{- if or .Values.kubeStateMetrics.enabled .Values.otelContainerInsights.events.enabled }}
   k8sattributes/cw_k8s_ci_v0_pod:
     auth_type: serviceAccount
     passthrough: false
@@ -274,6 +287,8 @@ processors:
       - sources:
           - from: resource_attribute
             name: k8s.node.name
+
+  k8snodemetadata/cw_k8s_ci_v0: {}
 {{- end }}
 
   transform/cw_k8s_ci_v0_set_component:
@@ -348,6 +363,60 @@ processors:
     send_batch_max_size: 500
     timeout: 10s
 
+{{- if .Values.otelContainerInsights.events.enabled }}
+  transform/cw_k8s_ci_v0_events_parse:
+    error_mode: ignore
+    log_statements:
+      - context: log
+        statements:
+          - set(resource.attributes["k8s.namespace.name"], attributes["k8s.namespace.name"]) where attributes["k8s.namespace.name"] != nil
+          - set(resource.attributes["k8s.pod.name"], resource.attributes["k8s.object.name"]) where resource.attributes["k8s.object.kind"] == "Pod" and resource.attributes["k8s.object.name"] != nil
+
+  transform/cw_k8s_ci_v0_events_set_cluster_name:
+    error_mode: ignore
+    log_statements:
+      - context: log
+        statements:
+          - set(resource.attributes["k8s.cluster.name"], "{{ .Values.clusterName }}")
+          - set(resource.attributes["aws.log.group.names"], "/aws/containerinsights/{{ .Values.clusterName }}/events")
+
+  transform/cw_k8s_ci_v0_events_set_workload:
+    error_mode: ignore
+    log_statements:
+      - context: log
+        statements:
+          - set(resource.attributes["k8s.workload.name"], resource.attributes["k8s.deployment.name"]) where resource.attributes["k8s.workload.name"] == nil and resource.attributes["k8s.deployment.name"] != nil
+          - set(resource.attributes["k8s.workload.type"], "Deployment") where resource.attributes["k8s.workload.type"] == nil and resource.attributes["k8s.deployment.name"] != nil
+          - set(resource.attributes["k8s.workload.name"], resource.attributes["k8s.statefulset.name"]) where resource.attributes["k8s.workload.name"] == nil and resource.attributes["k8s.statefulset.name"] != nil
+          - set(resource.attributes["k8s.workload.type"], "StatefulSet") where resource.attributes["k8s.workload.type"] == nil and resource.attributes["k8s.statefulset.name"] != nil
+          - set(resource.attributes["k8s.workload.name"], resource.attributes["k8s.daemonset.name"]) where resource.attributes["k8s.workload.name"] == nil and resource.attributes["k8s.daemonset.name"] != nil
+          - set(resource.attributes["k8s.workload.type"], "DaemonSet") where resource.attributes["k8s.workload.type"] == nil and resource.attributes["k8s.daemonset.name"] != nil
+          - set(resource.attributes["k8s.workload.name"], resource.attributes["k8s.job.name"]) where resource.attributes["k8s.workload.name"] == nil and resource.attributes["k8s.job.name"] != nil
+          - set(resource.attributes["k8s.workload.type"], "Job") where resource.attributes["k8s.workload.type"] == nil and resource.attributes["k8s.job.name"] != nil
+          - set(resource.attributes["k8s.workload.name"], resource.attributes["k8s.cronjob.name"]) where resource.attributes["k8s.workload.name"] == nil and resource.attributes["k8s.cronjob.name"] != nil
+          - set(resource.attributes["k8s.workload.type"], "CronJob") where resource.attributes["k8s.workload.type"] == nil and resource.attributes["k8s.cronjob.name"] != nil
+          - set(resource.attributes["k8s.workload.name"], resource.attributes["k8s.replicaset.name"]) where resource.attributes["k8s.workload.name"] == nil and resource.attributes["k8s.replicaset.name"] != nil
+          - set(resource.attributes["k8s.workload.type"], "ReplicaSet") where resource.attributes["k8s.workload.type"] == nil and resource.attributes["k8s.replicaset.name"] != nil
+
+  transform/cw_k8s_ci_v0_events_set_scope:
+    error_mode: ignore
+    log_statements:
+      - context: scope
+        statements:
+          - set(scope.name, "k8s.io/events")
+          - set(attributes["cloudwatch.source"], "cloudwatch-agent")
+          - set(attributes["cloudwatch.solution"], "k8s-otel-container-insights")
+          - set(attributes["cloudwatch.pipeline"], "events")
+
+  transform/cw_k8s_ci_v0_events_set_cloud_resource_id:
+    error_mode: ignore
+    log_statements:
+      - context: resource
+        statements:
+          - set(resource.attributes["cloud.resource_id"], Concat(["arn:aws:eks:", resource.attributes["cloud.region"], ":", resource.attributes["cloud.account.id"], ":cluster/", resource.attributes["k8s.cluster.name"]], ""))
+            where resource.attributes["cloud.region"] != nil and resource.attributes["cloud.account.id"] != nil and resource.attributes["k8s.cluster.name"] != nil
+{{- end }}
+
 exporters:
   otlphttp/cw_k8s_ci_v0_cwotel:
     endpoint: {{ if .Values.otelContainerInsights.cloudwatchMetricsEndpoint }}{{ .Values.otelContainerInsights.cloudwatchMetricsEndpoint | quote }}{{ else }}"https://monitoring.{{ .Values.region }}.amazonaws.com:443"{{ end }}
@@ -355,10 +424,26 @@ exporters:
       insecure: false
     auth:
       authenticator: sigv4auth/cw_k8s_ci_v0_cwotel
+{{- if .Values.otelContainerInsights.events.enabled }}
+  otlphttp/cw_k8s_ci_v0_cwlogs:
+    endpoint: "https://logs.{{ .Values.region }}.amazonaws.com:443"
+    headers:
+      x-aws-log-group: "/aws/containerinsights/{{ .Values.clusterName }}/events"
+      x-aws-log-stream: "events"
+      x-aws-log-group-create: "true"
+      x-aws-log-stream-create: "true"
+    tls:
+      insecure: false
+    auth:
+      authenticator: sigv4auth/cw_k8s_ci_v0_cwlogs
+{{- end }}
 
 service:
   extensions:
     - sigv4auth/cw_k8s_ci_v0_cwotel
+{{- if .Values.otelContainerInsights.events.enabled }}
+    - sigv4auth/cw_k8s_ci_v0_cwlogs
+{{- end }}
     - nodemetadatacache/cw_k8s_ci_v0
   pipelines:
     metrics/cw_k8s_ci_v0_apiserver:
@@ -395,6 +480,7 @@ service:
         - transform/cw_k8s_ci_v0_ksm_promote
         - k8sattributes/cw_k8s_ci_v0_pod
         - k8sattributes/cw_k8s_ci_v0_node
+        - k8snodemetadata/cw_k8s_ci_v0
         - transform/cw_k8s_ci_v0_set_workload
         - resourcedetection/cw_k8s_ci_v0
         - nodemetadataenricher/cw_k8s_ci_v0
@@ -404,6 +490,24 @@ service:
         - batch/cw_k8s_ci_v0_cwotel
       exporters:
         - otlphttp/cw_k8s_ci_v0_cwotel
+{{- end }}
+{{- if .Values.otelContainerInsights.events.enabled }}
+    logs/cw_k8s_ci_v0_events:
+      receivers: [k8s_events/cw_k8s_ci_v0]
+      processors:
+        - transform/cw_k8s_ci_v0_events_parse
+        - transform/cw_k8s_ci_v0_events_set_cluster_name
+        - k8sattributes/cw_k8s_ci_v0_pod
+        - k8sattributes/cw_k8s_ci_v0_node
+        - k8snodemetadata/cw_k8s_ci_v0
+        - transform/cw_k8s_ci_v0_events_set_workload
+        - resourcedetection/cw_k8s_ci_v0
+        - nodemetadataenricher/cw_k8s_ci_v0
+        - transform/cw_k8s_ci_v0_events_set_scope
+        - transform/cw_k8s_ci_v0_events_set_cloud_resource_id
+        - batch/cw_k8s_ci_v0_cwotel
+      exporters:
+        - otlphttp/cw_k8s_ci_v0_cwlogs
 {{- end }}
 {{- end -}}
 

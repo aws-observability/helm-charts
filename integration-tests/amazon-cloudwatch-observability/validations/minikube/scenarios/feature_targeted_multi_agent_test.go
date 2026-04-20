@@ -143,6 +143,8 @@ func validateCloudWatchAgentFullConfig(t *testing.T, agentMap map[string]unstruc
 		"cloudwatch-agent otelConfig should contain kubelet receiver (node-level)")
 	assert.False(t, strings.Contains(otelConfig, "cw_k8s_ci_v0_apiserver"),
 		"cloudwatch-agent otelConfig should NOT contain apiserver receiver (cluster-level)")
+	assert.False(t, strings.Contains(otelConfig, "k8s_events"),
+		"cloudwatch-agent otelConfig should NOT contain k8s_events receiver (cluster-level)")
 }
 
 // validatePrometheusAgentMinimalConfig verifies prometheus-agent gets minimal config:
@@ -234,6 +236,8 @@ func validateClusterScraperConfig(t *testing.T, agentMap map[string]unstructured
 		"cluster-scraper otelConfig should contain apiserver receiver (cluster-level)")
 	assert.True(t, strings.Contains(otelConfig, "cw_k8s_ci_v0_kube_state_metrics"),
 		"cluster-scraper otelConfig should contain kube_state_metrics receiver (cluster-level)")
+	assert.True(t, strings.Contains(otelConfig, "k8s_events"),
+		"cluster-scraper otelConfig should contain k8s_events receiver")
 	assert.False(t, strings.Contains(otelConfig, "kubeletstats"),
 		"cluster-scraper otelConfig should NOT contain kubeletstats receiver (node-level)")
 	assert.False(t, strings.Contains(otelConfig, "cw_k8s_ci_v0_kubelet"),
