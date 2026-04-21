@@ -411,6 +411,9 @@ processors:
           - from: resource_attribute
             name: k8s.node.name
 
+  k8staints/cw_k8s_ci_v0:
+    local_mode: true
+
   k8sattributes/cw_k8s_ci_v0_pod:
     auth_type: serviceAccount
     passthrough: false
@@ -795,6 +798,7 @@ service:
         - resourcedetection/cw_k8s_ci_v0
         - transform/cw_k8s_ci_v0_set_cloud_resource_id
         - k8sattributes/cw_k8s_ci_v0_node
+        - k8staints/cw_k8s_ci_v0
         - transform/cw_k8s_ci_v0_set_scope_node_exporter
         - transform/cw_k8s_ci_v0_clear_schema_url
         - transform/cw_k8s_ci_v0_set_workload
@@ -820,6 +824,7 @@ service:
         - resourcedetection/cw_k8s_ci_v0
         - transform/cw_k8s_ci_v0_set_cloud_resource_id
         - k8sattributes/cw_k8s_ci_v0_node
+        - k8staints/cw_k8s_ci_v0
         - k8sattributes/cw_k8s_ci_v0_pod
         - transform/cw_k8s_ci_v0_set_scope_cadvisor
         - transform/cw_k8s_ci_v0_clear_schema_url
@@ -832,7 +837,7 @@ service:
     {{- if .Values.dcgmExporter.enabled }}
     metrics/cw_k8s_ci_v0_dcgm:
       receivers: [prometheus/cw_k8s_ci_v0_dcgm]
-      processors: [filter/cw_k8s_ci_v0_scrape_metadata, transform/cw_k8s_ci_v0_set_unit, metricstarttime/cw_k8s_ci_v0, transform/cw_k8s_ci_v0_set_cluster_name, groupbyattrs/cw_k8s_ci_v0_dcgm, transform/cw_k8s_ci_v0_dcgm_promote, k8sattributes/cw_k8s_ci_v0_pod, transform/cw_k8s_ci_v0_set_node_name, transform/cw_k8s_ci_v0_promote_node_name, k8sattributes/cw_k8s_ci_v0_node, resourcedetection/cw_k8s_ci_v0, transform/cw_k8s_ci_v0_set_scope_dcgm, transform/cw_k8s_ci_v0_clear_schema_url, transform/cw_k8s_ci_v0_set_cloud_resource_id, transform/cw_k8s_ci_v0_set_workload, awsattributelimit/cw_k8s_ci_v0, batch/cw_k8s_ci_v0_metrics_dest]
+      processors: [filter/cw_k8s_ci_v0_scrape_metadata, transform/cw_k8s_ci_v0_set_unit, metricstarttime/cw_k8s_ci_v0, transform/cw_k8s_ci_v0_set_cluster_name, groupbyattrs/cw_k8s_ci_v0_dcgm, transform/cw_k8s_ci_v0_dcgm_promote, k8sattributes/cw_k8s_ci_v0_pod, transform/cw_k8s_ci_v0_set_node_name, transform/cw_k8s_ci_v0_promote_node_name, k8sattributes/cw_k8s_ci_v0_node, k8staints/cw_k8s_ci_v0, resourcedetection/cw_k8s_ci_v0, transform/cw_k8s_ci_v0_set_scope_dcgm, transform/cw_k8s_ci_v0_clear_schema_url, transform/cw_k8s_ci_v0_set_cloud_resource_id, transform/cw_k8s_ci_v0_set_workload, awsattributelimit/cw_k8s_ci_v0, batch/cw_k8s_ci_v0_metrics_dest]
       exporters:
         - otlphttp/cw_k8s_ci_v0_metrics_dest
     {{- end }}
@@ -857,6 +862,7 @@ service:
         - resourcedetection/cw_k8s_ci_v0
         - transform/cw_k8s_ci_v0_set_cloud_resource_id
         - k8sattributes/cw_k8s_ci_v0_node
+        - k8staints/cw_k8s_ci_v0
         - transform/cw_k8s_ci_v0_set_scope_neuron_monitor
         - transform/cw_k8s_ci_v0_clear_schema_url
         - transform/cw_k8s_ci_v0_set_workload
@@ -879,6 +885,7 @@ service:
         - transform/cw_k8s_ci_v0_promote_node_name
         - k8sattributes/cw_k8s_ci_v0_pod
         - k8sattributes/cw_k8s_ci_v0_node
+        - k8staints/cw_k8s_ci_v0
         - resourcedetection/cw_k8s_ci_v0
         - transform/cw_k8s_ci_v0_clear_schema_url
         - transform/cw_k8s_ci_v0_set_cloud_resource_id
@@ -901,6 +908,7 @@ service:
         - resourcedetection/cw_k8s_ci_v0
         - transform/cw_k8s_ci_v0_set_cloud_resource_id
         - k8sattributes/cw_k8s_ci_v0_node
+        - k8staints/cw_k8s_ci_v0
         - transform/cw_k8s_ci_v0_set_scope_ebs_csi
         - transform/cw_k8s_ci_v0_clear_schema_url
         - transform/cw_k8s_ci_v0_set_workload
@@ -940,6 +948,7 @@ service:
         - transform/cw_k8s_ci_v0_set_cloud_resource_id
         - k8sattributes/cw_k8s_ci_v0_pod
         - k8sattributes/cw_k8s_ci_v0_node
+        - k8staints/cw_k8s_ci_v0
         - transform/cw_k8s_ci_v0_clear_schema_url
         - transform/cw_k8s_ci_v0_set_workload
         - awsattributelimit/cw_k8s_ci_v0
