@@ -11,6 +11,7 @@ import (
 	"github.com/aws-observability/helm-charts/integration-tests/amazon-cloudwatch-observability/util"
 	"github.com/aws-observability/helm-charts/integration-tests/amazon-cloudwatch-observability/validations/minikube"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -21,18 +22,14 @@ import (
 // gets build-default-config output instead (no config bleed-through).
 func TestFeatureTargetedAgentConfigOverride(t *testing.T) {
 	k8sClient, err := util.NewK8sClient()
-	if !assert.NoError(t, err) {
-		t.Fatal("failed to create k8s client")
-	}
+	require.NoError(t, err, "failed to create k8s client")
 
 	ns, err := k8sClient.GetNamespace(minikube.Namespace)
 	assert.NoError(t, err)
 	assert.Equal(t, minikube.Namespace, ns.Name)
 
 	dynamicClient, err := k8sClient.GetDynamicClient()
-	if !assert.NoError(t, err) {
-		t.Fatal("failed to get dynamic client")
-	}
+	require.NoError(t, err, "failed to get dynamic client")
 
 	gvr := schema.GroupVersionResource{
 		Group:    "cloudwatch.aws.amazon.com",
@@ -43,9 +40,7 @@ func TestFeatureTargetedAgentConfigOverride(t *testing.T) {
 	agentList, err := dynamicClient.Resource(gvr).Namespace(minikube.Namespace).List(
 		context.Background(), metav1.ListOptions{},
 	)
-	if !assert.NoError(t, err) {
-		t.Fatal("failed to list AmazonCloudWatchAgent CRs")
-	}
+	require.NoError(t, err, "failed to list AmazonCloudWatchAgent CRs")
 
 	agentMap := make(map[string]unstructured.Unstructured)
 	for _, agent := range agentList.Items {
@@ -112,8 +107,6 @@ func extractAgentCRConfig(t *testing.T, cr unstructured.Unstructured) map[string
 	}
 	var config map[string]interface{}
 	err := json.Unmarshal([]byte(configStr), &config)
-	if !assert.NoError(t, err, "config should be valid JSON") {
-		return nil
-	}
+	require.NoError(t, err, "config should be valid JSON")
 	return config
 }

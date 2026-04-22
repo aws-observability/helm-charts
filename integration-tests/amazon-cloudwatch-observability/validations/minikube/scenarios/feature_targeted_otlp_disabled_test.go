@@ -12,6 +12,7 @@ import (
 	"github.com/aws-observability/helm-charts/integration-tests/amazon-cloudwatch-observability/util"
 	"github.com/aws-observability/helm-charts/integration-tests/amazon-cloudwatch-observability/validations/minikube"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -19,9 +20,7 @@ import (
 
 func TestFeatureTargetedOTLPDisabled(t *testing.T) {
 	k8sClient, err := util.NewK8sClient()
-	if !assert.NoError(t, err) {
-		t.Fatal("failed to create k8s client")
-	}
+	require.NoError(t, err, "failed to create k8s client")
 
 	// Validate namespace exists
 	ns, err := k8sClient.GetNamespace(minikube.Namespace)
@@ -35,9 +34,7 @@ func TestFeatureTargetedOTLPDisabled(t *testing.T) {
 
 	// Get all AmazonCloudWatchAgent CRs
 	dynamicClient, err := k8sClient.GetDynamicClient()
-	if !assert.NoError(t, err) {
-		t.Fatal("failed to get dynamic client")
-	}
+	require.NoError(t, err, "failed to get dynamic client")
 
 	gvr := schema.GroupVersionResource{
 		Group:    "cloudwatch.aws.amazon.com",
@@ -48,9 +45,7 @@ func TestFeatureTargetedOTLPDisabled(t *testing.T) {
 	agentList, err := dynamicClient.Resource(gvr).Namespace(minikube.Namespace).List(
 		context.Background(), metav1.ListOptions{},
 	)
-	if !assert.NoError(t, err) {
-		t.Fatal("failed to list AmazonCloudWatchAgent CRs")
-	}
+	require.NoError(t, err, "failed to list AmazonCloudWatchAgent CRs")
 
 	// Build a map of CR name -> CR for easy lookup
 	agentMap := make(map[string]unstructured.Unstructured)
@@ -155,9 +150,7 @@ func validateCIConfigStillPresentWhenOTLPDisabled(t *testing.T, agentMap map[str
 
 	var config map[string]interface{}
 	err := json.Unmarshal([]byte(configStr), &config)
-	if !assert.NoError(t, err, "config should be valid JSON") {
-		return
-	}
+	require.NoError(t, err, "config should be valid JSON")
 
 	// Should have logs.metrics_collected.kubernetes (Container Insights still enabled by default)
 	logs, ok := config["logs"].(map[string]interface{})

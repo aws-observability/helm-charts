@@ -11,14 +11,13 @@ import (
 	"github.com/aws-observability/helm-charts/integration-tests/amazon-cloudwatch-observability/util"
 	"github.com/aws-observability/helm-charts/integration-tests/amazon-cloudwatch-observability/validations/minikube"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 func TestOTLPCustomOtelConfig(t *testing.T) {
 	k8sClient, err := util.NewK8sClient()
-	if !assert.NoError(t, err) {
-		t.Fatal("failed to create k8s client")
-	}
+	require.NoError(t, err, "failed to create k8s client")
 
 	// Validate namespace exists
 	ns, err := k8sClient.GetNamespace(minikube.Namespace)
@@ -27,18 +26,14 @@ func TestOTLPCustomOtelConfig(t *testing.T) {
 
 	// Get the AmazonCloudWatchAgent CR via dynamic client
 	dynamicClient, err := k8sClient.GetDynamicClient()
-	if !assert.NoError(t, err) {
-		t.Fatal("failed to get dynamic client")
-	}
+	require.NoError(t, err, "failed to get dynamic client")
 
 	gvr := getAmazonCloudWatchAgentGVR()
 
 	agent, err := dynamicClient.Resource(gvr).Namespace(minikube.Namespace).Get(
 		context.Background(), "cloudwatch-agent", metav1.GetOptions{},
 	)
-	if !assert.NoError(t, err) {
-		t.Fatal("failed to get cloudwatch-agent CR")
-	}
+	require.NoError(t, err, "failed to get cloudwatch-agent CR")
 	if !assert.NotNil(t, agent, "cloudwatch-agent CR should exist") {
 		t.Fatal("cloudwatch-agent CR is nil")
 	}
