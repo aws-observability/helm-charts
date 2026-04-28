@@ -273,6 +273,6 @@ spec:
   {{- end }}
   {{- dict "component" $agent "context" $ | include "amazon-cloudwatch-observability.common.tolerations" | nindent 2 }}
 ---
-{{- end }}{{/* end skip gate: not (and (not otelContainerInsights.enabled) (eq name clusterScraperAgent)) */}}
+{{- end }}{{/* end: render unless cluster-scraper with OTLP disabled */}}
 {{- end }}
 {{- end }}

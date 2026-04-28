@@ -11,6 +11,7 @@ import (
 	"github.com/aws-observability/helm-charts/integration-tests/amazon-cloudwatch-observability/util"
 	"github.com/aws-observability/helm-charts/integration-tests/amazon-cloudwatch-observability/validations/minikube"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -18,9 +19,7 @@ import (
 
 func TestFeatureTargetedUserConfigOverride(t *testing.T) {
 	k8sClient, err := util.NewK8sClient()
-	if !assert.NoError(t, err) {
-		t.Fatal("failed to create k8s client")
-	}
+	require.NoError(t, err, "failed to create k8s client")
 
 	// Validate namespace exists
 	ns, err := k8sClient.GetNamespace(minikube.Namespace)
@@ -34,9 +33,7 @@ func TestFeatureTargetedUserConfigOverride(t *testing.T) {
 
 	// Get all AmazonCloudWatchAgent CRs
 	dynamicClient, err := k8sClient.GetDynamicClient()
-	if !assert.NoError(t, err) {
-		t.Fatal("failed to get dynamic client")
-	}
+	require.NoError(t, err, "failed to get dynamic client")
 
 	gvr := schema.GroupVersionResource{
 		Group:    "cloudwatch.aws.amazon.com",
@@ -47,9 +44,7 @@ func TestFeatureTargetedUserConfigOverride(t *testing.T) {
 	agentList, err := dynamicClient.Resource(gvr).Namespace(minikube.Namespace).List(
 		context.Background(), metav1.ListOptions{},
 	)
-	if !assert.NoError(t, err) {
-		t.Fatal("failed to list AmazonCloudWatchAgent CRs")
-	}
+	require.NoError(t, err, "failed to list AmazonCloudWatchAgent CRs")
 
 	// Build a map of CR name -> CR for easy lookup
 	agentMap := make(map[string]unstructured.Unstructured)
@@ -88,9 +83,7 @@ func validateUserConfigPreserved(t *testing.T, agentMap map[string]unstructured.
 
 	var config map[string]interface{}
 	err := json.Unmarshal([]byte(configStr), &config)
-	if !assert.NoError(t, err, "config should be valid JSON") {
-		return
-	}
+	require.NoError(t, err, "config should be valid JSON")
 
 	// Verify logs.metrics_collected.custom_metric exists (user's config preserved)
 	logs, ok := config["logs"].(map[string]interface{})
@@ -125,9 +118,7 @@ func validateDefaultConfigBypassed(t *testing.T, agentMap map[string]unstructure
 
 	var config map[string]interface{}
 	err := json.Unmarshal([]byte(configStr), &config)
-	if !assert.NoError(t, err, "config should be valid JSON") {
-		return
-	}
+	require.NoError(t, err, "config should be valid JSON")
 
 	// Verify logs.metrics_collected does NOT contain kubernetes (build-default-config was bypassed)
 	logs, hasLogs := config["logs"].(map[string]interface{})
