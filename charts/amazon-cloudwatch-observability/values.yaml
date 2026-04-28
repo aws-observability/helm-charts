@@ -29,7 +29,7 @@ containerLogs:
   fluentBit:
     image:
       repository: aws-for-fluent-bit
-      tag: 3.2.4
+      tag: 3.2.6
       tagWindows: 2.31.12-windowsservercore
       repositoryDomainMap:
         public: public.ecr.aws/aws-observability
@@ -622,7 +622,7 @@ manager:
   name:
   image:
     repository: cloudwatch-agent-operator
-    tag: 3.3.3
+    tag: 3.4.1
     repositoryDomainMap:
       public: public.ecr.aws/cloudwatch-agent
       cn-north-1: 934860584483.dkr.ecr.cn-north-1.amazonaws.com.cn
@@ -858,7 +858,7 @@ agent:
   replicas: 1 # The total number non-terminated pods targeted by this AmazonCloudWatchAgent's deployment or statefulSet.
   image:
     repository: cloudwatch-agent
-    tag: 1.300066.0b1367
+    tag: 1.300067.0b1404
     repositoryDomainMap:
       public: public.ecr.aws/cloudwatch-agent
       cn-north-1: 934860584483.dkr.ecr.cn-north-1.amazonaws.com.cn
@@ -1127,7 +1127,7 @@ neuronMonitor:
   name:
   image:
     repository: neuron-monitor
-    tag: 1.8.0
+    tag: 1.9.0
     repositoryDomainMap:
       public: public.ecr.aws/neuron
   resources:
