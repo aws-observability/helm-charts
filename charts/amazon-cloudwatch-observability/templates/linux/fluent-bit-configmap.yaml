@@ -14,15 +14,9 @@ data:
     {{- end }}
   parsers.conf: |
     {{- .Values.containerLogs.fluentBit.config.customParsers  | nindent 4 }}
-{{- if hasKey .Values.adcEndpointOverrides .Values.region }}
-  {{- range $key, $val := .Values.containerLogs.fluentBit.config.adcRegionExtraFiles }}
+{{- range $key, $val := .Values.containerLogs.fluentBit.config.extraFiles }}
   {{ $key }}: |
-    {{- include "fluent-bit.add-dualstack-endpoints" (dict "Values" $.Values "config" (tpl $val $)) | nindent 4 }}
-  {{- end -}}
-{{- else }}
-  {{- range $key, $val := .Values.containerLogs.fluentBit.config.extraFiles }}
-  {{ $key }}: |
-    {{- include "fluent-bit.add-dualstack-endpoints" (dict "Values" $.Values "config" (tpl $val $)) | nindent 4 }}
-  {{- end -}}
+    {{- $config := tpl $val $ }}
+    {{- include "fluent-bit.add-dualstack-endpoints" (dict "Values" $.Values "config" $config) | nindent 4 }}
 {{- end -}}
 {{- end -}}
