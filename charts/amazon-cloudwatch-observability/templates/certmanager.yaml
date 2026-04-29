@@ -62,6 +62,8 @@ spec:
     - "dcgm-exporter-service.amazon-cloudwatch.svc"
     - "neuron-monitor-service"
     - "neuron-monitor-service.amazon-cloudwatch.svc"
+    - "node-exporter-service"
+    - "node-exporter-service.amazon-cloudwatch.svc"
   issuerRef:
     kind: Issuer
     name: "agent-ca"

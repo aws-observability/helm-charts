@@ -15,10 +15,9 @@ receivers:
           scheme: https
           tls_config:
             ca_file: /etc/amazon-cloudwatch-observability-agent-client-cert/tls-ca.crt
-            insecure_skip_verify: true
           static_configs:
             - targets:
-                - ${env:HOST_IP}:9487
+                - {{ include "node-exporter.name" . }}-service:9487
 {{- end }}
 
   prometheus/cw_k8s_ci_v0_cadvisor:
