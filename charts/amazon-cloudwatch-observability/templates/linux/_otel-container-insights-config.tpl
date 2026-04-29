@@ -15,6 +15,7 @@ receivers:
           scheme: https
           tls_config:
             ca_file: /etc/amazon-cloudwatch-observability-agent-client-cert/tls-ca.crt
+            insecure_skip_verify: true
           static_configs:
             - targets:
                 - ${env:HOST_IP}:9487
