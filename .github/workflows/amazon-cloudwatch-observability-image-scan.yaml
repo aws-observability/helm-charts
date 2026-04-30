@@ -56,37 +56,37 @@ jobs:
             tag: ".neuronMonitor.image.tag"
 
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@f43a0e5ff2bd294095638e18286ca9a3d1956744 # v3.6.0
         with:
           fetch-depth: 0
 
       - name: Configure AWS Credentials
-        uses: aws-actions/configure-aws-credentials@v2
+        uses: aws-actions/configure-aws-credentials@5fd3084fc36e372ff1fff382a39b10d03659f355 # v2.2.0
         with:
           role-to-assume: ${{ env.TERRAFORM_AWS_ASSUME_ROLE }}
           aws-region: ${{ env.AWS_DEFAULT_REGION }}
 
       - name: "Get image registry"
         id: registry
-        uses: mikefarah/yq@master
+        uses: mikefarah/yq@751d8ad57b84f1794661bc70c0afb92a22ad7b3c # v4.53.2
         with:
           cmd: yq '${{ matrix.container_images.registry }}' charts/amazon-cloudwatch-observability/values.yaml
 
       - name: "Get image repository"
         id: repository
-        uses: mikefarah/yq@master
+        uses: mikefarah/yq@751d8ad57b84f1794661bc70c0afb92a22ad7b3c # v4.53.2
         with:
           cmd: yq '${{ matrix.container_images.repository }}' charts/amazon-cloudwatch-observability/values.yaml
 
       - name: "Get image tag"
         id: tag
-        uses: mikefarah/yq@master
+        uses: mikefarah/yq@751d8ad57b84f1794661bc70c0afb92a22ad7b3c # v4.53.2
         with:
           cmd: yq '${{ matrix.container_images.tag }}' charts/amazon-cloudwatch-observability/values.yaml
 
       - name: "Scan for vulnerabilities"
         id: scan
-        uses: crazy-max/ghaction-container-scan@v3
+        uses: crazy-max/ghaction-container-scan@4d8e0acba576e46016cbd65b9ecfc604e85e3990 # v3.2.0
         with:
           image: ${{ steps.registry.outputs.result }}/${{ steps.repository.outputs.result }}:${{ steps.tag.outputs.result }}
           severity_threshold: HIGH
