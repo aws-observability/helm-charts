@@ -94,6 +94,25 @@ spec:
             name: {{ include "node-exporter.name" . }}-web-config
 ---
 apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "node-exporter.name" . }}-service
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "amazon-cloudwatch-observability.labels" . | nindent 4 }}
+    app.kubernetes.io/component: {{ include "node-exporter.name" . }}
+spec:
+  type: ClusterIP
+  internalTrafficPolicy: Local
+  ports:
+    - name: metrics
+      port: 9487
+      targetPort: metrics
+      protocol: TCP
+  selector:
+    k8s-app: {{ include "node-exporter.name" . }}
+---
+apiVersion: v1
 kind: ConfigMap
 metadata:
   name: {{ include "node-exporter.name" . }}-web-config
