@@ -3,8 +3,8 @@ amazon-cloudwatch-observability v5.4.0 (2026-04-28)
 ========================================================================
 Enhancements:
 * Upgrade CWAgent to v1.300067.0b1404
-* Upgrade CWAgent Operator to v3.4.1
-* Upgrade Fluent Bit to v3.2.6
+* Upgrade CWAgent Operator to v3.4.2
+* Upgrade Fluent Bit to v3.3.0
 * Upgrade Java SDK to v2.26.2
 * Upgrade Python SDK to v0.17.0
 * Upgrade .NET SDK to v1.12.0
