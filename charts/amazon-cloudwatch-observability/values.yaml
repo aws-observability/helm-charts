@@ -475,19 +475,19 @@ manager:
     java:
       repositoryDomain: public.ecr.aws/aws-observability
       repository: adot-autoinstrumentation-java
-      tag: v2.25.1
+      tag: v2.26.2
     python:
       repositoryDomain: public.ecr.aws/aws-observability
       repository: adot-autoinstrumentation-python
-      tag: v0.16.0
+      tag: v0.17.0
     dotnet:
       repositoryDomain: public.ecr.aws/aws-observability
       repository: adot-autoinstrumentation-dotnet
-      tag: v1.11.1
+      tag: v1.12.0
     nodejs:
       repositoryDomain: public.ecr.aws/aws-observability
       repository: adot-autoinstrumentation-node
-      tag: v0.9.0
+      tag: v0.11.0
   applicationSignals:
     autoMonitor:
       # monitorAllServices: true; Defaults to true for regions where AppSignals is supported, false otherwise
