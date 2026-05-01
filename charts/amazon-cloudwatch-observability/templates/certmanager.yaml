@@ -59,7 +59,7 @@ spec:
     - {{( printf "%s-target-allocator-service" $customAgent.name )}}
     {{- end }}
     - "dcgm-exporter-service"
-    - "dcgm-exporter-service.amazon-cloudwatch.svc"
+    - "dcgm-exporter-service.{{ .Release.Namespace }}.svc"
     - "neuron-monitor-service"
     - "neuron-monitor-service.amazon-cloudwatch.svc"
     - "node-exporter-service"
@@ -80,7 +80,7 @@ spec:
   commonName: "agent-server"
   dnsNames:
     - "cloudwatch-agent"
-    - "cloudwatch-agent.amazon-cloudwatch.svc"
+    - "cloudwatch-agent.{{ .Release.Namespace }}.svc"
   issuerRef:
     kind: Issuer
     name: "agent-ca"
