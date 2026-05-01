@@ -62,7 +62,7 @@ Helper function to modify cloudwatch-agent config
 {{- $configCopy := deepCopy .Config }}
 
 {{- $agent := pluck "agent" $configCopy | first }}
-{{- if and (empty $agent) (empty $agent.region) }}
+{{- if or (empty $agent) (empty $agent.region) }}
 {{- $agentRegion := dict "region" .Values.region }}
 {{- $agent := set $configCopy "agent" $agentRegion }}
 {{- end }}

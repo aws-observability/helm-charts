@@ -1153,7 +1153,7 @@ spec:
                       type: array
                     configFile:
                       description: Location of Nginx configuration file. Needed only
-                        if different from default "/etx/nginx/nginx.conf"
+                        if different from default "/etc/nginx/nginx.conf"
                       type: string
                     env:
                       description: 'Env defines Nginx specific env vars. There are four
