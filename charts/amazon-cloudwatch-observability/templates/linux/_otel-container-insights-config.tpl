@@ -90,6 +90,28 @@ receivers:
               regex: metrics
               action: keep
 
+  prometheus/cw_k8s_ci_v0_lis_csi_node:
+    config:
+      scrape_configs:
+        - job_name: lis-csi-node
+          scrape_interval: {{ .Values.otelContainerInsights.metricResolution }}
+          scrape_timeout: {{ include "otel-container-insights.scrapeTimeout" . }}
+          kubernetes_sd_configs:
+            - role: pod
+              namespaces:
+                names:
+                  - kube-system
+          relabel_configs:
+            - source_labels: [__meta_kubernetes_pod_label_app]
+              regex: ec2-instance-store-plugin
+              action: keep
+            - source_labels: [__meta_kubernetes_pod_node_name]
+              regex: ${env:K8S_NODE_NAME}
+              action: keep
+            - source_labels: [__meta_kubernetes_pod_container_port_name]
+              regex: metrics
+              action: keep
+
   kubeletstats/cw_k8s_ci_v0:
     auth_type: serviceAccount
     collection_interval: {{ .Values.otelContainerInsights.metricResolution }}
@@ -258,6 +280,16 @@ processors:
           - set(attributes["cloudwatch.source"], "cloudwatch-agent")
           - set(attributes["cloudwatch.solution"], "k8s-otel-container-insights")
           - set(attributes["cloudwatch.pipeline"], "ebs-csi")
+
+  transform/cw_k8s_ci_v0_set_scope_lis_csi:
+    error_mode: ignore
+    metric_statements:
+      - context: scope
+        statements:
+          - set(scope.schema_url, "")
+          - set(attributes["cloudwatch.source"], "cloudwatch-agent")
+          - set(attributes["cloudwatch.solution"], "k8s-otel-container-insights")
+          - set(attributes["cloudwatch.pipeline"], "lis-csi")
 
   transform/cw_k8s_ci_v0_set_scope_kubeletstats:
     error_mode: ignore
@@ -540,6 +572,16 @@ processors:
           - delete_key(attributes, "instance_id") where attributes["instance_id"] != nil
           - delete_key(attributes, "volume_id") where attributes["volume_id"] != nil
 
+  transform/cw_k8s_ci_v0_lis_csi_promote:
+    error_mode: ignore
+    metric_statements:
+      - context: datapoint
+        statements:
+          - set(resource.attributes["instance_id"], attributes["instance_id"]) where attributes["instance_id"] != nil
+          - set(resource.attributes["volume_id"], attributes["volume_id"]) where attributes["volume_id"] != nil
+          - delete_key(attributes, "instance_id") where attributes["instance_id"] != nil
+          - delete_key(attributes, "volume_id") where attributes["volume_id"] != nil
+
 exporters:
   otlphttp/cw_k8s_ci_v0_metrics_dest:
     endpoint: {{ if .Values.otelContainerInsights.cloudwatchMetricsEndpoint }}{{ .Values.otelContainerInsights.cloudwatchMetricsEndpoint | quote }}{{ else }}"https://monitoring.{{ .Values.region }}.amazonaws.com:443"{{ end }}
@@ -672,6 +714,27 @@ service:
         - transform/cw_k8s_ci_v0_set_cloud_resource_id
         - k8sattributes/cw_k8s_ci_v0_node
         - transform/cw_k8s_ci_v0_set_scope_ebs_csi
+        - transform/cw_k8s_ci_v0_clear_schema_url
+        - transform/cw_k8s_ci_v0_set_workload
+        - awsattributelimit/cw_k8s_ci_v0
+        - batch/cw_k8s_ci_v0_metrics_dest
+      exporters:
+        - otlphttp/cw_k8s_ci_v0_metrics_dest
+
+    metrics/cw_k8s_ci_v0_lis_csi_node:
+      receivers: [prometheus/cw_k8s_ci_v0_lis_csi_node]
+      processors:
+        - filter/cw_k8s_ci_v0_scrape_metadata
+        - transform/cw_k8s_ci_v0_set_unit
+        - metricstarttime/cw_k8s_ci_v0
+        - transform/cw_k8s_ci_v0_set_cluster_name
+        - transform/cw_k8s_ci_v0_lis_csi_promote
+        - transform/cw_k8s_ci_v0_set_node_name
+        - transform/cw_k8s_ci_v0_promote_node_name
+        - resourcedetection/cw_k8s_ci_v0
+        - transform/cw_k8s_ci_v0_set_cloud_resource_id
+        - k8sattributes/cw_k8s_ci_v0_node
+        - transform/cw_k8s_ci_v0_set_scope_lis_csi
         - transform/cw_k8s_ci_v0_clear_schema_url
         - transform/cw_k8s_ci_v0_set_workload
         - awsattributelimit/cw_k8s_ci_v0
