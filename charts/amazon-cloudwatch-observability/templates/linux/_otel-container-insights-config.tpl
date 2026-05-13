@@ -339,6 +339,8 @@ processors:
   k8sattributes/cw_k8s_ci_v0_node:
     auth_type: serviceAccount
     passthrough: false
+    filter:
+      node_from_env_var: K8S_NODE_NAME
     extract:
       metadata:
         - k8s.node.name
@@ -354,6 +356,8 @@ processors:
   k8sattributes/cw_k8s_ci_v0_pod:
     auth_type: serviceAccount
     passthrough: false
+    filter:
+      node_from_env_var: K8S_NODE_NAME
     extract:
       metadata:
         - k8s.pod.uid
