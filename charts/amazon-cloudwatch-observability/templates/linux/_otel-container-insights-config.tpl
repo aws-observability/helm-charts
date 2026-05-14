@@ -3,6 +3,14 @@ extensions:
   sigv4auth/cw_k8s_ci_v0_metrics_dest:
     region: {{ .Values.region }}
     service: monitoring
+{{- if .Values.otelContainerInsights.logs.enabled }}
+  sigv4auth/cw_k8s_ci_v0_logs_dest:
+    region: {{ .Values.region }}
+    service: logs
+  awscloudwatchlogsprovisioner/cw_k8s_ci_v0_logs:
+    region: {{ .Values.region }}
+    additional_auth: sigv4auth/cw_k8s_ci_v0_logs_dest
+{{- end }}
 
 receivers:
 {{- if .Values.nodeExporter.enabled }}
@@ -150,6 +158,52 @@ receivers:
         enabled: true
       k8s.node.uptime:
         enabled: true
+
+{{- if .Values.otelContainerInsights.logs.enabled }}
+  # ── CI Logs receivers ──
+  filelog/cw_k8s_ci_v0_app:
+    include:
+      - /var/log/containers/*.log
+    exclude:
+      - /var/log/containers/cloudwatch-agent*
+      - /var/log/containers/fluent-bit*
+      # aws-node and kube-proxy are dataplane components — excluded to match
+      # FluentBit's existing Exclude_Path behavior.
+      - /var/log/containers/aws-node*
+      - /var/log/containers/kube-proxy*
+    start_at: end
+    include_file_path: true
+    include_file_name: false
+    max_concurrent_files: 100
+    operators:
+      - type: regex_parser
+        id: extract_metadata_from_filepath
+        regex: '^.*\/(?P<pod>[^_]+)_(?P<namespace>[^_]+)_(?P<container>.+)-[a-f0-9]{64}\.log$'
+        parse_from: attributes["log.file.path"]
+        parse_to: resource
+      - type: move
+        from: resource.pod
+        to: resource["k8s.pod.name"]
+      - type: move
+        from: resource.namespace
+        to: resource["k8s.namespace.name"]
+      - type: move
+        from: resource.container
+        to: resource["k8s.container.name"]
+      - id: parse_container_log
+        type: container_log_parser
+
+  filelog/cw_k8s_ci_v0_node:
+    include:
+      - /var/log/messages
+      - /var/log/dmesg
+      - /var/log/secure
+    start_at: end
+    include_file_path: true
+    include_file_name: false
+    max_concurrent_files: 100
+
+{{- end }}
 
 processors:
   filter/cw_k8s_ci_v0_scrape_metadata:
@@ -586,6 +640,103 @@ processors:
           - delete_key(attributes, "instance_id") where attributes["instance_id"] != nil
           - delete_key(attributes, "volume_id") where attributes["volume_id"] != nil
 
+{{- if .Values.otelContainerInsights.logs.enabled }}
+  # ── CI Logs processors ──
+  transform/cw_k8s_ci_v0_logs_set_workload:
+    error_mode: ignore
+    log_statements:
+      - context: resource
+        statements:
+          # Derive k8s.workload.name and k8s.workload.type — matches metrics'
+          # transform/cw_k8s_ci_v0_set_workload exactly so metrics and logs use
+          # the same workload identity for the same pod.
+          - set(attributes["k8s.workload.name"], attributes["k8s.deployment.name"]) where attributes["k8s.deployment.name"] != nil
+          - set(attributes["k8s.workload.type"], "Deployment") where attributes["k8s.deployment.name"] != nil
+          - set(attributes["k8s.workload.name"], attributes["k8s.statefulset.name"]) where attributes["k8s.workload.name"] == nil and attributes["k8s.statefulset.name"] != nil
+          - set(attributes["k8s.workload.type"], "StatefulSet") where attributes["k8s.statefulset.name"] != nil and attributes["k8s.workload.type"] == nil
+          - set(attributes["k8s.workload.name"], attributes["k8s.daemonset.name"]) where attributes["k8s.workload.name"] == nil and attributes["k8s.daemonset.name"] != nil
+          - set(attributes["k8s.workload.type"], "DaemonSet") where attributes["k8s.daemonset.name"] != nil and attributes["k8s.workload.type"] == nil
+          - set(attributes["k8s.workload.name"], attributes["k8s.job.name"]) where attributes["k8s.workload.name"] == nil and attributes["k8s.job.name"] != nil
+          - set(attributes["k8s.workload.type"], "Job") where attributes["k8s.job.name"] != nil and attributes["k8s.workload.type"] == nil
+          - set(attributes["k8s.workload.name"], attributes["k8s.cronjob.name"]) where attributes["k8s.workload.name"] == nil and attributes["k8s.cronjob.name"] != nil
+          - set(attributes["k8s.workload.type"], "CronJob") where attributes["k8s.cronjob.name"] != nil and attributes["k8s.workload.type"] == nil
+          - set(attributes["k8s.workload.name"], attributes["k8s.replicaset.name"]) where attributes["k8s.workload.name"] == nil and attributes["k8s.replicaset.name"] != nil
+          - set(attributes["k8s.workload.type"], "ReplicaSet") where attributes["k8s.replicaset.name"] != nil and attributes["k8s.workload.type"] == nil
+          # Derive service.name from k8s.workload.name (OTEL logs semconv).
+          # Logs need service.name; metrics use k8s.workload.name directly.
+          - set(attributes["service.name"], attributes["k8s.workload.name"]) where attributes["service.name"] == nil and attributes["k8s.workload.name"] != nil
+
+  transform/cw_k8s_ci_v0_logs_set_cluster_name:
+    error_mode: ignore
+    log_statements:
+      - context: resource
+        statements:
+          - set(attributes["k8s.cluster.name"], "{{ .Values.clusterName }}")
+          - set(attributes["k8s.node.name"], "${env:K8S_NODE_NAME}")
+
+  resourcedetection/cw_k8s_ci_v0_logs:
+    detectors: [eks, ec2]
+    ec2:
+      resource_attributes:
+        host.id: { enabled: true }
+        host.type: { enabled: true }
+        host.name: { enabled: true }
+        host.image.id: { enabled: true }
+        cloud.provider: { enabled: true }
+        cloud.platform: { enabled: true }
+        cloud.region: { enabled: true }
+        cloud.availability_zone: { enabled: true }
+        cloud.account.id: { enabled: true }
+
+  transform/cw_k8s_ci_v0_logs_set_cloud_resource_id:
+    error_mode: ignore
+    log_statements:
+      - context: resource
+        statements:
+          - set(attributes["cloud.resource_id"], Concat(["arn:aws:eks:", attributes["cloud.region"], ":", attributes["cloud.account.id"], ":cluster/", attributes["k8s.cluster.name"]], ""))
+            where attributes["cloud.region"] != nil and attributes["cloud.account.id"] != nil and attributes["k8s.cluster.name"] != nil
+
+  transform/cw_k8s_ci_v0_logs_clear_schema_url:
+    error_mode: ignore
+    log_statements:
+      - context: resource
+        statements:
+          - set(resource.schema_url, "")
+
+  # Scope transforms — tag each logs pipeline with cloudwatch.source/solution/pipeline
+  # for backend attribution. Matches the metrics pipeline's transform/set_scope_*
+  # processors so logs are attributed identically to metrics.
+  # scope.name is intentionally not set — the metrics pipeline sets it only for
+  # pipelines with a well-known source library (e.g., github.com/google/cadvisor).
+  # filelog receivers don't have an equivalent upstream library, so scope.name is
+  # omitted (matches metrics' set_scope_efa / set_scope_ebs_csi /
+  # set_scope_kubeletstats which also omit scope.name).
+  transform/cw_k8s_ci_v0_logs_set_scope_app:
+    error_mode: ignore
+    log_statements:
+      - context: scope
+        statements:
+          - set(scope.schema_url, "")
+          - set(attributes["cloudwatch.source"], "cloudwatch-agent")
+          - set(attributes["cloudwatch.solution"], "k8s-otel-container-insights")
+          - set(attributes["cloudwatch.pipeline"], "application-logs")
+
+  transform/cw_k8s_ci_v0_logs_set_scope_host:
+    error_mode: ignore
+    log_statements:
+      - context: scope
+        statements:
+          - set(scope.schema_url, "")
+          - set(attributes["cloudwatch.source"], "cloudwatch-agent")
+          - set(attributes["cloudwatch.solution"], "k8s-otel-container-insights")
+          - set(attributes["cloudwatch.pipeline"], "host-logs")
+
+  batch/cw_k8s_ci_v0_logs_dest:
+    send_batch_size: 500
+    send_batch_max_size: 500
+    timeout: 5s
+{{- end }}
+
 exporters:
   otlphttp/cw_k8s_ci_v0_metrics_dest:
     endpoint: {{ if .Values.otelContainerInsights.cloudwatchMetricsEndpoint }}{{ .Values.otelContainerInsights.cloudwatchMetricsEndpoint | quote }}{{ else }}"https://monitoring.{{ .Values.region }}.amazonaws.com:443"{{ end }}
@@ -594,9 +745,52 @@ exporters:
     auth:
       authenticator: sigv4auth/cw_k8s_ci_v0_metrics_dest
 
+{{- if .Values.otelContainerInsights.logs.enabled }}
+  otlphttp/cw_k8s_ci_v0_app_logs_dest:
+    endpoint: {{ if .Values.otelContainerInsights.cloudwatchLogsEndpoint }}{{ .Values.otelContainerInsights.cloudwatchLogsEndpoint | quote }}{{ else }}"https://logs.{{ .Values.region }}.amazonaws.com:443"{{ end }}
+    # compression: none matches FluentBit's current behavior (the aws-for-fluent-bit
+    # cloudwatch_logs plugin does not compress by default), so customers migrating
+    # from FluentBit see no bandwidth bill change. Enabling compression: gzip is
+    # available as an opt-in bandwidth optimization (~5–10× reduction for typical
+    # container logs) at the cost of +25% agent CPU — customers who raise the CPU
+    # limit accordingly can improve on FluentBit's bandwidth cost. See OTELify CI
+    # Logs Pipeline Optimizations doc for details.
+    compression: none
+    headers:
+      x-aws-log-group: "/aws/otel/containerinsights/{{ .Values.clusterName }}/application"
+      x-aws-log-stream: "${env:K8S_NODE_NAME}-application"
+    sending_queue:
+      queue_size: 500
+      num_consumers: 10
+    tls:
+      insecure: false
+    auth:
+      authenticator: awscloudwatchlogsprovisioner/cw_k8s_ci_v0_logs
+
+  otlphttp/cw_k8s_ci_v0_node_logs_dest:
+    endpoint: {{ if .Values.otelContainerInsights.cloudwatchLogsEndpoint }}{{ .Values.otelContainerInsights.cloudwatchLogsEndpoint | quote }}{{ else }}"https://logs.{{ .Values.region }}.amazonaws.com:443"{{ end }}
+    # See app_logs_dest comment for compression tradeoff rationale.
+    compression: none
+    headers:
+      x-aws-log-group: "/aws/otel/containerinsights/{{ .Values.clusterName }}/host"
+      x-aws-log-stream: "${env:K8S_NODE_NAME}-host"
+    sending_queue:
+      queue_size: 500
+      num_consumers: 10
+    tls:
+      insecure: false
+    auth:
+      authenticator: awscloudwatchlogsprovisioner/cw_k8s_ci_v0_logs
+
+{{- end }}
+
 service:
   extensions:
     - sigv4auth/cw_k8s_ci_v0_metrics_dest
+{{- if .Values.otelContainerInsights.logs.enabled }}
+    - sigv4auth/cw_k8s_ci_v0_logs_dest
+    - awscloudwatchlogsprovisioner/cw_k8s_ci_v0_logs
+{{- end }}
   pipelines:
 {{- if .Values.nodeExporter.enabled }}
     metrics/cw_k8s_ci_v0_node_exporter:
@@ -762,5 +956,43 @@ service:
         - batch/cw_k8s_ci_v0_metrics_dest
       exporters:
         - otlphttp/cw_k8s_ci_v0_metrics_dest
+
+{{- if .Values.otelContainerInsights.logs.enabled }}
+    # ── CI Logs pipelines ──
+    logs/cw_k8s_ci_v0_app:
+      receivers: [filelog/cw_k8s_ci_v0_app]
+      processors:
+        - transform/cw_k8s_ci_v0_logs_set_cluster_name
+        - resourcedetection/cw_k8s_ci_v0_logs
+        - transform/cw_k8s_ci_v0_logs_set_cloud_resource_id
+        - k8sattributes/cw_k8s_ci_v0_node
+        - k8sattributes/cw_k8s_ci_v0_pod
+        - transform/cw_k8s_ci_v0_logs_set_scope_app
+        - transform/cw_k8s_ci_v0_logs_clear_schema_url
+        - transform/cw_k8s_ci_v0_logs_set_workload
+        - batch/cw_k8s_ci_v0_logs_dest
+      exporters:
+        - otlphttp/cw_k8s_ci_v0_app_logs_dest
+
+    # ── CI Logs: Host pipeline ──
+    # Intentionally omits k8sattributes/pod and set_workload — host logs
+    # (/var/log/messages, /var/log/dmesg, /var/log/secure) come from the node OS
+    # and have no pod/workload context to enrich from. k8sattributes/node adds
+    # node-level labels; cluster + cloud attributes apply as with other pipelines.
+    # service.name is intentionally not set — host logs are node-level, not
+    # service-level. Customers query host logs by k8s.node.name + log group.
+    logs/cw_k8s_ci_v0_node:
+      receivers: [filelog/cw_k8s_ci_v0_node]
+      processors:
+        - transform/cw_k8s_ci_v0_logs_set_cluster_name
+        - resourcedetection/cw_k8s_ci_v0_logs
+        - transform/cw_k8s_ci_v0_logs_set_cloud_resource_id
+        - k8sattributes/cw_k8s_ci_v0_node
+        - transform/cw_k8s_ci_v0_logs_set_scope_host
+        - transform/cw_k8s_ci_v0_logs_clear_schema_url
+        - batch/cw_k8s_ci_v0_logs_dest
+      exporters:
+        - otlphttp/cw_k8s_ci_v0_node_logs_dest
+{{- end }}
 
 {{- end -}}

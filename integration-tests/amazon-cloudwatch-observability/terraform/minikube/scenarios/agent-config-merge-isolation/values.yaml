@@ -6,6 +6,8 @@ otelContainerInsights:
   enabled: true
 agent:
   config:
+    agent:
+      region: us-west-2
     logs:
       metrics_collected:
         kubernetes:

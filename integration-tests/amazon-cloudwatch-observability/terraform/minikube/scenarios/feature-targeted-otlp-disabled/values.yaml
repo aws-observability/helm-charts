@@ -2,3 +2,6 @@ region: us-west-2
 clusterName: minikube
 otelContainerInsights:
   enabled: false
+  # Explicit logs=false for clarity — matches the default.
+  logs:
+    enabled: false

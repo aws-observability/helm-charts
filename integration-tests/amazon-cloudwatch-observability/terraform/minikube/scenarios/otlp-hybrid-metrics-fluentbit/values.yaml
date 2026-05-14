@@ -1,0 +1,11 @@
+region: us-west-2
+clusterName: minikube
+# State #6: OTEL metrics on, OTEL logs off, FluentBit on.
+# Customer wants OTEL CI metrics but keeps FluentBit for custom log pipelines
+# (extra outputs, custom parsers, routing rules) they haven't ported to OTEL.
+otelContainerInsights:
+  enabled: true
+  logs:
+    enabled: false
+containerLogs:
+  enabled: true
