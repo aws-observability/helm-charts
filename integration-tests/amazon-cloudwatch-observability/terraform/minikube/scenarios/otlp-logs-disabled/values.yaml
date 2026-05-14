@@ -1,0 +1,9 @@
+region: us-west-2
+clusterName: minikube
+# State #5: OTEL metrics on, OTEL logs off, FluentBit off.
+# Customer wants OTEL CI metrics but no log ingestion from this addon.
+otelContainerInsights:
+  enabled: true
+  logs: false
+containerLogs:
+  enabled: false

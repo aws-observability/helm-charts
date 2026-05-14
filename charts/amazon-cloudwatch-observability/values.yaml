@@ -1278,15 +1278,28 @@ applicationSignals:
 
 ## Controls the OTLP-based Container Insights pipeline (node-exporter, kube-state-metrics, cluster-scraper, OTEL collector config).
 ## When enabled, deploys additional resources and injects OTEL config into the CloudWatch Agent for metrics collection via OTLP.
-## Both containerInsights and otelContainerInsights can be enabled simultaneously — they run as independent pipelines.
-## | containerInsights.enabled | otelContainerInsights.enabled | Result                    |
-## |--------------------------|-------------------------------|---------------------------|
-## | true (default)           | true (default)                | Both pipelines active     |
-## | true                     | false                         | Legacy CI only            |
-## | false                    | true                          | OTLP CI only              |
-## | false                    | false                         | No CI metrics             |
+##
+## ══════════════════════════════════════════════════════════════════════════════
+## OTEL Container Insights
+## ══════════════════════════════════════════════════════════════════════════════
+##
+## When otelContainerInsights.enabled is false (default), everything under this
+## section is ignored. Existing v6.x behavior (ECI metrics + FluentBit logs) is
+## unchanged.
+##
+## When enabled, the agent collects metrics via OTEL pipelines. To also collect
+## logs via OTEL, set otelContainerInsights.logs to true.
+##
+## Supported combinations:
+##   enabled=false              → no OTEL CI (default, v6.x behavior)
+##   enabled=true, logs=false   → OTEL metrics only
+##   enabled=true, logs=true    → OTEL metrics + OTEL logs
+##
 otelContainerInsights:
-  enabled: true
+  enabled: false
+  ## Enables OTEL-native CI log pipelines (application, host).
+  ## Only takes effect when otelContainerInsights.enabled is true.
+  logs: false
   ## The agent in the agents array that receives node-level OTEL Container Insights config.
   targetAgent: "cloudwatch-agent"
   ## The agent in the agents array that receives cluster-level OTEL Container Insights config (apiserver, kube-state-metrics scraping).
@@ -1295,3 +1308,5 @@ otelContainerInsights:
   metricResolution: "30s"
   # Override the CloudWatch Metrics OTLP endpoint. If empty, defaults to monitoring.<region>.amazonaws.com.
   cloudwatchMetricsEndpoint: ""
+  # Override the CloudWatch Logs OTLP endpoint. If empty, defaults to logs.<region>.amazonaws.com.
+  cloudwatchLogsEndpoint: ""

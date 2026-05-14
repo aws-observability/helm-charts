@@ -109,8 +109,35 @@ Logic:
 {{- define "cloudwatch-agent.build-default-otel-config" -}}
 {{- $agentName := .agentName -}}
 {{- $ctx := .context -}}
+{{- /*
+  Flag validation — enforces the 10 valid states from the CI flag state matrix.
+  Four flags control CI behavior:
+    - containerInsights.enabled (ECI)       — legacy Container Insights metrics
+    - containerLogs.enabled (FB)            — FluentBit log pipeline
+    - otelContainerInsights.enabled         — OTEL Container Insights (metrics)
+    - otelContainerInsights.logs            — OTEL log pipelines
+
+  Two cross-flag rules:
+    1. otelCI.logs=true requires otelCI.enabled=true
+       (OTEL logs run inside the OTEL CI pipeline)
+    2. When otelCI.enabled=true, containerLogs=true requires containerInsights=true
+       (FluentBit is legacy telemetry; it must pair with legacy ECI metrics,
+        never with OTEL metrics alone)
+*/ -}}
+{{- if not (kindIs "bool" $ctx.Values.containerInsights.enabled) }}
+{{- fail "containerInsights.enabled must be a boolean (true/false)" }}
+{{- end }}
+{{- if not (kindIs "bool" $ctx.Values.containerLogs.enabled) }}
+{{- fail "containerLogs.enabled must be a boolean (true/false)" }}
+{{- end }}
 {{- if not (kindIs "bool" $ctx.Values.otelContainerInsights.enabled) }}
 {{- fail "otelContainerInsights.enabled must be a boolean (true/false)" }}
+{{- end }}
+{{- if not (kindIs "bool" $ctx.Values.otelContainerInsights.logs) }}
+{{- fail "otelContainerInsights.logs must be a boolean (true/false)" }}
+{{- end }}
+{{- if and (not $ctx.Values.otelContainerInsights.enabled) $ctx.Values.otelContainerInsights.logs }}
+{{- fail "otelContainerInsights.logs=true requires otelContainerInsights.enabled=true" }}
 {{- end }}
 {{- if not $ctx.Values.otelContainerInsights.enabled -}}
 {}

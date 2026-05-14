@@ -1,0 +1,11 @@
+region: us-west-2
+clusterName: minikube
+# State #8: Everything on. OTEL metrics, OTEL logs, and FluentBit all active.
+# Used during migration: customer has validated OTEL log pipeline works, keeps
+# FluentBit running in parallel as a safety net, then flips containerLogs.enabled=false
+# once confident. Both paths ship to CloudWatch Logs simultaneously (dual-publish).
+otelContainerInsights:
+  enabled: true
+  logs: true
+containerLogs:
+  enabled: true

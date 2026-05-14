@@ -68,6 +68,9 @@ jobs:
           - feature-targeted-agent-config-override
           - otlp-custom-otel-config
           - otlp-disabled
+          - otlp-logs-disabled
+          - otlp-hybrid-metrics-fluentbit
+          - otlp-logs-dual-publish
     steps:
       - uses: actions/checkout@v3
 

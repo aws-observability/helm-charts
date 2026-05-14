@@ -2,5 +2,10 @@ region: us-west-2
 clusterName: minikube
 containerInsights:
   enabled: false
+# FluentBit must be off when ECI is off and otelCI.enabled is on (default), per
+# state matrix rule: containerLogs=true requires containerInsights=true when
+# otelContainerInsights.enabled=true.
+containerLogs:
+  enabled: false
 applicationSignals:
   enabled: false
