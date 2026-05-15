@@ -3,7 +3,7 @@
 
 variable "k8s_version" {
   type    = string
-  default = "v1.33.0"
+  default = "v1.35.1"
 }
 
 variable "helm_dir" {

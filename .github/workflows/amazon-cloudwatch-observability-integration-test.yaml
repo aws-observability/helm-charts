@@ -59,10 +59,22 @@ jobs:
     steps:
       - uses: actions/checkout@f43a0e5ff2bd294095638e18286ca9a3d1956744 # v3.6.0
 
+      - name: Read K8s version from Terraform
+        id: k8s
+        run: |
+          version=$(awk -F'"' '/default *=/{print $2; exit}' \
+            integration-tests/amazon-cloudwatch-observability/terraform/minikube/variables.tf)
+          if [ -z "${version}" ]; then
+            echo "::error::Failed to extract k8s_version default from variables.tf"
+            exit 1
+          fi
+          echo "version=${version}" >> "$GITHUB_OUTPUT"
+
       - name: Start minikube
         uses: medyagh/setup-minikube@e9e035a86bbc3caea26a450bd4dbf9d0c453682e # v0.0.21
         with:
           driver: docker
+          kubernetes-version: ${{ steps.k8s.outputs.version }}
 
       - name: Install Terraform
         uses: hashicorp/setup-terraform@b9cd54a3c349d3f38e8881555d616ced269862dd # v3.1.2

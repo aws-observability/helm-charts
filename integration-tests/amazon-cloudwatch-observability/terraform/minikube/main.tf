@@ -45,6 +45,7 @@ resource "helm_release" "cloudwatch_observability" {
   namespace        = "amazon-cloudwatch"
   create_namespace = true
   chart            = var.helm_dir
+  timeout          = 600
 
   values = [file(var.helm_values_file)]
 }
