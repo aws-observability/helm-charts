@@ -11,6 +11,7 @@ import (
 	"github.com/aws-observability/helm-charts/integration-tests/amazon-cloudwatch-observability/util"
 	"github.com/aws-observability/helm-charts/integration-tests/amazon-cloudwatch-observability/validations/minikube"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -25,9 +26,7 @@ import (
 // pipelines absent, FluentBit DaemonSet deployed.
 func TestOTLPHybridMetricsFluentBit(t *testing.T) {
 	k8sClient, err := util.NewK8sClient()
-	if !assert.NoError(t, err) {
-		t.Fatal("failed to create k8s client")
-	}
+	require.NoError(t, err, "failed to create k8s client")
 
 	ns, err := k8sClient.GetNamespace(minikube.Namespace)
 	assert.NoError(t, err)
@@ -44,9 +43,7 @@ func TestOTLPHybridMetricsFluentBit(t *testing.T) {
 
 	// AmazonCloudWatchAgent CR should carry OTEL metrics config but no log pipelines.
 	dynamicClient, err := k8sClient.GetDynamicClient()
-	if !assert.NoError(t, err) {
-		t.Fatal("failed to get dynamic client")
-	}
+	require.NoError(t, err, "failed to get dynamic client")
 
 	gvr := schema.GroupVersionResource{
 		Group:    "cloudwatch.aws.amazon.com",
@@ -57,9 +54,7 @@ func TestOTLPHybridMetricsFluentBit(t *testing.T) {
 	agentList, err := dynamicClient.Resource(gvr).Namespace(minikube.Namespace).List(
 		context.Background(), metav1.ListOptions{},
 	)
-	if !assert.NoError(t, err) {
-		t.Fatal("failed to list AmazonCloudWatchAgent CRs")
-	}
+	require.NoError(t, err, "failed to list AmazonCloudWatchAgent CRs")
 
 	agentMap := make(map[string]unstructured.Unstructured)
 	for _, agent := range agentList.Items {

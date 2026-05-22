@@ -747,7 +747,7 @@ exporters:
 
 {{- if .Values.otelContainerInsights.logs.enabled }}
   otlphttp/cw_k8s_ci_v0_app_logs_dest:
-    endpoint: {{ if .Values.otelContainerInsights.cloudwatchLogsEndpoint }}{{ .Values.otelContainerInsights.cloudwatchLogsEndpoint | quote }}{{ else }}"https://logs.{{ .Values.region }}.amazonaws.com:443"{{ end }}
+    endpoint: {{ if .Values.otelContainerInsights.cloudwatchLogsEndpoint }}{{ .Values.otelContainerInsights.cloudwatchLogsEndpoint | quote }}{{ else if hasKey .Values.adcEndpointOverrides .Values.region }}"https://logs.{{ .Values.region }}.{{ index .Values.adcEndpointOverrides .Values.region }}:443"{{ else }}"https://logs.{{ .Values.region }}.amazonaws.com:443"{{ end }}
     # compression: none matches FluentBit's current behavior (the aws-for-fluent-bit
     # cloudwatch_logs plugin does not compress by default), so customers migrating
     # from FluentBit see no bandwidth bill change. Enabling compression: gzip is
@@ -768,7 +768,7 @@ exporters:
       authenticator: awscloudwatchlogsprovisioner/cw_k8s_ci_v0_logs
 
   otlphttp/cw_k8s_ci_v0_node_logs_dest:
-    endpoint: {{ if .Values.otelContainerInsights.cloudwatchLogsEndpoint }}{{ .Values.otelContainerInsights.cloudwatchLogsEndpoint | quote }}{{ else }}"https://logs.{{ .Values.region }}.amazonaws.com:443"{{ end }}
+    endpoint: {{ if .Values.otelContainerInsights.cloudwatchLogsEndpoint }}{{ .Values.otelContainerInsights.cloudwatchLogsEndpoint | quote }}{{ else if hasKey .Values.adcEndpointOverrides .Values.region }}"https://logs.{{ .Values.region }}.{{ index .Values.adcEndpointOverrides .Values.region }}:443"{{ else }}"https://logs.{{ .Values.region }}.amazonaws.com:443"{{ end }}
     # See app_logs_dest comment for compression tradeoff rationale.
     compression: none
     headers:
