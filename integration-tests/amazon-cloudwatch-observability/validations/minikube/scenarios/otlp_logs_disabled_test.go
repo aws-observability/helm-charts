@@ -122,6 +122,7 @@ func assertLogPipelineAbsent(t *testing.T, otelConfig string) {
 		// Log-specific extensions
 		"sigv4auth/cw_k8s_ci_v0_logs_dest",
 		"awscloudwatchlogsprovisioner/cw_k8s_ci_v0_logs",
+		// Checkpoint extension
 		"file_storage/cw_k8s_ci_v0_logs_checkpoint",
 	}
 	for _, fragment := range logOnlyFragments {
@@ -152,7 +153,8 @@ func assertNoLogMounts(t *testing.T, k8sClient *util.K8sClient, dsName string) {
 
 	// Check volumes — names come from the helm template.
 	logVolumeNames := map[string]bool{
-		"varlog": true,
+		"varlog":                true,
+		"otel-logs-checkpoints": true,
 	}
 	for _, vol := range ds.Spec.Template.Spec.Volumes {
 		if logVolumeNames[vol.Name] {

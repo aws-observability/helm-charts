@@ -10,6 +10,15 @@ extensions:
   awscloudwatchlogsprovisioner/cw_k8s_ci_v0_logs:
     region: {{ .Values.region }}
     additional_auth: sigv4auth/cw_k8s_ci_v0_logs_dest
+  file_storage/cw_k8s_ci_v0_logs_checkpoint:
+    directory: /var/lib/cwagent/otel-logs-checkpoints
+    timeout: 10s
+    compaction:
+      on_start: true
+      # Compaction directory intentionally matches data directory. The bbolt
+      # compaction creates a temp copy (~2x peak disk briefly) but the offsets
+      # DB is tiny (< 1 MiB for typical nodes) so this is acceptable.
+      directory: /var/lib/cwagent/otel-logs-checkpoints
 {{- end }}
 
 receivers:
@@ -162,6 +171,7 @@ receivers:
 {{- if .Values.otelContainerInsights.logs.enabled }}
   # ── CI Logs receivers ──
   filelog/cw_k8s_ci_v0_app:
+    storage: file_storage/cw_k8s_ci_v0_logs_checkpoint
     include:
       - /var/log/containers/*.log
     exclude:
@@ -196,6 +206,7 @@ receivers:
         type: container_log_parser
 
   filelog/cw_k8s_ci_v0_node:
+    storage: file_storage/cw_k8s_ci_v0_logs_checkpoint
     include:
       - /var/log/messages
       - /var/log/dmesg
@@ -752,6 +763,7 @@ exporters:
     sending_queue:
       queue_size: 500
       num_consumers: 10
+      storage: file_storage/cw_k8s_ci_v0_logs_checkpoint
     tls:
       insecure: false
     auth:
@@ -767,6 +779,7 @@ exporters:
     sending_queue:
       queue_size: 500
       num_consumers: 10
+      storage: file_storage/cw_k8s_ci_v0_logs_checkpoint
     tls:
       insecure: false
     auth:
@@ -780,6 +793,7 @@ service:
 {{- if .Values.otelContainerInsights.logs.enabled }}
     - sigv4auth/cw_k8s_ci_v0_logs_dest
     - awscloudwatchlogsprovisioner/cw_k8s_ci_v0_logs
+    - file_storage/cw_k8s_ci_v0_logs_checkpoint
 {{- end }}
   pipelines:
 {{- if .Values.nodeExporter.enabled }}
