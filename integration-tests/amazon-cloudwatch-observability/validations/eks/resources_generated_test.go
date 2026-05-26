@@ -29,7 +29,7 @@ const (
 	clusterScraperName   = "cloudwatch-agent-cluster-scraper"
 	nodeExporterName     = "node-exporter"
 	podNameRegex         = "(" + agentName + "|" + agentNameWindows + "|" + operatorName + "|" + fluentBitName + "|" + fluentBitNameWindows + "|" + kubeStateMetricsName + "|" + clusterScraperName + "|" + nodeExporterName + ")-*"
-	serviceNameRegex     = agentName + "(-headless|-monitoring)?|" + agentNameWindows + "(-headless|-monitoring)?|" + addOnName + "-webhook-service|" + dcgmExporterName + "-service|" + neuronMonitor + "-service|" + kubeStateMetricsName + "|" + clusterScraperName + "-monitoring"
+	serviceNameRegex     = agentName + "(-headless|-monitoring)?|" + agentNameWindows + "(-headless|-monitoring)?|" + addOnName + "-webhook-service|" + dcgmExporterName + "-service|" + neuronMonitor + "-service|" + kubeStateMetricsName + "|" + clusterScraperName + "-monitoring|" + nodeExporterName + "-service"
 	daemonSetNameRegex   = agentName + "|" + agentNameWindows + "|" + fluentBitName + "|" + fluentBitNameWindows + "|" + dcgmExporterName + "|" + neuronMonitor + "|" + nodeExporterName
 )
 

@@ -11,11 +11,12 @@ const (
 	// - cloudwatch-agent
 	// - cloudwatch-agent-headless
 	// - cloudwatch-agent-monitoring
-	// - dcgm-exporter-service
-	// - neuron-monitor-service
-	// - kube-state-metrics
 	// - cloudwatch-agent-cluster-scraper-monitoring
-	serviceCountLinux = 8
+	// - dcgm-exporter-service
+	// - kube-state-metrics
+	// - neuron-monitor-service
+	// - node-exporter-service
+	serviceCountLinux = 9
 
 	// Services count on Windows:
 	// - cloudwatch-agent-windows
