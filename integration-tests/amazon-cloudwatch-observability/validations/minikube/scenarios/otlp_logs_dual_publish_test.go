@@ -33,8 +33,8 @@ func TestOTLPLogsDualPublish(t *testing.T) {
 	require.NoError(t, err, "failed to create k8s client")
 
 	ns, err := k8sClient.GetNamespace(minikube.Namespace)
-	assert.NoError(t, err)
-	assert.Equal(t, minikube.Namespace, ns.Name)
+	require.NoError(t, err)
+	require.Equal(t, minikube.Namespace, ns.Name)
 
 	// FluentBit DaemonSet must be present alongside OTEL logs.
 	exists, err := k8sClient.ValidateDaemonSetExists(minikube.Namespace, "fluent-bit")

@@ -171,6 +171,8 @@ receivers:
       # FluentBit's existing Exclude_Path behavior.
       - /var/log/containers/aws-node*
       - /var/log/containers/kube-proxy*
+    # No checkpoint persistence — logs during agent downtime are lost.
+    # Filestorage support is tracked in a follow-up PR.
     start_at: end
     include_file_path: true
     include_file_name: false
@@ -198,6 +200,8 @@ receivers:
       - /var/log/messages
       - /var/log/dmesg
       - /var/log/secure
+    # No checkpoint persistence — logs during agent downtime are lost.
+    # Filestorage support is tracked in a follow-up PR.
     start_at: end
     include_file_path: true
     include_file_name: false
@@ -666,7 +670,7 @@ processors:
           # Logs need service.name; metrics use k8s.workload.name directly.
           - set(attributes["service.name"], attributes["k8s.workload.name"]) where attributes["service.name"] == nil and attributes["k8s.workload.name"] != nil
 
-  transform/cw_k8s_ci_v0_logs_set_cluster_name:
+  transform/cw_k8s_ci_v0_logs_set_cluster_and_node:
     error_mode: ignore
     log_statements:
       - context: resource
@@ -948,7 +952,7 @@ service:
     logs/cw_k8s_ci_v0_app:
       receivers: [filelog/cw_k8s_ci_v0_app]
       processors:
-        - transform/cw_k8s_ci_v0_logs_set_cluster_name
+        - transform/cw_k8s_ci_v0_logs_set_cluster_and_node
         - resourcedetection/cw_k8s_ci_v0
         - transform/cw_k8s_ci_v0_logs_set_cloud_resource_id
         - k8sattributes/cw_k8s_ci_v0_node
@@ -970,7 +974,7 @@ service:
     logs/cw_k8s_ci_v0_node:
       receivers: [filelog/cw_k8s_ci_v0_node]
       processors:
-        - transform/cw_k8s_ci_v0_logs_set_cluster_name
+        - transform/cw_k8s_ci_v0_logs_set_cluster_and_node
         - resourcedetection/cw_k8s_ci_v0
         - transform/cw_k8s_ci_v0_logs_set_cloud_resource_id
         - k8sattributes/cw_k8s_ci_v0_node

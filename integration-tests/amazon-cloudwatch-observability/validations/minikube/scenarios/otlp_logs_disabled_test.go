@@ -34,8 +34,8 @@ func TestOTLPLogsDisabled(t *testing.T) {
 
 	// Namespace + operator sanity.
 	ns, err := k8sClient.GetNamespace(minikube.Namespace)
-	assert.NoError(t, err)
-	assert.Equal(t, minikube.Namespace, ns.Name)
+	require.NoError(t, err)
+	require.Equal(t, minikube.Namespace, ns.Name)
 
 	exists, err := k8sClient.ValidateDeploymentExists(minikube.Namespace, "amazon-cloudwatch-observability-controller-manager")
 	assert.NoError(t, err)
@@ -114,7 +114,7 @@ func assertLogPipelineAbsent(t *testing.T, otelConfig string) {
 		// Log-specific processors
 		"batch/cw_k8s_ci_v0_logs_dest",
 		"transform/cw_k8s_ci_v0_logs_set_workload",
-		"transform/cw_k8s_ci_v0_logs_set_cluster_name",
+		"transform/cw_k8s_ci_v0_logs_set_cluster_and_node",
 		"transform/cw_k8s_ci_v0_logs_set_cloud_resource_id",
 		"transform/cw_k8s_ci_v0_logs_clear_schema_url",
 		"transform/cw_k8s_ci_v0_logs_set_scope_app",

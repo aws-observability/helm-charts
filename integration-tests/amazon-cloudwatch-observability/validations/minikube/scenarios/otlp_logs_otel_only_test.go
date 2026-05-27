@@ -27,8 +27,8 @@ func TestOTLPLogsOtelOnly(t *testing.T) {
 	require.NoError(t, err, "failed to create k8s client")
 
 	ns, err := k8sClient.GetNamespace(minikube.Namespace)
-	assert.NoError(t, err)
-	assert.Equal(t, minikube.Namespace, ns.Name)
+	require.NoError(t, err)
+	require.Equal(t, minikube.Namespace, ns.Name)
 
 	// FluentBit must not be deployed.
 	exists, err := k8sClient.ValidateDaemonSetExists(minikube.Namespace, "fluent-bit")
