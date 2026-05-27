@@ -106,9 +106,7 @@ Logic:
   - When otelContainerInsights.clusterScraperAgent matches agentName, return cluster-level OTEL CI config
   - Default: return empty config ({})
 */}}
-{{- define "cloudwatch-agent.build-default-otel-config" -}}
-{{- $agentName := .agentName -}}
-{{- $ctx := .context -}}
+{{- define "cloudwatch-agent.validate-flags" -}}
 {{- /*
   Flag validation and type checking for the CI flag state matrix.
   Four flags control CI behavior:
@@ -123,18 +121,24 @@ Logic:
     - otelCI.enabled=true + containerLogs.enabled=true = dual-publish
       (both OTEL and FluentBit log pipelines run simultaneously)
 */ -}}
-{{- if not (kindIs "bool" $ctx.Values.containerInsights.enabled) }}
+{{- if not (kindIs "bool" .Values.containerInsights.enabled) }}
 {{- fail "containerInsights.enabled must be a boolean (true/false)" }}
 {{- end }}
-{{- if not (kindIs "bool" $ctx.Values.containerLogs.enabled) }}
+{{- if not (kindIs "bool" .Values.containerLogs.enabled) }}
 {{- fail "containerLogs.enabled must be a boolean (true/false)" }}
 {{- end }}
-{{- if not (kindIs "bool" $ctx.Values.otelContainerInsights.enabled) }}
+{{- if not (kindIs "bool" .Values.otelContainerInsights.enabled) }}
 {{- fail "otelContainerInsights.enabled must be a boolean (true/false)" }}
 {{- end }}
-{{- if not (kindIs "bool" $ctx.Values.otelContainerInsights.logs.enabled) }}
+{{- if not (kindIs "bool" .Values.otelContainerInsights.logs.enabled) }}
 {{- fail "otelContainerInsights.logs.enabled must be a boolean (true/false)" }}
 {{- end }}
+{{- end -}}
+
+{{- define "cloudwatch-agent.build-default-otel-config" -}}
+{{- $agentName := .agentName -}}
+{{- $ctx := .context -}}
+{{- include "cloudwatch-agent.validate-flags" $ctx -}}
 {{- if not $ctx.Values.otelContainerInsights.enabled -}}
 {}
 {{- else if eq $ctx.Values.otelContainerInsights.targetAgent $agentName -}}

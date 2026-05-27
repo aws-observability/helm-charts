@@ -674,20 +674,6 @@ processors:
           - set(attributes["k8s.cluster.name"], "{{ .Values.clusterName }}")
           - set(attributes["k8s.node.name"], "${env:K8S_NODE_NAME}")
 
-  resourcedetection/cw_k8s_ci_v0_logs:
-    detectors: [eks, ec2]
-    ec2:
-      resource_attributes:
-        host.id: { enabled: true }
-        host.type: { enabled: true }
-        host.name: { enabled: true }
-        host.image.id: { enabled: true }
-        cloud.provider: { enabled: true }
-        cloud.platform: { enabled: true }
-        cloud.region: { enabled: true }
-        cloud.availability_zone: { enabled: true }
-        cloud.account.id: { enabled: true }
-
   transform/cw_k8s_ci_v0_logs_set_cloud_resource_id:
     error_mode: ignore
     log_statements:
@@ -963,7 +949,7 @@ service:
       receivers: [filelog/cw_k8s_ci_v0_app]
       processors:
         - transform/cw_k8s_ci_v0_logs_set_cluster_name
-        - resourcedetection/cw_k8s_ci_v0_logs
+        - resourcedetection/cw_k8s_ci_v0
         - transform/cw_k8s_ci_v0_logs_set_cloud_resource_id
         - k8sattributes/cw_k8s_ci_v0_node
         - k8sattributes/cw_k8s_ci_v0_pod
@@ -985,7 +971,7 @@ service:
       receivers: [filelog/cw_k8s_ci_v0_node]
       processors:
         - transform/cw_k8s_ci_v0_logs_set_cluster_name
-        - resourcedetection/cw_k8s_ci_v0_logs
+        - resourcedetection/cw_k8s_ci_v0
         - transform/cw_k8s_ci_v0_logs_set_cloud_resource_id
         - k8sattributes/cw_k8s_ci_v0_node
         - transform/cw_k8s_ci_v0_logs_set_scope_host

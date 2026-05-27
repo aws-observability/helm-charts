@@ -72,6 +72,7 @@ jobs:
           - otlp-hybrid-metrics-fluentbit
           - otlp-logs-dual-publish
           - otlp-logs-otel-only
+          - agent-config-merge-isolation
     steps:
       - uses: actions/checkout@f43a0e5ff2bd294095638e18286ca9a3d1956744 # v3.6.0
 

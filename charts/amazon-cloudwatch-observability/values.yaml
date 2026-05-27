@@ -1124,16 +1124,15 @@ applicationSignals:
 ## ══════════════════════════════════════════════════════════════════════════════
 ##
 ## When otelContainerInsights.enabled is false (default), everything under this
-## section is ignored. Existing v6.x behavior (ECI metrics + FluentBit logs) is
-## unchanged.
+## section is ignored.
 ##
-## When enabled, the agent collects metrics via OTEL pipelines. To also collect
-## logs via OTEL, set otelContainerInsights.logs.enabled to true.
+## When enabled, the agent collects metrics and logs via OTEL pipelines.
+## To disable OTEL logs while keeping metrics, set otelContainerInsights.logs.enabled to false.
 ##
 ## Supported combinations:
-##   enabled=false              → no OTEL CI (default, v6.x behavior)
+##   enabled=false              → no OTEL CI (default)
 ##   enabled=true               → OTEL metrics + OTEL logs
-##   enabled=true, logs=false   → OTEL metrics only
+##   enabled=true, logs.enabled=false   → OTEL metrics only
 ##
 otelContainerInsights:
   enabled: false
