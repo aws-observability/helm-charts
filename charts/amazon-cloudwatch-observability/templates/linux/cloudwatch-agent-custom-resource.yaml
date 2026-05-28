@@ -148,6 +148,15 @@ spec:
   - mountPath: /var/log/pods
     name: criologs
     readOnly: true
+  {{- if and $.Values.otelContainerInsights.enabled $.Values.otelContainerInsights.logs.enabled (eq $agent.name $.Values.otelContainerInsights.targetAgent) }}
+  # /var/log covers the paths the OTEL log pipelines need: /var/log/containers/*.log
+  # (app container logs), /var/log/messages, /var/log/dmesg, /var/log/secure
+  # (host logs). The existing criologs mount on /var/log/pods is retained for
+  # the existing metrics pipelines.
+  - mountPath: /var/log
+    name: varlog
+    readOnly: true
+  {{- end }}
   - mountPath: /var/lib/docker
     name: varlibdocker
     readOnly: true
@@ -202,6 +211,11 @@ spec:
   - hostPath:
       path:  /var/log/pods
     name: criologs
+  {{- if and $.Values.otelContainerInsights.enabled $.Values.otelContainerInsights.logs.enabled (eq $agent.name $.Values.otelContainerInsights.targetAgent) }}
+  - hostPath:
+      path: /var/log
+    name: varlog
+  {{- end }}
   - hostPath:
       path: /sys
     name: sys

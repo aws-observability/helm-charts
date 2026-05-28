@@ -1,2 +1,6 @@
 region: us-west-2
 clusterName: minikube
+# Test validates feature-targeted OTEL config routing (cluster-scraper vs agent),
+# so explicitly opt into OTEL (off by default).
+otelContainerInsights:
+  enabled: true

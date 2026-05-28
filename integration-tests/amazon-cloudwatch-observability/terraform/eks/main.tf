@@ -120,6 +120,10 @@ resource "helm_release" "this" {
     {
       name  = "clusterName"
       value = aws_eks_cluster.this.name
+    },
+    {
+      name  = "otelContainerInsights.enabled"
+      value = "true"
     }
   ]
 }
