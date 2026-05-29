@@ -29,7 +29,7 @@ containerLogs:
   fluentBit:
     image:
       repository: aws-for-fluent-bit
-      tag: 3.3.0
+      tag: 3.4.0
       tagWindows: 2.31.12-windowsservercore
       repositoryDomainMap:
         public: public.ecr.aws/aws-observability
@@ -479,7 +479,7 @@ manager:
     python:
       repositoryDomain: public.ecr.aws/aws-observability
       repository: adot-autoinstrumentation-python
-      tag: v0.17.0
+      tag: v0.17.1
     dotnet:
       repositoryDomain: public.ecr.aws/aws-observability
       repository: adot-autoinstrumentation-dotnet
@@ -703,7 +703,7 @@ agent:
   replicas: 1 # The total number non-terminated pods targeted by this AmazonCloudWatchAgent's deployment or statefulSet.
   image:
     repository: cloudwatch-agent
-    tag: 1.300067.0b1404
+    tag: 1.300069.0b1529
     repositoryDomainMap:
       public: public.ecr.aws/cloudwatch-agent
       cn-north-1: 934860584483.dkr.ecr.cn-north-1.amazonaws.com.cn
@@ -957,7 +957,7 @@ neuronMonitor:
   name:
   image:
     repository: neuron-monitor
-    tag: 1.9.0
+    tag: 1.10.0
     repositoryDomainMap:
       public: public.ecr.aws/neuron
   resources:
@@ -1041,7 +1041,7 @@ kubeStateMetrics:
       us-gov-west-1: 013241004608.dkr.ecr.us-gov-west-1.amazonaws.com
     # Used in China/GovCloud regions where the public upstream image isn't available; the helper falls back to repositoryDomainMap[region]/restrictedRepository:restrictedTag
     restrictedRepository: eks/kube-state-metrics
-    restrictedTag: v2.18.0-eksbuild.1
+    restrictedTag: v2.18.0-eksbuild.10
   resources:
     limits:
       cpu: 200m
@@ -1067,7 +1067,7 @@ nodeExporter:
   name:
   image:
     repository: prometheus/node-exporter
-    tag: v1.10.2
+    tag: v1.11.1
     repositoryDomainMap:
       public: quay.io
       cn-north-1: 918309763551.dkr.ecr.cn-north-1.amazonaws.com.cn
@@ -1076,7 +1076,7 @@ nodeExporter:
       us-gov-west-1: 013241004608.dkr.ecr.us-gov-west-1.amazonaws.com
     # Used in China/GovCloud regions where the public upstream image isn't available; the helper falls back to repositoryDomainMap[region]/restrictedRepository:restrictedTag
     restrictedRepository: eks/prometheus-node-exporter
-    restrictedTag: v1.10.2-eksbuild.8
+    restrictedTag: v1.11.1-eksbuild.4
   resources:
     limits:
       cpu: 200m
