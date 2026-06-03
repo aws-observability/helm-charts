@@ -47,6 +47,7 @@ jobs:
           - appsignals-disabled-multi-agents
           - appsignals-enabled-multi-agents
           - appsignals-unsupported
+          - service-events-unsupported
           - webhooks-partially-enabled
           - webhooks-configured
           - deployment-rolling-enabled
