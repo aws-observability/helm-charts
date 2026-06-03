@@ -32,6 +32,45 @@ true
 {{- end -}}
 
 {{/*
+Helper function to determine whether Service Events is supported in the region.
+Returns false for regions where Service Events should be disabled.
+Note: Service Events only runs when Application Signals is enabled, so unsupported/iso regions
+(where AppSignals is off) are already covered and need not be listed here.
+*/}}
+{{- define "manager.serviceEventsSupported" -}}
+{{- $region := .Values.region | required ".Values.region is required." -}}
+{{- if regexMatch "us-west-1|me-central-1|me-south-1|il-central-1" $region -}}
+false
+{{- else -}}
+true
+{{- end -}}
+{{- end -}}
+
+{{/*
+Builds the per-language --auto-instrumentation-config payload, merging autoInstrumentationResources
+with autoInstrumentationConfiguration for each language. In regions where Service Events is
+unsupported (see manager.serviceEventsSupported), service_events.enabled defaults to "false" unless
+the user has explicitly set it.
+*/}}
+{{- define "manager.modify-auto-instrumentation-config" -}}
+{{- $serviceEventsSupported := include "manager.serviceEventsSupported" . | trim | eq "true" -}}
+{{- $config := dict -}}
+{{- range $lang := list "java" "python" "dotnet" "nodejs" -}}
+{{- $langConfig := merge (deepCopy (index $.Values.manager.autoInstrumentationResources $lang)) (deepCopy (index $.Values.manager.autoInstrumentationConfiguration $lang | default dict)) -}}
+{{/* service_events is supported for java, python, nodejs only (no dotnet SDK) */}}
+{{- if and (not $serviceEventsSupported) (ne $lang "dotnet") -}}
+{{- $serviceEvents := deepCopy (index $langConfig "service_events" | default dict) -}}
+{{- if not (hasKey $serviceEvents "enabled") -}}
+{{- $_ := set $serviceEvents "enabled" "false" -}}
+{{- end -}}
+{{- $_ := set $langConfig "service_events" $serviceEvents -}}
+{{- end -}}
+{{- $_ := set $config $lang $langConfig -}}
+{{- end -}}
+{{- $config | toJson -}}
+{{- end -}}
+
+{{/*
 Helper function to modify auto-monitor config based on agent configurations
 */}}
 {{- define "manager.modify-auto-monitor-config" -}}
