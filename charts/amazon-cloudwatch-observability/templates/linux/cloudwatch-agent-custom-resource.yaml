@@ -5,6 +5,11 @@
 {{ $altNames = append $altNames ( printf "%s-target-allocator-service" $customAgent.name )}}
 {{- end }}
 {{- $agentAltNames := list ( printf "%s" (include "cloudwatch-agent.name" .) ) ( printf "%s.%s.svc" (include "cloudwatch-agent.name" .) .Release.Namespace ) -}}
+{{- if and .Values.otelContainerInsights.enabled .Values.otelContainerInsights.customTelemetry.enabled -}}
+{{- $agentAltNames = append $agentAltNames "container-insights-otlp" -}}
+{{- $agentAltNames = append $agentAltNames ( printf "container-insights-otlp.%s" .Release.Namespace ) -}}
+{{- $agentAltNames = append $agentAltNames ( printf "container-insights-otlp.%s.svc" .Release.Namespace ) -}}
+{{- end -}}
 {{- $ca := genCA ("agent-ca")  ( .Values.agent.autoGenerateCert.expiryDays | int ) -}}
 {{- $cert := genSignedCert ("agent") nil $altNames ( .Values.agent.autoGenerateCert.expiryDays | int ) $ca -}}
 {{- $serverCert := genSignedCert ("agent-server") nil $agentAltNames ( .Values.agent.autoGenerateCert.expiryDays | int ) $ca -}}

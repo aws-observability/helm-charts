@@ -133,6 +133,13 @@ Logic:
 {{- if not (kindIs "bool" .Values.otelContainerInsights.logs.enabled) }}
 {{- fail "otelContainerInsights.logs.enabled must be a boolean (true/false)" }}
 {{- end }}
+{{- if not (kindIs "bool" .Values.otelContainerInsights.customTelemetry.enabled) }}
+{{- fail "otelContainerInsights.customTelemetry.enabled must be a boolean (true/false)" }}
+{{- end }}
+{{- $authType := .Values.otelContainerInsights.customTelemetry.auth.type }}
+{{- if not (or (eq $authType "none") (eq $authType "mtls")) }}
+{{- fail "otelContainerInsights.customTelemetry.auth.type must be one of: none, mtls" }}
+{{- end }}
 {{- end -}}
 
 {{- define "cloudwatch-agent.build-default-otel-config" -}}
