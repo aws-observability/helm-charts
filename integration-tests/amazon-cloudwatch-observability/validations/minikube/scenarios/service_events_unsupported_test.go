@@ -20,7 +20,7 @@ func TestServiceEventsUnsupported(t *testing.T) {
 	assert.NoError(t, err)
 	assert.True(t, exists)
 
-	// In an unsupported region (us-west-1), the chart injects service_events.enabled: "false"
+	// In an unsupported region, the chart injects service_events.enabled: "false"
 	// for the Service Events languages (java, python, nodejs) and leaves dotnet untouched
 	// (no Service Events SDK).
 	config := minikube.GetOperatorAutoInstrumentationConfig(t)
