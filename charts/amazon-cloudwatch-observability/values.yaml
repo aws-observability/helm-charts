@@ -551,7 +551,6 @@ manager:
       # service_events:
       #   enabled: "false"                    # set "false" to opt out of Service Events
       #   function_instrument_enabled: "true" # set "true" to enable per-function instrumentation (SDK default: false)
-      #   profiler_enabled: "false"           # set "false" to disable the profiler (SDK default: true)
       # dynamic_instrumentation:
       #   enabled: "true"                     # set "true" to enable Dynamic Instrumentation
     python:
@@ -560,7 +559,6 @@ manager:
       # service_events:
       #   enabled: "false"
       #   function_instrument_enabled: "true"
-      #   profiler_enabled: "false"
       # dynamic_instrumentation:
       #   enabled: "true"
     dotnet:
@@ -570,7 +568,6 @@ manager:
       # service_events:
       #   enabled: "false"
       #   function_instrument_enabled: "true"
-      #   profiler_enabled: "false"
       # dynamic_instrumentation:
       #   enabled: "true"
   autoInstrumentationResources:
