@@ -61,9 +61,9 @@ spec:
     - "dcgm-exporter-service"
     - "dcgm-exporter-service.{{ .Release.Namespace }}.svc"
     - "neuron-monitor-service"
-    - "neuron-monitor-service.amazon-cloudwatch.svc"
+    - "neuron-monitor-service.{{ .Release.Namespace }}.svc"
     - "node-exporter-service"
-    - "node-exporter-service.amazon-cloudwatch.svc"
+    - "node-exporter-service.{{ .Release.Namespace }}.svc"
   issuerRef:
     kind: Issuer
     name: "agent-ca"
