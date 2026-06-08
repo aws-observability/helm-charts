@@ -39,7 +39,7 @@ Note: Service Events only runs when Application Signals is enabled, so unsupport
 */}}
 {{- define "manager.serviceEventsSupported" -}}
 {{- $region := .Values.region | required ".Values.region is required." -}}
-{{- if regexMatch "us-west-1|me-central-1|me-south-1|il-central-1" $region -}}
+{{- if regexMatch "me-central-1|me-south-1|il-central-1" $region -}}
 false
 {{- else -}}
 true
