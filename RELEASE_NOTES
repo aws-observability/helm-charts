@@ -2,9 +2,14 @@
 amazon-cloudwatch-observability v6.2.0 (2026-05-29)
 =======================================================================
 Enhancements:
+* Upgrade CWAgent to v1.300069.0b1529
+* Upgrade Fluent Bit to v3.4.0
+* Upgrade Python SDK to v0.17.1
+* Upgrade Neuron Monitor to v1.10.0
 * Disable Otel Container Insights by default
 * Adds LIS CSI metrics support to OTEL container insights config
 * Adds application and host log collection via OTEL
+* Add pattern validation to Instrumentation CRD config fields
 
 =======================================================================
 amazon-cloudwatch-observability v6.1.0 (2026-05-05)
