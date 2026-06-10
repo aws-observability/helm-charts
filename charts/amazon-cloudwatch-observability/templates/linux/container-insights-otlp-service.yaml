@@ -1,0 +1,24 @@
+{{- if and .Values.otelContainerInsights.enabled .Values.otelContainerInsights.customTelemetry.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: container-insights-otlp
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "amazon-cloudwatch-observability.labels" . | nindent 4 }}
+    app.kubernetes.io/component: custom-otlp-receiver
+spec:
+  type: ClusterIP
+  internalTrafficPolicy: Local
+  ports:
+    - name: otlp-grpc
+      port: {{ .Values.otelContainerInsights.customTelemetry.grpcPort }}
+      targetPort: {{ .Values.otelContainerInsights.customTelemetry.grpcPort }}
+      protocol: TCP
+    - name: otlp-http
+      port: {{ .Values.otelContainerInsights.customTelemetry.httpPort }}
+      targetPort: {{ .Values.otelContainerInsights.customTelemetry.httpPort }}
+      protocol: TCP
+  selector:
+    app.kubernetes.io/name: cloudwatch-agent
+{{- end }}

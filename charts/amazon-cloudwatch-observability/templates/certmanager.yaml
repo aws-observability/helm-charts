@@ -81,6 +81,11 @@ spec:
   dnsNames:
     - "cloudwatch-agent"
     - "cloudwatch-agent.{{ .Release.Namespace }}.svc"
+{{- if and .Values.otelContainerInsights.enabled .Values.otelContainerInsights.customTelemetry.enabled }}
+    - "container-insights-otlp"
+    - "container-insights-otlp.{{ .Release.Namespace }}"
+    - "container-insights-otlp.{{ .Release.Namespace }}.svc"
+{{- end }}
   issuerRef:
     kind: Issuer
     name: "agent-ca"

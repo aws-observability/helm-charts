@@ -1,0 +1,31 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: order-service-demo
+  namespace: amazon-cloudwatch
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: order-service-demo
+  template:
+    metadata:
+      labels:
+        app: order-service-demo
+    spec:
+      containers:
+        - name: order-service
+          image: 322962300869.dkr.ecr.us-east-1.amazonaws.com/custom-metrics-demo:latest
+          imagePullPolicy: Always
+          env:
+            - name: OTEL_EXPORTER_OTLP_ENDPOINT
+              value: "http://container-insights-otlp.amazon-cloudwatch:4319"
+            - name: OTEL_EXPORTER_OTLP_INSECURE
+              value: "true"
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 100m
+              memory: 128Mi

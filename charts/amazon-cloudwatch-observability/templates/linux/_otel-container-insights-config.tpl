@@ -159,6 +159,27 @@ receivers:
       k8s.node.uptime:
         enabled: true
 
+{{- if .Values.otelContainerInsights.customTelemetry.enabled }}
+  otlp/cw_k8s_ci_v0_custom:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:{{ .Values.otelContainerInsights.customTelemetry.grpcPort }}
+{{- if eq .Values.otelContainerInsights.customTelemetry.auth.type "mtls" }}
+        tls:
+          cert_file: /etc/amazon-cloudwatch-observability-agent-server-cert/server.crt
+          key_file: /etc/amazon-cloudwatch-observability-agent-server-cert/server.key
+          client_ca_file: /etc/amazon-cloudwatch-observability-agent-cert/tls-ca.crt
+{{- end }}
+      http:
+        endpoint: 0.0.0.0:{{ .Values.otelContainerInsights.customTelemetry.httpPort }}
+{{- if eq .Values.otelContainerInsights.customTelemetry.auth.type "mtls" }}
+        tls:
+          cert_file: /etc/amazon-cloudwatch-observability-agent-server-cert/server.crt
+          key_file: /etc/amazon-cloudwatch-observability-agent-server-cert/server.key
+          client_ca_file: /etc/amazon-cloudwatch-observability-agent-cert/tls-ca.crt
+{{- end }}
+{{- end }}
+
 {{- if .Values.otelContainerInsights.logs.enabled }}
   # ── CI Logs receivers ──
   filelog/cw_k8s_ci_v0_app:
@@ -644,6 +665,43 @@ processors:
           - delete_key(attributes, "instance_id") where attributes["instance_id"] != nil
           - delete_key(attributes, "volume_id") where attributes["volume_id"] != nil
 
+{{- if .Values.otelContainerInsights.customTelemetry.enabled }}
+  k8sattributes/cw_k8s_ci_v0_custom:
+    auth_type: serviceAccount
+    passthrough: false
+    filter:
+      node_from_env_var: K8S_NODE_NAME
+    extract:
+      metadata:
+        - k8s.pod.name
+        - k8s.pod.uid
+        - k8s.namespace.name
+        - k8s.node.name
+        - k8s.deployment.name
+        - k8s.statefulset.name
+        - k8s.daemonset.name
+        - k8s.replicaset.name
+        - k8s.job.name
+        - k8s.cronjob.name
+      labels:
+        - tag_name: "k8s.pod.label.$$$1"
+          key_regex: "(.*)"
+          from: pod
+    pod_association:
+      - sources:
+          - from: connection
+
+  transform/cw_k8s_ci_v0_set_scope_custom:
+    error_mode: ignore
+    metric_statements:
+      - context: scope
+        statements:
+          - set(scope.schema_url, "")
+          - set(attributes["cloudwatch.source"], "cloudwatch-agent")
+          - set(attributes["cloudwatch.solution"], "k8s-otel-container-insights")
+          - set(attributes["cloudwatch.pipeline"], "custom-otlp")
+{{- end }}
+
 {{- if .Values.otelContainerInsights.logs.enabled }}
   # ── CI Logs processors ──
   transform/cw_k8s_ci_v0_logs_set_workload:
@@ -946,6 +1004,28 @@ service:
         - batch/cw_k8s_ci_v0_metrics_dest
       exporters:
         - otlphttp/cw_k8s_ci_v0_metrics_dest
+
+{{- if .Values.otelContainerInsights.customTelemetry.enabled }}
+    metrics/cw_k8s_ci_v0_custom:
+      receivers: [otlp/cw_k8s_ci_v0_custom]
+      processors:
+        - transform/cw_k8s_ci_v0_set_unit
+        - metricstarttime/cw_k8s_ci_v0
+        - transform/cw_k8s_ci_v0_set_cluster_name
+        - k8sattributes/cw_k8s_ci_v0_custom
+        - transform/cw_k8s_ci_v0_set_node_name
+        - transform/cw_k8s_ci_v0_promote_node_name
+        - resourcedetection/cw_k8s_ci_v0
+        - transform/cw_k8s_ci_v0_set_cloud_resource_id
+        - k8sattributes/cw_k8s_ci_v0_node
+        - transform/cw_k8s_ci_v0_set_scope_custom
+        - transform/cw_k8s_ci_v0_clear_schema_url
+        - transform/cw_k8s_ci_v0_set_workload
+        - awsattributelimit/cw_k8s_ci_v0
+        - batch/cw_k8s_ci_v0_metrics_dest
+      exporters:
+        - otlphttp/cw_k8s_ci_v0_metrics_dest
+{{- end }}
 
 {{- if .Values.otelContainerInsights.logs.enabled }}
     # ── CI Logs pipelines ──
