@@ -1,0 +1,32 @@
+region: us-west-2
+clusterName: minikube
+
+# Three agents: cloudwatch-agent (targeted by all features), prometheus-agent (not targeted by any),
+# and cloudwatch-agent-cluster-scraper (targeted by otelContainerInsights.clusterScraperAgent).
+agents:
+  - name: cloudwatch-agent
+  - name: prometheus-agent
+    mode: deployment
+    replicas: 1
+    hostNetwork: false
+    serviceAccount:
+      name: prometheus-agent
+  - name: cloudwatch-agent-cluster-scraper
+    mode: deployment
+    replicas: 1
+    serviceAccount:
+      name: cloudwatch-agent-cluster-scraper
+
+# All features target cloudwatch-agent (defaults), so prometheus-agent gets nothing.
+containerInsights:
+  enabled: true
+  targetAgent: "cloudwatch-agent"
+
+applicationSignals:
+  enabled: true
+  targetAgent: "cloudwatch-agent"
+
+otelContainerInsights:
+  enabled: true
+  targetAgent: "cloudwatch-agent"
+  clusterScraperAgent: "cloudwatch-agent-cluster-scraper"

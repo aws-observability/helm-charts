@@ -29,7 +29,7 @@ containerLogs:
   fluentBit:
     image:
       repository: aws-for-fluent-bit
-      tag: 3.3.0
+      tag: 3.4.0
       tagWindows: 2.31.12-windowsservercore
       repositoryDomainMap:
         public: public.ecr.aws/aws-observability
@@ -479,7 +479,7 @@ manager:
     python:
       repositoryDomain: public.ecr.aws/aws-observability
       repository: adot-autoinstrumentation-python
-      tag: v0.17.0
+      tag: v0.17.1
     dotnet:
       repositoryDomain: public.ecr.aws/aws-observability
       repository: adot-autoinstrumentation-dotnet
@@ -694,13 +694,16 @@ admissionWebhooks:
 ## List of AmazonCloudWatchAgent workloads to install & manage, each representing an independent installation of the AmazonCloudWatchAgent CustomResource. Each entry in this list uses the schema & the defaults from $.agent, so only provide any overrides here.
 agents:
   - name: cloudwatch-agent
+  - name: cloudwatch-agent-cluster-scraper
+    mode: deployment
+    config: "default" # the reserved string "default" indicates building the default config dynamically
 agent:
   name:
   mode: daemonset # Represents the mode the AmazonCloudWatchAgent workload will run in (deployment, daemonset or statefulset)
   replicas: 1 # The total number non-terminated pods targeted by this AmazonCloudWatchAgent's deployment or statefulSet.
   image:
     repository: cloudwatch-agent
-    tag: 1.300067.0b1404
+    tag: 1.300069.0b1529
     repositoryDomainMap:
       public: public.ecr.aws/cloudwatch-agent
       cn-north-1: 934860584483.dkr.ecr.cn-north-1.amazonaws.com.cn
@@ -708,6 +711,7 @@ agent:
       us-gov-east-1: 743662458514.dkr.ecr.us-gov-east-1.amazonaws.com
       us-gov-west-1: 743662458514.dkr.ecr.us-gov-west-1.amazonaws.com
   enabled: true
+  hostNetwork: true
   env: []
   priorityClassName: system-node-critical
   affinity:
@@ -755,24 +759,8 @@ agent:
     issuerAnnotations: {}
   serviceAccount:
     name: # override agent service account name
-  config: # optional config that can be provided to override the defaultConfig
-  otelConfig: # optional YAML config that can be provided to combine with the config/defaultConfig
-  defaultConfig:
-    {
-      "logs": {
-        "metrics_collected": {
-          "kubernetes": {
-            "enhanced_container_insights": true
-          },
-          "application_signals": { }
-        }
-      },
-      "traces": {
-        "traces_collected": {
-          "application_signals": { }
-        }
-      }
-    }
+  config: # optional config that can be provided to override the default config
+  otelConfig: # optional YAML config that can be provided to combine with the build-default-otel-config output
   prometheus:
     config:
     targetAllocator:
@@ -969,7 +957,7 @@ neuronMonitor:
   name:
   image:
     repository: neuron-monitor
-    tag: 1.9.0
+    tag: 1.10.0
     repositoryDomainMap:
       public: public.ecr.aws/neuron
   resources:
@@ -1037,3 +1025,128 @@ neuronMonitor:
                   - fargate
   nodeSelector:
     kubernetes.io/os: linux
+
+kubeStateMetrics:
+  enabled: true
+  name:
+  ## TODO: Add replicas, PDB, and HPA configuration in a follow-up.
+  image:
+    repository: kube-state-metrics/kube-state-metrics
+    tag: v2.18.0
+    repositoryDomainMap:
+      public: registry.k8s.io
+      cn-north-1: 918309763551.dkr.ecr.cn-north-1.amazonaws.com.cn
+      cn-northwest-1: 961992271922.dkr.ecr.cn-northwest-1.amazonaws.com.cn
+      us-gov-east-1: 151742754352.dkr.ecr.us-gov-east-1.amazonaws.com
+      us-gov-west-1: 013241004608.dkr.ecr.us-gov-west-1.amazonaws.com
+    # Used in China/GovCloud regions where the public upstream image isn't available; the helper falls back to repositoryDomainMap[region]/restrictedRepository:restrictedTag
+    restrictedRepository: eks/kube-state-metrics
+    restrictedTag: v2.18.0-eksbuild.10
+  resources:
+    limits:
+      cpu: 200m
+      memory: 256Mi
+    requests:
+      cpu: 50m
+      memory: 64Mi
+  securityContext: {}
+  ## Override root tolerations
+  # tolerations: []
+  affinity: {}
+  nodeSelector:
+    kubernetes.io/os: linux
+  service:
+    type: ClusterIP
+    port: 8443
+  serviceAccount:
+    name:
+  ## KSM resources are only created when both kubeStateMetrics.enabled and otelContainerInsights.enabled are true.
+
+nodeExporter:
+  enabled: true
+  name:
+  image:
+    repository: prometheus/node-exporter
+    tag: v1.11.1
+    repositoryDomainMap:
+      public: quay.io
+      cn-north-1: 918309763551.dkr.ecr.cn-north-1.amazonaws.com.cn
+      cn-northwest-1: 961992271922.dkr.ecr.cn-northwest-1.amazonaws.com.cn
+      us-gov-east-1: 151742754352.dkr.ecr.us-gov-east-1.amazonaws.com
+      us-gov-west-1: 013241004608.dkr.ecr.us-gov-west-1.amazonaws.com
+    # Used in China/GovCloud regions where the public upstream image isn't available; the helper falls back to repositoryDomainMap[region]/restrictedRepository:restrictedTag
+    restrictedRepository: eks/prometheus-node-exporter
+    restrictedTag: v1.11.1-eksbuild.4
+  resources:
+    limits:
+      cpu: 200m
+      memory: 100Mi
+    requests:
+      cpu: 50m
+      memory: 30Mi
+  securityContext: {}
+  ## Override root tolerations
+  # tolerations: []
+  affinity:
+    nodeAffinity:
+      requiredDuringSchedulingIgnoredDuringExecution:
+        nodeSelectorTerms:
+          - matchExpressions:
+              - key: eks.amazonaws.com/compute-type
+                operator: NotIn
+                values:
+                  - fargate
+  nodeSelector:
+    kubernetes.io/os: linux
+  service: {}
+  serviceAccount:
+    name:
+
+## Controls the legacy Container Insights pipeline (CloudWatch Agent collecting kubernetes metrics via logs.metrics_collected.kubernetes).
+## When set to false, the kubernetes key is removed from the agent config, disabling legacy CI metrics collection.
+## Can run alongside otelContainerInsights — both pipelines are independent.
+containerInsights:
+  enabled: true
+  ## The agent in the agents array that receives legacy Container Insights config.
+  targetAgent: "cloudwatch-agent"
+
+## Controls the Application Signals pipeline (application performance monitoring via traces and metrics).
+applicationSignals:
+  enabled: true
+  ## The agent in the agents array that receives Application Signals config.
+  targetAgent: "cloudwatch-agent"
+
+## Controls the OTLP-based Container Insights pipeline (node-exporter, kube-state-metrics, cluster-scraper, OTEL collector config).
+## When enabled, deploys additional resources and injects OTEL config into the CloudWatch Agent for metrics collection via OTLP.
+##
+## ══════════════════════════════════════════════════════════════════════════════
+## OTEL Container Insights
+## ══════════════════════════════════════════════════════════════════════════════
+##
+## When otelContainerInsights.enabled is false (default), everything under this
+## section is ignored.
+##
+## When enabled, the agent collects metrics and logs via OTEL pipelines.
+## To disable OTEL logs while keeping metrics, set otelContainerInsights.logs.enabled to false.
+##
+## Supported combinations:
+##   enabled=false              → no OTEL CI (default)
+##   enabled=true               → OTEL metrics + OTEL logs
+##   enabled=true, logs.enabled=false   → OTEL metrics only
+##
+otelContainerInsights:
+  enabled: false
+  ## OTEL-native CI log pipelines (application, host).
+  ## Only takes effect when otelContainerInsights.enabled is true.
+  logs:
+    enabled: true
+  ## The agent in the agents array that receives node-level OTEL Container Insights config.
+  targetAgent: "cloudwatch-agent"
+  ## The agent in the agents array that receives cluster-level OTEL Container Insights config (apiserver, kube-state-metrics scraping).
+  clusterScraperAgent: "cloudwatch-agent-cluster-scraper"
+  ## Scrape interval for all OTEL CI prometheus receivers. Must be in "<N>s" format (e.g. "30s", "15s").
+  metricResolution: "30s"
+  # Override the CloudWatch Metrics OTLP endpoint. If empty, defaults to monitoring.<region>.amazonaws.com.
+  cloudwatchMetricsEndpoint: ""
+  # Override the CloudWatch Logs OTLP endpoint. If empty, defaults to logs.<region>.amazonaws.com.
+  cloudwatchLogsEndpoint: ""

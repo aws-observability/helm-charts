@@ -14,7 +14,7 @@ rules:
   verbs: ["list", "watch", "get"]
 - apiGroups: [ "" ]
   resources: [ "services" ]
-  verbs: [ "list", "watch" ]
+  verbs: [ "get", "list", "watch" ]
 - apiGroups: [ "apps" ]
   resources: [ "replicasets", "daemonsets", "deployments", "statefulsets" ]
   verbs: [ "list", "watch", "get" ]
@@ -27,6 +27,11 @@ rules:
 - apiGroups: [ "" ]
   resources: [ "nodes/stats", "events" ]
   verbs: [ "create", "get" ]
+{{- if .Values.otelContainerInsights.enabled }}
+- apiGroups: [ "" ]
+  resources: [ "nodes/metrics" ]
+  verbs: [ "get" ]
+{{- end }}
 - apiGroups: [ "" ]
   resources: [ "configmaps" ]
   verbs: [ "get" ]

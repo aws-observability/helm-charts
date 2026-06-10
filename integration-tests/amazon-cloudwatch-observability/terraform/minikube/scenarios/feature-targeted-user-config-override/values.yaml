@@ -1,0 +1,16 @@
+region: us-west-2
+clusterName: minikube
+agents:
+  - name: cloudwatch-agent
+    config:
+      agent:
+        region: us-west-2
+      logs:
+        metrics_collected:
+          custom_metric:
+            enabled: true
+  - name: cloudwatch-agent-cluster-scraper
+    mode: deployment
+    replicas: 1
+    serviceAccount:
+      name: cloudwatch-agent-cluster-scraper

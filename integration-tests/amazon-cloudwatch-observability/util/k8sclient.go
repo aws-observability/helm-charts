@@ -226,6 +226,32 @@ func (k *K8sClient) ValidateDeploymentExists(namespace, deploymentName string) (
 	return false, nil
 }
 
+func (k *K8sClient) ValidateDaemonSetExists(namespace, daemonSetName string) (bool, error) {
+	daemonSets, err := k.ListDaemonSets(namespace)
+	if err != nil {
+		return false, err
+	}
+	for _, daemonSet := range daemonSets.Items {
+		if daemonSet.Name == daemonSetName {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
+func (k *K8sClient) ValidateServiceExists(namespace, serviceName string) (bool, error) {
+	services, err := k.ListServices(namespace)
+	if err != nil {
+		return false, err
+	}
+	for _, service := range services.Items {
+		if service.Name == serviceName {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
 func (k *K8sClient) GetClusterRole(name string) (*rbacV1.ClusterRole, error) {
 	clusterRole, err := k.client.RbacV1().ClusterRoles().Get(context.Background(), name, metav1.GetOptions{})
 	if err != nil {

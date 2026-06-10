@@ -1,4 +1,36 @@
 =======================================================================
+amazon-cloudwatch-observability v6.2.0 (2026-05-29)
+=======================================================================
+Enhancements:
+* Upgrade CWAgent to v1.300069.0b1529
+* Upgrade Fluent Bit to v3.4.0
+* Upgrade Python SDK to v0.17.1
+* Upgrade Neuron Monitor to v1.10.0
+* Disable Otel Container Insights by default
+* Adds LIS CSI metrics support to OTEL container insights config
+* Adds application and host log collection via OTEL
+* Add pattern validation to Instrumentation CRD config fields
+
+=======================================================================
+amazon-cloudwatch-observability v6.1.0 (2026-05-05)
+=======================================================================
+Bug fixes:
+- Fixed region injection logic in the template helper (#307)
+- Replaced hardcoded amazon-cloudwatch namespace references to support non-default namespace in certmanager.yaml (#307)
+- Changed 4 genSignedCert calls to use the agent's own expiry config (#307)
+
+Enhancements:
+* Upgrade CWAgent to v1.300067.0b1404
+* Upgrade CWAgent Operator to v3.4.2
+* Upgrade Fluent Bit to v3.3.0
+* Upgrade Java SDK to v2.26.2
+* Upgrade Python SDK to v0.17.0
+* Upgrade .NET SDK to v1.12.0
+* Upgrade NodeJS SDK to v0.11.0
+* Upgrade Neuron Monitor to v1.9.0
+* Refactor fluent-bit region-specific (isolated) config using tpl conditionals (#271)
+
+=======================================================================
 amazon-cloudwatch-observability v5.4.0 (2026-05-01)
 ========================================================================
 Bug fixes:
@@ -16,6 +48,18 @@ Enhancements:
 * Upgrade NodeJS SDK to v0.11.0
 * Upgrade Neuron Monitor to v1.9.0
 * Refactor fluent-bit region-specific (isolated) config using tpl conditionals (#271)
+
+=======================================================================
+amazon-cloudwatch-observability v6.0.1 (2026-04-08)
+=======================================================================
+Enhancements:
+* [Container Insights] Cluster-scraper deployment now uses cloudwatch-agent SA instead of cluster-scraper SA
+
+=======================================================================
+amazon-cloudwatch-observability v6.0.0 (2026-04-02)
+=======================================================================
+New Features:
+* Introduce OTel Container Insights (enabled by default)
 
 =======================================================================
 amazon-cloudwatch-observability v5.3.1 (2026-04-07)

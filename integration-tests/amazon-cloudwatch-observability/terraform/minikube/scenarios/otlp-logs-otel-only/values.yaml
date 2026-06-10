@@ -1,0 +1,10 @@
+region: us-west-2
+clusterName: minikube
+# State #7: full OTEL — OTEL metrics on, OTEL logs on, FluentBit off.
+# Customer has fully migrated off FluentBit; OTEL handles both metrics and logs.
+otelContainerInsights:
+  enabled: true
+  logs:
+    enabled: true
+containerLogs:
+  enabled: false

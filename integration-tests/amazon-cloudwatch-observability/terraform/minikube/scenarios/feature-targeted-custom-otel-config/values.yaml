@@ -1,0 +1,41 @@
+region: us-west-2
+clusterName: minikube
+otelContainerInsights:
+  enabled: true
+
+# Supply a per-agent otelConfig on cloudwatch-agent that contains:
+# 1. A colliding key: sigv4auth/cw_k8s_ci_v0_metrics_dest with a different region (should be overwritten by generated config)
+# 2. A non-colliding key: a custom receiver, processor, exporter, and pipeline (should be preserved)
+agents:
+  - name: cloudwatch-agent
+    otelConfig:
+      extensions:
+        sigv4auth/cw_k8s_ci_v0_metrics_dest:
+          region: "us-fake-99"
+          service: monitoring
+      receivers:
+        prometheus/custom_user_scraper:
+          config:
+            scrape_configs:
+              - job_name: custom-user-job
+                static_configs:
+                  - targets: ["localhost:9999"]
+      processors:
+        batch/custom_user:
+          send_batch_size: 50
+      exporters:
+        otlphttp/custom_user_dest:
+          endpoint: "https://custom-user-endpoint.example.com"
+      service:
+        extensions:
+          - sigv4auth/cw_k8s_ci_v0_metrics_dest
+        pipelines:
+          metrics/custom_user_pipeline:
+            receivers: [prometheus/custom_user_scraper]
+            processors: [batch/custom_user]
+            exporters: [otlphttp/custom_user_dest]
+  - name: cloudwatch-agent-cluster-scraper
+    mode: deployment
+    replicas: 1
+    serviceAccount:
+      name: cloudwatch-agent-cluster-scraper

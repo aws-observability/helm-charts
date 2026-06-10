@@ -1,0 +1,12 @@
+region: us-west-2
+clusterName: minikube
+# Test validates OTEL-CI-specific routing (cluster-scraper CR behavior), so
+# explicitly opt into OTEL (off by default).
+otelContainerInsights:
+  enabled: true
+agent:
+  config:
+    logs:
+      metrics_collected:
+        kubernetes:
+          enhanced_container_insights: true

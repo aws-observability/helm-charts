@@ -9,6 +9,7 @@ import (
 	"github.com/aws-observability/helm-charts/integration-tests/amazon-cloudwatch-observability/util"
 	"github.com/aws-observability/helm-charts/integration-tests/amazon-cloudwatch-observability/validations/minikube"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestDualstackEndpointWithCustomEndpoint(t *testing.T) {
@@ -17,9 +18,7 @@ func TestDualstackEndpointWithCustomEndpoint(t *testing.T) {
 
 	// Validate namespace exists
 	ns, err := k8sClient.GetNamespace(minikube.Namespace)
-	if !assert.NoError(t, err) {
-		t.Fatal("Failed to get namespace, cannot continue test")
-	}
+	require.NoError(t, err, "Failed to get namespace, cannot continue test")
 	assert.Equal(t, minikube.Namespace, ns.Name)
 
 	// Validate operator deployment exists

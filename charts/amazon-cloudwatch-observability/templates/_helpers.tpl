@@ -38,14 +38,17 @@ Helper function to modify auto-monitor config based on agent configurations
 {{- $autoMonitorConfig := deepCopy .Values.manager.applicationSignals.autoMonitor -}}
 {{- $hasAppSignals := false -}}
 {{- range .Values.agents -}}
-{{- $agent := merge . (deepCopy $.Values.agent) -}}
-{{- $agentConfig := $agent.config | default $agent.defaultConfig -}}
-{{- if and (hasKey $agentConfig "logs") (hasKey $agentConfig.logs "metrics_collected") (hasKey $agentConfig.logs.metrics_collected "application_signals") -}}
-{{- $hasAppSignals = true -}}
-{{- end -}}
-{{- if and (hasKey $agentConfig "traces") (hasKey $agentConfig.traces "traces_collected") (hasKey $agentConfig.traces.traces_collected "application_signals") -}}
-{{- $hasAppSignals = true -}}
-{{- end -}}
+  {{- $agent := mergeOverwrite (deepCopy $.Values.agent) . -}}
+  {{- if and $.Values.applicationSignals.enabled (eq $.Values.applicationSignals.targetAgent $agent.name) -}}
+    {{- if and $agent.config (ne ($agent.config | toString) "default") -}}
+      {{- $agentConfig := $agent.config -}}
+      {{- if or (and (hasKey $agentConfig "logs") (hasKey $agentConfig.logs "metrics_collected") (hasKey $agentConfig.logs.metrics_collected "application_signals")) (and (hasKey $agentConfig "traces") (hasKey $agentConfig.traces "traces_collected") (hasKey $agentConfig.traces.traces_collected "application_signals")) -}}
+        {{- $hasAppSignals = true -}}
+      {{- end -}}
+    {{- else -}}
+      {{- $hasAppSignals = true -}}
+    {{- end -}}
+  {{- end -}}
 {{- end -}}
 {{- if not $hasAppSignals -}}
 {{- $_ := set $autoMonitorConfig "monitorAllServices" false -}}
@@ -53,6 +56,98 @@ Helper function to modify auto-monitor config based on agent configurations
 {{- $_ := set $autoMonitorConfig "monitorAllServices" (include "manager.monitorAllServices" . | trim | eq "true") -}}
 {{- end -}}
 {{- $autoMonitorConfig | toJson -}}
+{{- end -}}
+
+{{/*
+Build the default CW Agent JSON config for a given agent based on which feature flags target it.
+Accepts a dict with "agentName" (string) and "context" (root context $).
+Returns a dict (not JSON) — caller is responsible for serialization.
+
+Logic:
+  - Always includes agent.region
+  - Includes logs.metrics_collected.application_signals + traces.traces_collected.application_signals
+    when applicationSignals.enabled AND applicationSignals.targetAgent matches agentName
+  - Includes logs.metrics_collected.kubernetes when containerInsights.enabled AND
+    containerInsights.targetAgent matches agentName
+  - Returns minimal {"agent":{"region":"<region>"}} when no feature targets the agent
+*/}}
+{{- define "cloudwatch-agent.build-default-config" -}}
+{{- $agentName := .agentName -}}
+{{- $ctx := .context -}}
+{{- $region := $ctx.Values.region | required ".Values.region is required." -}}
+{{- $config := dict "agent" (dict "region" $region) -}}
+{{- $needsLogs := false -}}
+{{- $metricsCollected := dict -}}
+{{/* Application Signals: add logs.metrics_collected.application_signals + traces.traces_collected.application_signals */}}
+{{- if and $ctx.Values.applicationSignals.enabled (eq $ctx.Values.applicationSignals.targetAgent $agentName) -}}
+  {{- $needsLogs = true -}}
+  {{- $_ := set $metricsCollected "application_signals" dict -}}
+  {{- $_ := set $config "traces" (dict "traces_collected" (dict "application_signals" dict)) -}}
+{{- end -}}
+{{/* Container Insights: add logs.metrics_collected.kubernetes */}}
+{{- if and $ctx.Values.containerInsights.enabled (eq $ctx.Values.containerInsights.targetAgent $agentName) -}}
+  {{- $needsLogs = true -}}
+  {{- $_ := set $metricsCollected "kubernetes" (dict "enhanced_container_insights" true) -}}
+{{- end -}}
+{{- if $needsLogs -}}
+  {{- $_ := set $config "logs" (dict "metrics_collected" $metricsCollected) -}}
+{{- end -}}
+{{- $config | toJson -}}
+{{- end -}}
+
+{{/*
+Build the default OTEL YAML config for a given agent based on which feature flags target it.
+Accepts a dict with "agentName" (string) and "context" (root context $).
+Returns OTEL YAML string.
+
+Logic:
+  - When otelContainerInsights.enabled is false, return empty config ({})
+  - When otelContainerInsights.targetAgent matches agentName, return node-level OTEL CI config
+  - When otelContainerInsights.clusterScraperAgent matches agentName, return cluster-level OTEL CI config
+  - Default: return empty config ({})
+*/}}
+{{- define "cloudwatch-agent.validate-flags" -}}
+{{- /*
+  Flag validation and type checking for the CI flag state matrix.
+  Four flags control CI behavior:
+    - containerInsights.enabled (ECI)       — legacy Container Insights metrics
+    - containerLogs.enabled (FB)            — FluentBit log pipeline
+    - otelContainerInsights.enabled         — OTEL Container Insights (metrics)
+    - otelContainerInsights.logs.enabled    — OTEL log pipelines
+
+  All flag combinations are valid. Notable behaviors:
+    - otelCI.logs.enabled=true without otelCI.enabled=true is a no-op
+      (logs config is only rendered when the parent OTEL CI pipeline is active)
+    - otelCI.enabled=true + containerLogs.enabled=true = dual-publish
+      (both OTEL and FluentBit log pipelines run simultaneously)
+*/ -}}
+{{- if not (kindIs "bool" .Values.containerInsights.enabled) }}
+{{- fail "containerInsights.enabled must be a boolean (true/false)" }}
+{{- end }}
+{{- if not (kindIs "bool" .Values.containerLogs.enabled) }}
+{{- fail "containerLogs.enabled must be a boolean (true/false)" }}
+{{- end }}
+{{- if not (kindIs "bool" .Values.otelContainerInsights.enabled) }}
+{{- fail "otelContainerInsights.enabled must be a boolean (true/false)" }}
+{{- end }}
+{{- if not (kindIs "bool" .Values.otelContainerInsights.logs.enabled) }}
+{{- fail "otelContainerInsights.logs.enabled must be a boolean (true/false)" }}
+{{- end }}
+{{- end -}}
+
+{{- define "cloudwatch-agent.build-default-otel-config" -}}
+{{- $agentName := .agentName -}}
+{{- $ctx := .context -}}
+{{- include "cloudwatch-agent.validate-flags" $ctx -}}
+{{- if not $ctx.Values.otelContainerInsights.enabled -}}
+{}
+{{- else if eq $ctx.Values.otelContainerInsights.targetAgent $agentName -}}
+{{- include "otel-container-insights.config" $ctx -}}
+{{- else if eq $ctx.Values.otelContainerInsights.clusterScraperAgent $agentName -}}
+{{- include "otel-container-insights-cluster-scraper.config" $ctx -}}
+{{- else -}}
+{}
+{{- end -}}
 {{- end -}}
 
 {{/*
@@ -74,6 +169,7 @@ Helper function to modify cloudwatch-agent config
 {{- $_ := set $configCopy.agent "use_dualstack_endpoint" true }}
 {{- end }}
 
+{{- if and (hasKey $configCopy "logs") (hasKey $configCopy.logs "metrics_collected") }}
 {{- $appSignals := pluck "application_signals" $configCopy.logs.metrics_collected | first }}
 {{- if and (hasKey $configCopy.logs.metrics_collected "application_signals") (empty $appSignals.hosted_in) }}
 {{- $clusterName := .Values.clusterName | toString | required ".Values.clusterName is required." -}}
@@ -84,6 +180,7 @@ Helper function to modify cloudwatch-agent config
 {{- if and (hasKey $configCopy.logs.metrics_collected "kubernetes") (empty $containerInsights.cluster_name) }}
 {{- $clusterName := .Values.clusterName | toString | required ".Values.clusterName is required." -}}
 {{- $containerInsights := set $containerInsights "cluster_name" $clusterName }}
+{{- end }}
 {{- end }}
 
 {{- default ""  $configCopy | toJson | quote }}
@@ -107,6 +204,9 @@ Helper function to modify cloudwatch-agent YAML config
 {{- $configCopy := deepCopy .OtelConfig }}
 {{- if kindIs "string" $configCopy }}
   {{- $configCopy = fromYaml $configCopy }}
+  {{- if hasKey $configCopy "Error" }}
+    {{- fail (printf "Failed to parse otelConfig: %s" (index $configCopy "Error")) }}
+  {{- end }}
 {{- end }}
 
 {{- range $name, $component := $configCopy }}
@@ -121,6 +221,26 @@ Helper function to modify cloudwatch-agent YAML config
 
 {{- $configCopy | toYaml | quote }}
 {{- end }}
+
+{{/*
+Compute scrape_timeout: use metricResolution if it's less than 10s, otherwise 10s.
+Validates metricResolution is in "<N>s" format.
+*/}}
+{{- define "otel-container-insights.scrapeTimeout" -}}
+{{- $raw := .Values.otelContainerInsights.metricResolution -}}
+{{- if not (hasSuffix "s" $raw) -}}
+  {{- fail (printf "otelContainerInsights.metricResolution must be in \"<N>s\" format (e.g. \"30s\"), got: %s" $raw) -}}
+{{- end -}}
+{{- $seconds := trimSuffix "s" $raw -}}
+{{- if not (regexMatch "^[0-9]+$" $seconds) -}}
+  {{- fail (printf "otelContainerInsights.metricResolution must be in \"<N>s\" format (e.g. \"30s\"), got: %s" $raw) -}}
+{{- end -}}
+{{- if lt ($seconds | int) 10 -}}
+{{- $raw }}
+{{- else -}}
+10s
+{{- end -}}
+{{- end -}}
 
 {{- define "cloudwatch-agent.rolloutStrategyMaxUnavailable" -}}
 {{- if eq .mode "daemonset" -}}
@@ -287,8 +407,11 @@ Set DCGM_EXPORTER_INTERVAL environment variable for dcgmExporter if accelerated_
 {{- $intervalFound := false -}}
 {{- $intervalValue := 0 -}}
 {{- range .Values.agents -}}
-  {{- $agent := merge . (deepCopy $.Values.agent) -}}
-  {{- $agentConfig := $agent.config | default $agent.defaultConfig -}}
+  {{- $agent := mergeOverwrite (deepCopy $.Values.agent) . -}}
+  {{- $agentConfig := $agent.config -}}
+  {{- if or (not $agentConfig) (eq ($agentConfig | toString) "default") -}}
+    {{- $agentConfig = dict -}}
+  {{- end -}}
   {{- if and (hasKey $agentConfig "logs") (hasKey $agentConfig.logs "metrics_collected") (hasKey $agentConfig.logs.metrics_collected "kubernetes") (hasKey $agentConfig.logs.metrics_collected.kubernetes "accelerated_compute_gpu_metrics_collection_interval") -}}
     {{- $intervalFound = true -}}
     {{- $intervalValue = $agentConfig.logs.metrics_collected.kubernetes.accelerated_compute_gpu_metrics_collection_interval -}}
@@ -489,3 +612,134 @@ Returns auto-generated certificate and CA for admission webhooks.
 {{- $result | toYaml }}
 {{- end }}
 {{- end }}
+
+{{/*
+Name for node-exporter
+*/}}
+{{- define "node-exporter.name" -}}
+{{- default "node-exporter" .Values.nodeExporter.name }}
+{{- end }}
+
+{{/*
+Create the name of the service account to use for node exporter
+*/}}
+{{- define "node-exporter.serviceAccountName" -}}
+{{- default "node-exporter-service-acct" .Values.nodeExporter.serviceAccount.name }}
+{{- end }}
+
+{{/*
+Get the node-exporter scope version (image tag) for the configured region.
+Uses restrictedTag for regions with a repositoryDomainMap entry, public tag otherwise.
+*/}}
+{{- define "node-exporter.scopeVersion" -}}
+{{- if and (hasKey .Values.nodeExporter.image.repositoryDomainMap .Values.region) (index .Values.nodeExporter.image.repositoryDomainMap .Values.region) -}}
+{{- .Values.nodeExporter.image.restrictedTag -}}
+{{- else -}}
+{{- .Values.nodeExporter.image.tag -}}
+{{- end -}}
+{{- end -}}
+
+{{/*
+Get the node-exporter image for the configured region using repositoryDomainMap
+*/}}
+{{- define "node-exporter.image" -}}
+{{- if and (hasKey .Values.nodeExporter.image.repositoryDomainMap .Values.region) (index .Values.nodeExporter.image.repositoryDomainMap .Values.region) -}}
+{{- $imageDomain := index .Values.nodeExporter.image.repositoryDomainMap .Values.region -}}
+{{- printf "%s/%s:%s" $imageDomain .Values.nodeExporter.image.restrictedRepository .Values.nodeExporter.image.restrictedTag -}}
+{{- else -}}
+{{- $imageDomain := .Values.nodeExporter.image.repositoryDomainMap.public -}}
+{{- printf "%s/%s:%s" $imageDomain .Values.nodeExporter.image.repository .Values.nodeExporter.image.tag -}}
+{{- end -}}
+{{- end -}}
+
+{{/*
+Name for kube-state-metrics
+*/}}
+{{- define "kube-state-metrics.name" -}}
+{{- default "kube-state-metrics" .Values.kubeStateMetrics.name }}
+{{- end }}
+
+{{/*
+Create the name of the service account to use for kube-state-metrics
+*/}}
+{{- define "kube-state-metrics.serviceAccountName" -}}
+{{- default "kube-state-metrics-service-acct" .Values.kubeStateMetrics.serviceAccount.name }}
+{{- end }}
+
+{{/*
+Get the kube-state-metrics scope version (image tag) for the configured region.
+Uses restrictedTag for regions with a repositoryDomainMap entry, public tag otherwise.
+*/}}
+{{- define "kube-state-metrics.scopeVersion" -}}
+{{- if and (hasKey .Values.kubeStateMetrics.image.repositoryDomainMap .Values.region) (index .Values.kubeStateMetrics.image.repositoryDomainMap .Values.region) -}}
+{{- .Values.kubeStateMetrics.image.restrictedTag -}}
+{{- else -}}
+{{- .Values.kubeStateMetrics.image.tag -}}
+{{- end -}}
+{{- end -}}
+
+{{/*
+Get the kube-state-metrics image for the configured region using repositoryDomainMap
+*/}}
+{{- define "kube-state-metrics.image" -}}
+{{- if and (hasKey .Values.kubeStateMetrics.image.repositoryDomainMap .Values.region) (index .Values.kubeStateMetrics.image.repositoryDomainMap .Values.region) -}}
+{{- $imageDomain := index .Values.kubeStateMetrics.image.repositoryDomainMap .Values.region -}}
+{{- printf "%s/%s:%s" $imageDomain .Values.kubeStateMetrics.image.restrictedRepository .Values.kubeStateMetrics.image.restrictedTag -}}
+{{- else -}}
+{{- $imageDomain := .Values.kubeStateMetrics.image.repositoryDomainMap.public -}}
+{{- printf "%s/%s:%s" $imageDomain .Values.kubeStateMetrics.image.repository .Values.kubeStateMetrics.image.tag -}}
+{{- end -}}
+{{- end -}}
+
+{{/*
+Merge two OTEL configs. The generated OTLP CI config (Base) takes precedence over the
+user-supplied otelConfig (User) on name collision. For map sections (extensions, receivers,
+processors, exporters) both sets of entries are combined, with generated entries winning on
+key collision. For service.extensions (a list) both lists are concatenated and deduped.
+For service.pipelines (a map) both pipeline maps are combined, with generated pipelines
+winning on key collision.
+*/}}
+{{- define "cloudwatch-agent.merge-otel-configs" -}}
+{{- $base := .Base -}}
+{{- $user := .User -}}
+{{- if kindIs "string" $base }}
+  {{- $base = fromYaml $base }}
+  {{- if hasKey $base "Error" }}
+    {{- fail (printf "Failed to parse generated otelConfig: %s" (index $base "Error")) }}
+  {{- end }}
+{{- end }}
+{{- if kindIs "string" $user }}
+  {{- $user = fromYaml $user }}
+  {{- if hasKey $user "Error" }}
+    {{- fail (printf "Failed to parse user-supplied otelConfig: %s" (index $user "Error")) }}
+  {{- end }}
+{{- end }}
+{{/* Merge top-level map sections: extensions, receivers, processors, exporters */}}
+{{- $merged := deepCopy $base -}}
+{{- range $section := list "extensions" "receivers" "processors" "exporters" -}}
+  {{- if and (hasKey $user $section) (hasKey $merged $section) -}}
+    {{- $_ := set $merged $section (mustMergeOverwrite (index $user $section) (index $merged $section)) -}}
+  {{- else if hasKey $user $section -}}
+    {{- $_ := set $merged $section (index $user $section) -}}
+  {{- end -}}
+{{- end -}}
+{{/* Merge service section */}}
+{{- if and (hasKey $user "service") (hasKey $merged "service") -}}
+  {{/* Concatenate service.extensions lists */}}
+  {{- if and (hasKey $user.service "extensions") (hasKey $merged.service "extensions") -}}
+    {{- $mergedExts := concat $merged.service.extensions $user.service.extensions | uniq -}}
+    {{- $_ := set $merged.service "extensions" $mergedExts -}}
+  {{- else if hasKey $user.service "extensions" -}}
+    {{- $_ := set $merged.service "extensions" $user.service.extensions -}}
+  {{- end -}}
+  {{/* Merge service.pipelines maps */}}
+  {{- if and (hasKey $user.service "pipelines") (hasKey $merged.service "pipelines") -}}
+    {{- $_ := set $merged.service "pipelines" (mustMergeOverwrite $user.service.pipelines $merged.service.pipelines) -}}
+  {{- else if hasKey $user.service "pipelines" -}}
+    {{- $_ := set $merged.service "pipelines" $user.service.pipelines -}}
+  {{- end -}}
+{{- else if hasKey $user "service" -}}
+  {{- $_ := set $merged "service" $user.service -}}
+{{- end -}}
+{{- $merged | toYaml -}}
+{{- end -}}

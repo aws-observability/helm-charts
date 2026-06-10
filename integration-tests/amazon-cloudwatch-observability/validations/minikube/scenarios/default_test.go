@@ -11,6 +11,18 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+// TestDefault validates the out-of-box default install behavior.
+//
+// Default flag values (from values.yaml):
+//   containerInsights.enabled       = true  (default)
+//   containerLogs.enabled           = true  (default)
+//   otelContainerInsights.enabled       = false (default — OTEL is opt-in)
+//   otelContainerInsights.logs.enabled  = true  (default, but no-op when enabled=false)
+//
+// Result: legacy ECI metrics via CloudWatch Agent + FluentBit logs. No OTEL
+// Container Insights resources (cluster-scraper, kube-state-metrics, node-exporter).
+// This matches v6.x behavior — customers upgrading see no change unless they
+// explicitly opt into OTEL.
 func TestDefault(t *testing.T) {
 	k8sClient, err := util.NewK8sClient()
 	assert.NoError(t, err)
@@ -20,7 +32,7 @@ func TestDefault(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, minikube.Namespace, ns.Name)
 
-	// Validate operator deployment exists
+	// Validate operator deployment exists (always present regardless of CI flags)
 	exists, err := k8sClient.ValidateDeploymentExists(minikube.Namespace, "amazon-cloudwatch-observability-controller-manager")
 	assert.NoError(t, err)
 	assert.True(t, exists)
@@ -32,6 +44,39 @@ func TestDefault(t *testing.T) {
 		"languages":          []interface{}{"java", "python", "dotnet", "nodejs"},
 	}
 	minikube.ValidateOperatorAutoMonitorConfig(t, expectedConfig)
+
+	t.Run("LegacyCIResourcesExist", func(t *testing.T) {
+		// CloudWatch Agent DaemonSet exists for legacy ECI metrics
+		// (created via AmazonCloudWatchAgent CR named "cloudwatch-agent")
+		exists, err := k8sClient.ValidateDaemonSetExists(minikube.Namespace, "cloudwatch-agent")
+		assert.NoError(t, err)
+		assert.True(t, exists, "cloudwatch-agent DaemonSet should exist (legacy ECI metrics)")
+
+		// FluentBit DaemonSet exists for legacy log pipeline
+		exists, err = k8sClient.ValidateDaemonSetExists(minikube.Namespace, "fluent-bit")
+		assert.NoError(t, err)
+		assert.True(t, exists, "fluent-bit DaemonSet should exist (legacy log pipeline)")
+	})
+
+	t.Run("OTELCIResourcesAbsent", func(t *testing.T) {
+		// OTEL CI is opt-in — no OTEL-specific resources should exist by default
+
+		exists, err := k8sClient.ValidateDeploymentExists(minikube.Namespace, "kube-state-metrics")
+		assert.NoError(t, err)
+		assert.False(t, exists, "kube-state-metrics deployment should NOT exist when otelContainerInsights.enabled=false")
+
+		exists, err = k8sClient.ValidateDeploymentExists(minikube.Namespace, "cloudwatch-agent-cluster-scraper")
+		assert.NoError(t, err)
+		assert.False(t, exists, "cloudwatch-agent-cluster-scraper deployment should NOT exist when otelContainerInsights.enabled=false")
+
+		exists, err = k8sClient.ValidateDaemonSetExists(minikube.Namespace, "node-exporter")
+		assert.NoError(t, err)
+		assert.False(t, exists, "node-exporter daemonset should NOT exist when otelContainerInsights.enabled=false")
+
+		exists, err = k8sClient.ValidateServiceExists(minikube.Namespace, "kube-state-metrics")
+		assert.NoError(t, err)
+		assert.False(t, exists, "kube-state-metrics service should NOT exist when otelContainerInsights.enabled=false")
+	})
 
 	t.Run("DualstackEndpointsNotPresent", func(t *testing.T) {
 		validateDualstackEndpointsNotPresent(t, k8sClient)

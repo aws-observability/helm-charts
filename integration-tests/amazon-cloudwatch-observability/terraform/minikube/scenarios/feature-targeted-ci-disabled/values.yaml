@@ -1,0 +1,7 @@
+region: us-west-2
+clusterName: minikube
+containerInsights:
+  enabled: false
+# FluentBit disabled for this scenario — testing CI-disabled with no log pipeline.
+containerLogs:
+  enabled: false
