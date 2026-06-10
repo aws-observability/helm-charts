@@ -35,11 +35,13 @@ true
 Helper function to determine whether Service Events is supported in the region.
 Returns false for regions where Service Events should be disabled.
 Note: Service Events only runs when Application Signals is enabled, so unsupported/iso regions
-(where AppSignals is off) are already covered and need not be listed here.
+(where AppSignals is off) are already covered. CN, ISO, and Gov partitions are still listed
+explicitly as a safeguard, so that Service Events stays disabled there even if Application
+Signals becomes available while Service Events does not.
 */}}
 {{- define "manager.serviceEventsSupported" -}}
 {{- $region := .Values.region | required ".Values.region is required." -}}
-{{- if regexMatch "me-central-1|me-south-1|il-central-1" $region -}}
+{{- if regexMatch "me-central-1|me-south-1|il-central-1|cn-.*|.*-iso[a-z]*-.*|us-gov-.*" $region -}}
 false
 {{- else -}}
 true
