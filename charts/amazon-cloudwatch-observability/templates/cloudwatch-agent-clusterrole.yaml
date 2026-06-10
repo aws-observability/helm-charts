@@ -26,7 +26,7 @@ rules:
   verbs: [ "list", "watch", "get" ]
 - apiGroups: [ "" ]
   resources: [ "nodes/stats", "events" ]
-  verbs: [ "create", "get" ]
+  verbs: [ "create", "get", "list", "watch" ]
 {{- if .Values.otelContainerInsights.enabled }}
 - apiGroups: [ "" ]
   resources: [ "nodes/metrics" ]
