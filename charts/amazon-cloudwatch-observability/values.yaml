@@ -564,7 +564,7 @@ manager:
     dotnet:
       runtime_metrics:
         enabled: "true"
-    nodejs: {}
+    nodejs:
       # service_events:
       #   enabled: "false"
       #   function_instrument_enabled: "true"
