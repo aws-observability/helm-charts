@@ -156,6 +156,8 @@ spec:
   - mountPath: /var/log
     name: varlog
     readOnly: true
+  - mountPath: /var/lib/cwagent/otel-logs-checkpoints
+    name: otel-logs-checkpoints
   {{- end }}
   - mountPath: /var/lib/docker
     name: varlibdocker
@@ -215,6 +217,10 @@ spec:
   - hostPath:
       path: /var/log
     name: varlog
+  - hostPath:
+      path: /var/lib/cwagent/otel-logs-checkpoints
+      type: DirectoryOrCreate
+    name: otel-logs-checkpoints
   {{- end }}
   - hostPath:
       path: /sys
