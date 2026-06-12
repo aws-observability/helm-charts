@@ -274,6 +274,8 @@ processors:
       - sources:
           - from: resource_attribute
             name: k8s.node.name
+
+  k8staints/cw_k8s_ci_v0: {}
 {{- end }}
 
   transform/cw_k8s_ci_v0_set_component:
@@ -395,6 +397,7 @@ service:
         - transform/cw_k8s_ci_v0_ksm_promote
         - k8sattributes/cw_k8s_ci_v0_pod
         - k8sattributes/cw_k8s_ci_v0_node
+        - k8staints/cw_k8s_ci_v0
         - transform/cw_k8s_ci_v0_set_workload
         - resourcedetection/cw_k8s_ci_v0
         - nodemetadataenricher/cw_k8s_ci_v0
