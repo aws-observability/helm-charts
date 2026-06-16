@@ -89,6 +89,19 @@ Logic:
   {{- $needsLogs = true -}}
   {{- $_ := set $metricsCollected "kubernetes" (dict "enhanced_container_insights" true) -}}
 {{- end -}}
+{{/* Prometheus EMF: inject metric_declarations when Target Allocator is enabled */}}
+{{- if $ctx.Values.agent.prometheus.targetAllocator.enabled -}}
+  {{- $emf := $ctx.Values.agent.prometheus.emfProcessor -}}
+  {{- if and $emf $emf.metricDeclarations -}}
+    {{- $needsLogs = true -}}
+    {{/* metric_declaration is the correct key (singular); plural is rejected by config-translator. */}}
+    {{- $emfProcessor := dict "metric_declaration" $emf.metricDeclarations -}}
+    {{- if $emf.metricNamespace -}}
+      {{- $_ := set $emfProcessor "metric_namespace" $emf.metricNamespace -}}
+    {{- end -}}
+    {{- $_ := set $metricsCollected "prometheus" (dict "emf_processor" $emfProcessor) -}}
+  {{- end -}}
+{{- end -}}
 {{- if $needsLogs -}}
   {{- $_ := set $config "logs" (dict "metrics_collected" $metricsCollected) -}}
 {{- end -}}

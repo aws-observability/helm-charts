@@ -763,6 +763,33 @@ agent:
   otelConfig: # optional YAML config that can be provided to combine with the build-default-otel-config output
   prometheus:
     config:
+    ## EMF processor config for Prometheus metrics when Target Allocator is enabled.
+    ## Without metric_declarations, scraped values produce no CloudWatch metrics.
+    emfProcessor:
+      metricNamespace: ContainerInsights/Prometheus
+      metricDeclarations:
+        # node-exporter (PodMonitor "node-exporter") — host CPU/memory/disk/network
+        - source_labels: ["job"]
+          label_matcher: ".*node-exporter.*"
+          dimensions:
+            - ["ClusterName"]
+            - ["ClusterName", "Namespace"]
+          metric_selectors:
+            - "^node_cpu_seconds_total$"
+            - "^node_memory_MemAvailable_bytes$"
+            - "^node_memory_MemTotal_bytes$"
+            - "^node_filesystem_avail_bytes$"
+            - "^node_filesystem_size_bytes$"
+            - "^node_network_receive_bytes_total$"
+            - "^node_network_transmit_bytes_total$"
+        # nginx (ServiceMonitor "nginx") — application request/connection metrics
+        - source_labels: ["job"]
+          label_matcher: ".*nginx.*"
+          dimensions:
+            - ["ClusterName"]
+            - ["ClusterName", "Namespace"]
+          metric_selectors:
+            - "^nginx_.*$"
     targetAllocator:
       enabled: false
       image:
