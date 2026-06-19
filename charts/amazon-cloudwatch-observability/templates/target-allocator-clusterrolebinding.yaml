@@ -1,6 +1,7 @@
 {{- if .Values.agent.enabled }}
 {{- range $i, $customAgent := .Values.agents }}
-{{- if and (and (hasKey ($customAgent.prometheus) "targetAllocator") (hasKey ($customAgent.prometheus.targetAllocator) "enabled")) $customAgent.prometheus.targetAllocator.enabled }}
+{{- $otelCIScrape := eq (include "cloudwatch-agent.otelCIScrapeEnabled" (dict "agentName" $customAgent.name "context" $)) "true" }}
+{{- if or (and (hasKey ($customAgent.prometheus) "targetAllocator") (hasKey ($customAgent.prometheus.targetAllocator) "enabled") $customAgent.prometheus.targetAllocator.enabled) $otelCIScrape }}
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:

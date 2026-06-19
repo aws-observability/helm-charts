@@ -43,6 +43,23 @@ receivers:
             - targets:
                 - ${env:HOST_IP}:10250
 
+{{- if or .Values.otelContainerInsights.serviceMonitor.enabled .Values.otelContainerInsights.podMonitor.enabled }}
+  # ServiceMonitor/PodMonitor scraping via the Target Allocator (prometheusCR discovery).
+  # The Target Allocator deployed for the targetAgent serves the scrape jobs derived from
+  # ServiceMonitor/PodMonitor CRs; this receiver pulls this collector's assigned shard and
+  # routes the series into the v2 OTLP pipeline (-> CloudWatch/Zeus). Requires the Target
+  # Allocator + prometheusCR to be enabled for the targetAgent and the POD_NAME env (set below).
+  prometheus/cw_k8s_ci_v0_prometheuscr:
+    target_allocator:
+      endpoint: https://{{ .Values.otelContainerInsights.targetAgent }}-target-allocator-service:80
+      interval: {{ .Values.otelContainerInsights.metricResolution }}
+      collector_id: ${env:POD_NAME}
+      tls:
+        ca_file: /etc/amazon-cloudwatch-observability-agent-cert/tls-ca.crt
+        cert_file: /etc/amazon-cloudwatch-observability-agent-ta-client-cert/client.crt
+        key_file: /etc/amazon-cloudwatch-observability-agent-ta-client-cert/client.key
+{{- end }}
+
   {{- if .Values.dcgmExporter.enabled }}
   prometheus/cw_k8s_ci_v0_dcgm:
     config:
@@ -328,6 +345,16 @@ processors:
           - set(attributes["cloudwatch.source"], "cloudwatch-agent")
           - set(attributes["cloudwatch.solution"], "k8s-otel-container-insights")
           - set(attributes["cloudwatch.pipeline"], "efa")
+
+  transform/cw_k8s_ci_v0_set_scope_prometheuscr:
+    error_mode: ignore
+    metric_statements:
+      - context: scope
+        statements:
+          - set(scope.schema_url, "")
+          - set(attributes["cloudwatch.source"], "cloudwatch-agent")
+          - set(attributes["cloudwatch.solution"], "k8s-otel-container-insights")
+          - set(attributes["cloudwatch.pipeline"], "prometheus-cr")
 
   transform/cw_k8s_ci_v0_set_scope_ebs_csi:
     error_mode: ignore
@@ -828,6 +855,23 @@ service:
         - batch/cw_k8s_ci_v0_metrics_dest
       exporters:
         - otlphttp/cw_k8s_ci_v0_metrics_dest
+
+{{- if or .Values.otelContainerInsights.serviceMonitor.enabled .Values.otelContainerInsights.podMonitor.enabled }}
+    metrics/cw_k8s_ci_v0_prometheuscr:
+      receivers: [prometheus/cw_k8s_ci_v0_prometheuscr]
+      # Phase 1: minimal chain to get ServiceMonitor/PodMonitor series flowing to v2.
+      # Richer OTel label/metadata enrichment (k8sattributes pod/node, workload, etc.)
+      # is intentionally deferred to the Phase 3 enrichment work.
+      processors:
+        - filter/cw_k8s_ci_v0_scrape_metadata
+        - metricstarttime/cw_k8s_ci_v0
+        - transform/cw_k8s_ci_v0_set_cluster_name
+        - transform/cw_k8s_ci_v0_set_scope_prometheuscr
+        - resourcedetection/cw_k8s_ci_v0
+        - batch/cw_k8s_ci_v0_metrics_dest
+      exporters:
+        - otlphttp/cw_k8s_ci_v0_metrics_dest
+{{- end }}
 
     {{- if .Values.dcgmExporter.enabled }}
     metrics/cw_k8s_ci_v0_dcgm:
