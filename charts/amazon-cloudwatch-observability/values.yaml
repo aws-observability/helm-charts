@@ -1088,7 +1088,7 @@ nodeExporter:
   name:
   image:
     repository: prometheus/node-exporter
-    tag: v1.11.1
+    tag: v1.11.1-eksbuild.6
     repositoryDomainMap:
       public: quay.io
       cn-north-1: 918309763551.dkr.ecr.cn-north-1.amazonaws.com.cn
