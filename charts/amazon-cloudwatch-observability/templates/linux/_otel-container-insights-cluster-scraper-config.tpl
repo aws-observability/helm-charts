@@ -48,6 +48,28 @@ receivers:
                 - {{ include "kube-state-metrics.name" . }}.{{ .Release.Namespace }}.svc:{{ .Values.kubeStateMetrics.service.port }}
 {{- end }}
 
+{{- if .Values.otelContainerInsights.integrations.karpenter.enabled }}
+  prometheus/cw_k8s_ci_v0_karpenter:
+    config:
+      scrape_configs:
+        - job_name: karpenter
+          scrape_interval: {{ .Values.otelContainerInsights.metricResolution }}
+          scrape_timeout: {{ include "otel-container-insights.scrapeTimeout" . }}
+          metrics_path: {{ .Values.otelContainerInsights.integrations.karpenter.metricsPath }}
+          kubernetes_sd_configs:
+            - role: pod
+              namespaces:
+                names:
+                  - {{ .Values.otelContainerInsights.integrations.karpenter.namespace }}
+          relabel_configs:
+            - source_labels: [__meta_kubernetes_pod_label_app_kubernetes_io_name]
+              regex: karpenter
+              action: keep
+            - source_labels: [__meta_kubernetes_pod_container_port_name]
+              regex: http-metrics
+              action: keep
+{{- end }}
+
 processors:
   filter/cw_k8s_ci_v0_scrape_metadata:
     error_mode: ignore
@@ -132,6 +154,19 @@ processors:
           - set(attributes["cloudwatch.source"], "cloudwatch-agent")
           - set(attributes["cloudwatch.solution"], "k8s-otel-container-insights")
           - set(attributes["cloudwatch.pipeline"], "kube-state-metrics")
+{{- end }}
+
+{{- if .Values.otelContainerInsights.integrations.karpenter.enabled }}
+  transform/cw_k8s_ci_v0_set_scope_karpenter:
+    error_mode: ignore
+    metric_statements:
+      - context: scope
+        statements:
+          - set(scope.name, "github.com/aws/karpenter")
+          - set(scope.schema_url, "")
+          - set(attributes["cloudwatch.source"], "cloudwatch-agent")
+          - set(attributes["cloudwatch.solution"], "k8s-otel-container-insights")
+          - set(attributes["cloudwatch.pipeline"], "karpenter")
 {{- end }}
 
   transform/cw_k8s_ci_v0_set_cluster_name:
@@ -398,6 +433,23 @@ service:
         - transform/cw_k8s_ci_v0_set_workload
         - resourcedetection/cw_k8s_ci_v0
         - nodemetadataenricher/cw_k8s_ci_v0
+        - transform/cw_k8s_ci_v0_clear_schema_url
+        - transform/cw_k8s_ci_v0_set_cloud_resource_id
+        - awsattributelimit/cw_k8s_ci_v0
+        - batch/cw_k8s_ci_v0_cwotel
+      exporters:
+        - otlphttp/cw_k8s_ci_v0_cwotel
+{{- end }}
+{{- if .Values.otelContainerInsights.integrations.karpenter.enabled }}
+    metrics/cw_k8s_ci_v0_karpenter:
+      receivers: [prometheus/cw_k8s_ci_v0_karpenter]
+      processors:
+        - filter/cw_k8s_ci_v0_scrape_metadata
+        - transform/cw_k8s_ci_v0_set_unit
+        - metricstarttime/cw_k8s_ci_v0
+        - transform/cw_k8s_ci_v0_set_scope_karpenter
+        - transform/cw_k8s_ci_v0_set_cluster_name
+        - resourcedetection/cw_k8s_ci_v0
         - transform/cw_k8s_ci_v0_clear_schema_url
         - transform/cw_k8s_ci_v0_set_cloud_resource_id
         - awsattributelimit/cw_k8s_ci_v0
