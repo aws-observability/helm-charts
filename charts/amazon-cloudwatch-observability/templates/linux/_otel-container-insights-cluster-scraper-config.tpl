@@ -55,7 +55,7 @@ receivers:
         - job_name: karpenter
           scrape_interval: {{ .Values.otelContainerInsights.metricResolution }}
           scrape_timeout: {{ include "otel-container-insights.scrapeTimeout" . }}
-          metrics_path: {{ .Values.otelContainerInsights.integrations.karpenter.metricsPath }}
+          metrics_path: /metrics
           kubernetes_sd_configs:
             - role: pod
               namespaces:
@@ -68,6 +68,12 @@ receivers:
             - source_labels: [__meta_kubernetes_pod_container_port_name]
               regex: http-metrics
               action: keep
+            - source_labels: [__meta_kubernetes_pod_name]
+              target_label: pod
+            - source_labels: [__meta_kubernetes_namespace]
+              target_label: namespace
+            - source_labels: [__meta_kubernetes_pod_node_name]
+              target_label: node
 {{- end }}
 
 processors:
@@ -167,6 +173,44 @@ processors:
           - set(attributes["cloudwatch.source"], "cloudwatch-agent")
           - set(attributes["cloudwatch.solution"], "k8s-otel-container-insights")
           - set(attributes["cloudwatch.pipeline"], "karpenter")
+
+  # Promote scraped pod/namespace/node labels to OTel K8s resource attributes.
+  # This allows the shared k8sattributes processor to enrich with deployment/workload info.
+  groupbyattrs/cw_k8s_ci_v0_karpenter:
+    keys:
+      - pod
+      - namespace
+      - node
+
+  transform/cw_k8s_ci_v0_karpenter_promote:
+    error_mode: ignore
+    metric_statements:
+      - context: resource
+        statements:
+          - set(attributes["k8s.pod.name"], attributes["pod"]) where attributes["pod"] != nil
+          - set(attributes["k8s.namespace.name"], attributes["namespace"]) where attributes["namespace"] != nil
+          - set(attributes["k8s.node.name"], attributes["node"]) where attributes["node"] != nil
+      - context: datapoint
+        statements:
+          - set(attributes["pod"], resource.attributes["pod"]) where resource.attributes["pod"] != nil
+          - set(attributes["namespace"], resource.attributes["namespace"]) where resource.attributes["namespace"] != nil
+          - set(attributes["node"], resource.attributes["node"]) where resource.attributes["node"] != nil
+
+  # Karpenter-specific resource detection: only cloud-level attributes (region, account).
+  # No host/AZ attributes — those would incorrectly reflect the scraper's node, not Karpenter's.
+  resourcedetection/cw_k8s_ci_v0_karpenter:
+    detectors: [eks, ec2]
+    ec2:
+      resource_attributes:
+        host.id: { enabled: false }
+        host.type: { enabled: false }
+        host.name: { enabled: false }
+        host.image.id: { enabled: false }
+        cloud.provider: { enabled: true }
+        cloud.platform: { enabled: true }
+        cloud.region: { enabled: true }
+        cloud.availability_zone: { enabled: false }
+        cloud.account.id: { enabled: true }
 {{- end }}
 
   transform/cw_k8s_ci_v0_set_cluster_name:
@@ -449,7 +493,11 @@ service:
         - metricstarttime/cw_k8s_ci_v0
         - transform/cw_k8s_ci_v0_set_scope_karpenter
         - transform/cw_k8s_ci_v0_set_cluster_name
-        - resourcedetection/cw_k8s_ci_v0
+        - groupbyattrs/cw_k8s_ci_v0_karpenter
+        - transform/cw_k8s_ci_v0_karpenter_promote
+        - k8sattributes/cw_k8s_ci_v0_pod
+        - transform/cw_k8s_ci_v0_set_workload
+        - resourcedetection/cw_k8s_ci_v0_karpenter
         - transform/cw_k8s_ci_v0_clear_schema_url
         - transform/cw_k8s_ci_v0_set_cloud_resource_id
         - awsattributelimit/cw_k8s_ci_v0
