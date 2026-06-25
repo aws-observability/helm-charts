@@ -1161,3 +1161,20 @@ otelContainerInsights:
   cloudwatchMetricsEndpoint: ""
   # Override the CloudWatch Logs OTLP endpoint. If empty, defaults to logs.<region>.amazonaws.com.
   cloudwatchLogsEndpoint: ""
+
+## Bundling of the community prometheus-operator ServiceMonitor/PodMonitor CRDs
+## (monitoring.coreos.com/v1). The Target Allocator consumes these CRs; bundling
+## the CRDs removes the manual prerequisite of installing them yourself.
+##
+## The CRDs are shipped as templated manifests (so Helm upgrades them) and are
+## skipped if a copy already exists that this release does not manage (e.g. one
+## installed by prometheus-operator), so we never clobber/downgrade it. They are
+## annotated helm.sh/resource-policy: keep so `helm uninstall` does NOT delete
+## them (which would cascade-delete every ServiceMonitor/PodMonitor in the
+## cluster).
+prometheusCRDs:
+  ## When to bundle the SM/PM CRDs:
+  ##   auto   - bundle only when otelContainerInsights.enabled is true (default)
+  ##   always - always bundle (still skipped if an unmanaged copy exists)
+  ##   never  - never bundle
+  install: auto

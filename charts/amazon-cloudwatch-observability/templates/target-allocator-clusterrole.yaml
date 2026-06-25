@@ -27,6 +27,12 @@ rules:
   - apiGroups: [ "monitoring.coreos.com"]
     resources: ["podmonitors", "servicemonitors"]
     verbs: ["get", "list", "watch"]
+  # The Target Allocator watches the ServiceMonitor/PodMonitor CustomResourceDefinitions
+  # so it can start/stop each informer as the CRD appears or disappears, letting it
+  # run healthily regardless of whether the CRDs are installed (read-only, cluster-scoped).
+  - apiGroups: [ "apiextensions.k8s.io" ]
+    resources: ["customresourcedefinitions"]
+    verbs: ["get", "list", "watch"]
   {{- end }}
 {{- end }}
 ---
