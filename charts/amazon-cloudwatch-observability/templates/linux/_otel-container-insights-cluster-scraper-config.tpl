@@ -190,6 +190,10 @@ processors:
           - set(attributes["k8s.pod.name"], attributes["pod"]) where attributes["pod"] != nil
           - set(attributes["k8s.namespace.name"], attributes["namespace"]) where attributes["namespace"] != nil
           - set(attributes["k8s.node.name"], attributes["node"]) where attributes["node"] != nil
+          # Remove deprecated/unwanted attributes auto-injected by the Prometheus receiver.
+          - delete_key(attributes, "net.host.name") where attributes["net.host.name"] != nil
+          - delete_key(attributes, "net.host.port") where attributes["net.host.port"] != nil
+          - delete_key(attributes, "url.scheme") where attributes["url.scheme"] != nil
       - context: datapoint
         statements:
           - set(attributes["pod"], resource.attributes["pod"]) where resource.attributes["pod"] != nil
