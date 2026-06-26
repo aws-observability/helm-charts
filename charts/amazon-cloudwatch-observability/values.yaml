@@ -765,6 +765,12 @@ agent:
     config:
     targetAllocator:
       enabled: false
+      # allocationStrategy determines how the Target Allocator distributes scrape
+      # targets across CloudWatch Agent pods. "per-node" assigns each target to the
+      # agent on the same node (avoids cross-node/cross-AZ scrape traffic); targets
+      # without a resolvable node fall back to consistent-hashing. "consistent-hashing"
+      # spreads targets across all agents by hash.
+      allocationStrategy: per-node
       image:
         repository: cloudwatch-agent-target-allocator
         tag: 1.0.0
