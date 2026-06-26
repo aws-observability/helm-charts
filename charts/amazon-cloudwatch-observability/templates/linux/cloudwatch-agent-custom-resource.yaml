@@ -132,7 +132,7 @@ spec:
   targetAllocator:
     enabled: true
     image: {{ template "target-allocator.image" (merge $agent.prometheus.targetAllocator.image (dict "region" $.Values.region)) }}
-    allocationStrategy: "consistent-hashing"
+    allocationStrategy: {{ $agent.prometheus.targetAllocator.allocationStrategy | default "per-node" | quote }}
     {{- if or $agent.prometheus.targetAllocator.prometheusCR.enabled $otelCIScrape }}
     prometheusCR:
       enabled: true
