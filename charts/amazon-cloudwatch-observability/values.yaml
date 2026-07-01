@@ -29,7 +29,7 @@ containerLogs:
   fluentBit:
     image:
       repository: aws-for-fluent-bit
-      tag: 3.4.0
+      tag: 3.4.3
       tagWindows: 2.31.12-windowsservercore
       repositoryDomainMap:
         public: public.ecr.aws/aws-observability
@@ -464,7 +464,7 @@ manager:
   name:
   image:
     repository: cloudwatch-agent-operator
-    tag: 3.4.2
+    tag: 3.5.0
     repositoryDomainMap:
       public: public.ecr.aws/cloudwatch-agent
       cn-north-1: 934860584483.dkr.ecr.cn-north-1.amazonaws.com.cn
@@ -475,19 +475,19 @@ manager:
     java:
       repositoryDomain: public.ecr.aws/aws-observability
       repository: adot-autoinstrumentation-java
-      tag: v2.26.2
+      tag: v2.28.2
     python:
       repositoryDomain: public.ecr.aws/aws-observability
       repository: adot-autoinstrumentation-python
-      tag: v0.17.1
+      tag: v0.18.0
     dotnet:
       repositoryDomain: public.ecr.aws/aws-observability
       repository: adot-autoinstrumentation-dotnet
-      tag: v1.12.0
+      tag: v1.13.0
     nodejs:
       repositoryDomain: public.ecr.aws/aws-observability
       repository: adot-autoinstrumentation-node
-      tag: v0.11.0
+      tag: v0.12.0
   applicationSignals:
     autoMonitor:
       # monitorAllServices: true; Defaults to true for regions where AppSignals is supported, false otherwise
@@ -724,7 +724,7 @@ agent:
   replicas: 1 # The total number non-terminated pods targeted by this AmazonCloudWatchAgent's deployment or statefulSet.
   image:
     repository: cloudwatch-agent
-    tag: 1.300069.0b1529
+    tag: 1.300070.0b1586
     repositoryDomainMap:
       public: public.ecr.aws/cloudwatch-agent
       cn-north-1: 934860584483.dkr.ecr.cn-north-1.amazonaws.com.cn
@@ -1053,7 +1053,7 @@ kubeStateMetrics:
   ## TODO: Add replicas, PDB, and HPA configuration in a follow-up.
   image:
     repository: kube-state-metrics/kube-state-metrics
-    tag: v2.18.0
+    tag: v2.19.1
     repositoryDomainMap:
       public: registry.k8s.io
       cn-north-1: 918309763551.dkr.ecr.cn-north-1.amazonaws.com.cn
