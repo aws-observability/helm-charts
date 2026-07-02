@@ -765,12 +765,11 @@ agent:
     config:
     targetAllocator:
       enabled: false
-      # allocationStrategy determines how the Target Allocator distributes scrape
-      # targets across CloudWatch Agent pods. "per-node" assigns each target to the
-      # agent on the same node (avoids cross-node/cross-AZ scrape traffic); targets
-      # without a resolvable node fall back to consistent-hashing. "consistent-hashing"
-      # spreads targets across all agents by hash.
-      allocationStrategy: per-node
+      # For agents that enable the Target Allocator directly (not via
+      # otelContainerInsights, which sources it from prometheusScrape.allocationStrategy).
+      # consistent-hashing = hash targets across all agents; per-node = assign to the
+      # agent on the same node.
+      allocationStrategy: consistent-hashing
       image:
         repository: cloudwatch-agent-target-allocator
         tag: 1.0.0
@@ -1146,17 +1145,33 @@ otelContainerInsights:
   ## Only takes effect when otelContainerInsights.enabled is true.
   logs:
     enabled: true
-  ## Prometheus ServiceMonitor scraping (monitoring.coreos.com/v1) via the Target
-  ## Allocator's prometheusCR discovery. Defaults to true: when
-  ## otelContainerInsights is enabled, ServiceMonitor scraping is on unless
-  ## explicitly disabled here. Only takes effect when otelContainerInsights.enabled is true.
-  serviceMonitor:
+  ## ServiceMonitor/PodMonitor scraping (monitoring.coreos.com/v1) via the Target
+  ## Allocator's prometheusCR discovery. When otelContainerInsights.enabled is true,
+  ## enabling this gives SM/PM scraping end-to-end (CRDs + Target Allocator +
+  ## prometheusCR + RBAC). Only takes effect when otelContainerInsights.enabled is true.
+  prometheusScrape:
+    ## Master switch. false = run OTEL CI (metrics/logs) with no SM/PM scraping
+    ## (no prometheusCR discovery, no CRD bundling under `auto`, no CRD RBAC).
     enabled: true
-  ## Prometheus PodMonitor scraping (monitoring.coreos.com/v1) via the Target
-  ## Allocator's prometheusCR discovery. Defaults to true (see serviceMonitor note).
-  ## Only takes effect when otelContainerInsights.enabled is true.
-  podMonitor:
-    enabled: true
+    ## How the Target Allocator distributes targets across agents.
+    ##   per-node           - assign each target to the agent on its node (avoids
+    ##                        cross-AZ scrape traffic); node-less targets fall back to hashing.
+    ##   consistent-hashing - spread targets across all agents by hash.
+    allocationStrategy: per-node
+    ## Bundle the community SM/PM CRDs so they aren't a manual prerequisite. Shipped as
+    ## templated manifests (upgraded by Helm), skipped if an unmanaged copy already
+    ## exists (never clobbers a prometheus-operator one), and annotated
+    ## helm.sh/resource-policy: keep so uninstall won't cascade-delete the SM/PM CRs.
+    crds:
+      ##   auto   - bundle only when otelContainerInsights + prometheusScrape are enabled (default)
+      ##   always - always bundle (still skipped if an unmanaged copy exists)
+      ##   never  - never bundle
+      install: auto
+    ## Advanced: set one to false to discover only the other monitor type.
+    serviceMonitor:
+      enabled: true
+    podMonitor:
+      enabled: true
   ## The agent in the agents array that receives node-level OTEL Container Insights config.
   targetAgent: "cloudwatch-agent"
   ## The agent in the agents array that receives cluster-level OTEL Container Insights config (apiserver, kube-state-metrics scraping).
@@ -1167,20 +1182,3 @@ otelContainerInsights:
   cloudwatchMetricsEndpoint: ""
   # Override the CloudWatch Logs OTLP endpoint. If empty, defaults to logs.<region>.amazonaws.com.
   cloudwatchLogsEndpoint: ""
-
-## Bundling of the community prometheus-operator ServiceMonitor/PodMonitor CRDs
-## (monitoring.coreos.com/v1). The Target Allocator consumes these CRs; bundling
-## the CRDs removes the manual prerequisite of installing them yourself.
-##
-## The CRDs are shipped as templated manifests (so Helm upgrades them) and are
-## skipped if a copy already exists that this release does not manage (e.g. one
-## installed by prometheus-operator), so we never clobber/downgrade it. They are
-## annotated helm.sh/resource-policy: keep so `helm uninstall` does NOT delete
-## them (which would cascade-delete every ServiceMonitor/PodMonitor in the
-## cluster).
-prometheusCRDs:
-  ## When to bundle the SM/PM CRDs:
-  ##   auto   - bundle only when otelContainerInsights.enabled is true (default)
-  ##   always - always bundle (still skipped if an unmanaged copy exists)
-  ##   never  - never bundle
-  install: auto

@@ -3,7 +3,8 @@ ServiceMonitor CRD (monitoring.coreos.com/v1), pinned to prometheus-operator v0.
 match the operator's go.mod (the Target Allocator's prometheus-operator client).
 Source: https://github.com/prometheus-operator/prometheus-operator/blob/v0.91.0/example/prometheus-operator-crd/monitoring.coreos.com_servicemonitors.yaml
 
-Rendered only when CRD bundling is enabled (prometheusCRDs.install; see values.yaml)
+Rendered only when CRD bundling is enabled (otelContainerInsights.prometheusScrape.crds.install;
+see values.yaml)
 and only when no copy exists that this release does not already manage, so a CRD
 installed by prometheus-operator is never clobbered while our own copy is still
 upgraded on `helm upgrade`. helm.sh/resource-policy: keep prevents `helm uninstall`

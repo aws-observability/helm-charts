@@ -53,25 +53,42 @@ expect_count() {
 }
 
 printf "${Y}== CRD bundling gating ==${N}\n"
-# auto (default): bundle only when otelContainerInsights.enabled.
+# auto (default): bundle only when otelContainerInsights.enabled (and prometheusScrape enabled).
 expect_count "auto + otelCI on  => ServiceMonitor CRD bundled" "$SM_CRD" 1 --set otelContainerInsights.enabled=true
 expect_count "auto + otelCI on  => PodMonitor CRD bundled"     "$PM_CRD" 1 --set otelContainerInsights.enabled=true
 expect_count "auto + otelCI off => ServiceMonitor CRD absent"  "$SM_CRD" 0 --set otelContainerInsights.enabled=false
 expect_count "auto + otelCI off => PodMonitor CRD absent"      "$PM_CRD" 0 --set otelContainerInsights.enabled=false
+# auto + prometheusScrape disabled: no scraping => no CRDs.
+expect_count "auto + scrape off => ServiceMonitor CRD absent"  "$SM_CRD" 0 --set otelContainerInsights.enabled=true --set otelContainerInsights.prometheusScrape.enabled=false
+expect_count "auto + scrape off => PodMonitor CRD absent"      "$PM_CRD" 0 --set otelContainerInsights.enabled=true --set otelContainerInsights.prometheusScrape.enabled=false
 # never: never bundle, even with otelCI on.
-expect_count "never + otelCI on => ServiceMonitor CRD absent"  "$SM_CRD" 0 --set otelContainerInsights.enabled=true --set prometheusCRDs.install=never
-expect_count "never + otelCI on => PodMonitor CRD absent"      "$PM_CRD" 0 --set otelContainerInsights.enabled=true --set prometheusCRDs.install=never
+expect_count "never + otelCI on => ServiceMonitor CRD absent"  "$SM_CRD" 0 --set otelContainerInsights.enabled=true --set otelContainerInsights.prometheusScrape.crds.install=never
+expect_count "never + otelCI on => PodMonitor CRD absent"      "$PM_CRD" 0 --set otelContainerInsights.enabled=true --set otelContainerInsights.prometheusScrape.crds.install=never
 # always: bundle even with otelCI off.
-expect_count "always + otelCI off => ServiceMonitor CRD bundled" "$SM_CRD" 1 --set otelContainerInsights.enabled=false --set prometheusCRDs.install=always
-expect_count "always + otelCI off => PodMonitor CRD bundled"     "$PM_CRD" 1 --set otelContainerInsights.enabled=false --set prometheusCRDs.install=always
+expect_count "always + otelCI off => ServiceMonitor CRD bundled" "$SM_CRD" 1 --set otelContainerInsights.enabled=false --set otelContainerInsights.prometheusScrape.crds.install=always
+expect_count "always + otelCI off => PodMonitor CRD bundled"     "$PM_CRD" 1 --set otelContainerInsights.enabled=false --set otelContainerInsights.prometheusScrape.crds.install=always
 
 printf "\n${Y}== resource-policy keep on bundled CRDs ==${N}\n"
 expect_count "bundled CRDs carry resource-policy keep" 'helm.sh/resource-policy: keep' 2 --set otelContainerInsights.enabled=true
 
 printf "\n${Y}== Target Allocator CRD RBAC ==${N}\n"
 # The TA needs customresourcedefinitions get;list;watch on the prometheus-CR path.
-expect_count "CRD RBAC present when otelCI on"  "$CRD_RBAC" 1 --set otelContainerInsights.enabled=true
-expect_count "CRD RBAC absent when otelCI off"  "$CRD_RBAC" 0 --set otelContainerInsights.enabled=false
+expect_count "CRD RBAC present when otelCI on"       "$CRD_RBAC" 1 --set otelContainerInsights.enabled=true
+expect_count "CRD RBAC absent when otelCI off"       "$CRD_RBAC" 0 --set otelContainerInsights.enabled=false
+expect_count "CRD RBAC absent when scrape off"       "$CRD_RBAC" 0 --set otelContainerInsights.enabled=true --set otelContainerInsights.prometheusScrape.enabled=false
+
+printf "\n${Y}== Target Allocator prometheusCR gating ==${N}\n"
+# prometheusScrape.enabled is the single switch for the TA prometheusCR path.
+expect_count "TA rendered when otelCI on"            'targetAllocator:' 1 --set otelContainerInsights.enabled=true
+expect_count "prometheusCR rendered when otelCI on"  'prometheusCR:' 1 --set otelContainerInsights.enabled=true
+expect_count "TA absent when scrape off"             'targetAllocator:' 0 --set otelContainerInsights.enabled=true --set otelContainerInsights.prometheusScrape.enabled=false
+# Single monitor type: disabling serviceMonitor still renders the TA and sets the SM-disabling selector.
+expect_count "SM disabled => serviceMonitorSelector rendered" 'serviceMonitorSelector' 1 --set otelContainerInsights.enabled=true --set otelContainerInsights.prometheusScrape.serviceMonitor.enabled=false
+expect_count "SM disabled => podMonitorSelector absent"       'podMonitorSelector' 0 --set otelContainerInsights.enabled=true --set otelContainerInsights.prometheusScrape.serviceMonitor.enabled=false
+
+printf "\n${Y}== per-node allocation strategy default ==${N}\n"
+expect_count "otelCI on => TA allocationStrategy per-node"        'allocationStrategy: "per-node"' 1 --set otelContainerInsights.enabled=true
+expect_count "override => TA allocationStrategy consistent-hashing" 'allocationStrategy: "consistent-hashing"' 1 --set otelContainerInsights.enabled=true --set otelContainerInsights.prometheusScrape.allocationStrategy=consistent-hashing
 
 printf "\n${Y}== Summary ==${N}\n"
 printf "passed: ${G}%s${N}, failed: ${R}%s${N}\n" "$pass_count" "$fail_count"

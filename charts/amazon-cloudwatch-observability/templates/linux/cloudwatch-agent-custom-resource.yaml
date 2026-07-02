@@ -112,6 +112,10 @@ spec:
   {{- end }}
   {{- $otelCIScrape := eq (include "cloudwatch-agent.otelCIScrapeEnabled" (dict "agentName" $agent.name "context" $)) "true" }}
   {{- $taEnabled := or $agent.prometheus.targetAllocator.enabled $otelCIScrape }}
+  {{- $allocationStrategy := $agent.prometheus.targetAllocator.allocationStrategy | default "consistent-hashing" }}
+  {{- if $otelCIScrape }}
+  {{- $allocationStrategy = (dig "prometheusScrape" "allocationStrategy" "per-node" $.Values.otelContainerInsights) }}
+  {{- end }}
   {{- if $agent.prometheus.config }}
   prometheus:
     {{- with $agent.prometheus.config }}
@@ -132,20 +136,20 @@ spec:
   targetAllocator:
     enabled: true
     image: {{ template "target-allocator.image" (merge $agent.prometheus.targetAllocator.image (dict "region" $.Values.region)) }}
-    allocationStrategy: {{ $agent.prometheus.targetAllocator.allocationStrategy | default "per-node" | quote }}
+    allocationStrategy: {{ $allocationStrategy | quote }}
     {{- if or $agent.prometheus.targetAllocator.prometheusCR.enabled $otelCIScrape }}
     prometheusCR:
       enabled: true
       {{- if $otelCIScrape }}
       scrapeInterval: {{ $.Values.otelContainerInsights.metricResolution | quote }}
-      {{- if not $.Values.otelContainerInsights.serviceMonitor.enabled }}
-      # serviceMonitor.enabled=false: select a label no real ServiceMonitor carries,
-      # so the Target Allocator discovers no ServiceMonitors.
+      {{- if not (dig "prometheusScrape" "serviceMonitor" "enabled" true $.Values.otelContainerInsights) }}
+      # prometheusScrape.serviceMonitor.enabled=false: select a label no real ServiceMonitor
+      # carries, so the Target Allocator discovers no ServiceMonitors.
       serviceMonitorSelector:
         amazon-cloudwatch-observability.aws/otel-ci-scrape: disabled
       {{- end }}
-      {{- if not $.Values.otelContainerInsights.podMonitor.enabled }}
-      # podMonitor.enabled=false: select a label no real PodMonitor carries.
+      {{- if not (dig "prometheusScrape" "podMonitor" "enabled" true $.Values.otelContainerInsights) }}
+      # prometheusScrape.podMonitor.enabled=false: select a label no real PodMonitor carries.
       podMonitorSelector:
         amazon-cloudwatch-observability.aws/otel-ci-scrape: disabled
       {{- end }}
