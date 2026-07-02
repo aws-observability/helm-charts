@@ -7,19 +7,19 @@ Expand the name of the chart.
 
 {{/*
 Whether to bundle the community ServiceMonitor/PodMonitor CRDs. Honours
-.Values.prometheusCRDs.install: "always" => true; "never" => empty;
-"auto" (default) => true only when otelContainerInsights.enabled is true.
+.Values.otelContainerInsights.prometheusScrape.crds.install:
+  "always" => true; "never" => empty;
+  "auto" (default) => true only when otelContainerInsights.enabled AND
+  otelContainerInsights.prometheusScrape.enabled are both true.
 Returns the string "true" when CRDs should be rendered, empty otherwise.
 */}}
 {{- define "amazon-cloudwatch-observability.prometheusCRDsEnabled" -}}
-{{- $install := "auto" -}}
-{{- if hasKey .Values "prometheusCRDs" -}}
-{{- $install = (.Values.prometheusCRDs.install | default "auto") -}}
-{{- end -}}
+{{- $install := (dig "prometheusScrape" "crds" "install" "auto" .Values.otelContainerInsights) -}}
+{{- $scrapeEnabled := (dig "prometheusScrape" "enabled" true .Values.otelContainerInsights) -}}
 {{- if eq $install "always" -}}
 true
 {{- else if eq $install "never" -}}
-{{- else if .Values.otelContainerInsights.enabled -}}
+{{- else if and .Values.otelContainerInsights.enabled $scrapeEnabled -}}
 true
 {{- end -}}
 {{- end -}}
@@ -219,7 +219,7 @@ Accepts a dict with "agentName" (string) and "context" (root context $).
 {{- define "cloudwatch-agent.otelCIScrapeEnabled" -}}
 {{- $ctx := .context -}}
 {{- $agentName := .agentName -}}
-{{- if and $ctx.Values.otelContainerInsights.enabled (eq $agentName $ctx.Values.otelContainerInsights.targetAgent) (or $ctx.Values.otelContainerInsights.serviceMonitor.enabled $ctx.Values.otelContainerInsights.podMonitor.enabled) -}}
+{{- if and $ctx.Values.otelContainerInsights.enabled (eq $agentName $ctx.Values.otelContainerInsights.targetAgent) (dig "prometheusScrape" "enabled" true $ctx.Values.otelContainerInsights) -}}
 true
 {{- end -}}
 {{- end -}}

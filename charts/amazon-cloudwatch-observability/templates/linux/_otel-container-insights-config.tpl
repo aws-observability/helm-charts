@@ -43,7 +43,7 @@ receivers:
             - targets:
                 - ${env:HOST_IP}:10250
 
-{{- if or .Values.otelContainerInsights.serviceMonitor.enabled .Values.otelContainerInsights.podMonitor.enabled }}
+{{- if dig "prometheusScrape" "enabled" true .Values.otelContainerInsights }}
   # ServiceMonitor/PodMonitor scraping via the Target Allocator (prometheusCR discovery).
   # The Target Allocator deployed for the targetAgent serves the scrape jobs derived from
   # ServiceMonitor/PodMonitor CRs; this receiver pulls this collector's assigned shard and
@@ -856,7 +856,7 @@ service:
       exporters:
         - otlphttp/cw_k8s_ci_v0_metrics_dest
 
-{{- if or .Values.otelContainerInsights.serviceMonitor.enabled .Values.otelContainerInsights.podMonitor.enabled }}
+{{- if dig "prometheusScrape" "enabled" true .Values.otelContainerInsights }}
     metrics/cw_k8s_ci_v0_prometheuscr:
       receivers: [prometheus/cw_k8s_ci_v0_prometheuscr]
       # Phase 1 base chain + node enrichment: set_node_name/promote_node_name stamp
