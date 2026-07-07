@@ -74,6 +74,12 @@ receivers:
               target_label: namespace
             - source_labels: [__meta_kubernetes_pod_node_name]
               target_label: node
+          metric_relabel_configs:
+            # In HA deployments (2+ replicas), only the leader pod actively processes work.
+            # Drop metrics from standby pods to avoid duplicate/stale time series in CloudWatch.
+            - source_labels: [leader_election_master_status]
+              regex: "0"
+              action: drop
 {{- end }}
 
 processors:
