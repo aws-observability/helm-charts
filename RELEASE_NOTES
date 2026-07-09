@@ -1,4 +1,18 @@
 =======================================================================
+amazon-cloudwatch-observability v6.3.0 (2026-06-22)
+=======================================================================
+Enhancements:
+* Upgrade CWAgent to v1.300070.0b1586
+* Upgrade Fluent Bit to v3.4.3
+* Upgrade CWAgent Operator to v3.5.0
+* Upgrade Java SDK to v2.28.2
+* Upgrade Python SDK to v0.18.0
+* Upgrade .NET SDK to v1.13.0
+* Upgrade NodeJS SDK to v0.12.0
+* Upgrade Kube State Metrics to v2.19.1
+* Add support for Service Events and Dynamic Instrumentation configuration for Application Signals
+
+=======================================================================
 amazon-cloudwatch-observability v6.2.0 (2026-05-29)
 =======================================================================
 Enhancements:
