@@ -5,6 +5,25 @@ Expand the name of the chart.
 {{- default .Chart.Name .Values.nameOverride | trunc 63 | trimSuffix "-" }}
 {{- end }}
 
+{{/*
+Whether to bundle the community ServiceMonitor/PodMonitor CRDs. Honours
+.Values.prometheusCRDs.install: "always" => true; "never" => empty;
+"auto" (default) => true only when otelContainerInsights.enabled is true.
+Returns the string "true" when CRDs should be rendered, empty otherwise.
+*/}}
+{{- define "amazon-cloudwatch-observability.prometheusCRDsEnabled" -}}
+{{- $install := "auto" -}}
+{{- if hasKey .Values "prometheusCRDs" -}}
+{{- $install = (.Values.prometheusCRDs.install | default "auto") -}}
+{{- end -}}
+{{- if eq $install "always" -}}
+true
+{{- else if eq $install "never" -}}
+{{- else if .Values.otelContainerInsights.enabled -}}
+true
+{{- end -}}
+{{- end -}}
+
 {{- define "amazon-cloudwatch-observability.common.tolerations" -}}
 {{- $tolerations := .context.Values.tolerations }}
 {{- if .component }}
