@@ -71,3 +71,44 @@ func ValidateOperatorAutoMonitorConfig(t *testing.T, expectedConfig map[string]i
 
 	t.Logf("auto-monitor-config: %s", autoMonitorArg)
 }
+
+// GetOperatorAutoInstrumentationConfig returns the parsed --auto-instrumentation-config argument
+// from the operator deployment, keyed by language.
+func GetOperatorAutoInstrumentationConfig(t *testing.T) map[string]interface{} {
+	k8sClient, err := util.NewK8sClient()
+	assert.NoError(t, err)
+
+	deployments, err := k8sClient.ListDeployments(Namespace)
+	assert.NoError(t, err)
+
+	// Find the operator deployment by name
+	var deployment *appsV1.Deployment
+	for i := range deployments.Items {
+		if deployments.Items[i].Name == OperatorName {
+			deployment = &deployments.Items[i]
+			break
+		}
+	}
+	assert.NotNil(t, deployment, "operator deployment not found")
+
+	// Find the auto-instrumentation-config argument
+	var autoInstrumentationArg string
+	for _, container := range deployment.Spec.Template.Spec.Containers {
+		for _, arg := range container.Args {
+			if strings.HasPrefix(arg, "--auto-instrumentation-config=") {
+				autoInstrumentationArg = strings.TrimPrefix(arg, "--auto-instrumentation-config=")
+				break
+			}
+		}
+	}
+
+	assert.NotEmpty(t, autoInstrumentationArg, "auto-instrumentation-config argument not found")
+
+	// Parse the JSON config
+	var config map[string]interface{}
+	err = json.Unmarshal([]byte(autoInstrumentationArg), &config)
+	assert.NoError(t, err)
+
+	t.Logf("auto-instrumentation-config: %s", autoInstrumentationArg)
+	return config
+}
