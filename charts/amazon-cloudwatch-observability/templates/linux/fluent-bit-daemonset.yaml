@@ -2,6 +2,7 @@
 {{- $clusterName := .Values.clusterName | required ".Values.clusterName is required." -}}
 {{- $region := .Values.region | required ".Values.region is required." -}}
 {{- $isAKS := eq .Values.k8sMode "AKS" -}}
+{{- if $isAKS }}{{- $_ := .Values.roleArn | required ".Values.roleArn is required when k8sMode is AKS." -}}{{- end }}
 apiVersion: apps/v1
 kind: DaemonSet
 metadata:
