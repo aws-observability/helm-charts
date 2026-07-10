@@ -18,7 +18,9 @@ adcEndpointOverrides:
   eusc-de-east-1: amazonaws.eu
 ## Provide the Region (this is a required parameter)
 region:
-k8sMode: EKS # can be EKS | ROSA | K8S
+k8sMode: EKS # can be EKS | ROSA | K8S | AKS
+## IAM role ARN for AKS workload-identity federation (required when k8sMode is AKS)
+roleArn:
 ## Enable dualstack endpoints for IPv6 support (default: false)
 useDualstackEndpoint: false
 ## Provide default tolerations

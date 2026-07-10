@@ -63,6 +63,8 @@ data:
 {{- $clusterName := .Values.clusterName | required ".Values.clusterName is required." -}}
 {{- $region := .Values.region | required ".Values.region is required." -}}
 {{- $isROSA := eq $.Values.k8sMode "ROSA" -}}
+{{- $isAKS := eq $.Values.k8sMode "AKS" -}}
+{{- if $isAKS }}{{- $_ := $.Values.roleArn | required ".Values.roleArn is required when k8sMode is AKS." -}}{{- end }}
 {{- range .Values.agents }}
 {{- $agent := mergeOverwrite (deepCopy $.Values.agent) . }}
 {{/* Skip cluster-scraper agent when otelContainerInsights is disabled */}}
@@ -185,6 +187,11 @@ spec:
     name: kubelet-ca
     readOnly: true
     {{ end }}
+    {{ if $isAKS }}
+  - mountPath: /var/run/secrets/aws
+    name: aws-iam-token
+    readOnly: true
+    {{ end }}
   volumes:
   - name: kubelet-podresources
     hostPath:
@@ -255,6 +262,15 @@ spec:
     hostPath:
       path: /etc/kubernetes/kubelet-ca.crt
   {{end }}
+  {{ if $isAKS }}
+  - name: aws-iam-token
+    projected:
+      sources:
+      - serviceAccountToken:
+          audience: sts.amazonaws.com
+          expirationSeconds: 3600
+          path: token
+  {{ end }}
   env:
   - name: K8S_NODE_NAME
     valueFrom:
@@ -275,6 +291,14 @@ spec:
   {{ if $isROSA }}
   - name: RUN_IN_ROSA
     value: "True"
+  {{ end }}
+  {{ if $isAKS }}
+  - name: RUN_IN_AKS
+    value: "True"
+  - name: AWS_WEB_IDENTITY_TOKEN_FILE
+    value: /var/run/secrets/aws/token
+  - name: AWS_ROLE_ARN
+    value: {{ $.Values.roleArn | quote }}
   {{ end }}
   - name: K8S_CLUSTER_NAME
     value: {{ $.Values.clusterName | quote }}
