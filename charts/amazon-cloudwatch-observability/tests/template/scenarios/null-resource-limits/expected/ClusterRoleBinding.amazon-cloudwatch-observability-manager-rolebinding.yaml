@@ -1,0 +1,17 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  labels:
+    app.kubernetes.io/instance: test-release
+    app.kubernetes.io/managed-by: amazon-cloudwatch-agent-operator
+    app.kubernetes.io/name: amazon-cloudwatch-observability
+    app.kubernetes.io/version: ((ANY))
+  name: amazon-cloudwatch-observability-manager-rolebinding
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: amazon-cloudwatch-observability-manager-role
+subjects:
+- kind: ServiceAccount
+  name: amazon-cloudwatch-observability-controller-manager
+  namespace: default
