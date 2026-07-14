@@ -1,0 +1,72 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app.kubernetes.io/instance: test-release
+    app.kubernetes.io/managed-by: amazon-cloudwatch-agent-operator
+    app.kubernetes.io/name: amazon-cloudwatch-observability
+    app.kubernetes.io/version: ((ANY))
+    control-plane: controller-manager
+  name: amazon-cloudwatch-observability-controller-manager
+  namespace: default
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: amazon-cloudwatch-observability
+      control-plane: controller-manager
+  template:
+    metadata:
+      annotations: null
+      labels:
+        app.kubernetes.io/name: amazon-cloudwatch-observability
+        control-plane: controller-manager
+    spec:
+      containers:
+      - args:
+        - --auto-instrumentation-config={"dotnet":{"limits":{"cpu":"500m","memory":"128Mi"},"requests":{"cpu":"50m","memory":"128Mi"},"runtime_metrics":{"enabled":"true"}},"java":{"limits":{"cpu":"500m","memory":"64Mi"},"requests":{"cpu":"50m","memory":"64Mi"},"runtime_metrics":{"enabled":"true"}},"nodejs":{"limits":{"cpu":"500m","memory":"128Mi"},"requests":{"cpu":"50m","memory":"128Mi"}},"python":{"limits":{"cpu":"500m","memory":"32Mi"},"requests":{"cpu":"50m","memory":"32Mi"},"runtime_metrics":{"enabled":"true"}}}
+        - --auto-annotation-config={"dotnet":{"daemonsets":[],"deployments":[],"namespaces":[],"statefulsets":[]},"java":{"daemonsets":[],"deployments":[],"namespaces":[],"statefulsets":[]},"nodejs":{"daemonsets":[],"deployments":[],"namespaces":[],"statefulsets":[]},"python":{"daemonsets":[],"deployments":[],"namespaces":[],"statefulsets":[]}}
+        - --auto-monitor-config={"customSelector":{"dotnet":{"daemonsets":[],"deployments":[],"namespaces":[],"statefulsets":[]},"java":{"daemonsets":[],"deployments":[],"namespaces":[],"statefulsets":[]},"nodejs":{"daemonsets":[],"deployments":[],"namespaces":[],"statefulsets":[]},"python":{"daemonsets":[],"deployments":[],"namespaces":[],"statefulsets":[]}},"exclude":{"dotnet":{"daemonsets":[],"deployments":[],"namespaces":[],"statefulsets":[]},"java":{"daemonsets":[],"deployments":[],"namespaces":[],"statefulsets":[]},"nodejs":{"daemonsets":[],"deployments":[],"namespaces":[],"statefulsets":[]},"python":{"daemonsets":[],"deployments":[],"namespaces":[],"statefulsets":[]}},"languages":["java","python","dotnet","nodejs"],"monitorAllServices":true,"restartPods":false}
+        - --auto-instrumentation-java-image=public.ecr.aws/aws-observability/adot-autoinstrumentation-java:v2.28.2
+        - --auto-instrumentation-python-image=public.ecr.aws/aws-observability/adot-autoinstrumentation-python:v0.18.0
+        - --auto-instrumentation-dotnet-image=public.ecr.aws/aws-observability/adot-autoinstrumentation-dotnet:v1.13.0
+        - --auto-instrumentation-nodejs-image=public.ecr.aws/aws-observability/adot-autoinstrumentation-node:v0.12.0
+        - --target-allocator-image=public.ecr.aws/cloudwatch-agent/cloudwatch-agent-target-allocator:1.0.0
+        - --feature-gates=operator.autoinstrumentation.multiinstrumentation,operator.autoinstrumentation.multiinstrumentation.skipcontainervalidation
+        command:
+        - /manager
+        image: ((RE:public\.ecr\.aws/cloudwatch\-agent/cloudwatch\-agent\-operator:.+))
+        livenessProbe:
+          httpGet:
+            path: /healthz
+            port: 8081
+          initialDelaySeconds: 15
+          periodSeconds: 20
+        name: manager
+        ports:
+        - containerPort: 9443
+          name: webhook-server
+          protocol: TCP
+        readinessProbe:
+          httpGet:
+            path: /readyz
+            port: 8081
+          initialDelaySeconds: 5
+          periodSeconds: 10
+        resources:
+          requests:
+            cpu: 100m
+            memory: 64Mi
+        volumeMounts:
+        - mountPath: /tmp/k8s-webhook-server/serving-certs
+          name: cert
+          readOnly: true
+      nodeSelector:
+        kubernetes.io/os: linux
+      serviceAccountName: amazon-cloudwatch-observability-controller-manager
+      terminationGracePeriodSeconds: 10
+      volumes:
+      - name: cert
+        secret:
+          defaultMode: 420
+          secretName: amazon-cloudwatch-observability-controller-manager-service-cert

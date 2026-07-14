@@ -11,8 +11,19 @@
 #
 # Layout:
 #   tests/template/run.sh                     — this runner
+#   tests/template/golden.py                  — structural golden comparator
 #   tests/template/scenarios/<name>/values.yaml  — helm values for the scenario
-#   tests/template/scenarios/<name>/test.sh      — assertions, sourced by the runner
+#   tests/template/scenarios/<name>/test.sh      — assertions, sourced by the runner (optional)
+#   tests/template/scenarios/<name>/expected/    — golden manifests, one per document (optional)
+#
+# A scenario must have a test.sh, an expected/ dir, or both.
+#
+# Golden mode: when expected/ exists, the full render is structurally
+# compared against it (doc order and map key order irrelevant, list order
+# enforced, strict on missing/unexpected keys and documents). Volatile
+# values use placeholders — ((ANY)), ((BASE64)), ((SEMVER)), ((RE:...)).
+# Regenerate goldens with:
+#     UPDATE=1 bash run.sh <scenario>
 #
 # Each test.sh runs with these helpers available:
 #   render [helm-args...]        — helm template with the scenario values; output in $RENDERED
@@ -162,6 +173,45 @@ extract_manifest() {
 
 # ── runner ────────────────────────────────────────────────────────────────
 
+# Golden comparison: if the scenario has an expected/ dir, render the full
+# chart and structurally compare against the goldens via golden.py.
+# UPDATE=1 regenerates the goldens instead.
+run_goldens() {
+    local scenario_dir="$1"
+    local render_file
+    render_file=$(mktemp)
+
+    local exit_code output
+    output=$(helm template test-release "$CHART_DIR" \
+        --set clusterName=test-cluster \
+        --set region=us-west-2 \
+        -f "${scenario_dir}/values.yaml" 2>&1 > "$render_file") && exit_code=0 || exit_code=$?
+    if [[ $exit_code -ne 0 ]]; then
+        fail "helm template errored during golden render"
+        echo "$output" | tail -5 | sed 's/^/    /'
+        rm -f "$render_file"
+        return
+    fi
+
+    if [[ "${UPDATE:-0}" == "1" ]]; then
+        python3 "${SCRIPT_DIR}/golden.py" update \
+            --expected "${scenario_dir}/expected" --render "$render_file" \
+            | sed 's/^/  /'
+        rm -f "$render_file"
+        return
+    fi
+
+    local diff_output
+    if diff_output=$(python3 "${SCRIPT_DIR}/golden.py" compare \
+        --expected "${scenario_dir}/expected" --render "$render_file"); then
+        pass "golden manifests match ($(ls "${scenario_dir}/expected" | wc -l) documents)"
+    else
+        fail "golden manifest mismatch"
+        echo "$diff_output" | head -40 | sed 's/^/  /'
+    fi
+    rm -f "$render_file"
+}
+
 run_scenario() {
     local scenario_dir="$1"
     local name
@@ -173,13 +223,18 @@ run_scenario() {
     if [[ ! -f "${scenario_dir}/values.yaml" ]]; then
         fail "missing values.yaml"
     fi
-    if [[ ! -f "${scenario_dir}/test.sh" ]]; then
-        fail "missing test.sh"
+    if [[ ! -f "${scenario_dir}/test.sh" && ! -d "${scenario_dir}/expected" && "${UPDATE:-0}" != "1" ]]; then
+        fail "scenario needs a test.sh, an expected/ dir, or both"
     fi
 
     if [[ $scenario_fail -eq 0 ]]; then
-        # shellcheck disable=SC1091
-        source "${scenario_dir}/test.sh"
+        if [[ -d "${scenario_dir}/expected" || "${UPDATE:-0}" == "1" ]]; then
+            run_goldens "$scenario_dir"
+        fi
+        if [[ -f "${scenario_dir}/test.sh" ]]; then
+            # shellcheck disable=SC1091
+            source "${scenario_dir}/test.sh"
+        fi
     fi
 
     if [[ $scenario_fail -gt 0 ]]; then

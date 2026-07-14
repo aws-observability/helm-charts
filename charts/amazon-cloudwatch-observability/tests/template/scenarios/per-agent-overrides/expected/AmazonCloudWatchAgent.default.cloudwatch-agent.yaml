@@ -1,0 +1,160 @@
+apiVersion: cloudwatch.aws.amazon.com/v1alpha1
+kind: AmazonCloudWatchAgent
+metadata:
+  name: cloudwatch-agent
+  namespace: default
+spec:
+  affinity:
+    nodeAffinity:
+      requiredDuringSchedulingIgnoredDuringExecution:
+        nodeSelectorTerms:
+        - matchExpressions:
+          - key: eks.amazonaws.com/compute-type
+            operator: NotIn
+            values:
+            - fargate
+  config: '{"agent":{"region":"us-west-2"},"logs":{"metrics_collected":{"kubernetes":{"cluster_name":"test-cluster","enhanced_container_insights":true}}}}'
+  env:
+  - name: K8S_NODE_NAME
+    valueFrom:
+      fieldRef:
+        fieldPath: spec.nodeName
+  - name: HOST_IP
+    valueFrom:
+      fieldRef:
+        fieldPath: status.hostIP
+  - name: HOST_NAME
+    valueFrom:
+      fieldRef:
+        fieldPath: spec.nodeName
+  - name: K8S_NAMESPACE
+    valueFrom:
+      fieldRef:
+        fieldPath: metadata.namespace
+  - name: K8S_CLUSTER_NAME
+    value: test-cluster
+  - name: CWAGENT_ROLE
+    value: CI_NODE
+  hostNetwork: true
+  image: ((RE:public\.ecr\.aws/cloudwatch\-agent/cloudwatch\-agent:.+))
+  mode: daemonset
+  nodeSelector:
+    kubernetes.io/os: linux
+  priorityClassName: system-node-critical
+  replicas: 1
+  resources:
+    limits:
+      cpu: 500m
+      memory: 3Gi
+    requests:
+      cpu: 250m
+      memory: 2Gi
+  serviceAccount: cloudwatch-agent
+  tolerations:
+  - operator: Exists
+  updateStrategy:
+    rollingUpdate:
+      maxSurge: 0
+      maxUnavailable: 5%
+    type: RollingUpdate
+  volumeMounts:
+  - mountPath: /rootfs
+    name: rootfs
+    readOnly: true
+  - mountPath: /var/run/docker.sock
+    name: dockersock
+    readOnly: true
+  - mountPath: /run/containerd/containerd.sock
+    name: containerdsock
+  - mountPath: /var/run/crio/crio.sock
+    name: criosock
+    readOnly: true
+  - mountPath: /var/lib/containers
+    name: criocontainer
+    readOnly: true
+  - mountPath: /var/log/pods
+    name: criologs
+    readOnly: true
+  - mountPath: /var/lib/docker
+    name: varlibdocker
+    readOnly: true
+  - mountPath: /sys
+    name: sys
+    readOnly: true
+  - mountPath: /dev/disk
+    name: devdisk
+    readOnly: true
+  - mountPath: /etc/amazon-cloudwatch-observability-agent-cert
+    name: agenttls
+    readOnly: true
+  - mountPath: /etc/amazon-cloudwatch-observability-agent-client-cert
+    name: agentclienttls
+    readOnly: true
+  - mountPath: /etc/amazon-cloudwatch-observability-agent-server-cert
+    name: agentservertls
+    readOnly: true
+  - mountPath: /etc/amazon-cloudwatch-observability-agent-ta-client-cert
+    name: agenttaclienttls
+    readOnly: true
+  - mountPath: /var/lib/kubelet/pod-resources
+    name: kubelet-podresources
+  volumes:
+  - hostPath:
+      path: /var/lib/kubelet/pod-resources
+      type: Directory
+    name: kubelet-podresources
+  - hostPath:
+      path: /
+    name: rootfs
+  - hostPath:
+      path: /var/run/docker.sock
+    name: dockersock
+  - hostPath:
+      path: /var/lib/docker
+    name: varlibdocker
+  - hostPath:
+      path: /run/containerd/containerd.sock
+    name: containerdsock
+  - hostPath:
+      path: /var/run/crio/crio.sock
+    name: criosock
+  - hostPath:
+      path: /var/lib/containers
+    name: criocontainer
+  - hostPath:
+      path: /var/log/pods
+    name: criologs
+  - hostPath:
+      path: /sys
+    name: sys
+  - hostPath:
+      path: /dev/disk/
+    name: devdisk
+  - name: agenttls
+    secret:
+      items:
+      - key: ca.crt
+        path: tls-ca.crt
+      secretName: amazon-cloudwatch-observability-agent-cert
+  - name: agentclienttls
+    secret:
+      items:
+      - key: ca.crt
+        path: tls-ca.crt
+      secretName: amazon-cloudwatch-observability-agent-client-cert
+  - name: agentservertls
+    secret:
+      items:
+      - key: tls.crt
+        path: server.crt
+      - key: tls.key
+        path: server.key
+      secretName: amazon-cloudwatch-observability-agent-server-cert
+  - name: agenttaclienttls
+    secret:
+      items:
+      - key: tls.crt
+        path: client.crt
+      - key: tls.key
+        path: client.key
+      secretName: amazon-cloudwatch-observability-agent-ta-client-cert
