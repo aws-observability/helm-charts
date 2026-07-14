@@ -784,3 +784,20 @@ winning on key collision.
 {{- end -}}
 {{- $merged | toYaml -}}
 {{- end -}}
+
+{{/* Recursively drop nil leaves so a user-supplied `cpu: null` removes the limit instead of emitting literal null. mergeOverwrite keeps nil values from the default, so prune after merge. */}}
+{{- define "cloudwatch-agent.pruneNulls" -}}
+{{- $in := . -}}
+{{- $out := dict -}}
+{{- range $k, $v := $in -}}
+  {{- if kindIs "map" $v -}}
+    {{- $nested := include "cloudwatch-agent.pruneNulls" $v | fromYaml -}}
+    {{- if $nested -}}
+      {{- $_ := set $out $k $nested -}}
+    {{- end -}}
+  {{- else if not (kindIs "invalid" $v) -}}
+    {{- $_ := set $out $k $v -}}
+  {{- end -}}
+{{- end -}}
+{{- $out | toYaml -}}
+{{- end -}}
