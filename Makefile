@@ -9,7 +9,7 @@ LINTER = $(TOOLS_BIN_DIR)/golangci-lint
 
 .PHONY: all deps tidy helm-lint helm-flag-matrix check_secrets fmt lint install-goimports install-golangci-lint
 
-all: deps tidy check_secrets fmt lint helm-lint helm-flag-matrix
+all: deps tidy check_secrets fmt lint helm-lint helm-flag-matrix helm-template-tests
 
 install-goimports:
 	GOBIN=$(TOOLS_BIN_DIR) go install golang.org/x/tools/cmd/goimports@latest
@@ -40,3 +40,6 @@ helm-lint:
 
 helm-flag-matrix:
 	bash charts/amazon-cloudwatch-observability/tests/flag_matrix.sh
+
+helm-template-tests:
+	bash charts/amazon-cloudwatch-observability/tests/template/run.sh
