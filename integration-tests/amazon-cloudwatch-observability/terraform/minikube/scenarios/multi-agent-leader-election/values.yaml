@@ -1,12 +1,15 @@
 # Multi-agent node/leader split for Container Insights.
 #
-# Generalized from a real-world production pattern: a daemonset agent on
-# every node (CI_NODE) plus a single deployment agent (CI_LEADER) pinned to
-# dedicated nodes, with the default CPU limit removed, per-agent resources,
-# scheduling controls, and rollout tuning.
+# Mirrors the documented setup for large Kubernetes clusters (see
+# "Considerations for large Kubernetes clusters" in the CloudWatch
+# Observability EKS add-on install guide): a daemonset agent on every node
+# (CWAGENT_ROLE=NODE) plus a single deployment agent (CWAGENT_ROLE=LEADER),
+# here with the default CPU limit removed, per-agent resources, scheduling
+# controls, and rollout tuning layered on top.
 #
-# The leader affinity uses a generic `workload-tier=system` label which the
-# scenario's terraform applies to the minikube node.
+# The leader nodeAffinity below uses an arbitrary `workload-tier=system`
+# label purely to exercise affinity propagation in this scenario; the
+# scenario's terraform applies that label to the minikube node.
 region: us-west-2
 clusterName: minikube
 
@@ -20,7 +23,7 @@ agents:
   - name: cloudwatch-agent
     env:
       - name: CWAGENT_ROLE
-        value: CI_NODE
+        value: NODE
     resources:
       limits:
         memory: 768Mi
@@ -38,12 +41,12 @@ agents:
     updateStrategy:
       rollingUpdate:
         maxUnavailable: 5%
-  - name: cloudwatch-agent-leader
+  - name: cloudwatch-agent-ci-leader
     mode: deployment
     replicas: 1
     env:
       - name: CWAGENT_ROLE
-        value: CI_LEADER
+        value: LEADER
     resources:
       limits:
         memory: 512Mi

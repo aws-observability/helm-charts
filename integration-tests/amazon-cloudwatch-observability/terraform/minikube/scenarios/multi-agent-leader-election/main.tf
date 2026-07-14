@@ -7,8 +7,11 @@ module "base" {
   helm_dir         = var.helm_dir
 }
 
-// The leader agent's nodeAffinity requires workload-tier=system. Label the
-// minikube node(s) so the leader deployment can schedule.
+// For the purposes of this test scenario, the leader agent's values pin it
+// to nodes labeled workload-tier=system (an arbitrary label chosen to
+// exercise nodeAffinity propagation — not a requirement of the feature).
+// Label the minikube node(s) accordingly so the leader deployment can
+// schedule.
 resource "null_resource" "label_nodes" {
   depends_on = [module.base.helm_release]
 

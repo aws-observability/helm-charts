@@ -22,7 +22,7 @@ import (
 
 // TestMultiAgentLeaderElection validates the node/leader Container Insights
 // split generalized from a real-world production pattern: a daemonset agent
-// (CWAGENT_ROLE=CI_NODE) plus a deployment agent (CWAGENT_ROLE=CI_LEADER)
+// (CWAGENT_ROLE=NODE) plus a deployment agent (CWAGENT_ROLE=LEADER)
 // with per-agent env, resources (default CPU limit removed via null),
 // scheduling controls, and rollout tuning.
 func TestMultiAgentLeaderElection(t *testing.T) {
@@ -53,7 +53,7 @@ func TestMultiAgentLeaderElection(t *testing.T) {
 	}
 
 	assert.Contains(t, agentMap, "cloudwatch-agent", "node agent CR should exist")
-	assert.Contains(t, agentMap, "cloudwatch-agent-leader", "leader agent CR should exist")
+	assert.Contains(t, agentMap, "cloudwatch-agent-ci-leader", "leader agent CR should exist")
 
 	t.Run("NodeAgentSpec", func(t *testing.T) {
 		validateNodeAgentSpec(t, agentMap)
@@ -79,7 +79,7 @@ func validateNodeAgentSpec(t *testing.T, agentMap map[string]unstructured.Unstru
 	mode, _ := spec["mode"].(string)
 	assert.Equal(t, "daemonset", mode, "node agent should be a daemonset")
 
-	assertEnvValue(t, spec, "CWAGENT_ROLE", "CI_NODE")
+	assertEnvValue(t, spec, "CWAGENT_ROLE", "NODE")
 	assertResources(t, spec, "768Mi", "100m")
 	assertSchedulingControls(t, spec)
 
@@ -96,8 +96,8 @@ func validateNodeAgentSpec(t *testing.T, agentMap map[string]unstructured.Unstru
 }
 
 func validateLeaderAgentSpec(t *testing.T, agentMap map[string]unstructured.Unstructured) {
-	agent, exists := agentMap["cloudwatch-agent-leader"]
-	if !assert.True(t, exists, "cloudwatch-agent-leader CR should exist") {
+	agent, exists := agentMap["cloudwatch-agent-ci-leader"]
+	if !assert.True(t, exists, "cloudwatch-agent-ci-leader CR should exist") {
 		return
 	}
 	spec, ok := agent.Object["spec"].(map[string]interface{})
@@ -109,7 +109,7 @@ func validateLeaderAgentSpec(t *testing.T, agentMap map[string]unstructured.Unst
 	replicas, _ := spec["replicas"].(int64)
 	assert.EqualValues(t, 1, replicas, "leader should have 1 replica")
 
-	assertEnvValue(t, spec, "CWAGENT_ROLE", "CI_LEADER")
+	assertEnvValue(t, spec, "CWAGENT_ROLE", "LEADER")
 	assertResources(t, spec, "512Mi", "50m")
 	assertSchedulingControls(t, spec)
 
@@ -197,7 +197,7 @@ func validateLeaderPodRunning(t *testing.T, k8sClient *util.K8sClient) {
 		pods, err := k8sClient.ListPods(minikube.Namespace)
 		if err == nil {
 			for _, pod := range pods.Items {
-				if strings.HasPrefix(pod.Name, "cloudwatch-agent-leader") {
+				if strings.HasPrefix(pod.Name, "cloudwatch-agent-ci-leader") {
 					lastState = string(pod.Status.Phase)
 					if pod.Status.Phase == corev1.PodRunning {
 						t.Logf("leader pod %s is Running", pod.Name)
@@ -210,5 +210,5 @@ func validateLeaderPodRunning(t *testing.T, k8sClient *util.K8sClient) {
 	}
 
 	assert.Failf(t, "leader pod not running",
-		"cloudwatch-agent-leader pod did not reach Running within timeout (last state: %q)", lastState)
+		"cloudwatch-agent-ci-leader pod did not reach Running within timeout (last state: %q)", lastState)
 }

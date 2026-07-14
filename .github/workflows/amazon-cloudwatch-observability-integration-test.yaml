@@ -41,8 +41,7 @@ jobs:
     strategy:
       matrix:
         # TODO: add webhooks-disabled
-        # Keep sorted alphabetically. Names are prefixed by functionality,
-        # so alphabetical order groups related scenarios together.
+        # Keep sorted alphabetically.
         scenario:
           - agent-config-merge-isolation
           - appsignals-disabled
