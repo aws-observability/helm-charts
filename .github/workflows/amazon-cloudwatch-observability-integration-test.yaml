@@ -1,7 +1,7 @@
 # Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-name: Integration Test for Amazon CloudWatch Observability
+name: Integ Test
 on:
   push:
     branches:
@@ -114,7 +114,7 @@ jobs:
           terraform destroy -auto-approve || true
 
   EKS-IntegrationTest:
-    name: EKS-IntegrationTest
+    name: EKS
     needs: [ Minikube-IntegrationTests ]
     runs-on: ubuntu-latest
     timeout-minutes: 60
@@ -175,7 +175,7 @@ jobs:
             terraform destroy --auto-approve
 
   EKS-IntegrationTest-Win2022:
-    name: EKS-IntegrationTest-Win2022
+    name: EKS Win2022
     needs: [ Minikube-IntegrationTests ]
     runs-on: ubuntu-latest
     timeout-minutes: 60
@@ -236,7 +236,7 @@ jobs:
             terraform destroy --auto-approve
 
   EKS-IntegrationTest-Win2019:
-    name: EKS-IntegrationTest-Win2019
+    name: EKS Win2019
     needs: [ Minikube-IntegrationTests ]
     runs-on: ubuntu-latest
     timeout-minutes: 60
