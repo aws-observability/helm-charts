@@ -1,0 +1,112 @@
+apiVersion: cloudwatch.aws.amazon.com/v1alpha1
+kind: NeuronMonitor
+metadata:
+  labels:
+    k8s-app: neuron-monitor
+    version: v1
+  name: neuron-monitor
+  namespace: default
+spec:
+  affinity:
+    nodeAffinity:
+      requiredDuringSchedulingIgnoredDuringExecution:
+        nodeSelectorTerms:
+        - matchExpressions:
+          - key: node.kubernetes.io/instance-type
+            operator: In
+            values:
+            - trn1.2xlarge
+            - trn1.32xlarge
+            - trn1n.32xlarge
+            - trn2.3xlarge
+            - trn2.48xlarge
+            - trn2a.48xlarge
+            - trn2n.48xlarge
+            - trn2u.48xlarge
+            - inf1.xlarge
+            - inf1.2xlarge
+            - inf1.6xlarge
+            - inf1.24xlarge
+            - inf2.xlarge
+            - inf2.8xlarge
+            - inf2.24xlarge
+            - inf2.48xlarge
+            - ml.trn1.2xlarge
+            - ml.trn1.32xlarge
+            - ml.trn1n.32xlarge
+            - ml.inf1.xlarge
+            - ml.inf1.2xlarge
+            - ml.inf1.6xlarge
+            - ml.inf1.24xlarge
+            - ml.inf2.xlarge
+            - ml.inf2.8xlarge
+            - ml.inf2.24xlarge
+            - ml.inf2.48xlarge
+          - key: eks.amazonaws.com/compute-type
+            operator: NotIn
+            values:
+            - fargate
+  command:
+  - /opt/bin/entrypoint.sh
+  - --cert-file
+  - /etc/amazon-cloudwatch-observability-neuron-cert/server.crt
+  - --key-file
+  - /etc/amazon-cloudwatch-observability-neuron-cert/server.key
+  - --port
+  - '8000'
+  - --neuron-monitor-config
+  - /etc/neuron-monitor-config/monitor.json
+  env:
+  - name: NODE_NAME
+    valueFrom:
+      fieldRef:
+        fieldPath: spec.nodeName
+  - name: PATH
+    value: /usr/local/bin:/usr/bin:/bin:/opt/aws/neuron/bin
+  - name: GOMEMLIMIT
+    value: 320MiB
+  image: ((RE:public\.ecr\.aws/neuron/neuron\-monitor:.+))
+  monitorConfig: "{\n  \"period\": \"5s\",\n  \"neuron_runtimes\": [\n    {\n      \"tag_filter\": \".*\",\n      \"metrics\": [\n        {\n          \"type\": \"neuroncore_counters\"\n        },\n        {\n          \"type\": \"memory_used\"\n        },\n        {\n          \"type\": \"execution_stats\"\n        }\n      ]\n    }\n  ],\n  \"system_metrics\": [\n    {\n      \"period\": \"5s\",\n      \"type\": \"neuron_hw_counters\"\n    }\n  ]\n}\n"
+  nodeSelector:
+    kubernetes.io/os: linux
+  ports:
+  - name: metrics
+    port: 8000
+  resources:
+    limits:
+      cpu: 500m
+      memory: 500Mi
+    requests:
+      cpu: 256m
+      memory: 128Mi
+  securityContext:
+    privileged: true
+  serviceAccount: neuron-monitor-service-acct
+  tolerations:
+  - operator: Exists
+  volumeMounts:
+  - mountPath: /etc/amazon-cloudwatch-observability-neuron-cert/
+    name: neurontls
+    readOnly: true
+  - mountPath: /opt-aws
+    name: aws-config
+    readOnly: true
+  - mountPath: /neuron-monitor-blocker
+    name: neuron-monitor-blocker
+    readOnly: true
+  volumes:
+  - name: neurontls
+    secret:
+      items:
+      - key: tls.crt
+        path: server.crt
+      - key: tls.key
+        path: server.key
+      secretName: amazon-cloudwatch-observability-agent-cert
+  - hostPath:
+      path: /opt/aws
+    name: aws-config
+  - hostPath:
+      path: /var/neuron-monitor-blocker
+      type: ''
+    name: neuron-monitor-blocker

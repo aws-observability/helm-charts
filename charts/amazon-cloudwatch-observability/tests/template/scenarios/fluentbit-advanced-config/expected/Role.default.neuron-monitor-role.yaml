@@ -1,0 +1,19 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  labels:
+    app.kubernetes.io/instance: test-release
+    app.kubernetes.io/managed-by: amazon-cloudwatch-agent-operator
+    app.kubernetes.io/name: amazon-cloudwatch-observability
+    app.kubernetes.io/version: ((ANY))
+  name: neuron-monitor-role
+  namespace: default
+rules:
+- apiGroups:
+  - ''
+  resourceNames:
+  - neuron-monitor-config-map
+  resources:
+  - configmaps
+  verbs:
+  - get

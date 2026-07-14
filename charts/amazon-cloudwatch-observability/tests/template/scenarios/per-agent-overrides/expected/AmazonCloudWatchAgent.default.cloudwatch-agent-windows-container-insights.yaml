@@ -1,0 +1,48 @@
+apiVersion: cloudwatch.aws.amazon.com/v1alpha1
+kind: AmazonCloudWatchAgent
+metadata:
+  name: cloudwatch-agent-windows-container-insights
+  namespace: default
+spec:
+  config: '{"agent":{"region":"us-west-2"},"logs":{"metrics_collected":{"kubernetes":{"cluster_name":"test-cluster","enhanced_container_insights":true}}}}'
+  env:
+  - name: K8S_NODE_NAME
+    valueFrom:
+      fieldRef:
+        fieldPath: spec.nodeName
+  - name: HOST_IP
+    valueFrom:
+      fieldRef:
+        fieldPath: status.hostIP
+  - name: HOST_NAME
+    valueFrom:
+      fieldRef:
+        fieldPath: spec.nodeName
+  - name: K8S_NAMESPACE
+    valueFrom:
+      fieldRef:
+        fieldPath: metadata.namespace
+  - name: RUN_IN_CONTAINER
+    value: 'True'
+  - name: RUN_AS_HOST_PROCESS_CONTAINER
+    value: 'True'
+  hostNetwork: true
+  image: ((RE:public\.ecr\.aws/cloudwatch\-agent/cloudwatch\-agent:.+))
+  mode: daemonset
+  nodeSelector:
+    kubernetes.io/os: windows
+  podSecurityContext:
+    windowsOptions:
+      hostProcess: true
+      runAsUserName: NT AUTHORITY\System
+  resources:
+    limits:
+      cpu: 500m
+      memory: 512Mi
+    requests:
+      cpu: 250m
+      memory: 128Mi
+  serviceAccount: cloudwatch-agent
+  tolerations:
+  - operator: Exists
+  workingDir: '%CONTAINER_SANDBOX_MOUNT_POINT%\Program Files\Amazon\AmazonCloudWatchAgent'

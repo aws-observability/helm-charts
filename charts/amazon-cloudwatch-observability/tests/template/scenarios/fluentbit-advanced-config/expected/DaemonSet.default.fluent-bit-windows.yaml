@@ -1,0 +1,83 @@
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  labels:
+    k8s-app: fluent-bit
+    kubernetes.io/cluster-service: 'true'
+    version: v1
+  name: fluent-bit-windows
+  namespace: default
+spec:
+  selector:
+    matchLabels:
+      k8s-app: fluent-bit
+  template:
+    metadata:
+      annotations:
+        checksum/config: dd4855ed08c700ad27f2a8804ce79a953f8b37befe0db48fb903be77883bac80
+      labels:
+        k8s-app: fluent-bit
+        kubernetes.io/cluster-service: 'true'
+        version: v1
+    spec:
+      containers:
+      - command:
+        - powershell.exe
+        - -Command
+        - New-Item -ItemType Directory -Path C:\var\fluent-bit\state -Force;
+        - '%CONTAINER_SANDBOX_MOUNT_POINT%/fluent-bit/bin/fluent-bit.exe'
+        - -e
+        - '%CONTAINER_SANDBOX_MOUNT_POINT%/fluent-bit/kinesis.dll'
+        - -e
+        - '%CONTAINER_SANDBOX_MOUNT_POINT%/fluent-bit/firehose.dll'
+        - -e
+        - '%CONTAINER_SANDBOX_MOUNT_POINT%/fluent-bit/cloudwatch.dll'
+        - -c
+        - '%CONTAINER_SANDBOX_MOUNT_POINT%/fluent-bit/configuration/fluent-bit.conf'
+        env:
+        - name: AWS_REGION
+          value: us-west-2
+        - name: CLUSTER_NAME
+          value: test-cluster
+        - name: READ_FROM_HEAD
+          value: 'Off'
+        - name: HOST_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: spec.nodeName
+        - name: HOSTNAME
+          valueFrom:
+            fieldRef:
+              apiVersion: v1
+              fieldPath: metadata.name
+        - name: CI_VERSION
+          value: k8s/1.3.17
+        image: ((RE:public\.ecr\.aws/aws\-observability/aws\-for\-fluent\-bit:.+))
+        imagePullPolicy: Always
+        name: fluent-bit
+        resources:
+          limits:
+            memory: 500Mi
+          requests:
+            cpu: 400m
+            memory: 250Mi
+        volumeMounts:
+        - mountPath: fluent-bit\configuration\
+          name: fluent-bit-config
+      dnsPolicy: ClusterFirstWithHostNet
+      hostNetwork: true
+      nodeSelector:
+        kubernetes.io/os: windows
+      priorityClassName: system-node-critical
+      securityContext:
+        windowsOptions:
+          hostProcess: true
+          runAsUserName: NT AUTHORITY\System
+      serviceAccountName: cloudwatch-agent
+      terminationGracePeriodSeconds: 10
+      tolerations:
+      - operator: Exists
+      volumes:
+      - configMap:
+          name: fluent-bit-windows-config
+        name: fluent-bit-config
