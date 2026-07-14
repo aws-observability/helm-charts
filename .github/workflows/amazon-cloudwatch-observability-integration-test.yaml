@@ -44,6 +44,7 @@ jobs:
         # Keep sorted alphabetically. Names are prefixed by functionality,
         # so alphabetical order groups related scenarios together.
         scenario:
+          - agent-config-merge-isolation
           - appsignals-disabled
           - appsignals-disabled-multi-agents
           - appsignals-enabled-multi-agents
@@ -76,7 +77,6 @@ jobs:
           - service-events-unsupported
           - webhooks-configured
           - webhooks-partially-enabled
-          - agent-config-merge-isolation
     steps:
       - uses: actions/checkout@f43a0e5ff2bd294095638e18286ca9a3d1956744 # v3.6.0
 
