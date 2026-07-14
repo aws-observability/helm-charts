@@ -41,39 +41,41 @@ jobs:
     strategy:
       matrix:
         # TODO: add webhooks-disabled
+        # Keep sorted alphabetically. Names are prefixed by functionality,
+        # so alphabetical order groups related scenarios together.
         scenario:
-          - default
           - appsignals-disabled
           - appsignals-disabled-multi-agents
           - appsignals-enabled-multi-agents
           - appsignals-unsupported
-          - service-events-unsupported
-          - webhooks-partially-enabled
-          - webhooks-configured
-          - deployment-rolling-enabled
-          - deployment-rolling-disabled
-          - certificate-recreate-enabled
           - certificate-recreate-disabled
+          - certificate-recreate-enabled
+          - configmap-permission-scoping
+          - default
+          - deployment-rolling-disabled
+          - deployment-rolling-enabled
           - dualstack-endpoint-enabled
           - dualstack-endpoint-with-custom-endpoint
-          - configmap-permission-scoping
-          - feature-targeted-default
-          - feature-targeted-appsignals-disabled
-          - feature-targeted-ci-disabled
-          - feature-targeted-ci-and-appsignals-disabled
-          - feature-targeted-otlp-disabled
-          - feature-targeted-multi-agent
-          - multi-agent-leader-election
-          - feature-targeted-split-features
-          - feature-targeted-custom-otel-config
-          - feature-targeted-user-config-override
           - feature-targeted-agent-config-override
+          - feature-targeted-appsignals-disabled
+          - feature-targeted-ci-and-appsignals-disabled
+          - feature-targeted-ci-disabled
+          - feature-targeted-custom-otel-config
+          - feature-targeted-default
+          - feature-targeted-multi-agent
+          - feature-targeted-otlp-disabled
+          - feature-targeted-split-features
+          - feature-targeted-user-config-override
+          - multi-agent-leader-election
           - otlp-custom-otel-config
           - otlp-disabled
-          - otlp-logs-disabled
           - otlp-hybrid-metrics-fluentbit
+          - otlp-logs-disabled
           - otlp-logs-dual-publish
           - otlp-logs-otel-only
+          - service-events-unsupported
+          - webhooks-configured
+          - webhooks-partially-enabled
           - agent-config-merge-isolation
     steps:
       - uses: actions/checkout@f43a0e5ff2bd294095638e18286ca9a3d1956744 # v3.6.0
