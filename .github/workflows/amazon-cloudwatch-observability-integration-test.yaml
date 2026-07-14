@@ -63,6 +63,7 @@ jobs:
           - feature-targeted-ci-and-appsignals-disabled
           - feature-targeted-otlp-disabled
           - feature-targeted-multi-agent
+          - multi-agent-leader-election
           - feature-targeted-split-features
           - feature-targeted-custom-otel-config
           - feature-targeted-user-config-override

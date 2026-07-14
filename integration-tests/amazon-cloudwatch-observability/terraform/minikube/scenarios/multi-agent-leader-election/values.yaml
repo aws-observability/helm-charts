@@ -1,0 +1,69 @@
+# Multi-agent node/leader split for Container Insights.
+#
+# Generalized from a real-world production pattern: a daemonset agent on
+# every node (CI_NODE) plus a single deployment agent (CI_LEADER) pinned to
+# dedicated nodes, with the default CPU limit removed, per-agent resources,
+# scheduling controls, and rollout tuning.
+#
+# The leader affinity uses a generic `workload-tier=system` label which the
+# scenario's terraform applies to the minikube node.
+region: us-west-2
+clusterName: minikube
+
+# Remove the default CPU limit for all agents (map-level null coalescing).
+agent:
+  resources:
+    limits:
+      cpu: null
+
+agents:
+  - name: cloudwatch-agent
+    env:
+      - name: CWAGENT_ROLE
+        value: CI_NODE
+    resources:
+      limits:
+        memory: 768Mi
+      requests:
+        cpu: 100m
+        memory: 128Mi
+    config:
+      logs:
+        metrics_collected:
+          kubernetes:
+            enhanced_container_insights: true
+    priorityClassName: system-node-critical
+    tolerations:
+      - operator: Exists
+    updateStrategy:
+      rollingUpdate:
+        maxUnavailable: 5%
+  - name: cloudwatch-agent-leader
+    mode: deployment
+    replicas: 1
+    env:
+      - name: CWAGENT_ROLE
+        value: CI_LEADER
+    resources:
+      limits:
+        memory: 512Mi
+      requests:
+        cpu: 50m
+        memory: 128Mi
+    config:
+      logs:
+        metrics_collected:
+          kubernetes:
+            enhanced_container_insights: true
+    priorityClassName: system-node-critical
+    tolerations:
+      - operator: Exists
+    affinity:
+      nodeAffinity:
+        requiredDuringSchedulingIgnoredDuringExecution:
+          nodeSelectorTerms:
+            - matchExpressions:
+                - key: workload-tier
+                  operator: In
+                  values:
+                    - system
