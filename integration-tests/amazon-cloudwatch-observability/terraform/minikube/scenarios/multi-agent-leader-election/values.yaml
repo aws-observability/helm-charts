@@ -10,14 +10,13 @@
 # The leader nodeAffinity below uses an arbitrary `workload-tier=system`
 # label purely to exercise affinity propagation in this scenario; the
 # scenario's terraform applies that label to the minikube node.
+#
+# NOTE: the `cpu: null` limits inside the agents[] entries intentionally use
+# the pattern fixed by PR #334. Before that fix, the null renders as a
+# CRD-invalid literal and the install fails — this scenario acts as its
+# regression gate and is expected to fail until #334 merges.
 region: us-west-2
 clusterName: minikube
-
-# Remove the default CPU limit for all agents (map-level null coalescing).
-agent:
-  resources:
-    limits:
-      cpu: null
 
 agents:
   - name: cloudwatch-agent
@@ -26,6 +25,7 @@ agents:
         value: NODE
     resources:
       limits:
+        cpu: null
         memory: 768Mi
       requests:
         cpu: 100m
@@ -49,6 +49,7 @@ agents:
         value: LEADER
     resources:
       limits:
+        cpu: null
         memory: 512Mi
       requests:
         cpu: 50m

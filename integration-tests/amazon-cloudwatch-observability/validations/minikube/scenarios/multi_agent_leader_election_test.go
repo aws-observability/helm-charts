@@ -135,9 +135,9 @@ func assertEnvValue(t *testing.T, spec map[string]interface{}, name, value strin
 	assert.Failf(t, "env var not found", "env var %s should be present in spec.env", name)
 }
 
-// assertResources verifies the CPU limit was removed (cpu: null at the
-// top-level agent key) while the per-agent memory limit and CPU request
-// propagated.
+// assertResources verifies the CPU limit was removed (cpu: null inside the
+// agents[] entry — requires the null-handling fix from PR #334) while the
+// per-agent memory limit and CPU request propagated.
 func assertResources(t *testing.T, spec map[string]interface{}, memLimit, cpuRequest string) {
 	resources, _ := spec["resources"].(map[string]interface{})
 	if !assert.NotNil(t, resources, "resources should be present") {
