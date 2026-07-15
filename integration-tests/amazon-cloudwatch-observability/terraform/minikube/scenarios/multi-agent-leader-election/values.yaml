@@ -11,10 +11,9 @@
 # label purely to exercise affinity propagation in this scenario; the
 # scenario's terraform applies that label to the minikube node.
 #
-# NOTE: the `cpu: null` limits inside the agents[] entries intentionally use
-# the pattern fixed by PR #334. Before that fix, the null renders as a
-# CRD-invalid literal and the install fails — this scenario acts as its
-# regression gate and is expected to fail until #334 merges.
+# The `cpu: null` limits inside the agents[] entries remove the default CPU
+# limit; this scenario guards the chart's null handling for agents[]
+# entries end to end.
 region: us-west-2
 clusterName: minikube
 
