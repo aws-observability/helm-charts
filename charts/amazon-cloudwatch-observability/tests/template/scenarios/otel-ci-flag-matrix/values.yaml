@@ -1,0 +1,10 @@
+# OTEL CI flag gating matrix.
+#
+# Intentionally empty: this scenario exhaustively re-renders the chart across
+# all 8 combinations of the three gating flags, passed via --set from
+# test.sh:
+#
+#   otelContainerInsights.enabled
+#   otelContainerInsights.logs.enabled
+#   containerLogs.enabled
+{}

@@ -1,0 +1,59 @@
+# Per-agent overrides inside the agents[] array.
+#
+# Generalized from a real-world production pattern: a node/leader split for
+# Container Insights — a daemonset agent plus a deployment agent, each with
+# its own env vars, resources, scheduling controls, rollout tuning, and
+# agent config. Every field here must propagate into the corresponding
+# AmazonCloudWatchAgent CR, merged over the shared top-level `agent`
+# defaults.
+agents:
+  - name: cloudwatch-agent
+    env:
+      - name: CWAGENT_ROLE
+        value: CI_NODE
+    resources:
+      limits:
+        memory: 3Gi
+      requests:
+        cpu: 250m
+        memory: 2Gi
+    config:
+      logs:
+        metrics_collected:
+          kubernetes:
+            enhanced_container_insights: true
+    priorityClassName: system-node-critical
+    tolerations:
+      - operator: Exists
+    updateStrategy:
+      rollingUpdate:
+        maxUnavailable: 5%
+  - name: cloudwatch-agent-leader
+    mode: deployment
+    replicas: 2
+    env:
+      - name: CWAGENT_ROLE
+        value: CI_LEADER
+    resources:
+      limits:
+        memory: 2Gi
+      requests:
+        cpu: 50m
+        memory: 1Gi
+    config:
+      logs:
+        metrics_collected:
+          kubernetes:
+            enhanced_container_insights: true
+    priorityClassName: system-node-critical
+    tolerations:
+      - operator: Exists
+    affinity:
+      nodeAffinity:
+        requiredDuringSchedulingIgnoredDuringExecution:
+          nodeSelectorTerms:
+            - matchExpressions:
+                - key: workload-tier
+                  operator: In
+                  values:
+                    - system

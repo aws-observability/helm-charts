@@ -1,0 +1,89 @@
+# Advanced fluent-bit configuration.
+#
+# Generalized from a real-world production pattern that heavily customizes
+# log routing: a custom SERVICE section, custom parsers, a net-new conf
+# file, and a neutralized default conf file. Also exercises fluent-bit
+# DaemonSet-level overrides (resources, scheduling, rollout).
+#
+# Contract notes (what these tests lock in):
+# - The chart auto-appends `@INCLUDE <key>` for every extraFiles entry after
+#   the user's service section. Users cannot exclude a file via the service
+#   @INCLUDE list; the supported way to disable a default conf file is to
+#   override its content with a comment.
+containerLogs:
+  enabled: true
+  fluentBit:
+    priorityClassName: system-node-critical
+    tolerations:
+      - operator: Exists
+    updateStrategy:
+      rollingUpdate:
+        maxUnavailable: 5%
+    resources:
+      limits:
+        cpu: null
+        memory: 500Mi
+      requests:
+        cpu: 400m
+        memory: 250Mi
+    config:
+      # Custom SERVICE section: settings must render verbatim.
+      service: |
+        [SERVICE]
+            Flush                     5
+            Grace                     30
+            Log_Level                 info
+            Daemon                    off
+            scheduler.base            15
+            scheduler.cap             300
+            Parsers_File              parsers.conf
+            storage.path              /var/fluent-bit/state/flb-storage/
+            storage.metrics           on
+            HTTP_Server               On
+            HTTP_Port                 2020
+      customParsers: |
+        [PARSER]
+            Name                custom_syslog
+            Format              regex
+            Regex               ^(?<time>[^ ]* {1,2}[^ ]* [^ ]*) (?<host>[^ ]*) (?<message>.*)$
+            Time_Key            time
+            Time_Format         %b %d %H:%M:%S
+      extraFiles:
+        # Net-new file with real-world routing patterns: tag rewriting with
+        # filesystem-backed emitters, record enrichment, retention control.
+        custom-routing.conf: |
+          [INPUT]
+              Name                tail
+              Tag                 application.*
+              Path                /var/log/containers/*.log
+              multiline.parser    docker, cri
+              DB                  /var/fluent-bit/state/flb_container.db
+              storage.type        filesystem
+              Read_from_Head      ${READ_FROM_HEAD}
+
+          [FILTER]
+              Name                modify
+              Match               application.*
+              Add                 cluster_id test-cluster-id
+
+          [FILTER]
+              Name                 rewrite_tag
+              Match                application.*
+              Rule                 $log_processed['_aws']['CloudWatchMetrics'][0]['Namespace'] .* emf.$TAG false
+              Emitter_Name         re_emitted_emf_logs
+              Emitter_Storage.type filesystem
+
+          [OUTPUT]
+              Name                cloudwatch_logs
+              Match               emf.*
+              region              ${AWS_REGION}
+              log_group_name      /aws/containerinsights/${CLUSTER_NAME}/prometheus
+              log_stream_prefix   ${HOST_NAME}-
+              auto_create_group   true
+              log_retention_days  3653
+              log_format          json/emf
+              Retry_Limit         False
+        # Neutralized default file: overriding content with a comment is the
+        # supported way to disable a default pipeline (it is still @INCLUDEd).
+        application-log.conf: |
+          # disabled by override

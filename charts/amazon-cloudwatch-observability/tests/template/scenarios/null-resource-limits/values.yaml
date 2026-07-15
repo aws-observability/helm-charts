@@ -1,0 +1,23 @@
+# Removing default resource limits via explicit null.
+#
+# Users remove the default CPU limit (500m for the agent, 500m for
+# fluent-bit) by setting `cpu: null`. This works through Helm's values
+# coalescing for map-typed keys (top-level `agent`, `containerLogs.fluentBit`).
+# Regression context: nulls inside `agents[]` array entries do NOT coalesce
+# and historically either fell back to the default (v5.x) or rendered a
+# CRD-invalid literal `cpu: null` (6.2.x). See PR #334.
+agent:
+  resources:
+    limits:
+      cpu: null
+
+containerLogs:
+  enabled: true
+  fluentBit:
+    resources:
+      limits:
+        cpu: null
+        memory: 512Mi
+      requests:
+        cpu: 400m
+        memory: 256Mi
