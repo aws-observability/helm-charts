@@ -1,7 +1,17 @@
 {{- if .Values.agent.enabled }}
+{{- /*
+  Render a single ClusterRoleBinding for the shared Target Allocator ServiceAccount
+  (target-allocator-service-acct), used by every TA (targetAgent and clusterScraperAgent).
+  Pre-scan the agents to decide whether any TA is enabled, then render exactly once.
+*/}}
+{{- $needsTA := false }}
 {{- range $i, $customAgent := .Values.agents }}
 {{- $otelCIScrape := eq (include "cloudwatch-agent.otelCIScrapeEnabled" (dict "agentName" $customAgent.name "context" $)) "true" }}
 {{- if or (and (hasKey ($customAgent.prometheus) "targetAllocator") (hasKey ($customAgent.prometheus.targetAllocator) "enabled") $customAgent.prometheus.targetAllocator.enabled) $otelCIScrape }}
+{{- $needsTA = true }}
+{{- end }}
+{{- end }}
+{{- if $needsTA }}
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
@@ -16,7 +26,5 @@ subjects:
 - kind: ServiceAccount
   name: "target-allocator-service-acct"
   namespace: {{ $.Release.Namespace }}
-{{- end }}
----
 {{- end }}
 {{- end }}

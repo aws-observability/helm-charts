@@ -111,10 +111,16 @@ spec:
   otelConfig: {{ include "cloudwatch-agent.modify-otel-config" (merge (dict "OtelConfig" $generatedOtelConfig) $) }}
   {{- end }}
   {{- $otelCIScrape := eq (include "cloudwatch-agent.otelCIScrapeEnabled" (dict "agentName" $agent.name "context" $)) "true" }}
+  {{- $isClusterScraper := eq $agent.name $.Values.otelContainerInsights.clusterScraperAgent }}
   {{- $taEnabled := or $agent.prometheus.targetAllocator.enabled $otelCIScrape }}
   {{- $allocationStrategy := $agent.prometheus.targetAllocator.allocationStrategy | default "consistent-hashing" }}
   {{- if $otelCIScrape }}
-  {{- $allocationStrategy = (dig "prometheusScrape" "allocationStrategy" "per-node" $.Values.otelContainerInsights) }}
+  {{-   if $isClusterScraper }}
+  {{- /* central scraper runs a single/few replicas; per-node makes no sense */}}
+  {{-     $allocationStrategy = "consistent-hashing" }}
+  {{-   else }}
+  {{-     $allocationStrategy = (dig "prometheusScrape" "allocationStrategy" "per-node" $.Values.otelContainerInsights) }}
+  {{-   end }}
   {{- end }}
   {{- if $agent.prometheus.config }}
   prometheus:
@@ -142,6 +148,12 @@ spec:
       enabled: true
       {{- if $otelCIScrape }}
       scrapeInterval: {{ $.Values.otelContainerInsights.metricResolution | quote }}
+      {{- if $isClusterScraper }}
+      # Annotation-based routing: this central agent's Target Allocator scrapes only monitors
+      # annotated cloudwatch.aws/scraper: cluster-scraper. The per-node agent (no scraperRole)
+      # scrapes only monitors that are NOT so annotated, so the two partition with no overlap/gap.
+      scraperRole: cluster-scraper
+      {{- end }}
       {{- if not (dig "prometheusScrape" "serviceMonitor" "enabled" true $.Values.otelContainerInsights) }}
       # prometheusScrape.serviceMonitor.enabled=false: select a label no real ServiceMonitor
       # carries, so the Target Allocator discovers no ServiceMonitors.

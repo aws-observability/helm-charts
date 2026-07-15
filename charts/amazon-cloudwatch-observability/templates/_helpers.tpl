@@ -212,14 +212,16 @@ Logic:
 
 {{/*
 Returns "true" when otelContainerInsights-driven ServiceMonitor/PodMonitor scraping
-applies to the given agent. True when otelContainerInsights is enabled, the agent is
-the configured targetAgent, and at least one of serviceMonitor/podMonitor is enabled.
+applies to the given agent. True when otelContainerInsights is enabled,
+prometheusScrape is enabled, and the agent is either the configured targetAgent
+(per-node scraping of unrouted monitors) or the clusterScraperAgent (central
+scraping of monitors explicitly routed with cloudwatch.aws/scraper: cluster-scraper).
 Accepts a dict with "agentName" (string) and "context" (root context $).
 */}}
 {{- define "cloudwatch-agent.otelCIScrapeEnabled" -}}
 {{- $ctx := .context -}}
 {{- $agentName := .agentName -}}
-{{- if and $ctx.Values.otelContainerInsights.enabled (eq $agentName $ctx.Values.otelContainerInsights.targetAgent) (dig "prometheusScrape" "enabled" true $ctx.Values.otelContainerInsights) -}}
+{{- if and $ctx.Values.otelContainerInsights.enabled (dig "prometheusScrape" "enabled" true $ctx.Values.otelContainerInsights) (or (eq $agentName $ctx.Values.otelContainerInsights.targetAgent) (eq $agentName $ctx.Values.otelContainerInsights.clusterScraperAgent)) -}}
 true
 {{- end -}}
 {{- end -}}

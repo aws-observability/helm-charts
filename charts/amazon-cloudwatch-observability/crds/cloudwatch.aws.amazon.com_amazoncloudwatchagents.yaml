@@ -6577,6 +6577,13 @@ spec:
                           Default: "30s"
                         format: duration
                         type: string
+                      scraperRole:
+                        description: |-
+                          ScraperRole partitions ServiceMonitor/PodMonitor discovery across CloudWatch agents by the
+                          "cloudwatch.aws/scraper" annotation on the monitor CR. "cluster-scraper" selects only monitors
+                          annotated cloudwatch.aws/scraper: cluster-scraper; empty (default) selects only monitors that are
+                          not so annotated.
+                        type: string
                       serviceMonitorSelector:
                         additionalProperties:
                           type: string

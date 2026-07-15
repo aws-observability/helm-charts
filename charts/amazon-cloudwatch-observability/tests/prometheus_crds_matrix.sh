@@ -78,17 +78,31 @@ expect_count "CRD RBAC absent when otelCI off"       "$CRD_RBAC" 0 --set otelCon
 expect_count "CRD RBAC absent when scrape off"       "$CRD_RBAC" 0 --set otelContainerInsights.enabled=true --set otelContainerInsights.prometheusScrape.enabled=false
 
 printf "\n${Y}== Target Allocator prometheusCR gating ==${N}\n"
-# prometheusScrape.enabled is the single switch for the TA prometheusCR path.
-expect_count "TA rendered when otelCI on"            'targetAllocator:' 1 --set otelContainerInsights.enabled=true
-expect_count "prometheusCR rendered when otelCI on"  'prometheusCR:' 1 --set otelContainerInsights.enabled=true
-expect_count "TA absent when scrape off"             'targetAllocator:' 0 --set otelContainerInsights.enabled=true --set otelContainerInsights.prometheusScrape.enabled=false
-# Single monitor type: disabling serviceMonitor still renders the TA and sets the SM-disabling selector.
-expect_count "SM disabled => serviceMonitorSelector rendered" 'serviceMonitorSelector' 1 --set otelContainerInsights.enabled=true --set otelContainerInsights.prometheusScrape.serviceMonitor.enabled=false
-expect_count "SM disabled => podMonitorSelector absent"       'podMonitorSelector' 0 --set otelContainerInsights.enabled=true --set otelContainerInsights.prometheusScrape.serviceMonitor.enabled=false
+# prometheusScrape.enabled is the single switch for the TA prometheusCR path. Both the
+# per-node targetAgent and the central clusterScraperAgent get a TA + prometheusCR.
+expect_count "TA rendered on both agents when otelCI on"           'targetAllocator:' 2 --set otelContainerInsights.enabled=true
+expect_count "prometheusCR rendered on both agents when otelCI on" 'prometheusCR:' 2 --set otelContainerInsights.enabled=true
+expect_count "TA absent when scrape off"                           'targetAllocator:' 0 --set otelContainerInsights.enabled=true --set otelContainerInsights.prometheusScrape.enabled=false
 
-printf "\n${Y}== per-node allocation strategy default ==${N}\n"
-expect_count "otelCI on => TA allocationStrategy per-node"        'allocationStrategy: "per-node"' 1 --set otelContainerInsights.enabled=true
-expect_count "override => TA allocationStrategy consistent-hashing" 'allocationStrategy: "consistent-hashing"' 1 --set otelContainerInsights.enabled=true --set otelContainerInsights.prometheusScrape.allocationStrategy=consistent-hashing
+printf "\n${Y}== Monitor routing (scraperRole + cloudwatch.aws/scraper annotation) ==${N}\n"
+# Routing is annotation-based at runtime; the chart only sets scraperRole on the cluster-scraper CR.
+# The per-node agent gets no scraperRole (default role). Runtime annotation filtering is covered by
+# the operator unit test TestAnnotationRoleMatches.
+expect_count "clusterScraper CR sets scraperRole: cluster-scraper"  'scraperRole: cluster-scraper' 1 --set otelContainerInsights.enabled=true
+# With both monitor types enabled (default), routing is annotation-based so NO label selector is
+# rendered on either agent's prometheusCR (selectors appear only to disable a monitor type).
+expect_count "no monitor selectors rendered when enabled"           'onitorSelector:' 0 --set otelContainerInsights.enabled=true
+# Disabling a monitor type still renders the discover-nothing sentinel on BOTH agents.
+expect_count "SM disabled => sentinel selector on both agents"      'amazon-cloudwatch-observability.aws/otel-ci-scrape: disabled' 2 --set otelContainerInsights.enabled=true --set otelContainerInsights.prometheusScrape.serviceMonitor.enabled=false
+
+printf "\n${Y}== allocation strategy per agent ==${N}\n"
+# targetAgent defaults to per-node; clusterScraperAgent is always consistent-hashing.
+expect_count "targetAgent per-node by default"                'allocationStrategy: "per-node"' 1 --set otelContainerInsights.enabled=true
+expect_count "clusterScraper consistent-hashing by default"   'allocationStrategy: "consistent-hashing"' 1 --set otelContainerInsights.enabled=true
+# Overriding prometheusScrape.allocationStrategy applies to the targetAgent only; the
+# clusterScraper stays consistent-hashing, so both agents end up consistent-hashing.
+expect_count "override => both agents consistent-hashing"     'allocationStrategy: "consistent-hashing"' 2 --set otelContainerInsights.enabled=true --set otelContainerInsights.prometheusScrape.allocationStrategy=consistent-hashing
+expect_count "override => no per-node remaining"              'allocationStrategy: "per-node"' 0 --set otelContainerInsights.enabled=true --set otelContainerInsights.prometheusScrape.allocationStrategy=consistent-hashing
 
 printf "\n${Y}== Summary ==${N}\n"
 printf "passed: ${G}%s${N}, failed: ${R}%s${N}\n" "$pass_count" "$fail_count"
