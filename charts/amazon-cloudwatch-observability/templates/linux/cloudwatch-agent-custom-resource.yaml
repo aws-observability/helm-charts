@@ -129,7 +129,8 @@ spec:
       enabled: {{ $agent.prometheus.targetAllocator.prometheusCR.enabled | default false }}
     {{- end }}
   {{- end }}
-  {{- with $agent.resources }}
+  {{- $prunedResources := include "cloudwatch-agent.pruneNulls" $agent.resources | fromYaml }}
+  {{- with $prunedResources }}
   resources: {{- toYaml . | nindent 4}}
   {{- end }}
   volumeMounts:
