@@ -1,0 +1,72 @@
+# Multi-agent node/leader split for Container Insights.
+#
+# Mirrors the documented setup for large Kubernetes clusters (see
+# "Considerations for large Kubernetes clusters" in the CloudWatch
+# Observability EKS add-on install guide): a daemonset agent on every node
+# (CWAGENT_ROLE=NODE) plus a single deployment agent (CWAGENT_ROLE=LEADER),
+# here with the default CPU limit removed, per-agent resources, scheduling
+# controls, and rollout tuning layered on top.
+#
+# The leader nodeAffinity below uses an arbitrary `workload-tier=system`
+# label purely to exercise affinity propagation in this scenario; the
+# scenario's terraform applies that label to the minikube node.
+#
+# The `cpu: null` limits inside the agents[] entries remove the default CPU
+# limit; this scenario guards the chart's null handling for agents[]
+# entries end to end.
+region: us-west-2
+clusterName: minikube
+
+agents:
+  - name: cloudwatch-agent
+    env:
+      - name: CWAGENT_ROLE
+        value: NODE
+    resources:
+      limits:
+        cpu: null
+        memory: 768Mi
+      requests:
+        cpu: 100m
+        memory: 128Mi
+    config:
+      logs:
+        metrics_collected:
+          kubernetes:
+            enhanced_container_insights: true
+    priorityClassName: system-node-critical
+    tolerations:
+      - operator: Exists
+    updateStrategy:
+      rollingUpdate:
+        maxUnavailable: 5%
+  - name: cloudwatch-agent-ci-leader
+    mode: deployment
+    replicas: 1
+    env:
+      - name: CWAGENT_ROLE
+        value: LEADER
+    resources:
+      limits:
+        cpu: null
+        memory: 512Mi
+      requests:
+        cpu: 50m
+        memory: 128Mi
+    config:
+      logs:
+        metrics_collected:
+          kubernetes:
+            enhanced_container_insights: true
+    priorityClassName: system-node-critical
+    tolerations:
+      - operator: Exists
+    affinity:
+      nodeAffinity:
+        requiredDuringSchedulingIgnoredDuringExecution:
+          nodeSelectorTerms:
+            - matchExpressions:
+                - key: workload-tier
+                  operator: In
+                  values:
+                    - system
