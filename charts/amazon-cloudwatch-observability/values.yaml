@@ -1188,3 +1188,10 @@ otelContainerInsights:
       enabled: true
       ## Namespace where Karpenter is deployed.
       namespace: "kube-system"
+    ## KEDA — Kubernetes Event-Driven Autoscaling.
+    ## Scrapes the Prometheus metrics endpoint exposed by the KEDA operator.
+    ## Requires prometheus.operator.enabled=true in KEDA's Helm values.
+    keda:
+      enabled: true
+      ## Namespace where KEDA is deployed.
+      namespace: "keda"

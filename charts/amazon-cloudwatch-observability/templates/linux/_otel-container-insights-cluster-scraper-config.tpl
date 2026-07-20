@@ -82,6 +82,34 @@ receivers:
               target_label: node
 {{- end }}
 
+{{- if .Values.otelContainerInsights.integrations.keda.enabled }}
+  prometheus/cw_k8s_ci_v0_keda:
+    config:
+      scrape_configs:
+        - job_name: keda
+          scrape_interval: {{ .Values.otelContainerInsights.metricResolution }}
+          scrape_timeout: {{ include "otel-container-insights.scrapeTimeout" . }}
+          metrics_path: /metrics
+          kubernetes_sd_configs:
+            - role: pod
+              namespaces:
+                names:
+                  - {{ .Values.otelContainerInsights.integrations.keda.namespace }}
+          relabel_configs:
+            - source_labels: [__meta_kubernetes_pod_label_app_kubernetes_io_name]
+              regex: keda-operator
+              action: keep
+            - source_labels: [__meta_kubernetes_pod_container_port_name]
+              regex: metrics
+              action: keep
+            - source_labels: [__meta_kubernetes_pod_name]
+              target_label: pod
+            - source_labels: [__meta_kubernetes_namespace]
+              target_label: namespace
+            - source_labels: [__meta_kubernetes_pod_node_name]
+              target_label: node
+{{- end }}
+
 processors:
   filter/cw_k8s_ci_v0_scrape_metadata:
     error_mode: ignore
@@ -209,6 +237,56 @@ processors:
   # Karpenter-specific resource detection: only cloud-level attributes (region, account).
   # No host/AZ attributes — those would incorrectly reflect the scraper's node, not Karpenter's.
   resourcedetection/cw_k8s_ci_v0_karpenter:
+    detectors: [eks, ec2]
+    ec2:
+      resource_attributes:
+        host.id: { enabled: false }
+        host.type: { enabled: false }
+        host.name: { enabled: false }
+        host.image.id: { enabled: false }
+        cloud.provider: { enabled: true }
+        cloud.platform: { enabled: true }
+        cloud.region: { enabled: true }
+        cloud.availability_zone: { enabled: false }
+        cloud.account.id: { enabled: true }
+{{- end }}
+
+{{- if .Values.otelContainerInsights.integrations.keda.enabled }}
+  transform/cw_k8s_ci_v0_set_scope_keda:
+    error_mode: ignore
+    metric_statements:
+      - context: scope
+        statements:
+          - set(scope.name, "github.com/kedacore/keda")
+          - set(scope.schema_url, "")
+          - set(attributes["cloudwatch.source"], "cloudwatch-agent")
+          - set(attributes["cloudwatch.solution"], "k8s-otel-container-insights")
+          - set(attributes["cloudwatch.pipeline"], "keda")
+
+  groupbyattrs/cw_k8s_ci_v0_keda:
+    keys:
+      - pod
+      - namespace
+      - node
+
+  transform/cw_k8s_ci_v0_keda_promote:
+    error_mode: ignore
+    metric_statements:
+      - context: resource
+        statements:
+          - set(attributes["k8s.pod.name"], attributes["pod"]) where attributes["pod"] != nil
+          - set(attributes["k8s.namespace.name"], attributes["namespace"]) where attributes["namespace"] != nil
+          - set(attributes["k8s.node.name"], attributes["node"]) where attributes["node"] != nil
+          - delete_key(attributes, "net.host.name") where attributes["net.host.name"] != nil
+          - delete_key(attributes, "net.host.port") where attributes["net.host.port"] != nil
+          - delete_key(attributes, "url.scheme") where attributes["url.scheme"] != nil
+      - context: datapoint
+        statements:
+          - set(attributes["pod"], resource.attributes["pod"]) where resource.attributes["pod"] != nil
+          - set(attributes["namespace"], resource.attributes["namespace"]) where resource.attributes["namespace"] != nil
+          - set(attributes["node"], resource.attributes["node"]) where resource.attributes["node"] != nil
+
+  resourcedetection/cw_k8s_ci_v0_keda:
     detectors: [eks, ec2]
     ec2:
       resource_attributes:
@@ -546,6 +624,27 @@ service:
         - k8sattributes/cw_k8s_ci_v0_pod
         - transform/cw_k8s_ci_v0_set_workload
         - resourcedetection/cw_k8s_ci_v0_karpenter
+        - transform/cw_k8s_ci_v0_clear_schema_url
+        - transform/cw_k8s_ci_v0_set_cloud_resource_id
+        - awsattributelimit/cw_k8s_ci_v0
+        - batch/cw_k8s_ci_v0_cwotel
+      exporters:
+        - otlphttp/cw_k8s_ci_v0_cwotel
+{{- end }}
+{{- if .Values.otelContainerInsights.integrations.keda.enabled }}
+    metrics/cw_k8s_ci_v0_keda:
+      receivers: [prometheus/cw_k8s_ci_v0_keda]
+      processors:
+        - filter/cw_k8s_ci_v0_scrape_metadata
+        - transform/cw_k8s_ci_v0_set_unit
+        - metricstarttime/cw_k8s_ci_v0
+        - transform/cw_k8s_ci_v0_set_scope_keda
+        - transform/cw_k8s_ci_v0_set_cluster_name
+        - groupbyattrs/cw_k8s_ci_v0_keda
+        - transform/cw_k8s_ci_v0_keda_promote
+        - k8sattributes/cw_k8s_ci_v0_pod
+        - transform/cw_k8s_ci_v0_set_workload
+        - resourcedetection/cw_k8s_ci_v0_keda
         - transform/cw_k8s_ci_v0_clear_schema_url
         - transform/cw_k8s_ci_v0_set_cloud_resource_id
         - awsattributelimit/cw_k8s_ci_v0
