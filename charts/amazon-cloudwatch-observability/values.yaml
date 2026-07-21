@@ -1171,12 +1171,15 @@ otelContainerInsights:
   cloudwatchMetricsEndpoint: ""
   # Override the CloudWatch Logs OTLP endpoint. If empty, defaults to logs.<region>.amazonaws.com.
   cloudwatchLogsEndpoint: ""
-  ## ── Integrations ──────────────────────────────────────────────────────────
+  ## ── Solutions ──────────────────────────────────────────────────────────
   ## Optional Prometheus metric scraping for well-known cluster components.
-  ## Each integration is gated by its own enabled flag so customers only scrape
-  ## what they actually run. Integrations only take effect when
+  ## Each solution is gated by its own enabled flag so customers only scrape
+  ## what they actually run. Solutions only take effect when
   ## otelContainerInsights.enabled is true.
-  integrations:
+  solutions:
+    ## Global toggle: set to false to disable ALL solutions at once.
+    ## Individual solutions won't activate even if their own enabled flag is true.
+    enabled: true
     ## Karpenter — cluster autoscaler for Kubernetes.
     ## Scrapes the Prometheus metrics endpoint exposed by the Karpenter controller.
     karpenter:

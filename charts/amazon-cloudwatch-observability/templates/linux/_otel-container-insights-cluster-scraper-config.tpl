@@ -48,7 +48,7 @@ receivers:
                 - {{ include "kube-state-metrics.name" . }}.{{ .Release.Namespace }}.svc:{{ .Values.kubeStateMetrics.service.port }}
 {{- end }}
 
-{{- if .Values.otelContainerInsights.integrations.karpenter.enabled }}
+{{- if and .Values.otelContainerInsights.solutions.enabled .Values.otelContainerInsights.solutions.karpenter.enabled }}
   prometheus/cw_k8s_ci_v0_karpenter:
     config:
       scrape_configs:
@@ -60,7 +60,7 @@ receivers:
             - role: pod
               namespaces:
                 names:
-                  - {{ .Values.otelContainerInsights.integrations.karpenter.namespace }}
+                  - {{ .Values.otelContainerInsights.solutions.karpenter.namespace }}
           relabel_configs:
             - source_labels: [__meta_kubernetes_pod_label_app_kubernetes_io_name]
               regex: karpenter
@@ -162,7 +162,7 @@ processors:
           - set(attributes["cloudwatch.pipeline"], "kube-state-metrics")
 {{- end }}
 
-{{- if .Values.otelContainerInsights.integrations.karpenter.enabled }}
+{{- if and .Values.otelContainerInsights.solutions.enabled .Values.otelContainerInsights.solutions.karpenter.enabled }}
   transform/cw_k8s_ci_v0_set_scope_karpenter:
     error_mode: ignore
     metric_statements:
@@ -488,7 +488,7 @@ service:
       exporters:
         - otlphttp/cw_k8s_ci_v0_cwotel
 {{- end }}
-{{- if .Values.otelContainerInsights.integrations.karpenter.enabled }}
+{{- if and .Values.otelContainerInsights.solutions.enabled .Values.otelContainerInsights.solutions.karpenter.enabled }}
     metrics/cw_k8s_ci_v0_karpenter:
       receivers: [prometheus/cw_k8s_ci_v0_karpenter]
       processors:
