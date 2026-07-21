@@ -300,6 +300,8 @@ spec:
     value: /var/run/secrets/aws/token
   - name: AWS_ROLE_ARN
     value: {{ $.Values.roleArn | quote }}
+  - name: AWS_REGION
+    value: {{ $.Values.region | quote }}
   {{ end }}
   - name: K8S_CLUSTER_NAME
     value: {{ $.Values.clusterName | quote }}

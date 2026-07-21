@@ -61,6 +61,8 @@ spec:
           value: /var/run/secrets/aws/token
         - name: AWS_ROLE_ARN
           value: {{ .Values.roleArn | quote }}
+        - name: AWS_REGION
+          value: {{ $.Values.region | quote }}
         {{- end }}
         {{- with .Values.containerLogs.fluentBit.resources }}
         resources: {{- toYaml . | nindent 10}}
