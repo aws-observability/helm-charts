@@ -1,4 +1,17 @@
 =======================================================================
+amazon-cloudwatch-observability v6.4.0 (2026-07-21)
+=======================================================================
+Enhancements:
+* Upgrade Fluent Bit to v3.4.8
+* Upgrade CWAgent Operator to v3.6.0
+* Upgrade Java SDK to v2.29.0
+* Upgrade .NET SDK to v1.14.0
+* Upgrade DCGM Exporter to 4.6.0-4.8.3-distroless
+* Upgrade Neuron Monitor to v1.11.0
+* Upgrade Node Exporter to v1.12.1
+* Add support for Service Events and Dynamic Instrumentation configuration for Application Signals
+
+=======================================================================
 amazon-cloudwatch-observability v6.3.0 (2026-06-22)
 =======================================================================
 Enhancements:

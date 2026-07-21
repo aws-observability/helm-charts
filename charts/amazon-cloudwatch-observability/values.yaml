@@ -31,7 +31,7 @@ containerLogs:
   fluentBit:
     image:
       repository: aws-for-fluent-bit
-      tag: 3.4.3
+      tag: 3.4.8
       tagWindows: 2.31.12-windowsservercore
       repositoryDomainMap:
         public: public.ecr.aws/aws-observability
@@ -466,7 +466,7 @@ manager:
   name:
   image:
     repository: cloudwatch-agent-operator
-    tag: 3.5.0
+    tag: 3.6.0
     repositoryDomainMap:
       public: public.ecr.aws/cloudwatch-agent
       cn-north-1: 934860584483.dkr.ecr.cn-north-1.amazonaws.com.cn
@@ -477,7 +477,7 @@ manager:
     java:
       repositoryDomain: public.ecr.aws/aws-observability
       repository: adot-autoinstrumentation-java
-      tag: v2.28.2
+      tag: v2.29.0
     python:
       repositoryDomain: public.ecr.aws/aws-observability
       repository: adot-autoinstrumentation-python
@@ -485,7 +485,7 @@ manager:
     dotnet:
       repositoryDomain: public.ecr.aws/aws-observability
       repository: adot-autoinstrumentation-dotnet
-      tag: v1.13.0
+      tag: v1.14.0
     nodejs:
       repositoryDomain: public.ecr.aws/aws-observability
       repository: adot-autoinstrumentation-node
@@ -804,7 +804,7 @@ dcgmExporter:
   name:
   image:
     repository: dcgm-exporter
-    tag: 4.5.2-4.8.1-ubuntu22.04
+    tag: 4.6.0-4.8.3-distroless
     repositoryDomainMap:
       public: nvcr.io/nvidia/k8s
       cn-north-1: 934860584483.dkr.ecr.cn-north-1.amazonaws.com.cn
@@ -980,7 +980,7 @@ neuronMonitor:
   name:
   image:
     repository: neuron-monitor
-    tag: 1.10.0
+    tag: 1.11.0
     repositoryDomainMap:
       public: public.ecr.aws/neuron
   resources:
@@ -1055,7 +1055,7 @@ kubeStateMetrics:
   ## TODO: Add replicas, PDB, and HPA configuration in a follow-up.
   image:
     repository: kube-state-metrics/kube-state-metrics
-    tag: v2.19.1
+    tag: v2.19.1-eksbuild.3
     repositoryDomainMap:
       public: registry.k8s.io
       cn-north-1: 918309763551.dkr.ecr.cn-north-1.amazonaws.com.cn
@@ -1090,7 +1090,7 @@ nodeExporter:
   name:
   image:
     repository: prometheus/node-exporter
-    tag: v1.11.1
+    tag: v1.12.1-eksbuild.1
     repositoryDomainMap:
       public: quay.io
       cn-north-1: 918309763551.dkr.ecr.cn-north-1.amazonaws.com.cn
