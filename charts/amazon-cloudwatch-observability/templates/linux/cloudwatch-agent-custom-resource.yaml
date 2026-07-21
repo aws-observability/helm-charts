@@ -112,21 +112,46 @@ spec:
   {{- else if ne (trimAll " \n\t" $generatedOtelConfig) "{}" }}
   otelConfig: {{ include "cloudwatch-agent.modify-otel-config" (merge (dict "OtelConfig" $generatedOtelConfig) $) }}
   {{- end }}
+  {{- $otelCIScrape := eq (include "cloudwatch-agent.otelCIScrapeEnabled" (dict "agentName" $agent.name "context" $)) "true" }}
+  {{- $taEnabled := or $agent.prometheus.targetAllocator.enabled $otelCIScrape }}
   {{- if $agent.prometheus.config }}
   prometheus:
     {{- with $agent.prometheus.config }}
     config:
       {{- toYaml . | nindent 6 }}
     {{- end }}
+  {{- else if $taEnabled }}
+  # The operator builds the Target Allocator config from spec.prometheus and requires
+  # a prometheus.config containing a scrape_configs key (see operator
+  # targetallocator/adapters GetPromConfig). With prometheusCR (ServiceMonitor/
+  # PodMonitor) discovery the static scrape list is empty -- the Target Allocator
+  # discovers targets from ServiceMonitor/PodMonitor CRs.
+  prometheus:
+    config:
+      scrape_configs: []
   {{- end }}
-  {{- if $agent.prometheus.targetAllocator.enabled }}
+  {{- if $taEnabled }}
   targetAllocator:
-    enabled: {{ $agent.prometheus.targetAllocator.enabled | default false }}
+    enabled: true
     image: {{ template "target-allocator.image" (merge $agent.prometheus.targetAllocator.image (dict "region" $.Values.region)) }}
     allocationStrategy: "consistent-hashing"
-    {{- if $agent.prometheus.targetAllocator.prometheusCR.enabled }}
+    {{- if or $agent.prometheus.targetAllocator.prometheusCR.enabled $otelCIScrape }}
     prometheusCR:
-      enabled: {{ $agent.prometheus.targetAllocator.prometheusCR.enabled | default false }}
+      enabled: true
+      {{- if $otelCIScrape }}
+      scrapeInterval: {{ $.Values.otelContainerInsights.metricResolution | quote }}
+      {{- if not $.Values.otelContainerInsights.serviceMonitor.enabled }}
+      # serviceMonitor.enabled=false: select a label no real ServiceMonitor carries,
+      # so the Target Allocator discovers no ServiceMonitors.
+      serviceMonitorSelector:
+        amazon-cloudwatch-observability.aws/otel-ci-scrape: disabled
+      {{- end }}
+      {{- if not $.Values.otelContainerInsights.podMonitor.enabled }}
+      # podMonitor.enabled=false: select a label no real PodMonitor carries.
+      podMonitorSelector:
+        amazon-cloudwatch-observability.aws/otel-ci-scrape: disabled
+      {{- end }}
+      {{- end }}
     {{- end }}
   {{- end }}
   {{- $prunedResources := include "cloudwatch-agent.pruneNulls" $agent.resources | fromYaml }}
@@ -306,6 +331,12 @@ spec:
   {{- if $.Values.otelContainerInsights.enabled }}
   - name: OTEL_CI_VERSION
     value: "1.0.0"
+  # POD_NAME is used as the Target Allocator collector_id by the prometheusCR
+  # receiver (otel-container-insights.config) so each agent pulls its own shard.
+  - name: POD_NAME
+    valueFrom:
+      fieldRef:
+        fieldPath: metadata.name
   {{- end }}
   {{- with $agent.env }}
   {{- . | toYaml | nindent 2 }}
