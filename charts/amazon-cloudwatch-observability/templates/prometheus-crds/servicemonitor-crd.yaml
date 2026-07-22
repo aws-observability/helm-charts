@@ -18,7 +18,7 @@ To update: re-fetch the pinned upstream CRD and re-apply the metadata edits
 {{- $render := not $existing }}
 {{- if $existing }}
 {{- $anns := $existing.metadata.annotations | default dict }}
-{{- if eq (get $anns "meta.helm.sh/release-name") $.Release.Name }}
+{{- if and (eq (get $anns "meta.helm.sh/release-name") $.Release.Name) (eq (get $anns "meta.helm.sh/release-namespace") $.Release.Namespace) }}
 {{- $render = true }}
 {{- end }}
 {{- end }}

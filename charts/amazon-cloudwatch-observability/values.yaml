@@ -1204,4 +1204,10 @@ prometheusCRDs:
   ##   auto   - bundle only when otelContainerInsights.enabled is true (default)
   ##   always - always bundle (still skipped if an unmanaged copy exists)
   ##   never  - never bundle
+  ##
+  ## The skip-if-exists guard relies on `lookup`, which is empty under `helm template`.
+  ## So in GitOps flows (Argo/Flux render-then-apply) the bundled CRD is always emitted
+  ## and can overwrite/downgrade a CRD you manage separately. If you manage the
+  ## ServiceMonitor/PodMonitor CRDs yourself (e.g. via prometheus-operator or GitOps),
+  ## set `never` to opt out of bundling entirely.
   install: auto
