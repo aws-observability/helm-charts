@@ -788,6 +788,15 @@ agent:
     config:
     targetAllocator:
       enabled: false
+      # allocationStrategy determines how the Target Allocator distributes scrape
+      # targets across CloudWatch Agent pods. "per-node" assigns each target to the
+      # agent on the same node (avoids cross-node/cross-AZ scrape traffic); targets
+      # without a resolvable node fall back to consistent-hashing. "consistent-hashing"
+      # spreads targets across all agents by hash.
+      # Unset: defaults to "per-node" on the otelContainerInsights scraping path and
+      # "consistent-hashing" otherwise (so existing static-config Target Allocators
+      # keep their prior behavior). Set explicitly to override.
+      allocationStrategy: ""
       image:
         repository: cloudwatch-agent-target-allocator
         tag: 1.0.0
@@ -1163,6 +1172,17 @@ otelContainerInsights:
   ## Only takes effect when otelContainerInsights.enabled is true.
   logs:
     enabled: true
+  ## Prometheus ServiceMonitor scraping (monitoring.coreos.com/v1) via the Target
+  ## Allocator's prometheusCR discovery. Defaults to true: when
+  ## otelContainerInsights is enabled, ServiceMonitor scraping is on unless
+  ## explicitly disabled here. Only takes effect when otelContainerInsights.enabled is true.
+  serviceMonitor:
+    enabled: true
+  ## Prometheus PodMonitor scraping (monitoring.coreos.com/v1) via the Target
+  ## Allocator's prometheusCR discovery. Defaults to true (see serviceMonitor note).
+  ## Only takes effect when otelContainerInsights.enabled is true.
+  podMonitor:
+    enabled: true
   ## The agent in the agents array that receives node-level OTEL Container Insights config.
   targetAgent: "cloudwatch-agent"
   ## The agent in the agents array that receives cluster-level OTEL Container Insights config (apiserver, kube-state-metrics scraping).
@@ -1173,3 +1193,26 @@ otelContainerInsights:
   cloudwatchMetricsEndpoint: ""
   # Override the CloudWatch Logs OTLP endpoint. If empty, defaults to logs.<region>.amazonaws.com.
   cloudwatchLogsEndpoint: ""
+
+## Bundling of the community prometheus-operator ServiceMonitor/PodMonitor CRDs
+## (monitoring.coreos.com/v1). The Target Allocator consumes these CRs; bundling
+## the CRDs removes the manual prerequisite of installing them yourself.
+##
+## The CRDs are shipped as templated manifests (so Helm upgrades them) and are
+## skipped if a copy already exists that this release does not manage (e.g. one
+## installed by prometheus-operator), so we never clobber/downgrade it. They are
+## annotated helm.sh/resource-policy: keep so `helm uninstall` does NOT delete
+## them (which would cascade-delete every ServiceMonitor/PodMonitor in the
+## cluster).
+prometheusCRDs:
+  ## When to bundle the SM/PM CRDs:
+  ##   auto   - bundle only when otelContainerInsights.enabled is true (default)
+  ##   always - always bundle (still skipped if an unmanaged copy exists)
+  ##   never  - never bundle
+  ##
+  ## The skip-if-exists guard relies on `lookup`, which is empty under `helm template`.
+  ## So in GitOps flows (Argo/Flux render-then-apply) the bundled CRD is always emitted
+  ## and can overwrite/downgrade a CRD you manage separately. If you manage the
+  ## ServiceMonitor/PodMonitor CRDs yourself (e.g. via prometheus-operator or GitOps),
+  ## set `never` to opt out of bundling entirely.
+  install: auto

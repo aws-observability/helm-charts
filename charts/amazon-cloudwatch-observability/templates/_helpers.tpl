@@ -5,6 +5,29 @@ Expand the name of the chart.
 {{- default .Chart.Name .Values.nameOverride | trunc 63 | trimSuffix "-" }}
 {{- end }}
 
+{{/*
+Whether to bundle the community ServiceMonitor/PodMonitor CRDs. Honours
+.Values.prometheusCRDs.install: "always" => true; "never" => empty;
+"auto" (default) => true only when otelContainerInsights.enabled is true.
+Returns the string "true" when CRDs should be rendered, empty otherwise.
+*/}}
+{{- define "amazon-cloudwatch-observability.prometheusCRDsEnabled" -}}
+{{- $install := "auto" -}}
+{{- if hasKey .Values "prometheusCRDs" -}}
+{{- $install = (.Values.prometheusCRDs.install | default "auto") -}}
+{{- end -}}
+{{- if eq $install "always" -}}
+true
+{{- else if eq $install "never" -}}
+{{- else if eq $install "auto" -}}
+{{- if .Values.otelContainerInsights.enabled -}}
+true
+{{- end -}}
+{{- else -}}
+{{- fail (printf "prometheusCRDs.install must be one of \"auto\", \"always\", or \"never\", got: %s" $install) -}}
+{{- end -}}
+{{- end -}}
+
 {{- define "amazon-cloudwatch-observability.common.tolerations" -}}
 {{- $tolerations := .context.Values.tolerations }}
 {{- if .component }}
@@ -188,6 +211,20 @@ Logic:
 {{- include "otel-container-insights-cluster-scraper.config" $ctx -}}
 {{- else -}}
 {}
+{{- end -}}
+{{- end -}}
+
+{{/*
+Returns "true" when otelContainerInsights-driven ServiceMonitor/PodMonitor scraping
+applies to the given agent. True when otelContainerInsights is enabled, the agent is
+the configured targetAgent, and at least one of serviceMonitor/podMonitor is enabled.
+Accepts a dict with "agentName" (string) and "context" (root context $).
+*/}}
+{{- define "cloudwatch-agent.otelCIScrapeEnabled" -}}
+{{- $ctx := .context -}}
+{{- $agentName := .agentName -}}
+{{- if and $ctx.Values.otelContainerInsights.enabled (eq $agentName $ctx.Values.otelContainerInsights.targetAgent) (or $ctx.Values.otelContainerInsights.serviceMonitor.enabled $ctx.Values.otelContainerInsights.podMonitor.enabled) -}}
+true
 {{- end -}}
 {{- end -}}
 
