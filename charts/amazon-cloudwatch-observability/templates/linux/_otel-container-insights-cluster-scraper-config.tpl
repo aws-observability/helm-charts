@@ -231,7 +231,8 @@ processors:
         - k8s.job.name
         - k8s.cronjob.name
       labels:
-        # $$$1 is Helm escaping: $$$ → $$ (Helm) → $ (OTel env resolver) → literal $1 backreference
+        # $$$1 -> literal $1 backreference (group 1 = label key). The agent's OTel confmap
+        # resolves it twice (expandconverter + resolver), each collapsing $$->$; Helm leaves it as-is.
         - tag_name: "k8s.pod.label.$$$1"
           key_regex: "(.*)"
           from: pod
