@@ -859,11 +859,12 @@ service:
 {{- if or .Values.otelContainerInsights.serviceMonitor.enabled .Values.otelContainerInsights.podMonitor.enabled }}
     metrics/cw_k8s_ci_v0_prometheuscr:
       receivers: [prometheus/cw_k8s_ci_v0_prometheuscr]
-      # Phase 1 base chain + node enrichment: set_node_name/promote_node_name stamp
+      # Node enrichment: set_node_name/promote_node_name stamp
       # resource.attributes["k8s.node.name"] = the scraping agent's own node
-      # (${env:K8S_NODE_NAME}). Combined with the target_node label from the SM/PM
-      # relabeling, this lets per-node allocation be verified end-to-end (target_node
-      # must equal k8s.node.name). Also satisfies the roadmap's node-enrichment goal.
+      # (${env:K8S_NODE_NAME}), unconditionally. The chart does NOT emit a target_node
+      # label. To verify per-node allocation end-to-end, add a target_node relabeling
+      # to your ServiceMonitor/PodMonitor (from the target's node metadata) and check
+      # that target_node == k8s.node.name.
       processors:
         - filter/cw_k8s_ci_v0_scrape_metadata
         - metricstarttime/cw_k8s_ci_v0
