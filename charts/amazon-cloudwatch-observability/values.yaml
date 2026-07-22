@@ -791,7 +791,10 @@ agent:
       # agent on the same node (avoids cross-node/cross-AZ scrape traffic); targets
       # without a resolvable node fall back to consistent-hashing. "consistent-hashing"
       # spreads targets across all agents by hash.
-      allocationStrategy: per-node
+      # Unset: defaults to "per-node" on the otelContainerInsights scraping path and
+      # "consistent-hashing" otherwise (so existing static-config Target Allocators
+      # keep their prior behavior). Set explicitly to override.
+      allocationStrategy: ""
       image:
         repository: cloudwatch-agent-target-allocator
         tag: 1.0.0
