@@ -192,6 +192,20 @@ Logic:
 {{- end -}}
 
 {{/*
+Returns "true" when otelContainerInsights-driven ServiceMonitor/PodMonitor scraping
+applies to the given agent. True when otelContainerInsights is enabled, the agent is
+the configured targetAgent, and at least one of serviceMonitor/podMonitor is enabled.
+Accepts a dict with "agentName" (string) and "context" (root context $).
+*/}}
+{{- define "cloudwatch-agent.otelCIScrapeEnabled" -}}
+{{- $ctx := .context -}}
+{{- $agentName := .agentName -}}
+{{- if and $ctx.Values.otelContainerInsights.enabled (eq $agentName $ctx.Values.otelContainerInsights.targetAgent) (or $ctx.Values.otelContainerInsights.serviceMonitor.enabled $ctx.Values.otelContainerInsights.podMonitor.enabled) -}}
+true
+{{- end -}}
+{{- end -}}
+
+{{/*
 Helper function to modify cloudwatch-agent config
 */}}
 {{- define "cloudwatch-agent.config-modifier" -}}
