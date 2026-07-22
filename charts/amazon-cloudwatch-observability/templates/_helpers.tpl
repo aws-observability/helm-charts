@@ -19,8 +19,12 @@ Returns the string "true" when CRDs should be rendered, empty otherwise.
 {{- if eq $install "always" -}}
 true
 {{- else if eq $install "never" -}}
-{{- else if .Values.otelContainerInsights.enabled -}}
+{{- else if eq $install "auto" -}}
+{{- if .Values.otelContainerInsights.enabled -}}
 true
+{{- end -}}
+{{- else -}}
+{{- fail (printf "prometheusCRDs.install must be one of \"auto\", \"always\", or \"never\", got: %s" $install) -}}
 {{- end -}}
 {{- end -}}
 
