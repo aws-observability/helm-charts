@@ -346,6 +346,7 @@ processors:
           - set(attributes["cloudwatch.solution"], "k8s-otel-container-insights")
           - set(attributes["cloudwatch.pipeline"], "efa")
 
+{{- if or .Values.otelContainerInsights.serviceMonitor.enabled .Values.otelContainerInsights.podMonitor.enabled }}
   transform/cw_k8s_ci_v0_set_scope_prometheuscr:
     error_mode: ignore
     metric_statements:
@@ -355,6 +356,7 @@ processors:
           - set(attributes["cloudwatch.source"], "cloudwatch-agent")
           - set(attributes["cloudwatch.solution"], "k8s-otel-container-insights")
           - set(attributes["cloudwatch.pipeline"], "prometheus-cr")
+{{- end }}
 
   transform/cw_k8s_ci_v0_set_scope_ebs_csi:
     error_mode: ignore
@@ -454,6 +456,8 @@ processors:
         - k8s.job.name
         - k8s.cronjob.name
       labels:
+        # $$$1 -> literal $1 backreference (group 1 = label key). The agent's OTel confmap
+        # resolves it twice (expandconverter + resolver), each collapsing $$->$; Helm leaves it as-is.
         - tag_name: "k8s.pod.label.$$$1"
           key_regex: "(.*)"
           from: pod
