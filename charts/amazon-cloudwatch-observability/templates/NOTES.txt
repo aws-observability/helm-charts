@@ -1,0 +1,15 @@
+{{- if hasKey .Values "prometheusCRDs" }}
+[DEPRECATION] `prometheusCRDs.install` is deprecated and honored only for backward
+compatibility. It will be removed in a future release. Use
+`otelContainerInsights.prometheusScrape.crds.install` instead.
+{{- end }}
+{{- if hasKey .Values.otelContainerInsights "serviceMonitor" }}
+[DEPRECATION] `otelContainerInsights.serviceMonitor.enabled` is deprecated and honored
+only for backward compatibility. It will be removed in a future release. Use
+`otelContainerInsights.prometheusScrape.serviceMonitor.enabled` instead.
+{{- end }}
+{{- if hasKey .Values.otelContainerInsights "podMonitor" }}
+[DEPRECATION] `otelContainerInsights.podMonitor.enabled` is deprecated and honored
+only for backward compatibility. It will be removed in a future release. Use
+`otelContainerInsights.prometheusScrape.podMonitor.enabled` instead.
+{{- end }}
