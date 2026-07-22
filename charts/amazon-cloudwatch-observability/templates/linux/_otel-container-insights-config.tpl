@@ -859,19 +859,11 @@ service:
 {{- if or .Values.otelContainerInsights.serviceMonitor.enabled .Values.otelContainerInsights.podMonitor.enabled }}
     metrics/cw_k8s_ci_v0_prometheuscr:
       receivers: [prometheus/cw_k8s_ci_v0_prometheuscr]
-      # Node enrichment: set_node_name/promote_node_name stamp
-      # resource.attributes["k8s.node.name"] = the scraping agent's own node
-      # (${env:K8S_NODE_NAME}), unconditionally. The chart does NOT emit a target_node
-      # label. To verify per-node allocation end-to-end, add a target_node relabeling
-      # to your ServiceMonitor/PodMonitor (from the target's node metadata) and check
-      # that target_node == k8s.node.name.
       processors:
         - filter/cw_k8s_ci_v0_scrape_metadata
         - metricstarttime/cw_k8s_ci_v0
         - transform/cw_k8s_ci_v0_set_cluster_name
         - transform/cw_k8s_ci_v0_set_scope_prometheuscr
-        - transform/cw_k8s_ci_v0_set_node_name
-        - transform/cw_k8s_ci_v0_promote_node_name
         - resourcedetection/cw_k8s_ci_v0
         - batch/cw_k8s_ci_v0_metrics_dest
       exporters:
