@@ -15,12 +15,20 @@ Returns the string "true" when CRDs should be rendered, empty otherwise.
 */}}
 {{- define "amazon-cloudwatch-observability.prometheusCRDsEnabled" -}}
 {{- $install := (dig "prometheusScrape" "crds" "install" "auto" .Values.otelContainerInsights) -}}
+{{- /* Back-compat: honor the legacy top-level prometheusCRDs.install if set (deprecated). */ -}}
+{{- if hasKey .Values "prometheusCRDs" -}}
+{{- $install = (dig "install" $install .Values.prometheusCRDs) -}}
+{{- end -}}
 {{- $scrapeEnabled := (dig "prometheusScrape" "enabled" true .Values.otelContainerInsights) -}}
 {{- if eq $install "always" -}}
 true
 {{- else if eq $install "never" -}}
-{{- else if and .Values.otelContainerInsights.enabled $scrapeEnabled -}}
+{{- else if eq $install "auto" -}}
+{{- if and .Values.otelContainerInsights.enabled $scrapeEnabled -}}
 true
+{{- end -}}
+{{- else -}}
+{{- fail (printf "prometheusCRDs.install must be one of \"auto\", \"always\", or \"never\", got: %s" $install) -}}
 {{- end -}}
 {{- end -}}
 
@@ -224,6 +232,28 @@ Accepts a dict with "agentName" (string) and "context" (root context $).
 {{- if and $ctx.Values.otelContainerInsights.enabled (dig "prometheusScrape" "enabled" true $ctx.Values.otelContainerInsights) (or (eq $agentName $ctx.Values.otelContainerInsights.targetAgent) (eq $agentName $ctx.Values.otelContainerInsights.clusterScraperAgent)) -}}
 true
 {{- end -}}
+{{- end -}}
+
+{{/*
+Whether ServiceMonitor / PodMonitor discovery is enabled. Honors the legacy
+otelContainerInsights.serviceMonitor.enabled / .podMonitor.enabled if set
+(deprecated), otherwise otelContainerInsights.prometheusScrape.<monitor>.enabled
+(default true). Return "true" when enabled, empty otherwise.
+*/}}
+{{- define "cloudwatch-agent.serviceMonitorEnabled" -}}
+{{- $v := dig "prometheusScrape" "serviceMonitor" "enabled" true .Values.otelContainerInsights -}}
+{{- if hasKey .Values.otelContainerInsights "serviceMonitor" -}}
+{{- $v = dig "serviceMonitor" "enabled" $v .Values.otelContainerInsights -}}
+{{- end -}}
+{{- if $v -}}true{{- end -}}
+{{- end -}}
+
+{{- define "cloudwatch-agent.podMonitorEnabled" -}}
+{{- $v := dig "prometheusScrape" "podMonitor" "enabled" true .Values.otelContainerInsights -}}
+{{- if hasKey .Values.otelContainerInsights "podMonitor" -}}
+{{- $v = dig "podMonitor" "enabled" $v .Values.otelContainerInsights -}}
+{{- end -}}
+{{- if $v -}}true{{- end -}}
 {{- end -}}
 
 {{/*

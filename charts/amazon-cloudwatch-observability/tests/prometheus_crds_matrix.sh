@@ -1,3 +1,4 @@
+#!/usr/bin/env bash
 # Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
 # SPDX-License-Identifier: MIT
 #
@@ -26,8 +27,8 @@ N='\033[0m'
 pass_count=0
 fail_count=0
 
-SM_CRD='name: servicemonitors.monitoring.coreos.com'
-PM_CRD='name: podmonitors.monitoring.coreos.com'
+SM_CRD='^[[:space:]]*name: servicemonitors\.monitoring\.coreos\.com$'
+PM_CRD='^[[:space:]]*name: podmonitors\.monitoring\.coreos\.com$'
 CRD_RBAC='customresourcedefinitions'
 
 # render <args...> -> echoes the rendered manifests

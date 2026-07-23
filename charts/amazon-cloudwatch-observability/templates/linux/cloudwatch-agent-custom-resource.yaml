@@ -154,14 +154,14 @@ spec:
       # scrapes only monitors that are NOT so annotated, so the two partition with no overlap/gap.
       scraperRole: cluster-scraper
       {{- end }}
-      {{- if not (dig "prometheusScrape" "serviceMonitor" "enabled" true $.Values.otelContainerInsights) }}
-      # prometheusScrape.serviceMonitor.enabled=false: select a label no real ServiceMonitor
+      {{- if ne (include "cloudwatch-agent.serviceMonitorEnabled" $) "true" }}
+      # serviceMonitor disabled: select a label no real ServiceMonitor
       # carries, so the Target Allocator discovers no ServiceMonitors.
       serviceMonitorSelector:
         amazon-cloudwatch-observability.aws/otel-ci-scrape: disabled
       {{- end }}
-      {{- if not (dig "prometheusScrape" "podMonitor" "enabled" true $.Values.otelContainerInsights) }}
-      # prometheusScrape.podMonitor.enabled=false: select a label no real PodMonitor carries.
+      {{- if ne (include "cloudwatch-agent.podMonitorEnabled" $) "true" }}
+      # podMonitor disabled: select a label no real PodMonitor carries.
       podMonitorSelector:
         amazon-cloudwatch-observability.aws/otel-ci-scrape: disabled
       {{- end }}
