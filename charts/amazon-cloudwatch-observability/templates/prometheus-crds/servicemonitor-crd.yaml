@@ -1,7 +1,7 @@
 {{- /*
-ServiceMonitor CRD (monitoring.coreos.com/v1), pinned to prometheus-operator v0.91.0 to
+ServiceMonitor CRD (monitoring.coreos.com/v1), pinned to prometheus-operator v0.92.0 to
 match the operator's go.mod (the Target Allocator's prometheus-operator client).
-Source: https://github.com/prometheus-operator/prometheus-operator/blob/v0.91.0/example/prometheus-operator-crd/monitoring.coreos.com_servicemonitors.yaml
+Source: https://github.com/prometheus-operator/prometheus-operator/blob/v0.92.0/example/prometheus-operator-crd/monitoring.coreos.com_servicemonitors.yaml
 
 Rendered only when CRD bundling is enabled (otelContainerInsights.prometheusScrape.crds.install;
 see values.yaml)
@@ -19,7 +19,7 @@ To update: re-fetch the pinned upstream CRD and re-apply the metadata edits
 {{- $render := not $existing }}
 {{- if $existing }}
 {{- $anns := $existing.metadata.annotations | default dict }}
-{{- if eq (get $anns "meta.helm.sh/release-name") $.Release.Name }}
+{{- if and (eq (get $anns "meta.helm.sh/release-name") $.Release.Name) (eq (get $anns "meta.helm.sh/release-namespace") $.Release.Namespace) }}
 {{- $render = true }}
 {{- end }}
 {{- end }}
@@ -30,8 +30,8 @@ kind: CustomResourceDefinition
 metadata:
   annotations:
     helm.sh/resource-policy: keep
-    controller-gen.kubebuilder.io/version: v0.20.1
-    operator.prometheus.io/version: 0.91.0
+    controller-gen.kubebuilder.io/version: v0.21.0
+    operator.prometheus.io/version: 0.92.0
   labels:
     {{- include "amazon-cloudwatch-observability.labels" $ | nindent 4 }}
   name: servicemonitors.monitoring.coreos.com
@@ -97,6 +97,10 @@ spec:
 
                       The Prometheus service account must have the `list` and `watch`
                       permissions on the `Nodes` objects.
+
+                      Node metadata labels are not automatically added to scraped metrics. They are
+                      exposed as `__meta_kubernetes_node_*` labels and can be copied to timeseries
+                      with relabeling configuration.
                     type: boolean
                 type: object
               bodySizeLimit:
@@ -718,7 +722,7 @@ spec:
                         tokenUrl:
                           description: tokenUrl defines the URL to fetch the token
                             from.
-                          minLength: 1
+                          pattern: ^(http|https)://.+$
                           type: string
                       required:
                       - clientId
@@ -740,7 +744,8 @@ spec:
                       type: string
                     port:
                       description: |-
-                        port defines the name of the Service port which this endpoint refers to.
+                        port defines the name of the Service port which this endpoint refers to
+                        (e.g. `.spec.ports[].name`).
 
                         It takes precedence over `targetPort`.
                       type: string
@@ -906,8 +911,10 @@ spec:
                       - type: integer
                       - type: string
                       description: |-
-                        targetPort defines the name or number of the target port of the `Pod` object behind the
-                        Service. The port must be specified with the container's port property.
+                        targetPort defines the name or number of a container port on Pods selected
+                        by the Service.
+                        If a name, it matches against `.spec.containers[].ports[].name` of the Pods.
+                        If a number, it matches against `.spec.containers[].ports[].containerPort` of the Pods.
                       x-kubernetes-int-or-string: true
                     tlsConfig:
                       description: tlsConfig defines TLS configuration used by the

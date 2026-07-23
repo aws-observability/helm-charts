@@ -346,6 +346,7 @@ processors:
           - set(attributes["cloudwatch.solution"], "k8s-otel-container-insights")
           - set(attributes["cloudwatch.pipeline"], "efa")
 
+{{- if dig "prometheusScrape" "enabled" true .Values.otelContainerInsights }}
   transform/cw_k8s_ci_v0_set_scope_prometheuscr:
     error_mode: ignore
     metric_statements:
@@ -355,6 +356,7 @@ processors:
           - set(attributes["cloudwatch.source"], "cloudwatch-agent")
           - set(attributes["cloudwatch.solution"], "k8s-otel-container-insights")
           - set(attributes["cloudwatch.pipeline"], "prometheus-cr")
+{{- end }}
 
   transform/cw_k8s_ci_v0_set_scope_ebs_csi:
     error_mode: ignore
@@ -454,6 +456,8 @@ processors:
         - k8s.job.name
         - k8s.cronjob.name
       labels:
+        # $$$1 -> literal $1 backreference (group 1 = label key). The agent's OTel confmap
+        # resolves it twice (expandconverter + resolver), each collapsing $$->$; Helm leaves it as-is.
         - tag_name: "k8s.pod.label.$$$1"
           key_regex: "(.*)"
           from: pod
@@ -859,18 +863,11 @@ service:
 {{- if dig "prometheusScrape" "enabled" true .Values.otelContainerInsights }}
     metrics/cw_k8s_ci_v0_prometheuscr:
       receivers: [prometheus/cw_k8s_ci_v0_prometheuscr]
-      # Phase 1 base chain + node enrichment: set_node_name/promote_node_name stamp
-      # resource.attributes["k8s.node.name"] = the scraping agent's own node
-      # (${env:K8S_NODE_NAME}). Combined with the target_node label from the SM/PM
-      # relabeling, this lets per-node allocation be verified end-to-end (target_node
-      # must equal k8s.node.name). Also satisfies the roadmap's node-enrichment goal.
       processors:
         - filter/cw_k8s_ci_v0_scrape_metadata
         - metricstarttime/cw_k8s_ci_v0
         - transform/cw_k8s_ci_v0_set_cluster_name
         - transform/cw_k8s_ci_v0_set_scope_prometheuscr
-        - transform/cw_k8s_ci_v0_set_node_name
-        - transform/cw_k8s_ci_v0_promote_node_name
         - resourcedetection/cw_k8s_ci_v0
         - batch/cw_k8s_ci_v0_metrics_dest
       exporters:
