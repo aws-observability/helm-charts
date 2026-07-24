@@ -82,7 +82,7 @@ receivers:
               target_label: node
 {{- end }}
 
-{{- if .Values.otelContainerInsights.integrations.keda.enabled }}
+{{- if and .Values.otelContainerInsights.solutions.enabled .Values.otelContainerInsights.solutions.keda.enabled }}
   prometheus/cw_k8s_ci_v0_keda:
     config:
       scrape_configs:
@@ -94,7 +94,7 @@ receivers:
             - role: pod
               namespaces:
                 names:
-                  - {{ .Values.otelContainerInsights.integrations.keda.namespace }}
+                  - {{ .Values.otelContainerInsights.solutions.keda.namespace }}
           relabel_configs:
             - source_labels: [__meta_kubernetes_pod_label_app_kubernetes_io_name]
               regex: keda-operator
@@ -251,7 +251,7 @@ processors:
         cloud.account.id: { enabled: true }
 {{- end }}
 
-{{- if .Values.otelContainerInsights.integrations.keda.enabled }}
+{{- if and .Values.otelContainerInsights.solutions.enabled .Values.otelContainerInsights.solutions.keda.enabled }}
   transform/cw_k8s_ci_v0_set_scope_keda:
     error_mode: ignore
     metric_statements:
@@ -631,7 +631,7 @@ service:
       exporters:
         - otlphttp/cw_k8s_ci_v0_cwotel
 {{- end }}
-{{- if .Values.otelContainerInsights.integrations.keda.enabled }}
+{{- if and .Values.otelContainerInsights.solutions.enabled .Values.otelContainerInsights.solutions.keda.enabled }}
     metrics/cw_k8s_ci_v0_keda:
       receivers: [prometheus/cw_k8s_ci_v0_keda]
       processors:
