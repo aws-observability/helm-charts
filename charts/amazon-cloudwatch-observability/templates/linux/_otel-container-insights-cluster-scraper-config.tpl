@@ -50,7 +50,7 @@ receivers:
 
 {{- if dig "prometheusScrape" "enabled" true .Values.otelContainerInsights }}
   # ServiceMonitor/PodMonitor scraping routed to the cluster-scraper via the
-  # cloudwatch.aws/scraper: cluster-scraper label. This agent's Target Allocator serves the
+  # cloudwatch.aws/scraper: cluster-scraper annotation. This agent's Target Allocator serves the
   # routed scrape jobs (consistent-hashing across the cluster-scraper replicas); this receiver
   # pulls this collector's assigned shard. Requires the Target Allocator + prometheusCR to be
   # enabled for the clusterScraperAgent and the POD_NAME env (set below).
