@@ -788,6 +788,11 @@ agent:
     config:
     targetAllocator:
       enabled: false
+      # For agents that enable the Target Allocator directly (not via
+      # otelContainerInsights, which sources it from prometheusScrape.allocationStrategy).
+      # consistent-hashing = hash targets across all agents; per-node = assign to the
+      # agent on the same node.
+      allocationStrategy: consistent-hashing
       image:
         repository: cloudwatch-agent-target-allocator
         tag: 1.0.0
@@ -1163,6 +1168,39 @@ otelContainerInsights:
   ## Only takes effect when otelContainerInsights.enabled is true.
   logs:
     enabled: true
+  ## ServiceMonitor/PodMonitor scraping (monitoring.coreos.com/v1) via the Target
+  ## Allocator's prometheusCR discovery. When otelContainerInsights.enabled is true,
+  ## enabling this gives SM/PM scraping end-to-end (CRDs + Target Allocator +
+  ## prometheusCR + RBAC). Only takes effect when otelContainerInsights.enabled is true.
+  prometheusScrape:
+    ## Master switch. false = run OTEL CI (metrics/logs) with no SM/PM scraping
+    ## (no prometheusCR discovery, no CRD bundling under `auto`, no CRD RBAC).
+    enabled: true
+    ## How the Target Allocator distributes targets across agents.
+    ##   per-node           - assign each target to the agent on its node (avoids
+    ##                        cross-AZ scrape traffic); node-less targets fall back to hashing.
+    ##   consistent-hashing - spread targets across all agents by hash.
+    allocationStrategy: per-node
+    ## Bundle the community SM/PM CRDs so they aren't a manual prerequisite. Shipped as
+    ## templated manifests (upgraded by Helm), skipped if an unmanaged copy already
+    ## exists (never clobbers a prometheus-operator one), and annotated
+    ## helm.sh/resource-policy: keep so uninstall won't cascade-delete the SM/PM CRs.
+    crds:
+      ##   auto   - bundle only when otelContainerInsights + prometheusScrape are enabled (default)
+      ##   always - always bundle (still skipped if an unmanaged copy exists)
+      ##   never  - never bundle
+      ##
+      ## The skip-if-exists guard relies on `lookup`, which is empty under `helm template`.
+      ## So in GitOps flows (Argo/Flux render-then-apply) the bundled CRD is always emitted
+      ## and can overwrite/downgrade a CRD you manage separately. If you manage the
+      ## ServiceMonitor/PodMonitor CRDs yourself (e.g. via prometheus-operator or GitOps),
+      ## set `never` to opt out of bundling entirely.
+      install: auto
+    ## Advanced: set one to false to discover only the other monitor type.
+    serviceMonitor:
+      enabled: true
+    podMonitor:
+      enabled: true
   ## The agent in the agents array that receives node-level OTEL Container Insights config.
   targetAgent: "cloudwatch-agent"
   ## The agent in the agents array that receives cluster-level OTEL Container Insights config (apiserver, kube-state-metrics scraping).

@@ -5,6 +5,33 @@ Expand the name of the chart.
 {{- default .Chart.Name .Values.nameOverride | trunc 63 | trimSuffix "-" }}
 {{- end }}
 
+{{/*
+Whether to bundle the community ServiceMonitor/PodMonitor CRDs. Honours
+.Values.otelContainerInsights.prometheusScrape.crds.install:
+  "always" => true; "never" => empty;
+  "auto" (default) => true only when otelContainerInsights.enabled AND
+  otelContainerInsights.prometheusScrape.enabled are both true.
+Returns the string "true" when CRDs should be rendered, empty otherwise.
+*/}}
+{{- define "amazon-cloudwatch-observability.prometheusCRDsEnabled" -}}
+{{- $install := (dig "prometheusScrape" "crds" "install" "auto" .Values.otelContainerInsights) -}}
+{{- /* Back-compat: honor the legacy top-level prometheusCRDs.install if set (deprecated). */ -}}
+{{- if hasKey .Values "prometheusCRDs" -}}
+{{- $install = (dig "install" $install .Values.prometheusCRDs) -}}
+{{- end -}}
+{{- $scrapeEnabled := (dig "prometheusScrape" "enabled" true .Values.otelContainerInsights) -}}
+{{- if eq $install "always" -}}
+true
+{{- else if eq $install "never" -}}
+{{- else if eq $install "auto" -}}
+{{- if and .Values.otelContainerInsights.enabled $scrapeEnabled -}}
+true
+{{- end -}}
+{{- else -}}
+{{- fail (printf "prometheusCRDs.install must be one of \"auto\", \"always\", or \"never\", got: %s" $install) -}}
+{{- end -}}
+{{- end -}}
+
 {{- define "amazon-cloudwatch-observability.common.tolerations" -}}
 {{- $tolerations := .context.Values.tolerations }}
 {{- if .component }}
@@ -188,6 +215,56 @@ Logic:
 {{- include "otel-container-insights-cluster-scraper.config" $ctx -}}
 {{- else -}}
 {}
+{{- end -}}
+{{- end -}}
+
+{{/*
+Returns "true" when otelContainerInsights-driven ServiceMonitor/PodMonitor scraping
+applies to the given agent. True when otelContainerInsights is enabled, the agent is
+the configured targetAgent, and at least one of serviceMonitor/podMonitor is enabled.
+Accepts a dict with "agentName" (string) and "context" (root context $).
+*/}}
+{{- define "cloudwatch-agent.otelCIScrapeEnabled" -}}
+{{- $ctx := .context -}}
+{{- $agentName := .agentName -}}
+{{- if and $ctx.Values.otelContainerInsights.enabled (eq $agentName $ctx.Values.otelContainerInsights.targetAgent) (dig "prometheusScrape" "enabled" true $ctx.Values.otelContainerInsights) -}}
+true
+{{- end -}}
+{{- end -}}
+
+{{/*
+Whether ServiceMonitor / PodMonitor discovery is enabled. Honors the legacy
+otelContainerInsights.serviceMonitor.enabled / .podMonitor.enabled if set
+(deprecated), otherwise otelContainerInsights.prometheusScrape.<monitor>.enabled
+(default true). Return "true" when enabled, empty otherwise.
+*/}}
+{{- define "cloudwatch-agent.serviceMonitorEnabled" -}}
+{{- $v := dig "prometheusScrape" "serviceMonitor" "enabled" true .Values.otelContainerInsights -}}
+{{- if hasKey .Values.otelContainerInsights "serviceMonitor" -}}
+{{- $v = dig "serviceMonitor" "enabled" $v .Values.otelContainerInsights -}}
+{{- end -}}
+{{- if $v -}}true{{- end -}}
+{{- end -}}
+
+{{- define "cloudwatch-agent.podMonitorEnabled" -}}
+{{- $v := dig "prometheusScrape" "podMonitor" "enabled" true .Values.otelContainerInsights -}}
+{{- if hasKey .Values.otelContainerInsights "podMonitor" -}}
+{{- $v = dig "podMonitor" "enabled" $v .Values.otelContainerInsights -}}
+{{- end -}}
+{{- if $v -}}true{{- end -}}
+{{- end -}}
+
+{{/*
+Reject a contradictory scraping config. prometheusScrape.enabled=true with BOTH
+ServiceMonitor and PodMonitor discovery disabled would render an idle Target Allocator
+(and bundle CRDs) that discovers nothing. Fail loudly rather than ship a no-op path.
+Invoked from an always-rendered template so it runs regardless of which agents render.
+*/}}
+{{- define "cloudwatch-agent.validatePrometheusScrape" -}}
+{{- if and .Values.otelContainerInsights.enabled (dig "prometheusScrape" "enabled" true .Values.otelContainerInsights) -}}
+{{- if and (ne (include "cloudwatch-agent.serviceMonitorEnabled" .) "true") (ne (include "cloudwatch-agent.podMonitorEnabled" .) "true") -}}
+{{- fail "otelContainerInsights.prometheusScrape.enabled=true requires at least one of prometheusScrape.serviceMonitor.enabled or prometheusScrape.podMonitor.enabled to be true; enable one, or set prometheusScrape.enabled=false" -}}
+{{- end -}}
 {{- end -}}
 {{- end -}}
 

@@ -6405,9 +6405,10 @@ spec:
                   allocationStrategy:
                     description: |-
                       AllocationStrategy determines which strategy the target allocator should use for allocation.
-                      The current option is consistent-hashing.
+                      The options are consistent-hashing and per-node.
                     enum:
                     - consistent-hashing
+                    - per-node
                     type: string
                   enabled:
                     description: Enabled indicates whether to use a target allocation

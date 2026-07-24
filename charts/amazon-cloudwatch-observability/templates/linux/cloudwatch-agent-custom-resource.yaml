@@ -1,4 +1,5 @@
 {{- if .Values.agent.enabled }}
+{{- include "cloudwatch-agent.validatePrometheusScrape" . -}}
 {{- if and (.Values.agent.autoGenerateCert.enabled) (not .Values.agent.certManager.enabled) -}}
 {{- $altNames := list ( printf "%s-service" (include "dcgm-exporter.name" .) ) ( printf "%s-service" (include "neuron-monitor.name" .) ) ( printf "%s-service.%s.svc" (include "dcgm-exporter.name" .) .Release.Namespace ) ( printf "%s-service.%s.svc" (include "neuron-monitor.name" .) .Release.Namespace ) ( printf "%s-service" (include "node-exporter.name" .) ) ( printf "%s-service.%s.svc" (include "node-exporter.name" .) .Release.Namespace ) ( include "kube-state-metrics.name" . ) ( printf "%s.%s.svc" (include "kube-state-metrics.name" .) .Release.Namespace ) -}}
 {{- range $i, $customAgent := .Values.agents }}
@@ -112,21 +113,50 @@ spec:
   {{- else if ne (trimAll " \n\t" $generatedOtelConfig) "{}" }}
   otelConfig: {{ include "cloudwatch-agent.modify-otel-config" (merge (dict "OtelConfig" $generatedOtelConfig) $) }}
   {{- end }}
+  {{- $otelCIScrape := eq (include "cloudwatch-agent.otelCIScrapeEnabled" (dict "agentName" $agent.name "context" $)) "true" }}
+  {{- $taEnabled := or $agent.prometheus.targetAllocator.enabled $otelCIScrape }}
+  {{- $allocationStrategy := $agent.prometheus.targetAllocator.allocationStrategy | default "consistent-hashing" }}
+  {{- if $otelCIScrape }}
+  {{- $allocationStrategy = (dig "prometheusScrape" "allocationStrategy" "per-node" $.Values.otelContainerInsights) }}
+  {{- end }}
   {{- if $agent.prometheus.config }}
   prometheus:
     {{- with $agent.prometheus.config }}
     config:
       {{- toYaml . | nindent 6 }}
     {{- end }}
+  {{- else if $taEnabled }}
+  # The operator builds the Target Allocator config from spec.prometheus and requires
+  # a prometheus.config containing a scrape_configs key (see operator
+  # targetallocator/adapters GetPromConfig). With prometheusCR (ServiceMonitor/
+  # PodMonitor) discovery the static scrape list is empty -- the Target Allocator
+  # discovers targets from ServiceMonitor/PodMonitor CRs.
+  prometheus:
+    config:
+      scrape_configs: []
   {{- end }}
-  {{- if $agent.prometheus.targetAllocator.enabled }}
+  {{- if $taEnabled }}
   targetAllocator:
-    enabled: {{ $agent.prometheus.targetAllocator.enabled | default false }}
+    enabled: true
     image: {{ template "target-allocator.image" (merge $agent.prometheus.targetAllocator.image (dict "region" $.Values.region)) }}
-    allocationStrategy: "consistent-hashing"
-    {{- if $agent.prometheus.targetAllocator.prometheusCR.enabled }}
+    allocationStrategy: {{ $allocationStrategy | quote }}
+    {{- if or $agent.prometheus.targetAllocator.prometheusCR.enabled $otelCIScrape }}
     prometheusCR:
-      enabled: {{ $agent.prometheus.targetAllocator.prometheusCR.enabled | default false }}
+      enabled: true
+      {{- if $otelCIScrape }}
+      scrapeInterval: {{ $.Values.otelContainerInsights.metricResolution | quote }}
+      {{- if ne (include "cloudwatch-agent.serviceMonitorEnabled" $) "true" }}
+      # serviceMonitor disabled: select a label no real ServiceMonitor
+      # carries, so the Target Allocator discovers no ServiceMonitors.
+      serviceMonitorSelector:
+        amazon-cloudwatch-observability.aws/otel-ci-scrape: disabled
+      {{- end }}
+      {{- if ne (include "cloudwatch-agent.podMonitorEnabled" $) "true" }}
+      # podMonitor disabled: select a label no real PodMonitor carries.
+      podMonitorSelector:
+        amazon-cloudwatch-observability.aws/otel-ci-scrape: disabled
+      {{- end }}
+      {{- end }}
     {{- end }}
   {{- end }}
   {{- $prunedResources := include "cloudwatch-agent.pruneNulls" $agent.resources | fromYaml }}
@@ -306,6 +336,12 @@ spec:
   {{- if $.Values.otelContainerInsights.enabled }}
   - name: OTEL_CI_VERSION
     value: "1.0.0"
+  # POD_NAME is used as the Target Allocator collector_id by the prometheusCR
+  # receiver (otel-container-insights.config) so each agent pulls its own shard.
+  - name: POD_NAME
+    valueFrom:
+      fieldRef:
+        fieldPath: metadata.name
   {{- end }}
   {{- with $agent.env }}
   {{- . | toYaml | nindent 2 }}
