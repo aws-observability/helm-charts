@@ -792,6 +792,10 @@ agent:
       # agent on the same node.
       allocationStrategy: consistent-hashing
       image:
+        ## When the otelContainerInsights scraping path is enabled
+        ## (otelContainerInsights.prometheusScrape.enabled), this Target Allocator image
+        ## MUST support prometheusCR discovery + per-node + the scraper_role config key,
+        ## pinned together with a matching operator image; an older image CrashLoopBackOffs.
         repository: cloudwatch-agent-target-allocator
         tag: 1.0.0
         repositoryDomainMap:
@@ -1170,6 +1174,16 @@ otelContainerInsights:
   ## Allocator's prometheusCR discovery. When otelContainerInsights.enabled is true,
   ## enabling this gives SM/PM scraping end-to-end (CRDs + Target Allocator +
   ## prometheusCR + RBAC). Only takes effect when otelContainerInsights.enabled is true.
+  ##
+  ## IMAGE PREREQUISITE: this path drives the Target Allocator with prometheusCR
+  ## discovery, the per-node allocation strategy, and a scraper_role config key. The
+  ## pinned Target Allocator image (agent.prometheus.targetAllocator.image, default
+  ## cloudwatch-agent-target-allocator:1.0.0) AND the operator image must both be builds
+  ## that support these -- an older image CrashLoopBackOffs on boot rather than degrading.
+  ## prometheusScrape.enabled defaults true, so it turns on with otelContainerInsights:
+  ## pin a compatible operator + Target Allocator image (together, in the same release)
+  ## before enabling otelContainerInsights, or set prometheusScrape.enabled=false until
+  ## that image ships.
   prometheusScrape:
     ## Master switch. false = run OTEL CI (metrics/logs) with no SM/PM scraping
     ## (no prometheusCR discovery, no CRD bundling under `auto`, no CRD RBAC).
