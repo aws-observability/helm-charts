@@ -12,7 +12,7 @@
 {{- if or (and (hasKey ($customAgent.prometheus) "targetAllocator") (hasKey ($customAgent.prometheus.targetAllocator) "enabled") $customAgent.prometheus.targetAllocator.enabled) $otelCIScrape }}
 {{- $needsTA = true }}
 {{- end }}
-{{- if or (and (hasKey ($customAgent.prometheus) "targetAllocator") (hasKey ($customAgent.prometheus.targetAllocator) "prometheusCR") $customAgent.prometheus.targetAllocator.prometheusCR.enabled) $otelCIScrape }}
+{{- if or (and (hasKey ($customAgent.prometheus) "targetAllocator") (hasKey ($customAgent.prometheus.targetAllocator) "enabled") $customAgent.prometheus.targetAllocator.enabled (hasKey ($customAgent.prometheus.targetAllocator) "prometheusCR") $customAgent.prometheus.targetAllocator.prometheusCR.enabled) $otelCIScrape }}
 {{- $needsCR = true }}
 {{- end }}
 {{- end }}
