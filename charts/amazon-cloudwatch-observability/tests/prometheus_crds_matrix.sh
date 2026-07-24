@@ -30,6 +30,9 @@ fail_count=0
 SM_CRD='^[[:space:]]*name: servicemonitors\.monitoring\.coreos\.com$'
 PM_CRD='^[[:space:]]*name: podmonitors\.monitoring\.coreos\.com$'
 CRD_RBAC='customresourcedefinitions'
+# The monitoring.coreos.com SM/PM discovery rule that must sit under the SAME gate
+# ($needsCR) as the CRD-watch rule.
+SM_PM_RBAC='resources: \["podmonitors", "servicemonitors"\]'
 
 # render <args...> -> echoes the rendered manifests
 render() {
@@ -94,6 +97,14 @@ printf "\n${Y}== Target Allocator CRD RBAC ==${N}\n"
 expect_count "CRD RBAC present when otelCI on"       "$CRD_RBAC" 1 --set otelContainerInsights.enabled=true
 expect_count "CRD RBAC absent when otelCI off"       "$CRD_RBAC" 0 --set otelContainerInsights.enabled=false
 expect_count "CRD RBAC absent when scrape off"       "$CRD_RBAC" 0 --set otelContainerInsights.enabled=true --set otelContainerInsights.prometheusScrape.enabled=false
+# Prove the CRD-watch rule is co-gated with the SM/PM discovery rule (same $needsCR
+# block) rather than merely present: a mis-gated CRD rule would diverge from these.
+expect_count "SM/PM RBAC present when otelCI on"     "$SM_PM_RBAC" 1 --set otelContainerInsights.enabled=true
+expect_count "SM/PM RBAC absent when otelCI off"     "$SM_PM_RBAC" 0 --set otelContainerInsights.enabled=false
+expect_count "SM/PM RBAC absent when scrape off"     "$SM_PM_RBAC" 0 --set otelContainerInsights.enabled=true --set otelContainerInsights.prometheusScrape.enabled=false
+# Both RBAC rules absent by default (otelContainerInsights disabled).
+expect_count "CRD RBAC absent by default"            "$CRD_RBAC" 0
+expect_count "SM/PM RBAC absent by default"          "$SM_PM_RBAC" 0
 
 printf "\n${Y}== Target Allocator prometheusCR gating ==${N}\n"
 # prometheusScrape.enabled is the single switch for the TA prometheusCR path. Both the
