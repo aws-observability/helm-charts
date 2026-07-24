@@ -1,4 +1,5 @@
 {{- if .Values.agent.enabled }}
+{{- include "cloudwatch-agent.validatePrometheusScrape" . -}}
 {{- if and (.Values.agent.autoGenerateCert.enabled) (not .Values.agent.certManager.enabled) -}}
 {{- $altNames := list ( printf "%s-service" (include "dcgm-exporter.name" .) ) ( printf "%s-service" (include "neuron-monitor.name" .) ) ( printf "%s-service.%s.svc" (include "dcgm-exporter.name" .) .Release.Namespace ) ( printf "%s-service.%s.svc" (include "neuron-monitor.name" .) .Release.Namespace ) ( printf "%s-service" (include "node-exporter.name" .) ) ( printf "%s-service.%s.svc" (include "node-exporter.name" .) .Release.Namespace ) ( include "kube-state-metrics.name" . ) ( printf "%s.%s.svc" (include "kube-state-metrics.name" .) .Release.Namespace ) -}}
 {{- range $i, $customAgent := .Values.agents }}

@@ -257,6 +257,20 @@ otelContainerInsights.serviceMonitor.enabled / .podMonitor.enabled if set
 {{- end -}}
 
 {{/*
+Reject a contradictory scraping config. prometheusScrape.enabled=true with BOTH
+ServiceMonitor and PodMonitor discovery disabled would render an idle Target Allocator
+(and bundle CRDs) that discovers nothing. Fail loudly rather than ship a no-op path.
+Invoked from an always-rendered template so it runs regardless of which agents render.
+*/}}
+{{- define "cloudwatch-agent.validatePrometheusScrape" -}}
+{{- if and .Values.otelContainerInsights.enabled (dig "prometheusScrape" "enabled" true .Values.otelContainerInsights) -}}
+{{- if and (ne (include "cloudwatch-agent.serviceMonitorEnabled" .) "true") (ne (include "cloudwatch-agent.podMonitorEnabled" .) "true") -}}
+{{- fail "otelContainerInsights.prometheusScrape.enabled=true requires at least one of prometheusScrape.serviceMonitor.enabled or prometheusScrape.podMonitor.enabled to be true; enable one, or set prometheusScrape.enabled=false" -}}
+{{- end -}}
+{{- end -}}
+{{- end -}}
+
+{{/*
 Helper function to modify cloudwatch-agent config
 */}}
 {{- define "cloudwatch-agent.config-modifier" -}}

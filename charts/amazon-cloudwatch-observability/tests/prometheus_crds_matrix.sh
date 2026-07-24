@@ -53,6 +53,23 @@ expect_count() {
     fi
 }
 
+# expect_fail <desc> <pattern> <render-args...> -- expects helm to error with output matching <pattern>
+expect_fail() {
+    local desc="$1" pattern="$2"; shift 2
+    local out
+    if out="$(render "$@")"; then
+        printf "${R}FAIL${N} %s (expected helm error, render succeeded) [%s]\n" "$desc" "$*"
+        fail_count=$((fail_count+1)); return
+    fi
+    if printf '%s\n' "$out" | grep -qE "$pattern"; then
+        printf "${G}PASS${N} %s (rejected as expected)\n" "$desc"
+        pass_count=$((pass_count+1))
+    else
+        printf "${R}FAIL${N} %s (errored but message missing /%s/) [%s]\n" "$desc" "$pattern" "$*"
+        fail_count=$((fail_count+1))
+    fi
+}
+
 printf "${Y}== CRD bundling gating ==${N}\n"
 # auto (default): bundle only when otelContainerInsights.enabled (and prometheusScrape enabled).
 expect_count "auto + otelCI on  => ServiceMonitor CRD bundled" "$SM_CRD" 1 --set otelContainerInsights.enabled=true
@@ -84,6 +101,14 @@ printf "\n${Y}== Target Allocator prometheusCR gating ==${N}\n"
 expect_count "TA rendered on both agents when otelCI on"           'targetAllocator:' 2 --set otelContainerInsights.enabled=true
 expect_count "prometheusCR rendered on both agents when otelCI on" 'prometheusCR:' 2 --set otelContainerInsights.enabled=true
 expect_count "TA absent when scrape off"                           'targetAllocator:' 0 --set otelContainerInsights.enabled=true --set otelContainerInsights.prometheusScrape.enabled=false
+
+printf "\n${Y}== both monitors disabled => rejected ==${N}\n"
+# prometheusScrape.enabled=true with both monitor types off is contradictory (idle TA,
+# bundled CRDs, nothing discovered) and must fail rather than render a no-op path.
+expect_fail "scrape on + both monitors off => render fails" 'requires at least one of' \
+    --set otelContainerInsights.enabled=true \
+    --set otelContainerInsights.prometheusScrape.serviceMonitor.enabled=false \
+    --set otelContainerInsights.prometheusScrape.podMonitor.enabled=false
 
 printf "\n${Y}== Monitor routing (scraperRole + cloudwatch.aws/scraper annotation) ==${N}\n"
 # Routing is annotation-based at runtime; the chart only sets scraperRole on the cluster-scraper CR.
