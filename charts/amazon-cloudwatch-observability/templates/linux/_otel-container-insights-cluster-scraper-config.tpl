@@ -48,6 +48,23 @@ receivers:
                 - {{ include "kube-state-metrics.name" . }}.{{ .Release.Namespace }}.svc:{{ .Values.kubeStateMetrics.service.port }}
 {{- end }}
 
+{{- if dig "prometheusScrape" "enabled" true .Values.otelContainerInsights }}
+  # ServiceMonitor/PodMonitor scraping routed to the cluster-scraper via the
+  # cloudwatch.aws/scraper: cluster-scraper annotation. This agent's Target Allocator serves the
+  # routed scrape jobs (consistent-hashing across the cluster-scraper replicas); this receiver
+  # pulls this collector's assigned shard. Requires the Target Allocator + prometheusCR to be
+  # enabled for the clusterScraperAgent and the POD_NAME env (set below).
+  prometheus/cw_k8s_ci_v0_prometheuscr:
+    target_allocator:
+      endpoint: https://{{ .Values.otelContainerInsights.clusterScraperAgent }}-target-allocator-service:80
+      interval: {{ .Values.otelContainerInsights.metricResolution }}
+      collector_id: ${env:POD_NAME}
+      tls:
+        ca_file: /etc/amazon-cloudwatch-observability-agent-cert/tls-ca.crt
+        cert_file: /etc/amazon-cloudwatch-observability-agent-ta-client-cert/client.crt
+        key_file: /etc/amazon-cloudwatch-observability-agent-ta-client-cert/client.key
+{{- end }}
+
 processors:
   filter/cw_k8s_ci_v0_scrape_metadata:
     error_mode: ignore
@@ -132,6 +149,18 @@ processors:
           - set(attributes["cloudwatch.source"], "cloudwatch-agent")
           - set(attributes["cloudwatch.solution"], "k8s-otel-container-insights")
           - set(attributes["cloudwatch.pipeline"], "kube-state-metrics")
+{{- end }}
+
+{{- if dig "prometheusScrape" "enabled" true .Values.otelContainerInsights }}
+  transform/cw_k8s_ci_v0_set_scope_prometheuscr:
+    error_mode: ignore
+    metric_statements:
+      - context: scope
+        statements:
+          - set(scope.schema_url, "")
+          - set(attributes["cloudwatch.source"], "cloudwatch-agent")
+          - set(attributes["cloudwatch.solution"], "k8s-otel-container-insights")
+          - set(attributes["cloudwatch.pipeline"], "prometheus-cr")
 {{- end }}
 
   transform/cw_k8s_ci_v0_set_cluster_name:
@@ -231,7 +260,8 @@ processors:
         - k8s.job.name
         - k8s.cronjob.name
       labels:
-        # $$$1 is Helm escaping: $$$ → $$ (Helm) → $ (OTel env resolver) → literal $1 backreference
+        # $$$1 -> literal $1 backreference (group 1 = label key). The agent's OTel confmap
+        # resolves it twice (expandconverter + resolver), each collapsing $$->$; Helm leaves it as-is.
         - tag_name: "k8s.pod.label.$$$1"
           key_regex: "(.*)"
           from: pod
@@ -400,6 +430,25 @@ service:
         - nodemetadataenricher/cw_k8s_ci_v0
         - transform/cw_k8s_ci_v0_clear_schema_url
         - transform/cw_k8s_ci_v0_set_cloud_resource_id
+        - awsattributelimit/cw_k8s_ci_v0
+        - batch/cw_k8s_ci_v0_cwotel
+      exporters:
+        - otlphttp/cw_k8s_ci_v0_cwotel
+{{- end }}
+{{- if dig "prometheusScrape" "enabled" true .Values.otelContainerInsights }}
+    metrics/cw_k8s_ci_v0_prometheuscr:
+      receivers: [prometheus/cw_k8s_ci_v0_prometheuscr]
+      # Central scraper: no per-node (set_node_name/promote_node_name) enrichment, since a
+      # single/few consistent-hashing replicas serve the routed monitors (not node-local).
+      processors:
+        - filter/cw_k8s_ci_v0_scrape_metadata
+        - transform/cw_k8s_ci_v0_set_unit
+        - metricstarttime/cw_k8s_ci_v0
+        - transform/cw_k8s_ci_v0_set_scope_prometheuscr
+        - transform/cw_k8s_ci_v0_set_cluster_name
+        - resourcedetection/cw_k8s_ci_v0
+        - transform/cw_k8s_ci_v0_set_cloud_resource_id
+        - transform/cw_k8s_ci_v0_clear_schema_url
         - awsattributelimit/cw_k8s_ci_v0
         - batch/cw_k8s_ci_v0_cwotel
       exporters:
