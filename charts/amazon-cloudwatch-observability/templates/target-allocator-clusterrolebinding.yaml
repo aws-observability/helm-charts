@@ -6,6 +6,9 @@
 */}}
 {{- $needsTA := false }}
 {{- range $i, $customAgent := .Values.agents }}
+{{- /* Merge the singular .Values.agent block into each agents entry (see clusterrole)
+       so the binding renders whenever the singular-agent TA config enables discovery. */}}
+{{- $customAgent := mergeOverwrite (deepCopy $.Values.agent) $customAgent }}
 {{- $otelCIScrape := eq (include "cloudwatch-agent.otelCIScrapeEnabled" (dict "agentName" $customAgent.name "context" $)) "true" }}
 {{- if or (and (hasKey ($customAgent.prometheus) "targetAllocator") (hasKey ($customAgent.prometheus.targetAllocator) "enabled") $customAgent.prometheus.targetAllocator.enabled) $otelCIScrape }}
 {{- $needsTA = true }}
