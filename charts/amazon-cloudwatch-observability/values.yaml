@@ -1182,6 +1182,12 @@ otelContainerInsights:
     ## Global toggle: set to false to disable ALL solutions at once.
     ## Individual solutions won't activate even if their own enabled flag is true.
     enabled: true
+    ## Karpenter — cluster autoscaler for Kubernetes.
+    ## Scrapes the Prometheus metrics endpoint exposed by the Karpenter controller.
+    karpenter:
+      enabled: true
+      ## Namespace where Karpenter is deployed.
+      namespace: "kube-system"
     ## KEDA — Kubernetes Event-Driven Autoscaling.
     ## Scrapes the Prometheus metrics endpoint exposed by the KEDA operator.
     ## Requires prometheus.operator.enabled=true in KEDA's Helm values.
