@@ -1055,7 +1055,7 @@ kubeStateMetrics:
   ## TODO: Add replicas, PDB, and HPA configuration in a follow-up.
   image:
     repository: kube-state-metrics/kube-state-metrics
-    tag: v2.19.1-eksbuild.3
+    tag: v2.19.1
     repositoryDomainMap:
       public: registry.k8s.io
       cn-north-1: 918309763551.dkr.ecr.cn-north-1.amazonaws.com.cn
@@ -1064,7 +1064,7 @@ kubeStateMetrics:
       us-gov-west-1: 013241004608.dkr.ecr.us-gov-west-1.amazonaws.com
     # Used in China/GovCloud regions where the public upstream image isn't available; the helper falls back to repositoryDomainMap[region]/restrictedRepository:restrictedTag
     restrictedRepository: eks/kube-state-metrics
-    restrictedTag: v2.18.0-eksbuild.10
+    restrictedTag: v2.19.1-eksbuild.3
   resources:
     limits:
       cpu: 200m
@@ -1090,7 +1090,7 @@ nodeExporter:
   name:
   image:
     repository: prometheus/node-exporter
-    tag: v1.12.1-eksbuild.1
+    tag: v1.12.1
     repositoryDomainMap:
       public: quay.io
       cn-north-1: 918309763551.dkr.ecr.cn-north-1.amazonaws.com.cn
@@ -1099,7 +1099,7 @@ nodeExporter:
       us-gov-west-1: 013241004608.dkr.ecr.us-gov-west-1.amazonaws.com
     # Used in China/GovCloud regions where the public upstream image isn't available; the helper falls back to repositoryDomainMap[region]/restrictedRepository:restrictedTag
     restrictedRepository: eks/prometheus-node-exporter
-    restrictedTag: v1.11.1-eksbuild.4
+    restrictedTag: v1.12.1-eksbuild.1
   resources:
     limits:
       cpu: 200m
