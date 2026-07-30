@@ -71,30 +71,14 @@ func TestOTLPLogsDualPublish(t *testing.T) {
 		return
 	}
 
-	otelConfig, ok := spec["otelConfig"].(string)
-	if !assert.True(t, ok, "otelConfig should be a string") {
+	config, ok := spec["config"].(string)
+	if !assert.True(t, ok, "config should be a string") {
 		return
 	}
 
-	// OTEL metrics present (same as every logs=true scenario).
-	assert.Contains(t, otelConfig, "otlphttp/cw_k8s_ci_v0_metrics_dest",
-		"metrics exporter must be present")
-	assert.Contains(t, otelConfig, "sigv4auth/cw_k8s_ci_v0_metrics_dest")
-
-	// OTEL log pipelines present — the point of this scenario.
-	logFragments := []string{
-		"filelog/cw_k8s_ci_v0_app",
-		"filelog/cw_k8s_ci_v0_node",
-		"logs/cw_k8s_ci_v0_app",
-		"logs/cw_k8s_ci_v0_node",
-		"otlphttp/cw_k8s_ci_v0_app_logs_dest",
-		"otlphttp/cw_k8s_ci_v0_node_logs_dest",
-		"sigv4auth/cw_k8s_ci_v0_logs_dest",
-	}
-	for _, fragment := range logFragments {
-		assert.Contains(t, otelConfig, fragment,
-			"otelConfig must contain %q when logs=true", fragment)
-	}
+	// OTEL CI enabled (node role), logs on.
+	minikube.AssertOtelContainerInsights(t, config, "node")
+	minikube.AssertOtelCILogsEnabled(t, config, true)
 
 	// CWA DaemonSet must carry the log mounts (inverse of assertNoLogMounts).
 	assertHasLogMounts(t, k8sClient, "cloudwatch-agent")

@@ -112,16 +112,15 @@ func validateCIAgentConfig(t *testing.T, agentMap map[string]unstructured.Unstru
 	_, hasTraces := config["traces"]
 	assert.False(t, hasTraces, "ci-agent config should NOT have traces section")
 
-	// Validate OTEL config has node-level pipelines (otelContainerInsights targeted here)
-	otelConfig, ok := spec["otelConfig"].(string)
-	if !assert.True(t, ok, "otelConfig should be a string") {
+	// OTEL CI, node role.
+	cfgStr, ok := spec["config"].(string)
+	if !assert.True(t, ok, "config should be a string") {
 		return
 	}
 
-	assert.True(t, strings.Contains(otelConfig, "kubeletstats"),
-		"ci-agent otelConfig should contain kubeletstats receiver (node-level OTEL CI targeted here)")
-	assert.False(t, strings.Contains(otelConfig, "cw_k8s_ci_v0_apiserver"),
-		"ci-agent otelConfig should NOT contain apiserver receiver (cluster-level)")
+	minikube.AssertOtelContainerInsights(t, cfgStr, "node")
+	assert.False(t, strings.Contains(cfgStr, `"role":"cluster"`),
+		"ci-agent config should not request cluster role")
 }
 
 // validateAppSignalsAgentConfig verifies appsignals-agent gets Application Signals config
@@ -176,17 +175,11 @@ func validateAppSignalsAgentConfig(t *testing.T, agentMap map[string]unstructure
 		}
 	}
 
-	// Validate OTEL config is absent or empty (otelContainerInsights not targeted here)
-	otelConfig, ok := spec["otelConfig"].(string)
-	if ok {
-		assert.False(t, strings.Contains(otelConfig, "kubeletstats"),
-			"appsignals-agent otelConfig should NOT contain kubeletstats receiver")
-		assert.False(t, strings.Contains(otelConfig, "cw_k8s_ci_v0_apiserver"),
-			"appsignals-agent otelConfig should NOT contain apiserver receiver")
-		assert.False(t, strings.Contains(otelConfig, "cw_k8s_ci_v0_kube_state_metrics"),
-			"appsignals-agent otelConfig should NOT contain kube_state_metrics receiver")
+	// No OTEL CI for this agent.
+	cfgStr, ok := spec["config"].(string)
+	if assert.True(t, ok, "config should be a string") {
+		minikube.AssertNoOtelContainerInsights(t, cfgStr)
 	}
-	// otelConfig may be absent entirely when no OTEL CI features target this agent — that's valid
 }
 
 // validateSplitFeaturesClusterScraperConfig verifies cluster-scraper gets minimal CW Agent
@@ -228,16 +221,13 @@ func validateSplitFeaturesClusterScraperConfig(t *testing.T, agentMap map[string
 	_, hasTraces := config["traces"]
 	assert.False(t, hasTraces, "cluster-scraper config should NOT have traces section")
 
-	// Validate OTEL config has cluster-level pipelines
-	otelConfig, ok := spec["otelConfig"].(string)
-	if !assert.True(t, ok, "otelConfig should be a string") {
+	// OTEL CI, cluster role.
+	cfgStr, ok := spec["config"].(string)
+	if !assert.True(t, ok, "config should be a string") {
 		return
 	}
 
-	assert.True(t, strings.Contains(otelConfig, "cw_k8s_ci_v0_apiserver"),
-		"cluster-scraper otelConfig should contain apiserver receiver (cluster-level)")
-	assert.True(t, strings.Contains(otelConfig, "cw_k8s_ci_v0_kube_state_metrics"),
-		"cluster-scraper otelConfig should contain kube_state_metrics receiver (cluster-level)")
-	assert.False(t, strings.Contains(otelConfig, "kubeletstats"),
-		"cluster-scraper otelConfig should NOT contain kubeletstats receiver (node-level)")
+	minikube.AssertOtelContainerInsights(t, cfgStr, "cluster")
+	assert.False(t, strings.Contains(cfgStr, `"role":"node"`),
+		"cluster-scraper config should not request node role")
 }

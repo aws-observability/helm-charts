@@ -130,6 +130,17 @@ Logic:
   {{- $needsLogs = true -}}
   {{- $_ := set $metricsCollected "kubernetes" (dict "enhanced_container_insights" true) -}}
 {{- end -}}
+{{/* OTEL CI: emit JSON config; the agent generates the pipeline (node=targetAgent, cluster=clusterScraperAgent). */}}
+{{- if $ctx.Values.otelContainerInsights.enabled -}}
+  {{- $interval := atoi (trimSuffix "s" $ctx.Values.otelContainerInsights.metricResolution) -}}
+  {{- if eq $ctx.Values.otelContainerInsights.targetAgent $agentName -}}
+    {{- $ci := dict "collection_interval" $interval "role" "node" "logs" (dict "enabled" $ctx.Values.otelContainerInsights.logs.enabled) -}}
+    {{- $_ := set $config "opentelemetry" (dict "cluster_name" $ctx.Values.clusterName "collect" (dict "container_insights" $ci)) -}}
+  {{- else if eq $ctx.Values.otelContainerInsights.clusterScraperAgent $agentName -}}
+    {{- $ci := dict "collection_interval" $interval "role" "cluster" -}}
+    {{- $_ := set $config "opentelemetry" (dict "cluster_name" $ctx.Values.clusterName "collect" (dict "container_insights" $ci)) -}}
+  {{- end -}}
+{{- end -}}
 {{- if $needsLogs -}}
   {{- $_ := set $config "logs" (dict "metrics_collected" $metricsCollected) -}}
 {{- end -}}
@@ -180,15 +191,8 @@ Logic:
 {{- $agentName := .agentName -}}
 {{- $ctx := .context -}}
 {{- include "cloudwatch-agent.validate-flags" $ctx -}}
-{{- if not $ctx.Values.otelContainerInsights.enabled -}}
+{{/* OTEL CI now comes from the JSON config; the agent generates the pipeline, so no otelConfig here. */}}
 {}
-{{- else if eq $ctx.Values.otelContainerInsights.targetAgent $agentName -}}
-{{- include "otel-container-insights.config" $ctx -}}
-{{- else if eq $ctx.Values.otelContainerInsights.clusterScraperAgent $agentName -}}
-{{- include "otel-container-insights-cluster-scraper.config" $ctx -}}
-{{- else -}}
-{}
-{{- end -}}
 {{- end -}}
 
 {{/*

@@ -1161,8 +1161,10 @@ otelContainerInsights:
   enabled: false
   ## OTEL-native CI log pipelines (application, host).
   ## Only takes effect when otelContainerInsights.enabled is true.
+  ## OTEL CI logs turned off for now due to agent side fix
+  ## logs are handled by FluentBit (containerLogs).
   logs:
-    enabled: true
+    enabled: false
   ## The agent in the agents array that receives node-level OTEL Container Insights config.
   targetAgent: "cloudwatch-agent"
   ## The agent in the agents array that receives cluster-level OTEL Container Insights config (apiserver, kube-state-metrics scraping).

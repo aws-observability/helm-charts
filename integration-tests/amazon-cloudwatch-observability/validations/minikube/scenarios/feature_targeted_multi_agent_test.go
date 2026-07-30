@@ -124,16 +124,15 @@ func validateCloudWatchAgentFullConfig(t *testing.T, agentMap map[string]unstruc
 		}
 	}
 
-	// Validate OTEL config has node-level pipelines
-	otelConfig, ok := spec["otelConfig"].(string)
-	if !assert.True(t, ok, "otelConfig should be a string") {
+	// OTEL CI, node role.
+	cfgStr, ok := spec["config"].(string)
+	if !assert.True(t, ok, "config should be a string") {
 		return
 	}
 
-	assert.True(t, strings.Contains(otelConfig, "kubeletstats"),
-		"cloudwatch-agent otelConfig should contain kubeletstats receiver (node-level)")
-	assert.False(t, strings.Contains(otelConfig, "cw_k8s_ci_v0_apiserver"),
-		"cloudwatch-agent otelConfig should NOT contain apiserver receiver (cluster-level)")
+	minikube.AssertOtelContainerInsights(t, cfgStr, "node")
+	assert.False(t, strings.Contains(cfgStr, `"role":"cluster"`),
+		"cloudwatch-agent config should not request cluster role")
 }
 
 // validatePrometheusAgentMinimalConfig verifies prometheus-agent gets minimal config:
@@ -180,17 +179,8 @@ func validatePrometheusAgentMinimalConfig(t *testing.T, agentMap map[string]unst
 	_, hasTraces := config["traces"]
 	assert.False(t, hasTraces, "prometheus-agent config should NOT have traces section")
 
-	// Validate OTEL config is absent or empty (not targeted by any OTEL CI feature)
-	otelConfig, ok := spec["otelConfig"].(string)
-	if ok {
-		assert.False(t, strings.Contains(otelConfig, "kubeletstats"),
-			"prometheus-agent otelConfig should NOT contain kubeletstats receiver")
-		assert.False(t, strings.Contains(otelConfig, "cw_k8s_ci_v0_apiserver"),
-			"prometheus-agent otelConfig should NOT contain apiserver receiver")
-		assert.False(t, strings.Contains(otelConfig, "cw_k8s_ci_v0_kube_state_metrics"),
-			"prometheus-agent otelConfig should NOT contain kube_state_metrics receiver")
-	}
-	// otelConfig may be absent entirely when no OTEL CI features target this agent — that's valid
+	// No OTEL CI for this agent.
+	minikube.AssertNoOtelContainerInsights(t, configStr)
 }
 
 // validateClusterScraperConfig verifies cluster-scraper gets cluster-level OTEL config
@@ -211,16 +201,13 @@ func validateClusterScraperConfig(t *testing.T, agentMap map[string]unstructured
 	assert.True(t, ok, "hostNetwork should be a bool")
 	assert.True(t, hostNetwork, "cluster-scraper should have hostNetwork=true")
 
-	// Validate OTEL config has cluster-level pipelines
-	otelConfig, ok := spec["otelConfig"].(string)
-	if !assert.True(t, ok, "otelConfig should be a string") {
+	// OTEL CI, cluster role.
+	cfgStr, ok := spec["config"].(string)
+	if !assert.True(t, ok, "config should be a string") {
 		return
 	}
 
-	assert.True(t, strings.Contains(otelConfig, "cw_k8s_ci_v0_apiserver"),
-		"cluster-scraper otelConfig should contain apiserver receiver (cluster-level)")
-	assert.True(t, strings.Contains(otelConfig, "cw_k8s_ci_v0_kube_state_metrics"),
-		"cluster-scraper otelConfig should contain kube_state_metrics receiver (cluster-level)")
-	assert.False(t, strings.Contains(otelConfig, "kubeletstats"),
-		"cluster-scraper otelConfig should NOT contain kubeletstats receiver (node-level)")
+	minikube.AssertOtelContainerInsights(t, cfgStr, "cluster")
+	assert.False(t, strings.Contains(cfgStr, `"role":"node"`),
+		"cluster-scraper config should not request node role")
 }

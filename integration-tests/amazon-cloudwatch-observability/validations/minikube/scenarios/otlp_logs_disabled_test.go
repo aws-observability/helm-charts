@@ -5,7 +5,6 @@ package scenarios
 
 import (
 	"context"
-	"strings"
 	"testing"
 
 	"github.com/aws-observability/helm-charts/integration-tests/amazon-cloudwatch-observability/util"
@@ -77,19 +76,14 @@ func TestOTLPLogsDisabled(t *testing.T) {
 		return
 	}
 
-	otelConfig, ok := spec["otelConfig"].(string)
-	if !assert.True(t, ok, "otelConfig should be a string") {
+	config, ok := spec["config"].(string)
+	if !assert.True(t, ok, "config should be a string") {
 		return
 	}
 
-	// Metrics pipeline present.
-	assert.Contains(t, otelConfig, "otlphttp/cw_k8s_ci_v0_metrics_dest",
-		"metrics exporter must be present when enabled=true")
-	assert.Contains(t, otelConfig, "sigv4auth/cw_k8s_ci_v0_metrics_dest",
-		"metrics-side sigv4auth must be present")
-
-	// Log pipeline completely absent.
-	assertLogPipelineAbsent(t, otelConfig)
+	// Metrics pipeline present (node role); logs disabled.
+	minikube.AssertOtelContainerInsights(t, config, "node")
+	minikube.AssertOtelCILogsEnabled(t, config, false)
 
 	// CWA DaemonSet must not have log-related host mounts.
 	assertNoLogMounts(t, k8sClient, "cloudwatch-agent")
@@ -97,38 +91,6 @@ func TestOTLPLogsDisabled(t *testing.T) {
 	t.Log("OTLP logs-disabled scenario validation passed")
 }
 
-// assertLogPipelineAbsent checks that no log-specific OTEL components appear in
-// the generated config. The shared names are gated by otelContainerInsights.logs.enabled.
-func assertLogPipelineAbsent(t *testing.T, otelConfig string) {
-	t.Helper()
-	logOnlyFragments := []string{
-		// Receivers
-		"filelog/cw_k8s_ci_v0_app",
-		"filelog/cw_k8s_ci_v0_node",
-		// Service pipelines
-		"logs/cw_k8s_ci_v0_app",
-		"logs/cw_k8s_ci_v0_node",
-		// Log exporters
-		"otlphttp/cw_k8s_ci_v0_app_logs_dest",
-		"otlphttp/cw_k8s_ci_v0_node_logs_dest",
-		// Log-specific processors
-		"batch/cw_k8s_ci_v0_logs_dest",
-		"transform/cw_k8s_ci_v0_logs_set_workload",
-		"transform/cw_k8s_ci_v0_logs_set_cluster_and_node",
-		"transform/cw_k8s_ci_v0_logs_set_cloud_resource_id",
-		"transform/cw_k8s_ci_v0_logs_clear_schema_url",
-		"transform/cw_k8s_ci_v0_logs_set_scope_app",
-		"transform/cw_k8s_ci_v0_logs_set_scope_host",
-		// Log-specific extensions
-		"sigv4auth/cw_k8s_ci_v0_logs_dest",
-		"awscloudwatchlogsprovisioner/cw_k8s_ci_v0_logs",
-		"file_storage/cw_k8s_ci_v0_logs_checkpoint",
-	}
-	for _, fragment := range logOnlyFragments {
-		assert.False(t, strings.Contains(otelConfig, fragment),
-			"otelConfig must not contain %q when otelContainerInsights.logs.enabled=false", fragment)
-	}
-}
 
 // assertNoLogMounts verifies the CWA DaemonSet does not carry the /var/log or
 // journald host mounts, which are only needed when otelContainerInsights.logs.enabled=true.

@@ -112,3 +112,34 @@ func GetOperatorAutoInstrumentationConfig(t *testing.T) map[string]interface{} {
 	t.Logf("auto-instrumentation-config: %s", autoInstrumentationArg)
 	return config
 }
+
+// OTEL CI assertions — CI is delivered via spec.config JSON (operator generates
+// the pipeline), so tests assert on spec.config, not spec.otelConfig.
+
+// otelCIMarker matches the V2 container_insights block.
+const otelCIMarker = `"container_insights":{`
+
+// AssertOtelContainerInsights asserts OTEL CI is enabled with the given role (node|cluster).
+func AssertOtelContainerInsights(t *testing.T, config, role string) {
+	assert.Contains(t, config, otelCIMarker,
+		"config must enable opentelemetry.collect.container_insights")
+	assert.Contains(t, config, `"role":"`+role+`"`,
+		"container_insights role must be %q", role)
+}
+
+// AssertOtelCILogsEnabled asserts the container_insights logs toggle.
+func AssertOtelCILogsEnabled(t *testing.T, config string, enabled bool) {
+	if enabled {
+		assert.Contains(t, config, `"logs":{"enabled":true}`,
+			"container_insights logs must be enabled")
+	} else {
+		assert.Contains(t, config, `"logs":{"enabled":false}`,
+			"container_insights logs must be disabled")
+	}
+}
+
+// AssertNoOtelContainerInsights asserts OTEL CI is not configured.
+func AssertNoOtelContainerInsights(t *testing.T, config string) {
+	assert.NotContains(t, config, otelCIMarker,
+		"config must not enable opentelemetry.collect.container_insights")
+}

@@ -84,7 +84,7 @@ run_case() {
     if [[ -n "$must_have" ]]; then
         IFS=',' read -ra fragments <<< "$must_have"
         for f in "${fragments[@]}"; do
-            if ! grep -q "$f" <<< "$output"; then
+            if ! grep -qF -- "$f" <<< "$output"; then
                 echo -e "  ${R}FAIL${N}: missing required fragment: $f"
                 local_fail=1
             fi
@@ -94,7 +94,7 @@ run_case() {
     if [[ -n "$must_not" ]]; then
         IFS=',' read -ra fragments <<< "$must_not"
         for f in "${fragments[@]}"; do
-            if grep -q "$f" <<< "$output"; then
+            if grep -qF -- "$f" <<< "$output"; then
                 echo -e "  ${R}FAIL${N}: forbidden fragment present: $f"
                 local_fail=1
             fi
@@ -109,22 +109,23 @@ run_case() {
     fi
 }
 
-# Fragment shortcuts used across states.
-METRICS_EXPORTER="otlphttp/cw_k8s_ci_v0_metrics_dest"
-METRICS_SIGV4="sigv4auth/cw_k8s_ci_v0_metrics_dest"
-LOG_EXPORTER_APP="otlphttp/cw_k8s_ci_v0_app_logs_dest"
-LOG_EXPORTER_NODE="otlphttp/cw_k8s_ci_v0_node_logs_dest"
-LOG_SIGV4="sigv4auth/cw_k8s_ci_v0_logs_dest"
-LOG_PIPELINE_APP="logs/cw_k8s_ci_v0_app"
-FILELOG_APP="filelog/cw_k8s_ci_v0_app"
+# OTEL CI is delivered via the agent's JSON config
+# (opentelemetry.collect.container_insights); the agent generates the OTEL
+# pipeline at runtime, so we assert on the escaped JSON in the CR `config:`
+# field rather than on rendered collector fragments.
+OTEL_CI='collect\":{\"container_insights'
+OTEL_CI_NODE='\"role\":\"node\"'
+OTEL_CI_CLUSTER='\"role\":\"cluster\"'
+OTEL_CI_LOGS_ON='\"logs\":{\"enabled\":true}'
+OTEL_CI_LOGS_OFF='\"logs\":{\"enabled\":false}'
 # aws-for-fluent-bit is the container image string — unique to the FluentBit
 # DaemonSet. Using this instead of bare "fluent-bit" avoids false matches in
 # OTEL config paths like /var/log/containers/fluent-bit* (which exist in the
 # filelog exclude list regardless of the FB DaemonSet flag).
 FLUENT_BIT_IMAGE="aws-for-fluent-bit"
 
-# All OTEL log pipeline fragments (app + host).
-ALL_LOG_FRAGMENTS="$LOG_EXPORTER_APP,$LOG_EXPORTER_NODE,$LOG_SIGV4,$LOG_PIPELINE_APP,$FILELOG_APP"
+# Both node (daemonset) and cluster (scraper) CI config present.
+OTEL_CI_BOTH_ROLES="$OTEL_CI,$OTEL_CI_NODE,$OTEL_CI_CLUSTER"
 
 # ──────────────────────────────────────────────────────────────────────────
 # Run all 8 combinations.
@@ -136,43 +137,43 @@ echo "Chart: $CHART_DIR"
 # State #1: all false — no monitoring.
 run_case 1 false false false "ok" \
     "No monitoring — all flags off" \
-    "" "$METRICS_EXPORTER,$FLUENT_BIT_IMAGE"
+    "" "$OTEL_CI,$FLUENT_BIT_IMAGE"
 
 # State #2: FluentBit only (pure v1 legacy).
 run_case 2 false false true "ok" \
     "FluentBit legacy only" \
-    "$FLUENT_BIT_IMAGE" "$METRICS_EXPORTER,$ALL_LOG_FRAGMENTS"
+    "$FLUENT_BIT_IMAGE" "$OTEL_CI"
 
 # State #3: logs=true without enabled — silently ignored.
 run_case 3 false true false "ok" \
     "logs=true without enabled — no OTEL output" \
-    "" "$METRICS_EXPORTER,$ALL_LOG_FRAGMENTS,$FLUENT_BIT_IMAGE"
+    "" "$OTEL_CI,$FLUENT_BIT_IMAGE"
 
 # State #4: same as #3 with FluentBit.
 run_case 4 false true true "ok" \
     "logs=true without enabled + FluentBit — only FluentBit" \
-    "$FLUENT_BIT_IMAGE" "$METRICS_EXPORTER,$ALL_LOG_FRAGMENTS"
+    "$FLUENT_BIT_IMAGE" "$OTEL_CI"
 
-# State #5: OTEL metrics only.
+# State #5: OTEL metrics only (logs disabled).
 run_case 5 true false false "ok" \
     "OTEL metrics only, no logs" \
-    "$METRICS_EXPORTER,$METRICS_SIGV4" "$ALL_LOG_FRAGMENTS,$FLUENT_BIT_IMAGE"
+    "$OTEL_CI_BOTH_ROLES,$OTEL_CI_LOGS_OFF" "$OTEL_CI_LOGS_ON,$FLUENT_BIT_IMAGE"
 
 # State #6: hybrid — OTEL metrics + FluentBit logs.
 run_case 6 true false true "ok" \
     "Hybrid — OTEL metrics + FluentBit logs" \
-    "$METRICS_EXPORTER,$METRICS_SIGV4,$FLUENT_BIT_IMAGE" "$ALL_LOG_FRAGMENTS"
+    "$OTEL_CI_BOTH_ROLES,$OTEL_CI_LOGS_OFF,$FLUENT_BIT_IMAGE" "$OTEL_CI_LOGS_ON"
 
 # State #7: full OTEL (metrics + logs, no FluentBit).
 run_case 7 true true false "ok" \
     "Full OTEL (metrics + logs)" \
-    "$METRICS_EXPORTER,$METRICS_SIGV4,$LOG_EXPORTER_APP,$LOG_EXPORTER_NODE,$LOG_SIGV4,$FILELOG_APP" \
+    "$OTEL_CI_BOTH_ROLES,$OTEL_CI_LOGS_ON" \
     "$FLUENT_BIT_IMAGE"
 
 # State #8: dual-publish (migration window — OTEL logs + FluentBit both active).
 run_case 8 true true true "ok" \
     "Dual-publish — OTEL logs + FluentBit both active" \
-    "$METRICS_EXPORTER,$LOG_EXPORTER_APP,$LOG_EXPORTER_NODE,$FILELOG_APP,$FLUENT_BIT_IMAGE" \
+    "$OTEL_CI_BOTH_ROLES,$OTEL_CI_LOGS_ON,$FLUENT_BIT_IMAGE" \
     ""
 
 # ──────────────────────────────────────────────────────────────────────────
