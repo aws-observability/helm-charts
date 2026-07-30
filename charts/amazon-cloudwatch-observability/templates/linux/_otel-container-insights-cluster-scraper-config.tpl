@@ -300,6 +300,22 @@ processors:
           - set(attributes["owner_name"], resource.attributes["owner_name"]) where resource.attributes["owner_name"] != nil
           - set(attributes["owner_kind"], resource.attributes["owner_kind"]) where resource.attributes["owner_kind"] != nil
 
+  k8sattributes/cw_k8s_ci_v0_node:
+    auth_type: serviceAccount
+    passthrough: false
+    extract:
+      metadata:
+        - k8s.node.name
+      labels:
+        - tag_name: "k8s.node.label.$$$1"
+          key_regex: "(.*)"
+          from: node
+    pod_association:
+      - sources:
+          - from: resource_attribute
+            name: k8s.node.name
+{{- end }}
+
   k8sattributes/cw_k8s_ci_v0_pod:
     auth_type: serviceAccount
     passthrough: false
@@ -342,22 +358,6 @@ processors:
           - set(resource.attributes["k8s.workload.type"], "CronJob") where resource.attributes["k8s.workload.type"] == nil and resource.attributes["k8s.cronjob.name"] != nil
           - set(resource.attributes["k8s.workload.name"], resource.attributes["k8s.replicaset.name"]) where resource.attributes["k8s.workload.name"] == nil and resource.attributes["k8s.replicaset.name"] != nil
           - set(resource.attributes["k8s.workload.type"], "ReplicaSet") where resource.attributes["k8s.workload.type"] == nil and resource.attributes["k8s.replicaset.name"] != nil
-
-  k8sattributes/cw_k8s_ci_v0_node:
-    auth_type: serviceAccount
-    passthrough: false
-    extract:
-      metadata:
-        - k8s.node.name
-      labels:
-        - tag_name: "k8s.node.label.$$$1"
-          key_regex: "(.*)"
-          from: node
-    pod_association:
-      - sources:
-          - from: resource_attribute
-            name: k8s.node.name
-{{- end }}
 
   transform/cw_k8s_ci_v0_set_component:
     error_mode: ignore
