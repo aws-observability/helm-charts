@@ -116,7 +116,10 @@ run_case() {
 OTEL_CI='collect\":{\"container_insights'
 OTEL_CI_NODE='\"role\":\"node\"'
 OTEL_CI_CLUSTER='\"role\":\"cluster\"'
-OTEL_CI_LOGS_ON='\"logs\":{\"enabled\":true}'
+# Hybrid model: metrics come from the JSON config (spec.config), logs from the chart
+# otelConfig (spec.otelConfig). The node JSON always sets logs.enabled:false; the
+# presence of CI logs is asserted via the logs exporter in the rendered otelConfig.
+OTEL_CI_LOGS_ON='cw_k8s_ci_v0_app_logs_dest'
 OTEL_CI_LOGS_OFF='\"logs\":{\"enabled\":false}'
 # aws-for-fluent-bit is the container image string — unique to the FluentBit
 # DaemonSet. Using this instead of bare "fluent-bit" avoids false matches in

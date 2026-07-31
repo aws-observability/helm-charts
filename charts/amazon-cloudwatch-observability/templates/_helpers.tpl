@@ -134,7 +134,8 @@ Logic:
 {{- if $ctx.Values.otelContainerInsights.enabled -}}
   {{- $interval := atoi (trimSuffix "s" $ctx.Values.otelContainerInsights.metricResolution) -}}
   {{- if eq $ctx.Values.otelContainerInsights.targetAgent $agentName -}}
-    {{- $ci := dict "collection_interval" $interval "role" "node" "logs" (dict "enabled" $ctx.Values.otelContainerInsights.logs.enabled) -}}
+    {{/* Hybrid: agent renders metrics only; CI logs come from the chart otelConfig. */}}
+    {{- $ci := dict "collection_interval" $interval "role" "node" "logs" (dict "enabled" false) -}}
     {{- $_ := set $config "opentelemetry" (dict "cluster_name" $ctx.Values.clusterName "collect" (dict "container_insights" $ci)) -}}
   {{- else if eq $ctx.Values.otelContainerInsights.clusterScraperAgent $agentName -}}
     {{- $ci := dict "collection_interval" $interval "role" "cluster" -}}
@@ -191,8 +192,13 @@ Logic:
 {{- $agentName := .agentName -}}
 {{- $ctx := .context -}}
 {{- include "cloudwatch-agent.validate-flags" $ctx -}}
-{{/* OTEL CI now comes from the JSON config; the agent generates the pipeline, so no otelConfig here. */}}
+{{/* Hybrid: metrics come from the JSON config (agent-generated). The chart supplies
+     ONLY the CI logs pipelines here, on the node agent, when logs are enabled. */}}
+{{- if and $ctx.Values.otelContainerInsights.enabled $ctx.Values.otelContainerInsights.logs.enabled (eq $ctx.Values.otelContainerInsights.targetAgent $agentName) -}}
+{{- include "otel-container-insights-logs.config" $ctx -}}
+{{- else -}}
 {}
+{{- end -}}
 {{- end -}}
 
 {{/*

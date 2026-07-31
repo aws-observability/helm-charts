@@ -78,7 +78,9 @@ func TestOTLPHybridMetricsFluentBit(t *testing.T) {
 
 	// OTEL CI enabled (node role), logs off (FluentBit handles logs).
 	minikube.AssertOtelContainerInsights(t, config, "node")
-	minikube.AssertOtelCILogsEnabled(t, config, false)
+	// Hybrid: no CI logs pipeline in the chart otelConfig.
+	otelConfig, _ := spec["otelConfig"].(string)
+	minikube.AssertOtelCILogs(t, otelConfig, false)
 
 	// CWA DaemonSet must not have log-related host mounts.
 	assertNoLogMounts(t, k8sClient, "cloudwatch-agent")

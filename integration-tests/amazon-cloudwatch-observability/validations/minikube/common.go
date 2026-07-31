@@ -138,6 +138,19 @@ func AssertOtelCILogsEnabled(t *testing.T, config string, enabled bool) {
 	}
 }
 
+// AssertOtelCILogs asserts presence/absence of the CI logs pipeline in the chart-provided
+// otelConfig. In the hybrid model, metrics come from spec.config (JSON) and logs from
+// spec.otelConfig, so log collection is verified here rather than via spec.config.
+func AssertOtelCILogs(t *testing.T, otelConfig string, present bool) {
+	if present {
+		assert.Contains(t, otelConfig, "cw_k8s_ci_v0_app_logs_dest",
+			"CI logs pipeline must be present in otelConfig")
+	} else {
+		assert.NotContains(t, otelConfig, "cw_k8s_ci_v0_app_logs_dest",
+			"CI logs pipeline must not be present in otelConfig")
+	}
+}
+
 // AssertNoOtelContainerInsights asserts OTEL CI is not configured.
 func AssertNoOtelContainerInsights(t *testing.T, config string) {
 	assert.NotContains(t, config, otelCIMarker,
