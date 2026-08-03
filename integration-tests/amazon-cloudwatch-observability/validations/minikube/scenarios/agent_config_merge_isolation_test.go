@@ -75,24 +75,30 @@ func TestAgentConfigMergeIsolation(t *testing.T) {
 		// regardless of what the customer sets in $.agent.config — even if
 		// the customer's config happens to look similar to the auto-generated one.
 		//
-		// build-default-config for the cluster-scraper produces:
-		//   {"agent":{"region":"<region>"}}
-		// because no feature flags (AppSignals, ContainerInsights) target it.
+		// build-default-config for the cluster-scraper produces its OWN auto-generated
+		// config — agent + opentelemetry.collect.container_insights(role: cluster) when
+		// OTEL CI is enabled — never the customer's $.agent.config.
 		config := mergeIsolationGetAgentConfig(t, agentMap, "cloudwatch-agent-cluster-scraper")
 
 		var parsed map[string]interface{}
 		err := json.Unmarshal([]byte(config), &parsed)
 		require.NoError(t, err, "cluster-scraper config should be valid JSON")
 
-		// Must have exactly one top-level key: "agent"
-		require.Len(t, parsed, 1,
-			"cluster-scraper config should have exactly one top-level key (agent)")
+		// Isolation: the customer's logs config must NOT leak into the cluster-scraper.
+		assert.NotContains(t, parsed, "logs",
+			"cluster-scraper must not inherit the customer's logs config (isolation)")
 
 		agentSection, ok := parsed["agent"].(map[string]interface{})
 		require.True(t, ok, "cluster-scraper config should have agent section")
-
 		assert.Equal(t, expectedRegion, agentSection["region"],
 			"cluster-scraper config region should match the chart's region value")
+
+		// The cluster-scraper's auto-generated OTEL CI must be role: cluster.
+		otel, ok := parsed["opentelemetry"].(map[string]interface{})
+		require.True(t, ok, "cluster-scraper config should have opentelemetry section")
+		collect, _ := otel["collect"].(map[string]interface{})
+		ci, _ := collect["container_insights"].(map[string]interface{})
+		assert.Equal(t, "cluster", ci["role"], "cluster-scraper OTEL CI role should be cluster")
 	})
 
 	t.Run("ClusterScraperIsDeploymentMode", func(t *testing.T) {
