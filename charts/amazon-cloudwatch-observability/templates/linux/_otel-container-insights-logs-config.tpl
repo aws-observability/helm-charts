@@ -1,6 +1,6 @@
 {{/* Shared CloudWatch Logs OTLP endpoint + ADC overrides. */}}
 {{- define "otel-container-insights.logs-endpoint" -}}
-{{ if .Values.otelContainerInsights.cloudwatchLogsEndpoint }}{{ .Values.otelContainerInsights.cloudwatchLogsEndpoint | quote }}{{ else if hasKey .Values.adcEndpointOverrides .Values.region }}"https://logs.{{ .Values.region }}.{{ index .Values.adcEndpointOverrides .Values.region }}:443"{{ else }}"https://logs.{{ .Values.region }}.amazonaws.com:443"{{ end }}
+{{ if hasKey .Values.adcEndpointOverrides .Values.region }}"https://logs.{{ .Values.region }}.{{ index .Values.adcEndpointOverrides .Values.region }}:443"{{ else }}"https://logs.{{ .Values.region }}.amazonaws.com:443"{{ end }}
 {{- end -}}
 
 {{/*

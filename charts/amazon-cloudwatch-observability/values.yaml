@@ -1169,7 +1169,3 @@ otelContainerInsights:
   clusterScraperAgent: "cloudwatch-agent-cluster-scraper"
   ## Scrape interval for all OTEL CI prometheus receivers. Must be in "<N>s" format (e.g. "30s", "15s").
   metricResolution: "30s"
-  # Override the CloudWatch Metrics OTLP endpoint. If empty, defaults to monitoring.<region>.amazonaws.com.
-  cloudwatchMetricsEndpoint: ""
-  # Override the CloudWatch Logs OTLP endpoint. If empty, defaults to logs.<region>.amazonaws.com.
-  cloudwatchLogsEndpoint: ""
