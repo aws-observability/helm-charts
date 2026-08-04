@@ -83,9 +83,9 @@ func TestOTLPLogsDisabled(t *testing.T) {
 
 	// Metrics pipeline present (node role); logs disabled.
 	minikube.AssertOtelContainerInsights(t, config, "node")
-	// Hybrid + logs off: otelConfig is absent, so no CI logs pipeline expected.
-	otelConfig, _ := spec["otelConfig"].(string)
-	minikube.AssertOtelCILogs(t, otelConfig, false)
+	// Hybrid + logs off: no CI logs otelConfig should be emitted.
+	_, hasOtelConfig := spec["otelConfig"].(string)
+	assert.False(t, hasOtelConfig, "otelConfig should be absent when CI logs are disabled")
 
 	// CWA DaemonSet must not have log-related host mounts.
 	assertNoLogMounts(t, k8sClient, "cloudwatch-agent")

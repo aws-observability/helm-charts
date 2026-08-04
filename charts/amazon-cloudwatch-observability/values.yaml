@@ -720,6 +720,10 @@ agents:
   - name: cloudwatch-agent-cluster-scraper
     mode: deployment
     config: "default" # the reserved string "default" indicates building the default config dynamically
+    # if a customer json config role is empty, CWAGENT_ROLE=LEADER keeps this agent resolving to the "cluster" role.
+    env:
+      - name: CWAGENT_ROLE
+        value: LEADER
 agent:
   name:
   mode: daemonset # Represents the mode the AmazonCloudWatchAgent workload will run in (deployment, daemonset or statefulset)

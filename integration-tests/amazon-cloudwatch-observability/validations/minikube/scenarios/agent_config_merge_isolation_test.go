@@ -110,6 +110,10 @@ func TestAgentConfigMergeIsolation(t *testing.T) {
 
 		mode, _ := spec["mode"].(string)
 		assert.Equal(t, "deployment", mode, "cluster-scraper should be in deployment mode")
+
+		// Fallback env: guarantees the scraper resolves to the cluster role even if a
+		// custom config omits role (JSON role: cluster wins by default; env is the safety net).
+		assertEnvValue(t, spec, "CWAGENT_ROLE", "LEADER")
 	})
 
 	t.Log("Agent config merge isolation validation passed")
