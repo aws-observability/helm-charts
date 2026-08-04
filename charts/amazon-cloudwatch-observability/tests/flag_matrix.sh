@@ -119,8 +119,8 @@ OTEL_CI_CLUSTER='\"role\":\"cluster\"'
 # Hybrid model: metrics come from the JSON config (spec.config), logs from the chart
 # otelConfig (spec.otelConfig). The node JSON always sets logs.enabled:false; the
 # presence of CI logs is asserted via the logs exporter in the rendered otelConfig.
-OTEL_CI_LOGS_ON='cw_k8s_ci_v0_app_logs_dest'
-OTEL_CI_LOGS_OFF='\"logs\":{\"enabled\":false}'
+OTEL_CI_LOGS_YAML_ON='cw_k8s_ci_v0_app_logs_dest'
+OTEL_CI_JSON_LOGS_OFF='\"logs\":{\"enabled\":false}'
 # aws-for-fluent-bit is the container image string — unique to the FluentBit
 # DaemonSet. Using this instead of bare "fluent-bit" avoids false matches in
 # OTEL config paths like /var/log/containers/fluent-bit* (which exist in the
@@ -160,23 +160,23 @@ run_case 4 false true true "ok" \
 # State #5: OTEL metrics only (logs disabled).
 run_case 5 true false false "ok" \
     "OTEL metrics only, no logs" \
-    "$OTEL_CI_BOTH_ROLES,$OTEL_CI_LOGS_OFF" "$OTEL_CI_LOGS_ON,$FLUENT_BIT_IMAGE"
+    "$OTEL_CI_BOTH_ROLES,$OTEL_CI_JSON_LOGS_OFF" "$OTEL_CI_LOGS_YAML_ON,$FLUENT_BIT_IMAGE"
 
 # State #6: hybrid — OTEL metrics + FluentBit logs.
 run_case 6 true false true "ok" \
     "Hybrid — OTEL metrics + FluentBit logs" \
-    "$OTEL_CI_BOTH_ROLES,$OTEL_CI_LOGS_OFF,$FLUENT_BIT_IMAGE" "$OTEL_CI_LOGS_ON"
+    "$OTEL_CI_BOTH_ROLES,$OTEL_CI_JSON_LOGS_OFF,$FLUENT_BIT_IMAGE" "$OTEL_CI_LOGS_YAML_ON"
 
 # State #7: full OTEL (metrics + logs, no FluentBit).
 run_case 7 true true false "ok" \
     "Full OTEL (metrics + logs)" \
-    "$OTEL_CI_BOTH_ROLES,$OTEL_CI_LOGS_ON" \
+    "$OTEL_CI_BOTH_ROLES,$OTEL_CI_LOGS_YAML_ON" \
     "$FLUENT_BIT_IMAGE"
 
 # State #8: dual-publish (migration window — OTEL logs + FluentBit both active).
 run_case 8 true true true "ok" \
     "Dual-publish — OTEL logs + FluentBit both active" \
-    "$OTEL_CI_BOTH_ROLES,$OTEL_CI_LOGS_ON,$FLUENT_BIT_IMAGE" \
+    "$OTEL_CI_BOTH_ROLES,$OTEL_CI_LOGS_YAML_ON,$FLUENT_BIT_IMAGE" \
     ""
 
 # ──────────────────────────────────────────────────────────────────────────

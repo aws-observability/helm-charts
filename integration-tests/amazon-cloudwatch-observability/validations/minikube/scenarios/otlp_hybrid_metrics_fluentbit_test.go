@@ -78,7 +78,7 @@ func TestOTLPHybridMetricsFluentBit(t *testing.T) {
 
 	// OTEL CI enabled (node role), logs off (FluentBit handles logs).
 	minikube.AssertOtelContainerInsights(t, config, "node")
-	// Hybrid: no CI logs pipeline in the chart otelConfig.
+	// Hybrid + logs off: otelConfig is absent, so no CI logs pipeline expected.
 	otelConfig, _ := spec["otelConfig"].(string)
 	minikube.AssertOtelCILogs(t, otelConfig, false)
 

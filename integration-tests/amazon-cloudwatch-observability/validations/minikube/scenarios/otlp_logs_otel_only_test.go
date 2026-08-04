@@ -73,7 +73,10 @@ func TestOTLPLogsOtelOnly(t *testing.T) {
 	// OTEL CI enabled (node role), logs on.
 	minikube.AssertOtelContainerInsights(t, config, "node")
 	// Hybrid: logs come from the chart otelConfig, not spec.config.
-	otelConfig, _ := spec["otelConfig"].(string)
+	otelConfig, ok := spec["otelConfig"].(string)
+	if !assert.True(t, ok, "otelConfig should be a string") {
+		return
+	}
 	minikube.AssertOtelCILogs(t, otelConfig, true)
 
 	// CWA DaemonSet must carry the log mounts.

@@ -132,7 +132,8 @@ Logic:
 {{- end -}}
 {{/* OTEL CI: emit JSON config; the agent generates the pipeline (node=targetAgent, cluster=clusterScraperAgent). */}}
 {{- if $ctx.Values.otelContainerInsights.enabled -}}
-  {{- $interval := atoi (trimSuffix "s" $ctx.Values.otelContainerInsights.metricResolution) -}}
+  {{- $res := $ctx.Values.otelContainerInsights.metricResolution -}}
+  {{- $interval := ternary (mul (atoi (trimSuffix "m" $res)) 60) (atoi (trimSuffix "s" $res)) (hasSuffix "m" $res) -}}
   {{- if eq $ctx.Values.otelContainerInsights.targetAgent $agentName -}}
     {{/* Hybrid: agent renders metrics only; CI logs come from the chart otelConfig. */}}
     {{- $ci := dict "collection_interval" $interval "role" "node" "logs" (dict "enabled" false) -}}

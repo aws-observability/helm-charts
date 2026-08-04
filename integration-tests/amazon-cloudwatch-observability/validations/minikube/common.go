@@ -127,27 +127,18 @@ func AssertOtelContainerInsights(t *testing.T, config, role string) {
 		"container_insights role must be %q", role)
 }
 
-// AssertOtelCILogsEnabled asserts the container_insights logs toggle.
-func AssertOtelCILogsEnabled(t *testing.T, config string, enabled bool) {
-	if enabled {
-		assert.Contains(t, config, `"logs":{"enabled":true}`,
-			"container_insights logs must be enabled")
-	} else {
-		assert.Contains(t, config, `"logs":{"enabled":false}`,
-			"container_insights logs must be disabled")
-	}
-}
-
-// AssertOtelCILogs asserts presence/absence of the CI logs pipeline in the chart-provided
-// otelConfig. In the hybrid model, metrics come from spec.config (JSON) and logs from
-// spec.otelConfig, so log collection is verified here rather than via spec.config.
+// AssertOtelCILogs asserts presence/absence of the CI logs pipelines (app + node) in the
+// chart-provided otelConfig. In the hybrid model, metrics come from spec.config (JSON) and
+// logs from spec.otelConfig, so log collection is verified here rather than via spec.config.
 func AssertOtelCILogs(t *testing.T, otelConfig string, present bool) {
-	if present {
-		assert.Contains(t, otelConfig, "cw_k8s_ci_v0_app_logs_dest",
-			"CI logs pipeline must be present in otelConfig")
-	} else {
-		assert.NotContains(t, otelConfig, "cw_k8s_ci_v0_app_logs_dest",
-			"CI logs pipeline must not be present in otelConfig")
+	for _, marker := range []string{"cw_k8s_ci_v0_app_logs_dest", "cw_k8s_ci_v0_node_logs_dest"} {
+		if present {
+			assert.Contains(t, otelConfig, marker,
+				"CI logs pipeline %q must be present in otelConfig", marker)
+		} else {
+			assert.NotContains(t, otelConfig, marker,
+				"CI logs pipeline %q must not be present in otelConfig", marker)
+		}
 	}
 }
 
