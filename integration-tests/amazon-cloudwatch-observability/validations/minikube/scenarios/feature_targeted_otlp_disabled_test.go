@@ -6,7 +6,6 @@ package scenarios
 import (
 	"context"
 	"encoding/json"
-	"strings"
 	"testing"
 
 	"github.com/aws-observability/helm-charts/integration-tests/amazon-cloudwatch-observability/util"
@@ -96,19 +95,12 @@ func validateCloudWatchAgentNoOtelConfig(t *testing.T, agentMap map[string]unstr
 		return
 	}
 
-	otelConfig, ok := spec["otelConfig"].(string)
-	if ok {
-		// If otelConfig is present, it should NOT contain any CI receivers
-		assert.False(t, strings.Contains(otelConfig, "kubeletstats"),
-			"cloudwatch-agent otelConfig should NOT contain kubeletstats receiver when OTLP disabled")
-		assert.False(t, strings.Contains(otelConfig, "cadvisor"),
-			"cloudwatch-agent otelConfig should NOT contain cadvisor receiver when OTLP disabled")
-		assert.False(t, strings.Contains(otelConfig, "cw_k8s_ci_v0_apiserver"),
-			"cloudwatch-agent otelConfig should NOT contain apiserver receiver when OTLP disabled")
-		assert.False(t, strings.Contains(otelConfig, "cw_k8s_ci_v0_kube_state_metrics"),
-			"cloudwatch-agent otelConfig should NOT contain kube_state_metrics receiver when OTLP disabled")
+	config, ok := spec["config"].(string)
+	if !assert.True(t, ok, "config should be a string") {
+		return
 	}
-	// otelConfig may be absent entirely when no OTEL CI features target this agent — that's valid
+	// OTEL CI disabled → no container_insights in config.
+	minikube.AssertNoOtelContainerInsights(t, config)
 }
 
 // validateNodeExporterNotDeployed verifies node-exporter resources are NOT present

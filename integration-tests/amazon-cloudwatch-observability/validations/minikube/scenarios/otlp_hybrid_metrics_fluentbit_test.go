@@ -71,20 +71,16 @@ func TestOTLPHybridMetricsFluentBit(t *testing.T) {
 		return
 	}
 
-	otelConfig, ok := spec["otelConfig"].(string)
-	if !assert.True(t, ok, "otelConfig should be a string") {
+	config, ok := spec["config"].(string)
+	if !assert.True(t, ok, "config should be a string") {
 		return
 	}
 
-	// OTEL metrics present.
-	assert.Contains(t, otelConfig, "otlphttp/cw_k8s_ci_v0_metrics_dest",
-		"metrics exporter must be present")
-	assert.Contains(t, otelConfig, "sigv4auth/cw_k8s_ci_v0_metrics_dest",
-		"metrics-side sigv4auth must be present")
-
-	// OTEL log pipeline absent (same assertions as the logs-disabled scenario —
-	// the logs sub-flag is the only thing controlling this, and it's false here).
-	assertLogPipelineAbsent(t, otelConfig)
+	// OTEL CI enabled (node role), logs off (FluentBit handles logs).
+	minikube.AssertOtelContainerInsights(t, config, "node")
+	// Hybrid + logs off: no CI logs otelConfig should be emitted.
+	_, hasOtelConfig := spec["otelConfig"].(string)
+	assert.False(t, hasOtelConfig, "otelConfig should be absent when CI logs are disabled")
 
 	// CWA DaemonSet must not have log-related host mounts.
 	assertNoLogMounts(t, k8sClient, "cloudwatch-agent")
