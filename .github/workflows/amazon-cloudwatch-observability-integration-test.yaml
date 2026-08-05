@@ -53,6 +53,7 @@ jobs:
           - certificate-recreate-enabled
           - configmap-permission-scoping
           - default
+          - default-otel
           - deployment-rolling-disabled
           - deployment-rolling-enabled
           - dualstack-endpoint-enabled

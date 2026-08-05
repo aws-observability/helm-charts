@@ -81,7 +81,7 @@ Helper function to modify auto-monitor config based on agent configurations
 {{- range .Values.agents -}}
   {{- $agent := mergeOverwrite (deepCopy $.Values.agent) . -}}
   {{- if and $.Values.applicationSignals.enabled (eq $.Values.applicationSignals.targetAgent $agent.name) -}}
-    {{- if and $agent.config (ne ($agent.config | toString) "default") -}}
+    {{- if and $agent.config (not (has ($agent.config | toString) (list "default" "default:otel"))) -}}
       {{- $agentConfig := $agent.config -}}
       {{- if or (and (hasKey $agentConfig "logs") (hasKey $agentConfig.logs "metrics_collected") (hasKey $agentConfig.logs.metrics_collected "application_signals")) (and (hasKey $agentConfig "traces") (hasKey $agentConfig.traces "traces_collected") (hasKey $agentConfig.traces.traces_collected "application_signals")) -}}
         {{- $hasAppSignals = true -}}
@@ -134,6 +134,26 @@ Logic:
   {{- $_ := set $config "logs" (dict "metrics_collected" $metricsCollected) -}}
 {{- end -}}
 {{- $config | toJson -}}
+{{- end -}}
+
+{{/*
+Build the "default:otel" CW Agent JSON config: the default config plus an OTLP receiver.
+Accepts a dict with "agentName" (string) and "context" (root context $).
+Returns a dict serialized to JSON.
+
+Adds otlp to whatever collect block build-default-config produced, rather than replacing it, so an
+otelContainerInsights container_insights section survives alongside it.
+
+Endpoints are set explicitly rather than left to the agent default so the receiver accepts traffic
+from other pods.
+*/}}
+{{- define "cloudwatch-agent.build-config-default-otel" -}}
+{{- $config := include "cloudwatch-agent.build-default-config" . | fromJson -}}
+{{- $otlp := dict "opentelemetry" (dict "collect" (dict "otlp" (dict
+      "span_metrics_enabled" true
+      "grpc_endpoint" "0.0.0.0:4317"
+      "http_endpoint" "0.0.0.0:4318"))) -}}
+{{- mergeOverwrite $config $otlp | toJson -}}
 {{- end -}}
 
 {{/*
@@ -450,7 +470,7 @@ Set DCGM_EXPORTER_INTERVAL environment variable for dcgmExporter if accelerated_
 {{- range .Values.agents -}}
   {{- $agent := mergeOverwrite (deepCopy $.Values.agent) . -}}
   {{- $agentConfig := $agent.config -}}
-  {{- if or (not $agentConfig) (eq ($agentConfig | toString) "default") -}}
+  {{- if or (not $agentConfig) (has ($agentConfig | toString) (list "default" "default:otel")) -}}
     {{- $agentConfig = dict -}}
   {{- end -}}
   {{- if and (hasKey $agentConfig "logs") (hasKey $agentConfig.logs "metrics_collected") (hasKey $agentConfig.logs.metrics_collected "kubernetes") (hasKey $agentConfig.logs.metrics_collected.kubernetes "accelerated_compute_gpu_metrics_collection_interval") -}}
