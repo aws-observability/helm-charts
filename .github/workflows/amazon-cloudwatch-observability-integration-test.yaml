@@ -44,6 +44,7 @@ jobs:
         # Keep sorted alphabetically.
         scenario:
           - agent-config-merge-isolation
+          - aks-otel-container-insights
           - appsignals-disabled
           - appsignals-disabled-multi-agents
           - appsignals-enabled-multi-agents

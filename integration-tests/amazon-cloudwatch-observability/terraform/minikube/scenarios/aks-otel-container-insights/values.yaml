@@ -1,0 +1,14 @@
+k8sMode: AKS
+# roleArn is required when k8sMode is AKS. The agent pods will not become healthy on minikube
+# (no Azure IMDS / workload identity), but the AmazonCloudWatchAgent CRs are rendered by the chart
+# and applied by helm regardless — the operator does not gate the helm release on pod readiness —
+# so the test validates the AKS-specific config baked into the CRs.
+roleArn: arn:aws:iam::123456789012:role/CloudWatchAgentServerRole
+region: us-east-1
+clusterName: minikube
+# Exercise the OTEL CI path (metrics + logs), which is where the AKS resource-detection and
+# cloud.resource_id derivation live.
+otelContainerInsights:
+  enabled: true
+  logs:
+    enabled: true
