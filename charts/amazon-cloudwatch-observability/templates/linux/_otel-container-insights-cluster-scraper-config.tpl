@@ -291,6 +291,26 @@ processors:
           - set(resource.attributes["k8s.component.name"], attributes["component"])
 
   resourcedetection/cw_k8s_ci_v0:
+    {{- if eq .Values.k8sMode "AKS" }}
+    detectors: [aks, azure]
+    aks:
+      resource_attributes:
+        cloud.platform: { enabled: true }
+        cloud.provider: { enabled: true }
+        k8s.cluster.name: { enabled: false }
+    azure:
+      resource_attributes:
+        azure.resourcegroup.name: { enabled: true }
+        azure.vm.name: { enabled: false }
+        azure.vm.scaleset.name: { enabled: false }
+        azure.vm.size: { enabled: false }
+        cloud.account.id: { enabled: true }
+        cloud.platform: { enabled: true }
+        cloud.provider: { enabled: true }
+        cloud.region: { enabled: true }
+        host.id: { enabled: false }
+        host.name: { enabled: false }
+    {{- else }}
     detectors: [eks, ec2]
     ec2:
       resource_attributes:
@@ -303,6 +323,7 @@ processors:
         cloud.region: { enabled: true }
         cloud.availability_zone: { enabled: true }
         cloud.account.id: { enabled: true }
+    {{- end }}
 
   nodemetadataenricher/cw_k8s_ci_v0: {}
 
@@ -340,8 +361,19 @@ processors:
     metric_statements:
       - context: resource
         statements:
+          {{- if eq .Values.k8sMode "AKS" }}
+          {{/* azure.resourcegroup.name is the node's group, not the cluster's: AKS nodes live in an
+               auto-generated MC_<clusterResourceGroup>_<cluster>_<region> group. */}}
+          - set(resource.attributes["_tmp.azure.resourcegroup.name"], resource.attributes["azure.resourcegroup.name"])
+            where resource.attributes["azure.resourcegroup.name"] != nil
+          - replace_pattern(resource.attributes["_tmp.azure.resourcegroup.name"], "^MC_(.+)_{{ .Values.clusterName }}_[^_]+$", "$$$1")
+          - set(resource.attributes["cloud.resource_id"], Concat(["/subscriptions/", resource.attributes["cloud.account.id"], "/resourceGroups/", resource.attributes["_tmp.azure.resourcegroup.name"], "/providers/Microsoft.ContainerService/managedClusters/", resource.attributes["k8s.cluster.name"]], ""))
+            where resource.attributes["cloud.account.id"] != nil and resource.attributes["_tmp.azure.resourcegroup.name"] != nil and resource.attributes["k8s.cluster.name"] != nil
+          - delete_key(resource.attributes, "_tmp.azure.resourcegroup.name")
+          {{- else }}
           - set(resource.attributes["cloud.resource_id"], Concat(["arn:aws:eks:", resource.attributes["cloud.region"], ":", resource.attributes["cloud.account.id"], ":cluster/", resource.attributes["k8s.cluster.name"]], ""))
             where resource.attributes["cloud.region"] != nil and resource.attributes["cloud.account.id"] != nil and resource.attributes["k8s.cluster.name"] != nil
+          {{- end }}
 
   batch/cw_k8s_ci_v0_cwotel:
     send_batch_size: 500

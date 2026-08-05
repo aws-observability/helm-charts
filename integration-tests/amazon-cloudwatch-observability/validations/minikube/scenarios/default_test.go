@@ -14,10 +14,11 @@ import (
 // TestDefault validates the out-of-box default install behavior.
 //
 // Default flag values (from values.yaml):
-//   containerInsights.enabled       = true  (default)
-//   containerLogs.enabled           = true  (default)
-//   otelContainerInsights.enabled       = false (default — OTEL is opt-in)
-//   otelContainerInsights.logs.enabled  = true  (default, but no-op when enabled=false)
+//
+//	containerInsights.enabled       = true  (default)
+//	containerLogs.enabled           = true  (default)
+//	otelContainerInsights.enabled       = false (default — OTEL is opt-in)
+//	otelContainerInsights.logs.enabled  = true  (default, but no-op when enabled=false)
 //
 // Result: legacy ECI metrics via CloudWatch Agent + FluentBit logs. No OTEL
 // Container Insights resources (cluster-scraper, kube-state-metrics, node-exporter).
