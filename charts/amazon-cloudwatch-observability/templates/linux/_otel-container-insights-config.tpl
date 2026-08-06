@@ -827,6 +827,12 @@ exporters:
 {{- end }}
 
 service:
+  # Pin internal self-telemetry off. Without this the collector falls back to its
+  # built-in default (metrics level Normal + a Prometheus reader on localhost:8888),
+  # which collides with the co-scheduled cluster-scraper on the node's :8888.
+  telemetry:
+    metrics:
+      level: none
   extensions:
     - sigv4auth/cw_k8s_ci_v0_metrics_dest
 {{- if .Values.otelContainerInsights.logs.enabled }}
