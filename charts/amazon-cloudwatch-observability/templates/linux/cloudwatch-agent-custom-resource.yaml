@@ -101,7 +101,9 @@ spec:
   affinity: {{- toYaml . | nindent 4 }}
   {{- end }}
   hostNetwork: {{ $agent.hostNetwork }}
-  {{- if and $agent.config (ne ($agent.config | toString) "default") }}
+  {{- if eq ($agent.config | toString) "default:otel" }}
+  config: {{ include "cloudwatch-agent.modify-config" (merge (dict "Config" (include "cloudwatch-agent.build-config-default-otel" (dict "agentName" $agent.name "context" $) | fromJson)) $ ) }}
+  {{- else if and $agent.config (ne ($agent.config | toString) "default") }}
   config: {{ include "cloudwatch-agent.modify-config" (merge (dict "Config" $agent.config) $ ) }}
   {{- else }}
   config: {{ include "cloudwatch-agent.modify-config" (merge (dict "Config" (include "cloudwatch-agent.build-default-config" (dict "agentName" $agent.name "context" $) | fromJson)) $ ) }}

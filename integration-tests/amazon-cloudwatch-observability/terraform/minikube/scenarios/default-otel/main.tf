@@ -11,8 +11,7 @@ resource "null_resource" "validator" {
   depends_on = [module.base.helm_release]
 
   provisioner "local-exec" {
-    # Anchored so it does not also match TestDefault*.
-    command = "go test ${var.test_dir} -v -run='TestDefault$'"
+    command = "go test ${var.test_dir} -v -run=TestDefaultOtel"
   }
 }
 

@@ -76,6 +76,9 @@ func TestAKSOtelContainerInsights(t *testing.T) {
 	t.Run("WebhookEnforcerDisabled", func(t *testing.T) {
 		validateAKSWebhookEnforcerDisabled(t, k8sClient)
 	})
+	t.Run("ApiserverTLSServerName", func(t *testing.T) {
+		validateAKSApiserverTLSServerName(t, agentMap)
+	})
 
 	t.Log("AKS OTEL Container Insights scenario validation passed")
 }
@@ -153,6 +156,18 @@ func validateOTELConfigRoutingAKS(t *testing.T, agentMap map[string]unstructured
 		assert.False(t, strings.Contains(scraper, "kubeletstats"),
 			"cluster-scraper otelConfig should NOT contain the kubeletstats receiver (node-level)")
 	}
+}
+
+// validateAKSApiserverTLSServerName checks the apiserver scrape verifies TLS against a DNS SAN. On
+// AKS, endpoints SD dials the managed control-plane IP, which is absent from the serving cert's SANs,
+// so without server_name every scrape fails TLS and no apiserver metrics reach CloudWatch.
+func validateAKSApiserverTLSServerName(t *testing.T, agentMap map[string]unstructured.Unstructured) {
+	scraper := otelConfigOf(t, agentMap, "cloudwatch-agent-cluster-scraper")
+	if scraper == "" {
+		return
+	}
+	assert.True(t, strings.Contains(scraper, "server_name: kubernetes.default.svc"),
+		"cluster-scraper otelConfig should set server_name for the apiserver TLS scrape on AKS")
 }
 
 // validateAKSServiceAttributes checks the AKS-gated service.*/deployment.environment.name are on the

@@ -17,6 +17,12 @@ receivers:
           tls_config:
             ca_file: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
             insecure_skip_verify: false
+            {{- if eq .Values.k8sMode "AKS" }}
+            # Endpoints SD dials the apiserver by IP. On AKS the managed control-plane endpoint IP is
+            # not in the serving cert's SANs (only DNS names + the ClusterIP are), so verify against a
+            # DNS SAN instead. On EKS the endpoint IPs are in the SANs, so this is not needed there.
+            server_name: kubernetes.default.svc
+            {{- end }}
           bearer_token_file: /var/run/secrets/kubernetes.io/serviceaccount/token
           kubernetes_sd_configs:
             - role: endpoints
