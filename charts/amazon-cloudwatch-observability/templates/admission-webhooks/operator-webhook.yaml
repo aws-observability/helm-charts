@@ -15,6 +15,13 @@ data:
 apiVersion: admissionregistration.k8s.io/v1
 kind: MutatingWebhookConfiguration
 metadata:
+  {{- if eq .Values.k8sMode "AKS" }}
+  annotations:
+    # Opt out of the AKS admissionsenforcer, which otherwise injects its own namespaceSelector into
+    # each webhook and takes server-side-apply ownership of the field, causing helm upgrade to
+    # conflict. See https://learn.microsoft.com/en-us/azure/aks/faq (admissions enforcer).
+    admissions.enforcer/disabled: "true"
+  {{- end }}
   labels:
     {{- include "amazon-cloudwatch-observability.labels" . | nindent 4}}
   name: {{ template "amazon-cloudwatch-observability.name" . }}-mutating-webhook-configuration
@@ -170,6 +177,13 @@ webhooks:
 apiVersion: admissionregistration.k8s.io/v1
 kind: ValidatingWebhookConfiguration
 metadata:
+  {{- if eq .Values.k8sMode "AKS" }}
+  annotations:
+    # Opt out of the AKS admissionsenforcer, which otherwise injects its own namespaceSelector into
+    # each webhook and takes server-side-apply ownership of the field, causing helm upgrade to
+    # conflict. See https://learn.microsoft.com/en-us/azure/aks/faq (admissions enforcer).
+    admissions.enforcer/disabled: "true"
+  {{- end }}
   labels:
     {{- include "amazon-cloudwatch-observability.labels" . | nindent 4}}
   name: {{ template "amazon-cloudwatch-observability.name" . }}-validating-webhook-configuration
