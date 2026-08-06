@@ -395,6 +395,12 @@ exporters:
       authenticator: sigv4auth/cw_k8s_ci_v0_cwotel
 
 service:
+  # Pin internal self-telemetry off. Without this the collector falls back to its
+  # built-in default (metrics level Normal + a Prometheus reader on localhost:8888),
+  # which collides with the co-scheduled node DaemonSet agent on the node's :8888.
+  telemetry:
+    metrics:
+      level: none
   extensions:
     - sigv4auth/cw_k8s_ci_v0_cwotel
     - nodemetadatacache/cw_k8s_ci_v0
