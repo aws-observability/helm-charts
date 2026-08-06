@@ -4,6 +4,12 @@ kind: MutatingWebhookConfiguration
 metadata:
   annotations:
     cert-manager.io/inject-ca-from: {{ printf "%s/%s-serving-cert" .Release.Namespace (include "amazon-cloudwatch-observability.name" .) }}
+    {{- if eq .Values.k8sMode "AKS" }}
+    # Opt out of the AKS admissionsenforcer, which otherwise injects its own namespaceSelector into
+    # each webhook and takes server-side-apply ownership of the field, causing helm upgrade to
+    # conflict. See https://learn.microsoft.com/en-us/azure/aks/faq (admissions enforcer).
+    admissions.enforcer/disabled: "true"
+    {{- end }}
   labels:
     {{- include "amazon-cloudwatch-observability.labels" . | nindent 4}}
   name: {{ template "amazon-cloudwatch-observability.name" . }}-mutating-webhook-configuration
@@ -156,6 +162,12 @@ kind: ValidatingWebhookConfiguration
 metadata:
   annotations:
     cert-manager.io/inject-ca-from: {{ printf "%s/%s-serving-cert" .Release.Namespace (include "amazon-cloudwatch-observability.name" .) }}
+    {{- if eq .Values.k8sMode "AKS" }}
+    # Opt out of the AKS admissionsenforcer, which otherwise injects its own namespaceSelector into
+    # each webhook and takes server-side-apply ownership of the field, causing helm upgrade to
+    # conflict. See https://learn.microsoft.com/en-us/azure/aks/faq (admissions enforcer).
+    admissions.enforcer/disabled: "true"
+    {{- end }}
   labels:
     {{- include "amazon-cloudwatch-observability.labels" . | nindent 4}}
   name: {{ template "amazon-cloudwatch-observability.name" . }}-validating-webhook-configuration

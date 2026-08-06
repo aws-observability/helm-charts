@@ -73,6 +73,9 @@ func TestAKSOtelContainerInsights(t *testing.T) {
 	t.Run("OTELConfigRouting", func(t *testing.T) {
 		validateOTELConfigRoutingAKS(t, agentMap)
 	})
+	t.Run("WebhookEnforcerDisabled", func(t *testing.T) {
+		validateAKSWebhookEnforcerDisabled(t, k8sClient)
+	})
 
 	t.Log("AKS OTEL Container Insights scenario validation passed")
 }
@@ -196,4 +199,40 @@ func validateAKSHostAttributes(t *testing.T, agentMap map[string]unstructured.Un
 
 	assertEnabled("node agent", otelConfigOf(t, agentMap, "cloudwatch-agent"), true)
 	assertEnabled("cluster-scraper", otelConfigOf(t, agentMap, "cloudwatch-agent-cluster-scraper"), false)
+}
+
+// validateAKSWebhookEnforcerDisabled checks the webhook configurations carry the
+// admissions.enforcer/disabled annotation on AKS. Without it, the AKS admissionsenforcer rewrites each
+// webhook's namespaceSelector and takes server-side-apply ownership of the field, which makes the next
+// helm upgrade fail with an apply conflict.
+func validateAKSWebhookEnforcerDisabled(t *testing.T, k8sClient *util.K8sClient) {
+	const enforcerDisabled = "admissions.enforcer/disabled"
+
+	mwc, err := k8sClient.ListMutatingWebhookConfigurations()
+	require.NoError(t, err, "failed to list MutatingWebhookConfigurations")
+	assertEnforcerDisabled := func(name string, annotations map[string]string) {
+		assert.Equal(t, "true", annotations[enforcerDisabled],
+			"%s should set %s on AKS", name, enforcerDisabled)
+	}
+
+	foundMutating := false
+	for _, wh := range mwc.Items {
+		if wh.Name == minikube.WebhookName {
+			foundMutating = true
+			assertEnforcerDisabled(wh.Name, wh.Annotations)
+		}
+	}
+	assert.True(t, foundMutating, "mutating webhook configuration %s should exist", minikube.WebhookName)
+
+	vwc, err := k8sClient.ListValidatingWebhookConfigurations()
+	require.NoError(t, err, "failed to list ValidatingWebhookConfigurations")
+	validatingName := "amazon-cloudwatch-observability-validating-webhook-configuration"
+	foundValidating := false
+	for _, wh := range vwc.Items {
+		if wh.Name == validatingName {
+			foundValidating = true
+			assertEnforcerDisabled(wh.Name, wh.Annotations)
+		}
+	}
+	assert.True(t, foundValidating, "validating webhook configuration %s should exist", validatingName)
 }
