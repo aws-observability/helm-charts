@@ -237,6 +237,26 @@ processors:
   # Karpenter-specific resource detection: only cloud-level attributes (region, account).
   # No host/AZ attributes — those would incorrectly reflect the scraper's node, not Karpenter's.
   resourcedetection/cw_k8s_ci_v0_karpenter:
+    {{- if eq .Values.k8sMode "AKS" }}
+    detectors: [aks, azure]
+    aks:
+      resource_attributes:
+        cloud.platform: { enabled: true }
+        cloud.provider: { enabled: true }
+        k8s.cluster.name: { enabled: false }
+    azure:
+      resource_attributes:
+        azure.resourcegroup.name: { enabled: true }
+        azure.vm.name: { enabled: false }
+        azure.vm.scaleset.name: { enabled: false }
+        azure.vm.size: { enabled: false }
+        cloud.account.id: { enabled: true }
+        cloud.platform: { enabled: true }
+        cloud.provider: { enabled: true }
+        cloud.region: { enabled: true }
+        host.id: { enabled: false }
+        host.name: { enabled: false }
+    {{- else }}
     detectors: [eks, ec2]
     ec2:
       resource_attributes:
@@ -249,6 +269,7 @@ processors:
         cloud.region: { enabled: true }
         cloud.availability_zone: { enabled: false }
         cloud.account.id: { enabled: true }
+    {{- end }}
 {{- end }}
 
 {{- if and .Values.otelContainerInsights.solutions.enabled .Values.otelContainerInsights.solutions.keda.enabled }}
@@ -297,14 +318,23 @@ processors:
   resourcedetection/cw_k8s_ci_v0_keda:
     {{- if eq .Values.k8sMode "AKS" }}
     detectors: [aks, azure]
+    aks:
+      resource_attributes:
+        cloud.platform: { enabled: true }
+        cloud.provider: { enabled: true }
+        k8s.cluster.name: { enabled: false }
     azure:
       resource_attributes:
+        azure.resourcegroup.name: { enabled: true }
+        azure.vm.name: { enabled: false }
+        azure.vm.scaleset.name: { enabled: false }
+        azure.vm.size: { enabled: false }
+        cloud.account.id: { enabled: true }
+        cloud.platform: { enabled: true }
+        cloud.provider: { enabled: true }
+        cloud.region: { enabled: true }
         host.id: { enabled: false }
         host.name: { enabled: false }
-        cloud.provider: { enabled: true }
-        cloud.platform: { enabled: true }
-        cloud.region: { enabled: true }
-        cloud.account.id: { enabled: true }
     {{- else }}
     detectors: [eks, ec2]
     ec2:
