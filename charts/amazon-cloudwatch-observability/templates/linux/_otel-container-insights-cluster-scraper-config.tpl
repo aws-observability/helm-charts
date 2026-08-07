@@ -295,6 +295,17 @@ processors:
           - set(attributes["node"], resource.attributes["node"]) where resource.attributes["node"] != nil
 
   resourcedetection/cw_k8s_ci_v0_keda:
+    {{- if eq .Values.k8sMode "AKS" }}
+    detectors: [aks, azure]
+    azure:
+      resource_attributes:
+        host.id: { enabled: false }
+        host.name: { enabled: false }
+        cloud.provider: { enabled: true }
+        cloud.platform: { enabled: true }
+        cloud.region: { enabled: true }
+        cloud.account.id: { enabled: true }
+    {{- else }}
     detectors: [eks, ec2]
     ec2:
       resource_attributes:
@@ -307,6 +318,7 @@ processors:
         cloud.region: { enabled: true }
         cloud.availability_zone: { enabled: false }
         cloud.account.id: { enabled: true }
+    {{- end }}
 {{- end }}
 
   transform/cw_k8s_ci_v0_set_cluster_name:
