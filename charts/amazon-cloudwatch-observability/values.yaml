@@ -1195,3 +1195,10 @@ otelContainerInsights:
       enabled: true
       ## Namespace where KEDA is deployed.
       namespace: "keda"
+  ## Optional Prometheus scraping of vLLM model-server metrics (vllm:* series)
+  ## from KServe InferenceService pods, published through the OTEL CI pipeline.
+  ## Only takes effect when otelContainerInsights.enabled is true.
+  vllm:
+    enabled: false
+    ## Namespace where the vLLM/KServe InferenceService pods run. Empty = all namespaces.
+    namespace: ""

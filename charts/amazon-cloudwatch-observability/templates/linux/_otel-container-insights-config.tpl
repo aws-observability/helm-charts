@@ -120,6 +120,40 @@ receivers:
               regex: metrics
               action: keep
 
+  {{- if .Values.otelContainerInsights.vllm.enabled }}
+  # vLLM model-server metrics (vllm:* Prometheus series). Pod-discovery scrape
+  # on the local node, keyed on the KServe InferenceService label + container
+  # port 8080. Mirrors the ebs-csi-node pattern.
+  prometheus/cw_k8s_ci_v0_vllm:
+    config:
+      scrape_configs:
+        - job_name: vllm
+          scrape_interval: {{ .Values.otelContainerInsights.metricResolution }}
+          scrape_timeout: {{ include "otel-container-insights.scrapeTimeout" . }}
+          metrics_path: /metrics
+          kubernetes_sd_configs:
+            - role: pod
+              {{- if .Values.otelContainerInsights.vllm.namespace }}
+              namespaces:
+                names:
+                  - {{ .Values.otelContainerInsights.vllm.namespace }}
+              {{- end }}
+          relabel_configs:
+            # keep only KServe InferenceService pods (match the label VALUE, like
+            # the ebs-csi job keys on pod_label_app)
+            - source_labels: [__meta_kubernetes_pod_label_serving_kserve_io_inferenceservice]
+              regex: .+
+              action: keep
+            # scrape the vLLM container's metrics port (8080, named "user-port")
+            - source_labels: [__meta_kubernetes_pod_container_port_name]
+              regex: user-port
+              action: keep
+            # expose the InferenceService name as a label for CloudWatch dimensioning
+            - source_labels: [__meta_kubernetes_pod_label_serving_kserve_io_inferenceservice]
+              target_label: inferenceservice
+              action: replace
+  {{- end }}
+
   kubeletstats/cw_k8s_ci_v0:
     auth_type: serviceAccount
     collection_interval: {{ .Values.otelContainerInsights.metricResolution }}
@@ -338,6 +372,16 @@ processors:
           - set(attributes["cloudwatch.source"], "cloudwatch-agent")
           - set(attributes["cloudwatch.solution"], "k8s-otel-container-insights")
           - set(attributes["cloudwatch.pipeline"], "ebs-csi")
+
+  transform/cw_k8s_ci_v0_set_scope_vllm:
+    error_mode: ignore
+    metric_statements:
+      - context: scope
+        statements:
+          - set(scope.schema_url, "")
+          - set(attributes["cloudwatch.source"], "cloudwatch-agent")
+          - set(attributes["cloudwatch.solution"], "k8s-otel-container-insights")
+          - set(attributes["cloudwatch.pipeline"], "vllm")
 
   transform/cw_k8s_ci_v0_set_scope_lis_csi:
     error_mode: ignore
@@ -966,6 +1010,28 @@ service:
         - batch/cw_k8s_ci_v0_metrics_dest
       exporters:
         - otlphttp/cw_k8s_ci_v0_metrics_dest
+
+{{- if .Values.otelContainerInsights.vllm.enabled }}
+    metrics/cw_k8s_ci_v0_vllm:
+      receivers: [prometheus/cw_k8s_ci_v0_vllm]
+      processors:
+        - filter/cw_k8s_ci_v0_scrape_metadata
+        - transform/cw_k8s_ci_v0_set_unit
+        - metricstarttime/cw_k8s_ci_v0
+        - transform/cw_k8s_ci_v0_set_cluster_name
+        - transform/cw_k8s_ci_v0_set_node_name
+        - transform/cw_k8s_ci_v0_promote_node_name
+        - resourcedetection/cw_k8s_ci_v0
+        - transform/cw_k8s_ci_v0_set_cloud_resource_id
+        - k8sattributes/cw_k8s_ci_v0_node
+        - transform/cw_k8s_ci_v0_set_scope_vllm
+        - transform/cw_k8s_ci_v0_clear_schema_url
+        - transform/cw_k8s_ci_v0_set_workload
+        - awsattributelimit/cw_k8s_ci_v0
+        - batch/cw_k8s_ci_v0_metrics_dest
+      exporters:
+        - otlphttp/cw_k8s_ci_v0_metrics_dest
+{{- end }}
 
     metrics/cw_k8s_ci_v0_lis_csi_node:
       receivers: [prometheus/cw_k8s_ci_v0_lis_csi_node]
