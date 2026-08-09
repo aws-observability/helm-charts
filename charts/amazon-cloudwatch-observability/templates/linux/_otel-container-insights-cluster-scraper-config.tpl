@@ -606,12 +606,16 @@ exporters:
       authenticator: sigv4auth/cw_k8s_ci_v0_cwotel
 
 service:
+  {{- if not .Values.selfTelemetry.enabled }}
   # Pin internal self-telemetry off. Without this the collector falls back to its
   # built-in default (metrics level Normal + a Prometheus reader on localhost:8888),
   # which collides with the co-scheduled node DaemonSet agent on the node's :8888.
+  # When selfTelemetry is enabled it owns service.telemetry (with a non-8888 port), so this
+  # pin is omitted to avoid a merge race over the same key.
   telemetry:
     metrics:
       level: none
+  {{- end }}
   extensions:
     - sigv4auth/cw_k8s_ci_v0_cwotel
     - nodemetadatacache/cw_k8s_ci_v0

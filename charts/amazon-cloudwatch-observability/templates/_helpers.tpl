@@ -248,13 +248,35 @@ Helper function to modify cloudwatch-agent config
 {{- end }}
 
 {{/*
+Resolve the self telemetry port for an agent, empty when the agent has no entry. selfTelemetry.ports
+therefore decides which agents serve the endpoint, which keeps agents that were never given a port,
+such as the Windows daemonsets, out of it.
+*/}}
+{{- define "cloudwatch-agent.self-telemetry-port" -}}
+{{- $ports := (.context.Values.selfTelemetry).ports | default dict -}}
+{{- if .agentName -}}
+{{- index $ports .agentName | default "" -}}
+{{- end -}}
+{{- end }}
+
+{{/*
 Helper function to modify customer supplied agent config if ContainerInsights or ApplicationSignals is enabled
 */}}
 {{- define "cloudwatch-agent.modify-config" -}}
-{{- if and (hasKey .Config "logs") (or (and (hasKey .Config.logs "metrics_collected") (hasKey .Config.logs.metrics_collected "application_signals")) (and (hasKey .Config.logs "metrics_collected") (hasKey .Config.logs.metrics_collected "kubernetes"))) }}
-{{- include "cloudwatch-agent.config-modifier" . }}
+{{- $configCopy := deepCopy .Config }}
+{{- $selfTelemetry := .Values.selfTelemetry | default dict }}
+{{- $selfTelemetryPort := include "cloudwatch-agent.self-telemetry-port" (dict "agentName" .agentName "context" .) }}
+{{- if and $selfTelemetry.enabled $selfTelemetryPort }}
+{{- if not (hasKey $configCopy "agent") }}
+{{- $_ := set $configCopy "agent" dict }}
+{{- end }}
+{{- $_ := set $configCopy.agent "self_telemetry" (dict "enabled" true "port" ($selfTelemetryPort | int)) }}
+{{- end }}
+{{- $ctx := merge (dict "Config" $configCopy) . }}
+{{- if and (hasKey $configCopy "logs") (or (and (hasKey $configCopy.logs "metrics_collected") (hasKey $configCopy.logs.metrics_collected "application_signals")) (and (hasKey $configCopy.logs "metrics_collected") (hasKey $configCopy.logs.metrics_collected "kubernetes"))) }}
+{{- include "cloudwatch-agent.config-modifier" $ctx }}
 {{- else }}
-{{- default "" .Config | toJson | quote }}
+{{- default "" $configCopy | toJson | quote }}
 {{- end }}
 {{- end }}
 

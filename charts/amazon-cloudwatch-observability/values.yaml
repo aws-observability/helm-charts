@@ -1195,3 +1195,36 @@ otelContainerInsights:
       enabled: true
       ## Namespace where KEDA is deployed.
       namespace: "keda"
+
+## ══════════════════════════════════════════════════════════════════════════════
+## Self Telemetry
+## ══════════════════════════════════════════════════════════════════════════════
+##
+## Serves the agent's own metrics on a loopback prometheus endpoint: the
+## collector's otelcol_* metrics plus the discovery and scrape state of every
+## prometheus receiver, including the Telegraf prometheus plugin. This is how a
+## scrape pool that discovered nothing becomes visible, via
+## prometheus_target_scrape_pool_targets reaching zero.
+##
+## The endpoint is bound to 127.0.0.1 and there is no bind address option, so
+## enabling it never publishes anything off the node and adds no Service port.
+## Nothing is emitted to CloudWatch on its own.
+##
+## To get these metrics anywhere, point the agent's own prometheus scrape config
+## at the endpoint on the same node - the agent scrapes itself. See
+## https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/CloudWatch-Agent-PrometheusEC2.html
+## and set agents[].config.logs.metrics_collected.prometheus with a scrape job
+## targeting 127.0.0.1:<port>.
+##
+selfTelemetry:
+  enabled: false
+  ## The agents that serve the endpoint, and the loopback port each one binds. An
+  ## agent with no entry here does not serve it at all.
+  ##
+  ## Agents run with hostNetwork, so they share the node's port space and cannot
+  ## share a port: a port already in use makes the agent fail to start rather
+  ## than degrade. These defaults also sit below the 32768-60999 ephemeral range,
+  ## so the kernel cannot hand the port to an outbound connection first.
+  ports:
+    cloudwatch-agent: 28888
+    cloudwatch-agent-cluster-scraper: 28889
