@@ -1132,6 +1132,10 @@ containerInsights:
   enabled: true
   ## The agent in the agents array that receives legacy Container Insights config.
   targetAgent: "cloudwatch-agent"
+  ## Watch ReplicaSets cluster-wide to attribute pods to their Deployment (sets
+  ## k8s.deployment.name). Set to false to stop the cluster-wide ReplicaSet informer;
+  ## pods keep k8s.replicaset.name (from ownerRef, no informer). Default true.
+  watchReplicaset: true
 
 ## Controls the Application Signals pipeline (application performance monitoring via traces and metrics).
 applicationSignals:
@@ -1159,6 +1163,11 @@ applicationSignals:
 ##
 otelContainerInsights:
   enabled: false
+  ## Watch ReplicaSets to attribute pods to their Deployment via the k8sattributes
+  ## processor (adds k8s.deployment.name to the extract). Set to false to drop
+  ## k8s.deployment.name, which stops the k8sattributes ReplicaSet informer on every
+  ## agent running this pipeline; k8s.replicaset.name is unaffected. Default true.
+  watchReplicaset: true
   ## OTEL-native CI log pipelines (application, host).
   ## Only takes effect when otelContainerInsights.enabled is true.
   logs:

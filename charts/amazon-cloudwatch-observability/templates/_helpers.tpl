@@ -128,7 +128,12 @@ Logic:
 {{/* Container Insights: add logs.metrics_collected.kubernetes */}}
 {{- if and $ctx.Values.containerInsights.enabled (eq $ctx.Values.containerInsights.targetAgent $agentName) -}}
   {{- $needsLogs = true -}}
-  {{- $_ := set $metricsCollected "kubernetes" (dict "enhanced_container_insights" true) -}}
+  {{- $kubernetes := dict "enhanced_container_insights" true -}}
+  {{/* watch_replicaset is on by default in the agent; only emit it when opting out so default renders stay byte-identical */}}
+  {{- if not $ctx.Values.containerInsights.watchReplicaset -}}
+    {{- $_ := set $kubernetes "watch_replicaset" false -}}
+  {{- end -}}
+  {{- $_ := set $metricsCollected "kubernetes" $kubernetes -}}
 {{- end -}}
 {{- if $needsLogs -}}
   {{- $_ := set $config "logs" (dict "metrics_collected" $metricsCollected) -}}
