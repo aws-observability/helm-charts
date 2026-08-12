@@ -788,6 +788,15 @@ agent:
     config:
     targetAllocator:
       enabled: false
+      # allocationStrategy determines how the Target Allocator distributes scrape
+      # targets across CloudWatch Agent pods. "per-node" assigns each target to the
+      # agent on the same node (avoids cross-node/cross-AZ scrape traffic); targets
+      # without a resolvable node fall back to consistent-hashing. "consistent-hashing"
+      # spreads targets across all agents by hash.
+      # Unset: defaults to "per-node" on the otelContainerInsights scraping path and
+      # "consistent-hashing" otherwise (so existing static-config Target Allocators
+      # keep their prior behavior). Set explicitly to override.
+      allocationStrategy: ""
       image:
         repository: cloudwatch-agent-target-allocator
         tag: 1.0.0
@@ -1162,6 +1171,17 @@ otelContainerInsights:
   ## OTEL-native CI log pipelines (application, host).
   ## Only takes effect when otelContainerInsights.enabled is true.
   logs:
+    enabled: true
+  ## Prometheus ServiceMonitor scraping (monitoring.coreos.com/v1) via the Target
+  ## Allocator's prometheusCR discovery. Defaults to true: when
+  ## otelContainerInsights is enabled, ServiceMonitor scraping is on unless
+  ## explicitly disabled here. Only takes effect when otelContainerInsights.enabled is true.
+  serviceMonitor:
+    enabled: true
+  ## Prometheus PodMonitor scraping (monitoring.coreos.com/v1) via the Target
+  ## Allocator's prometheusCR discovery. Defaults to true (see serviceMonitor note).
+  ## Only takes effect when otelContainerInsights.enabled is true.
+  podMonitor:
     enabled: true
   ## The agent in the agents array that receives node-level OTEL Container Insights config.
   targetAgent: "cloudwatch-agent"
