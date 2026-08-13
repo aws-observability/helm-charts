@@ -31,7 +31,7 @@ containerLogs:
   fluentBit:
     image:
       repository: aws-for-fluent-bit
-      tag: 3.4.8
+      tag: 3.4.12
       tagWindows: 2.31.12-windowsservercore
       repositoryDomainMap:
         public: public.ecr.aws/aws-observability
@@ -466,7 +466,7 @@ manager:
   name:
   image:
     repository: cloudwatch-agent-operator
-    tag: 3.6.0
+    tag: 3.7.0
     repositoryDomainMap:
       public: public.ecr.aws/cloudwatch-agent
       cn-north-1: 934860584483.dkr.ecr.cn-north-1.amazonaws.com.cn
@@ -481,7 +481,7 @@ manager:
     python:
       repositoryDomain: public.ecr.aws/aws-observability
       repository: adot-autoinstrumentation-python
-      tag: v0.18.0
+      tag: v0.19.0
     dotnet:
       repositoryDomain: public.ecr.aws/aws-observability
       repository: adot-autoinstrumentation-dotnet
@@ -726,7 +726,7 @@ agent:
   replicas: 1 # The total number non-terminated pods targeted by this AmazonCloudWatchAgent's deployment or statefulSet.
   image:
     repository: cloudwatch-agent
-    tag: 1.300070.0b1586
+    tag: 1.300071.0b1720
     repositoryDomainMap:
       public: public.ecr.aws/cloudwatch-agent
       cn-north-1: 934860584483.dkr.ecr.cn-north-1.amazonaws.com.cn
@@ -1099,7 +1099,7 @@ nodeExporter:
       us-gov-west-1: 013241004608.dkr.ecr.us-gov-west-1.amazonaws.com
     # Used in China/GovCloud regions where the public upstream image isn't available; the helper falls back to repositoryDomainMap[region]/restrictedRepository:restrictedTag
     restrictedRepository: eks/prometheus-node-exporter
-    restrictedTag: v1.12.1-eksbuild.1
+    restrictedTag: v1.12.1-eksbuild.2
   resources:
     limits:
       cpu: 200m
