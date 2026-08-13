@@ -199,6 +199,26 @@ Logic:
 {{- if not (kindIs "bool" .Values.otelContainerInsights.logs.enabled) }}
 {{- fail "otelContainerInsights.logs.enabled must be a boolean (true/false)" }}
 {{- end }}
+{{- if not (kindIs "bool" .Values.containerInsights.watchReplicaset) }}
+{{- fail "containerInsights.watchReplicaset must be a boolean (true/false)" }}
+{{- end }}
+{{- if not (kindIs "bool" .Values.otelContainerInsights.watchReplicaset) }}
+{{- fail "otelContainerInsights.watchReplicaset must be a boolean (true/false)" }}
+{{- end }}
+{{- $selfTelemetry := .Values.selfTelemetry | default dict }}
+{{- if and (hasKey $selfTelemetry "enabled") (not (kindIs "bool" $selfTelemetry.enabled)) }}
+{{- fail "selfTelemetry.enabled must be a boolean (true/false)" }}
+{{- end }}
+{{- /* Agents share the node's hostNetwork port space, so two agents on the same self-telemetry
+       port makes one fail to start. Reject duplicate port assignments up front. */ -}}
+{{- $seenPorts := dict }}
+{{- range $agent, $port := ($selfTelemetry.ports | default dict) }}
+{{- $portKey := $port | toString }}
+{{- if hasKey $seenPorts $portKey }}
+{{- fail (printf "selfTelemetry.ports assigns port %v to both %s and %s; each agent needs a unique port" $port (index $seenPorts $portKey) $agent) }}
+{{- end }}
+{{- $_ := set $seenPorts $portKey $agent }}
+{{- end }}
 {{- end -}}
 
 {{- define "cloudwatch-agent.build-default-otel-config" -}}
@@ -224,8 +244,12 @@ Helper function to modify cloudwatch-agent config
 
 {{- $agent := pluck "agent" $configCopy | first }}
 {{- if or (empty $agent) (empty $agent.region) }}
-{{- $agentRegion := dict "region" .Values.region }}
-{{- $agent := set $configCopy "agent" $agentRegion }}
+{{- if not (hasKey $configCopy "agent") }}
+{{- $_ := set $configCopy "agent" dict }}
+{{- end }}
+{{- /* Set region on the existing agent map; replacing the whole map would drop other agent
+       keys such as the injected self_telemetry. */ -}}
+{{- $_ := set $configCopy.agent "region" .Values.region }}
 {{- end }}
 
 {{- if .Values.useDualstackEndpoint }}
@@ -260,7 +284,17 @@ such as the Windows daemonsets, out of it.
 {{- define "cloudwatch-agent.self-telemetry-port" -}}
 {{- $ports := (.context.Values.selfTelemetry).ports | default dict -}}
 {{- if .agentName -}}
-{{- index $ports .agentName | default "" -}}
+{{- $port := index $ports .agentName | default "" -}}
+{{- if $port -}}
+{{- if not (regexMatch "^[0-9]+$" ($port | toString)) -}}
+{{- fail (printf "selfTelemetry.ports.%s must be a numeric TCP port, got %q" .agentName ($port | toString)) -}}
+{{- end -}}
+{{- $p := $port | int -}}
+{{- if or (lt $p 1) (gt $p 65535) -}}
+{{- fail (printf "selfTelemetry.ports.%s must be within 1-65535, got %d" .agentName $p) -}}
+{{- end -}}
+{{- end -}}
+{{- $port -}}
 {{- end -}}
 {{- end }}
 
@@ -268,6 +302,7 @@ such as the Windows daemonsets, out of it.
 Helper function to modify customer supplied agent config if ContainerInsights or ApplicationSignals is enabled
 */}}
 {{- define "cloudwatch-agent.modify-config" -}}
+{{- include "cloudwatch-agent.validate-flags" . -}}
 {{- $configCopy := deepCopy .Config }}
 {{- $selfTelemetry := .Values.selfTelemetry | default dict }}
 {{- $selfTelemetryPort := include "cloudwatch-agent.self-telemetry-port" (dict "agentName" .agentName "context" .) }}

@@ -608,12 +608,14 @@ exporters:
       authenticator: sigv4auth/cw_k8s_ci_v0_cwotel
 
 service:
-  {{- if not .Values.selfTelemetry.enabled }}
+  {{- $selfTelemetry := .Values.selfTelemetry | default dict }}
+  {{- $selfTelemetryPort := include "cloudwatch-agent.self-telemetry-port" (dict "agentName" .Values.otelContainerInsights.clusterScraperAgent "context" .) }}
+  {{- if not (and $selfTelemetry.enabled $selfTelemetryPort) }}
   # Pin internal self-telemetry off. Without this the collector falls back to its
   # built-in default (metrics level Normal + a Prometheus reader on localhost:8888),
   # which collides with the co-scheduled node DaemonSet agent on the node's :8888.
-  # When selfTelemetry is enabled it owns service.telemetry (with a non-8888 port), so this
-  # pin is omitted to avoid a merge race over the same key.
+  # Only omitted when THIS agent has a resolved self-telemetry port (so it actually owns
+  # service.telemetry on a non-8888 port); the global flag alone is not enough.
   telemetry:
     metrics:
       level: none
