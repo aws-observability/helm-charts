@@ -863,15 +863,20 @@ service:
 {{- if or .Values.otelContainerInsights.serviceMonitor.enabled .Values.otelContainerInsights.podMonitor.enabled }}
     metrics/cw_k8s_ci_v0_prometheuscr:
       receivers: [prometheus/cw_k8s_ci_v0_prometheuscr]
-      # Phase 1: minimal chain to get ServiceMonitor/PodMonitor series flowing to v2.
-      # Richer OTel label/metadata enrichment (k8sattributes pod/node, workload, etc.)
-      # is intentionally deferred to the Phase 3 enrichment work.
+      # Phase 1 chain to get ServiceMonitor/PodMonitor series flowing to v2, plus the
+      # shared normalization/cap every other CI metrics pipeline applies before batch
+      # (cloud resource id, schema-url clear, attribute limit) so SM/PM metrics are
+      # normalized and bounded the same way. Richer OTel enrichment (k8sattributes
+      # pod/node, workload, etc.) is intentionally deferred to the Phase 3 enrichment work.
       processors:
         - filter/cw_k8s_ci_v0_scrape_metadata
         - metricstarttime/cw_k8s_ci_v0
         - transform/cw_k8s_ci_v0_set_cluster_name
         - transform/cw_k8s_ci_v0_set_scope_prometheuscr
         - resourcedetection/cw_k8s_ci_v0
+        - transform/cw_k8s_ci_v0_set_cloud_resource_id
+        - transform/cw_k8s_ci_v0_clear_schema_url
+        - awsattributelimit/cw_k8s_ci_v0
         - batch/cw_k8s_ci_v0_metrics_dest
       exporters:
         - otlphttp/cw_k8s_ci_v0_metrics_dest
