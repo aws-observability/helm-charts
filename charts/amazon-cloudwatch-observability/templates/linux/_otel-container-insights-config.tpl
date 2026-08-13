@@ -537,6 +537,7 @@ processors:
         - attributes["container"] == "" and attributes["pod"] == nil
         - attributes["container"] == nil and attributes["pod"] == ""
         - attributes["container"] == nil and attributes["pod"] == nil
+        - IsMatch(attributes["id"], "^/kubepods\\.slice/kubepods-pod[^/]+\\.slice$")
 
   filter/cw_k8s_ci_v0_cadvisor_pod:
     error_mode: ignore
