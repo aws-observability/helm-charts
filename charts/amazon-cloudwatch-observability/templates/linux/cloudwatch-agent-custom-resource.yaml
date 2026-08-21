@@ -102,11 +102,11 @@ spec:
   {{- end }}
   hostNetwork: {{ $agent.hostNetwork }}
   {{- if eq ($agent.config | toString) "default:otel" }}
-  config: {{ include "cloudwatch-agent.modify-config" (merge (dict "Config" (include "cloudwatch-agent.build-config-default-otel" (dict "agentName" $agent.name "context" $) | fromJson)) $ ) }}
+  config: {{ include "cloudwatch-agent.modify-config" (merge (dict "Config" (include "cloudwatch-agent.build-config-default-otel" (dict "agentName" $agent.name "context" $) | fromJson) "agentName" $agent.name) $ ) }}
   {{- else if and $agent.config (ne ($agent.config | toString) "default") }}
-  config: {{ include "cloudwatch-agent.modify-config" (merge (dict "Config" $agent.config) $ ) }}
+  config: {{ include "cloudwatch-agent.modify-config" (merge (dict "Config" $agent.config "agentName" $agent.name) $ ) }}
   {{- else }}
-  config: {{ include "cloudwatch-agent.modify-config" (merge (dict "Config" (include "cloudwatch-agent.build-default-config" (dict "agentName" $agent.name "context" $) | fromJson)) $ ) }}
+  config: {{ include "cloudwatch-agent.modify-config" (merge (dict "Config" (include "cloudwatch-agent.build-default-config" (dict "agentName" $agent.name "context" $) | fromJson) "agentName" $agent.name) $ ) }}
   {{- end }}
   {{- $generatedOtelConfig := include "cloudwatch-agent.build-default-otel-config" (dict "agentName" $agent.name "context" $) -}}
   {{- if $agent.otelConfig }}

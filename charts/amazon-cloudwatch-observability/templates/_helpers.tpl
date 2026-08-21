@@ -128,7 +128,12 @@ Logic:
 {{/* Container Insights: add logs.metrics_collected.kubernetes */}}
 {{- if and $ctx.Values.containerInsights.enabled (eq $ctx.Values.containerInsights.targetAgent $agentName) -}}
   {{- $needsLogs = true -}}
-  {{- $_ := set $metricsCollected "kubernetes" (dict "enhanced_container_insights" true) -}}
+  {{- $kubernetes := dict "enhanced_container_insights" true -}}
+  {{/* watch_replicaset is on by default in the agent; only emit it when opting out so default renders stay byte-identical */}}
+  {{- if not $ctx.Values.containerInsights.watchReplicaset -}}
+    {{- $_ := set $kubernetes "watch_replicaset" false -}}
+  {{- end -}}
+  {{- $_ := set $metricsCollected "kubernetes" $kubernetes -}}
 {{- end -}}
 {{- if $needsLogs -}}
   {{- $_ := set $config "logs" (dict "metrics_collected" $metricsCollected) -}}
@@ -194,6 +199,26 @@ Logic:
 {{- if not (kindIs "bool" .Values.otelContainerInsights.logs.enabled) }}
 {{- fail "otelContainerInsights.logs.enabled must be a boolean (true/false)" }}
 {{- end }}
+{{- if not (kindIs "bool" .Values.containerInsights.watchReplicaset) }}
+{{- fail "containerInsights.watchReplicaset must be a boolean (true/false)" }}
+{{- end }}
+{{- if not (kindIs "bool" .Values.otelContainerInsights.watchReplicaset) }}
+{{- fail "otelContainerInsights.watchReplicaset must be a boolean (true/false)" }}
+{{- end }}
+{{- $selfTelemetry := .Values.selfTelemetry | default dict }}
+{{- if and (hasKey $selfTelemetry "enabled") (not (kindIs "bool" $selfTelemetry.enabled)) }}
+{{- fail "selfTelemetry.enabled must be a boolean (true/false)" }}
+{{- end }}
+{{- /* Agents share the node's hostNetwork port space, so two agents on the same self-telemetry
+       port makes one fail to start. Reject duplicate port assignments up front. */ -}}
+{{- $seenPorts := dict }}
+{{- range $agent, $port := ($selfTelemetry.ports | default dict) }}
+{{- $portKey := $port | toString }}
+{{- if hasKey $seenPorts $portKey }}
+{{- fail (printf "selfTelemetry.ports assigns port %v to both %s and %s; each agent needs a unique port" $port (index $seenPorts $portKey) $agent) }}
+{{- end }}
+{{- $_ := set $seenPorts $portKey $agent }}
+{{- end }}
 {{- end -}}
 
 {{- define "cloudwatch-agent.build-default-otel-config" -}}
@@ -219,8 +244,12 @@ Helper function to modify cloudwatch-agent config
 
 {{- $agent := pluck "agent" $configCopy | first }}
 {{- if or (empty $agent) (empty $agent.region) }}
-{{- $agentRegion := dict "region" .Values.region }}
-{{- $agent := set $configCopy "agent" $agentRegion }}
+{{- if not (hasKey $configCopy "agent") }}
+{{- $_ := set $configCopy "agent" dict }}
+{{- end }}
+{{- /* Set region on the existing agent map; replacing the whole map would drop other agent
+       keys such as the injected self_telemetry. */ -}}
+{{- $_ := set $configCopy.agent "region" .Values.region }}
 {{- end }}
 
 {{- if .Values.useDualstackEndpoint }}
@@ -248,13 +277,46 @@ Helper function to modify cloudwatch-agent config
 {{- end }}
 
 {{/*
+Resolve the self telemetry port for an agent, empty when the agent has no entry. selfTelemetry.ports
+therefore decides which agents serve the endpoint, which keeps agents that were never given a port,
+such as the Windows daemonsets, out of it.
+*/}}
+{{- define "cloudwatch-agent.self-telemetry-port" -}}
+{{- $ports := (.context.Values.selfTelemetry).ports | default dict -}}
+{{- if .agentName -}}
+{{- $port := index $ports .agentName | default "" -}}
+{{- if $port -}}
+{{- if not (regexMatch "^[0-9]+$" ($port | toString)) -}}
+{{- fail (printf "selfTelemetry.ports.%s must be a numeric TCP port, got %q" .agentName ($port | toString)) -}}
+{{- end -}}
+{{- $p := $port | int -}}
+{{- if or (lt $p 1) (gt $p 65535) -}}
+{{- fail (printf "selfTelemetry.ports.%s must be within 1-65535, got %d" .agentName $p) -}}
+{{- end -}}
+{{- end -}}
+{{- $port -}}
+{{- end -}}
+{{- end }}
+
+{{/*
 Helper function to modify customer supplied agent config if ContainerInsights or ApplicationSignals is enabled
 */}}
 {{- define "cloudwatch-agent.modify-config" -}}
-{{- if and (hasKey .Config "logs") (or (and (hasKey .Config.logs "metrics_collected") (hasKey .Config.logs.metrics_collected "application_signals")) (and (hasKey .Config.logs "metrics_collected") (hasKey .Config.logs.metrics_collected "kubernetes"))) }}
-{{- include "cloudwatch-agent.config-modifier" . }}
+{{- include "cloudwatch-agent.validate-flags" . -}}
+{{- $configCopy := deepCopy .Config }}
+{{- $selfTelemetry := .Values.selfTelemetry | default dict }}
+{{- $selfTelemetryPort := include "cloudwatch-agent.self-telemetry-port" (dict "agentName" .agentName "context" .) }}
+{{- if and $selfTelemetry.enabled $selfTelemetryPort }}
+{{- if not (hasKey $configCopy "agent") }}
+{{- $_ := set $configCopy "agent" dict }}
+{{- end }}
+{{- $_ := set $configCopy.agent "self_telemetry" (dict "enabled" true "port" ($selfTelemetryPort | int)) }}
+{{- end }}
+{{- $ctx := merge (dict "Config" $configCopy) . }}
+{{- if and (hasKey $configCopy "logs") (or (and (hasKey $configCopy.logs "metrics_collected") (hasKey $configCopy.logs.metrics_collected "application_signals")) (and (hasKey $configCopy.logs "metrics_collected") (hasKey $configCopy.logs.metrics_collected "kubernetes"))) }}
+{{- include "cloudwatch-agent.config-modifier" $ctx }}
 {{- else }}
-{{- default "" .Config | toJson | quote }}
+{{- default "" $configCopy | toJson | quote }}
 {{- end }}
 {{- end }}
 
