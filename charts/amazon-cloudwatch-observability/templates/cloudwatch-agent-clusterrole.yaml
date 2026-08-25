@@ -31,6 +31,9 @@ rules:
 - apiGroups: [ "" ]
   resources: [ "nodes/metrics" ]
   verbs: [ "get" ]
+- apiGroups: [ "resource.k8s.io" ]
+  resources: [ "resourceclaims", "resourceslices" ]
+  verbs: [ "get", "list", "watch" ]
 {{- end }}
 - apiGroups: [ "" ]
   resources: [ "configmaps" ]
