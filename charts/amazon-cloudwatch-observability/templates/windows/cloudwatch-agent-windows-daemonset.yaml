@@ -5,16 +5,16 @@
 apiVersion: cloudwatch.aws.amazon.com/v1alpha1
 kind: AmazonCloudWatchAgent
 metadata:
-  name: {{ template "cloudwatch-agent.name" . }}-windows
+  name: {{ printf "%s-windows" (include "cloudwatch-agent.name" .) | quote }}
   namespace: {{ .Release.Namespace }}
 spec:
   podSecurityContext:
     windowsOptions:
       runAsUserName: "NT AUTHORITY\\System"
-  image: {{ template "cloudwatch-agent.image" (merge .Values.agent.image (dict "region" .Values.region)) }}
+  image: {{ include "cloudwatch-agent.image" (merge .Values.agent.image (dict "region" .Values.region)) | quote }}
   mode: daemonset
-  serviceAccount: {{ template "cloudwatch-agent.serviceAccountName" . }}
-  priorityClassName: {{ .Values.agent.priorityClassName }}
+  serviceAccount: {{ include "cloudwatch-agent.serviceAccountName" . | quote }}
+  priorityClassName: {{ .Values.agent.priorityClassName | quote }}
   nodeSelector:
     kubernetes.io/os: windows
   config: {{ include "cloudwatch-agent.modify-config" (merge (dict "Config" $config) .) }}

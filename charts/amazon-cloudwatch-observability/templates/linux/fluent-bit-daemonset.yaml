@@ -17,11 +17,11 @@ spec:
     matchLabels:
       k8s-app: fluent-bit
   updateStrategy:
-    type: {{ .Values.containerLogs.fluentBit.updateStrategy.type }}
+    type: {{ .Values.containerLogs.fluentBit.updateStrategy.type | quote }}
     {{- if eq .Values.containerLogs.fluentBit.updateStrategy.type "RollingUpdate" }}
     rollingUpdate:
-      maxUnavailable: {{ .Values.containerLogs.fluentBit.updateStrategy.rollingUpdate.maxUnavailable }}
-      maxSurge: {{ .Values.containerLogs.fluentBit.updateStrategy.rollingUpdate.maxSurge }}
+      maxUnavailable: {{ .Values.containerLogs.fluentBit.updateStrategy.rollingUpdate.maxUnavailable | toString | quote }}
+      maxSurge: {{ .Values.containerLogs.fluentBit.updateStrategy.rollingUpdate.maxSurge | toString | quote }}
     {{- end }}
   template:
     metadata:
@@ -34,11 +34,11 @@ spec:
     spec:
       containers:
       - name: fluent-bit
-        image: {{ template "fluent-bit.image" . }}
+        image: {{ include "fluent-bit.image" . | quote }}
         imagePullPolicy: Always
         env:
         - name: AWS_REGION
-          value: {{ .Values.region }}
+          value: {{ .Values.region | quote }}
         - name: CLUSTER_NAME
           value: {{ .Values.clusterName | quote }}
         - name: READ_FROM_HEAD
@@ -101,7 +101,7 @@ spec:
       terminationGracePeriodSeconds: 10
       hostNetwork: true
       dnsPolicy: ClusterFirstWithHostNet
-      priorityClassName: {{ .Values.containerLogs.fluentBit.priorityClassName }}
+      priorityClassName: {{ .Values.containerLogs.fluentBit.priorityClassName | quote }}
       volumes:
       - name: fluentbitstate
         hostPath:
@@ -144,7 +144,7 @@ spec:
               expirationSeconds: 3600
               path: token
       {{- end }}
-      serviceAccountName: {{ template "cloudwatch-agent.serviceAccountName" . }}
+      serviceAccountName: {{ include "cloudwatch-agent.serviceAccountName" . | quote }}
       {{- with .Values.containerLogs.fluentBit.affinity }}
       affinity: {{- toYaml . | nindent 8 }}
       {{- end }}

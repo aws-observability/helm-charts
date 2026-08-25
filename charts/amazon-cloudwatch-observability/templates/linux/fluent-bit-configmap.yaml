@@ -10,12 +10,16 @@ data:
   fluent-bit.conf: |
     {{- include "fluent-bit.add-ipv6-preference" (dict "config" .Values.containerLogs.fluentBit.config.service "useDualstackEndpoint" .Values.useDualstackEndpoint "indent" "  ") | nindent 4 }}
     {{- range $key, $val := .Values.containerLogs.fluentBit.config.extraFiles }}
-    @INCLUDE {{ $key }}
+    {{- $safeKey := include "fluent-bit.validatedConfigKey" $key }}
+    @INCLUDE {{ $safeKey }}
     {{- end }}
   parsers.conf: |
     {{- .Values.containerLogs.fluentBit.config.customParsers  | nindent 4 }}
 {{- range $key, $val := .Values.containerLogs.fluentBit.config.extraFiles }}
-  {{ $key }}: |
+  {{- $safeKey := include "fluent-bit.validatedConfigKey" $key }}
+  {{ $safeKey | quote }}: |
+    {{- /* tpl is required by supported endpoint substitutions in default extraFiles.
+          nindent keeps all rendered content inside this ConfigMap literal block. */ -}}
     {{- $config := tpl $val $ }}
     {{- include "fluent-bit.add-dualstack-endpoints" (dict "Values" $.Values "config" $config) | nindent 4 }}
 {{- end -}}
