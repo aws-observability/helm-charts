@@ -17,9 +17,9 @@ receivers:
           tls_config:
             ca_file: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
             insecure_skip_verify: false
-            {{- if eq .Values.k8sMode "AKS" }}
-            # Endpoints SD dials the apiserver by IP. On AKS the managed control-plane endpoint IP is
-            # not in the serving cert's SANs (only DNS names + the ClusterIP are), so verify against a
+            {{- if or (eq .Values.k8sMode "AKS") (eq .Values.k8sMode "GKE") }}
+            # Endpoints SD dials the apiserver by IP. On AKS and GKE the managed control-plane endpoint IP
+            # is not in the serving cert's SANs (only DNS names + the ClusterIP are), so verify against a
             # DNS SAN instead. On EKS the endpoint IPs are in the SANs, so this is not needed there.
             server_name: kubernetes.default.svc
             {{- end }}
@@ -256,6 +256,18 @@ processors:
         cloud.region: { enabled: true }
         host.id: { enabled: false }
         host.name: { enabled: false }
+    {{- else if eq .Values.k8sMode "GKE" }}
+    detectors: [gcp]
+    gcp:
+      resource_attributes:
+        cloud.account.id: { enabled: true }
+        cloud.availability_zone: { enabled: true }
+        cloud.platform: { enabled: true }
+        cloud.provider: { enabled: true }
+        cloud.region: { enabled: true }
+        host.id: { enabled: false }
+        host.name: { enabled: false }
+        k8s.cluster.name: { enabled: false }
     {{- else }}
     detectors: [eks, ec2]
     ec2:
@@ -335,6 +347,18 @@ processors:
         cloud.region: { enabled: true }
         host.id: { enabled: false }
         host.name: { enabled: false }
+    {{- else if eq .Values.k8sMode "GKE" }}
+    detectors: [gcp]
+    gcp:
+      resource_attributes:
+        cloud.account.id: { enabled: true }
+        cloud.availability_zone: { enabled: true }
+        cloud.platform: { enabled: true }
+        cloud.provider: { enabled: true }
+        cloud.region: { enabled: true }
+        host.id: { enabled: false }
+        host.name: { enabled: false }
+        k8s.cluster.name: { enabled: false }
     {{- else }}
     detectors: [eks, ec2]
     ec2:
@@ -527,6 +551,18 @@ processors:
         cloud.region: { enabled: true }
         host.id: { enabled: false }
         host.name: { enabled: false }
+    {{- else if eq .Values.k8sMode "GKE" }}
+    detectors: [gcp]
+    gcp:
+      resource_attributes:
+        cloud.account.id: { enabled: true }
+        cloud.availability_zone: { enabled: true }
+        cloud.platform: { enabled: true }
+        cloud.provider: { enabled: true }
+        cloud.region: { enabled: true }
+        host.id: { enabled: false }
+        host.name: { enabled: false }
+        k8s.cluster.name: { enabled: false }
     {{- else }}
     detectors: [eks, ec2]
     ec2:
@@ -587,6 +623,12 @@ processors:
           - set(resource.attributes["cloud.resource_id"], Concat(["/subscriptions/", resource.attributes["cloud.account.id"], "/resourceGroups/", resource.attributes["_tmp.azure.resourcegroup.name"], "/providers/Microsoft.ContainerService/managedClusters/", resource.attributes["k8s.cluster.name"]], ""))
             where resource.attributes["cloud.account.id"] != nil and resource.attributes["_tmp.azure.resourcegroup.name"] != nil and resource.attributes["k8s.cluster.name"] != nil
           - delete_key(resource.attributes, "_tmp.azure.resourcegroup.name")
+          {{- else if eq .Values.k8sMode "GKE" }}
+          {{/* GKE full resource name: zones/<zone> (zonal) or locations/<region> (regional). */}}
+          - set(resource.attributes["cloud.resource_id"], Concat(["//container.googleapis.com/projects/", resource.attributes["cloud.account.id"], "/zones/", resource.attributes["cloud.availability_zone"], "/clusters/", resource.attributes["k8s.cluster.name"]], ""))
+            where resource.attributes["cloud.account.id"] != nil and resource.attributes["cloud.availability_zone"] != nil and resource.attributes["k8s.cluster.name"] != nil
+          - set(resource.attributes["cloud.resource_id"], Concat(["//container.googleapis.com/projects/", resource.attributes["cloud.account.id"], "/locations/", resource.attributes["cloud.region"], "/clusters/", resource.attributes["k8s.cluster.name"]], ""))
+            where resource.attributes["cloud.resource_id"] == nil and resource.attributes["cloud.account.id"] != nil and resource.attributes["cloud.region"] != nil and resource.attributes["k8s.cluster.name"] != nil
           {{- else }}
           - set(resource.attributes["cloud.resource_id"], Concat(["arn:aws:eks:", resource.attributes["cloud.region"], ":", resource.attributes["cloud.account.id"], ":cluster/", resource.attributes["k8s.cluster.name"]], ""))
             where resource.attributes["cloud.region"] != nil and resource.attributes["cloud.account.id"] != nil and resource.attributes["k8s.cluster.name"] != nil
