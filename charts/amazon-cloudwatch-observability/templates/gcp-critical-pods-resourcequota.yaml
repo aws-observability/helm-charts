@@ -1,18 +1,18 @@
 {{- if eq .Values.k8sMode "GKE" }}
 {{- /*
-GKE only admits pods that use the reserved system-node-critical / system-cluster-critical PriorityClasses in a
-namespace that has a ResourceQuota matching those classes. The agent runs at system-node-critical, so without
-this quota its pods are rejected at admission on GKE. GKE-only. EKS and AKS do not gate priority classes this way.
+On GKE, a pod that uses the system-node-critical or system-cluster-critical PriorityClass is only admitted in a
+namespace that has a ResourceQuota with a scopeSelector that matches that class. The agent and fluent-bit run
+at system-node-critical by default.
 Ref: https://kubernetes.io/docs/concepts/policy/resource-quotas/#limit-priority-class-consumption-by-default
 */ -}}
 apiVersion: v1
 kind: ResourceQuota
 metadata:
+  labels:
+    {{- include "amazon-cloudwatch-observability.labels" . | nindent 4}}
   name: gcp-critical-pods
   namespace: {{ .Release.Namespace }}
 spec:
-  hard:
-    pods: "1G"
   scopeSelector:
     matchExpressions:
       - operator: In
