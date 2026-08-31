@@ -10,6 +10,9 @@ Enhancements:
 * Upgrade DotNet ADOT SDK to v0.12.0
 * Upgrade Neuron Monitor to v1.12.0
 
+Bug Fixes:
+* Harden rendering and validation of configurable workload fields
+
 =======================================================================
 amazon-cloudwatch-observability v6.5.0 (2026-08-07)
 =======================================================================
