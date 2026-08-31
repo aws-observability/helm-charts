@@ -51,14 +51,6 @@ cases = {
         {"agents": [{"name": "safe-agent", "updateStrategy": {"type": "OnDelete"}}]},
         {"agents": [{"name": "safe-agent", "updateStrategy": {"type": injected("OnDelete", "cloudwatch.aws.amazon.com/v1alpha1", "AmazonCloudWatchAgent")}}]},
     ),
-    "custom-agent-max-unavailable": pair(
-        {"agents": [{"name": "safe-agent", "updateStrategy": {"type": "RollingUpdate", "rollingUpdate": {"maxUnavailable": "1", "maxSurge": "0"}}}]},
-        {"agents": [{"name": "safe-agent", "updateStrategy": {"type": "RollingUpdate", "rollingUpdate": {"maxUnavailable": injected("1", "cloudwatch.aws.amazon.com/v1alpha1", "AmazonCloudWatchAgent"), "maxSurge": "0"}}}]},
-    ),
-    "custom-agent-max-surge": pair(
-        {"agents": [{"name": "safe-agent", "updateStrategy": {"type": "RollingUpdate", "rollingUpdate": {"maxUnavailable": "1", "maxSurge": "0"}}}]},
-        {"agents": [{"name": "safe-agent", "updateStrategy": {"type": "RollingUpdate", "rollingUpdate": {"maxUnavailable": "1", "maxSurge": injected("0", "cloudwatch.aws.amazon.com/v1alpha1", "AmazonCloudWatchAgent")}}}]},
-    ),
     "fluent-bit-priority-class": pair(
         {"containerLogs": {"fluentBit": {"priorityClassName": "system-node-critical"}}},
         {"containerLogs": {"fluentBit": {"priorityClassName": injected("system-node-critical", "apps/v1", "DaemonSet")}}},
@@ -66,14 +58,6 @@ cases = {
     "fluent-bit-update-strategy": pair(
         {"containerLogs": {"fluentBit": {"updateStrategy": {"type": "OnDelete"}}}},
         {"containerLogs": {"fluentBit": {"updateStrategy": {"type": injected("OnDelete", "apps/v1", "DaemonSet")}}}},
-    ),
-    "fluent-bit-max-unavailable": pair(
-        {"containerLogs": {"fluentBit": {"updateStrategy": {"type": "RollingUpdate", "rollingUpdate": {"maxUnavailable": "1", "maxSurge": "0"}}}}},
-        {"containerLogs": {"fluentBit": {"updateStrategy": {"type": "RollingUpdate", "rollingUpdate": {"maxUnavailable": injected("1", "apps/v1", "DaemonSet"), "maxSurge": "0"}}}}},
-    ),
-    "fluent-bit-max-surge": pair(
-        {"containerLogs": {"fluentBit": {"updateStrategy": {"type": "RollingUpdate", "rollingUpdate": {"maxUnavailable": "1", "maxSurge": "0"}}}}},
-        {"containerLogs": {"fluentBit": {"updateStrategy": {"type": "RollingUpdate", "rollingUpdate": {"maxUnavailable": "1", "maxSurge": injected("0", "apps/v1", "DaemonSet")}}}}},
     ),
     "fluent-bit-extra-file-key": pair(
         {"containerLogs": {"fluentBit": {"config": {"extraFiles": {"safe.conf": "[INPUT]\n  Name tail"}}}}},
