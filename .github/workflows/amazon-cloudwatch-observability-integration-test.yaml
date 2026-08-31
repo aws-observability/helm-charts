@@ -298,3 +298,40 @@ jobs:
           command: |
             cd integration-tests/amazon-cloudwatch-observability/terraform/eks/windows
             terraform destroy --auto-approve
+
+  verify-all:
+    name: Verify All Integration Test Jobs
+    needs: [ Build, Minikube-IntegrationTests, EKS-IntegrationTest, EKS-IntegrationTest-Win2022,
+             EKS-IntegrationTest-Win2019 ]
+    runs-on: ubuntu-latest
+    if: always()
+    steps:
+      - name: Check Job Status
+        env:
+          NEEDS_JSON: ${{ toJSON(needs) }}
+        run: |
+          failed_jobs=()
+          successful_jobs=()
+
+          # Every needed job must report success. Any other result (failure, cancelled, or
+          # skipped) blocks the merge, so a cancelled or partial run can never appear green.
+          for job in $(echo "$NEEDS_JSON" | jq -r 'keys[]'); do
+            result=$(echo "$NEEDS_JSON" | jq -r ".[\"$job\"].result")
+
+            if [[ "$result" == "success" ]]; then
+              successful_jobs+=("$job")
+            else
+              failed_jobs+=("$job ($result)")
+            fi
+          done
+
+          echo "Successfully validated jobs:"
+          printf '%s\n' "${successful_jobs[@]}"
+
+          if [ ${#failed_jobs[@]} -ne 0 ]; then
+            echo -e "\nJobs that did not succeed:"
+            printf '%s\n' "${failed_jobs[@]}"
+            exit 1
+          fi
+
+          echo -e "\nAll required jobs completed successfully!"
