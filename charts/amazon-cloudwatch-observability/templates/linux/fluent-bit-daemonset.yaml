@@ -20,8 +20,8 @@ spec:
     type: {{ .Values.containerLogs.fluentBit.updateStrategy.type | quote }}
     {{- if eq .Values.containerLogs.fluentBit.updateStrategy.type "RollingUpdate" }}
     rollingUpdate:
-      maxUnavailable: {{ .Values.containerLogs.fluentBit.updateStrategy.rollingUpdate.maxUnavailable | toString | quote }}
-      maxSurge: {{ .Values.containerLogs.fluentBit.updateStrategy.rollingUpdate.maxSurge | toString | quote }}
+      maxUnavailable: {{ .Values.containerLogs.fluentBit.updateStrategy.rollingUpdate.maxUnavailable }}
+      maxSurge: {{ .Values.containerLogs.fluentBit.updateStrategy.rollingUpdate.maxSurge }}
     {{- end }}
   template:
     metadata:
