@@ -56,7 +56,8 @@ metadata:
 spec:
   dnsNames:
     {{- range $i, $customAgent := .Values.agents }}
-    - {{( printf "%s-target-allocator-service" $customAgent.name )}}
+    {{- $customAgentName := include "cloudwatch-agent.validatedName" ($customAgent.name | default (include "cloudwatch-agent.name" $)) -}}
+    - {{ printf "%s-target-allocator-service" $customAgentName | quote }}
     {{- end }}
     - "dcgm-exporter-service"
     - "dcgm-exporter-service.{{ .Release.Namespace }}.svc"

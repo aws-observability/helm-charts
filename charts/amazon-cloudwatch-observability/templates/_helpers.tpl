@@ -328,10 +328,26 @@ updateStrategy
 {{- end -}}
 
 {{/*
+Validate a CloudWatch Agent name. The 36-character limit leaves room for the
+longest generated resource suffix (-windows-container-insights) within the
+Kubernetes 63-character DNS label limit.
+*/}}
+{{- define "cloudwatch-agent.validatedName" -}}
+{{- $name := . | toString -}}
+{{- if gt (len $name) 36 -}}
+{{- fail "CloudWatch Agent names must be at most 36 characters" -}}
+{{- end -}}
+{{- if not (regexMatch "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$" $name) -}}
+{{- fail "CloudWatch Agent names must be valid DNS-1123 labels" -}}
+{{- end -}}
+{{- $name -}}
+{{- end }}
+
+{{/*
 Name for cloudwatch-agent
 */}}
 {{- define "cloudwatch-agent.name" -}}
-{{- default "cloudwatch-agent" .Values.agent.name }}
+{{- include "cloudwatch-agent.validatedName" (default "cloudwatch-agent" .Values.agent.name) -}}
 {{- end }}
 
 {{/*
@@ -397,6 +413,20 @@ Get the current recommended fluent-bit image for a region
 {{- end -}}
 {{- printf "%s/%s:%s" $imageDomain .Values.containerLogs.fluentBit.image.repository .Values.containerLogs.fluentBit.image.tag -}}
 {{- end -}}
+
+{{/*
+Validate a Fluent Bit ConfigMap key and @INCLUDE file name.
+*/}}
+{{- define "fluent-bit.validatedConfigKey" -}}
+{{- $key := . | toString -}}
+{{- if gt (len $key) 253 -}}
+{{- fail "Fluent Bit extraFiles keys must be at most 253 characters" -}}
+{{- end -}}
+{{- if not (regexMatch "^[A-Za-z0-9._-]+$" $key) -}}
+{{- fail "Fluent Bit extraFiles keys may contain only alphanumeric characters, '.', '_' or '-'" -}}
+{{- end -}}
+{{- $key -}}
+{{- end }}
 
 {{/*
 Helper function to add dualstack endpoints to fluent-bit OUTPUT sections

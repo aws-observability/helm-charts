@@ -28,17 +28,17 @@ spec:
           hostProcess: true
           runAsUserName: "NT AUTHORITY\\System"
       hostNetwork: true
-      priorityClassName: {{ .Values.containerLogs.fluentBit.priorityClassName }}
+      priorityClassName: {{ .Values.containerLogs.fluentBit.priorityClassName | quote }}
       nodeSelector:
         kubernetes.io/os: windows
       containers:
       - name: fluent-bit
-        image: {{ template "fluent-bit-windows.image" . }}
+        image: {{ include "fluent-bit-windows.image" . | quote }}
         imagePullPolicy: Always
         command: ["powershell.exe", "-Command", "New-Item -ItemType Directory -Path C:\\var\\fluent-bit\\state -Force;", "%CONTAINER_SANDBOX_MOUNT_POINT%/fluent-bit/bin/fluent-bit.exe", "-e", "%CONTAINER_SANDBOX_MOUNT_POINT%/fluent-bit/kinesis.dll", "-e", "%CONTAINER_SANDBOX_MOUNT_POINT%/fluent-bit/firehose.dll", "-e", "%CONTAINER_SANDBOX_MOUNT_POINT%/fluent-bit/cloudwatch.dll", "-c", "%CONTAINER_SANDBOX_MOUNT_POINT%/fluent-bit/configuration/fluent-bit.conf"]
         env:
         - name: AWS_REGION
-          value: {{ .Values.region }}
+          value: {{ .Values.region | quote }}
         - name: CLUSTER_NAME
           value: {{ .Values.clusterName | quote }}
         - name: READ_FROM_HEAD
@@ -70,6 +70,6 @@ spec:
             name: fluent-bit-windows-config
       terminationGracePeriodSeconds: 10
       dnsPolicy: ClusterFirstWithHostNet
-      serviceAccountName: {{ template "cloudwatch-agent.serviceAccountName" . }}
+      serviceAccountName: {{ include "cloudwatch-agent.serviceAccountName" . | quote }}
       {{- dict "component" .Values.containerLogs.fluentBit "context" . | include "amazon-cloudwatch-observability.common.tolerations" | nindent 6 }}
 {{- end }}
