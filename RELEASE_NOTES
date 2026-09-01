@@ -1,6 +1,16 @@
 =======================================================================
-amazon-cloudwatch-observability v6.5.1 (2026-08-25)
-=======================================================================
+amazon-cloudwatch-observability v6.6.0 (2026-08-27)
+========================================================================
+New Features:
+* Support KEDA and Karpenter metrics scrapping
+
+Enhancements:
+* Upgrade CWAgent to 1.300072.0b1766
+* Upgrade Fluent Bit to v3.4.14
+* Upgrade Jave ADOT SDK to v2.30.0
+* Upgrade DotNet ADOT SDK to v1.15.0
+* Upgrade Neuron Monitor to v1.12.0
+
 Bug Fixes:
 * Harden rendering and validation of configurable workload fields
 

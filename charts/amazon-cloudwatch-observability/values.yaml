@@ -31,7 +31,7 @@ containerLogs:
   fluentBit:
     image:
       repository: aws-for-fluent-bit
-      tag: 3.4.12
+      tag: 3.4.14
       tagWindows: 2.31.12-windowsservercore
       repositoryDomainMap:
         public: public.ecr.aws/aws-observability
@@ -477,7 +477,7 @@ manager:
     java:
       repositoryDomain: public.ecr.aws/aws-observability
       repository: adot-autoinstrumentation-java
-      tag: v2.29.0
+      tag: v2.30.0
     python:
       repositoryDomain: public.ecr.aws/aws-observability
       repository: adot-autoinstrumentation-python
@@ -485,7 +485,7 @@ manager:
     dotnet:
       repositoryDomain: public.ecr.aws/aws-observability
       repository: adot-autoinstrumentation-dotnet
-      tag: v1.14.0
+      tag: v1.15.0
     nodejs:
       repositoryDomain: public.ecr.aws/aws-observability
       repository: adot-autoinstrumentation-node
@@ -726,7 +726,7 @@ agent:
   replicas: 1 # The total number non-terminated pods targeted by this AmazonCloudWatchAgent's deployment or statefulSet.
   image:
     repository: cloudwatch-agent
-    tag: 1.300071.0b1720
+    tag: 1.300072.0b1766
     repositoryDomainMap:
       public: public.ecr.aws/cloudwatch-agent
       cn-north-1: 934860584483.dkr.ecr.cn-north-1.amazonaws.com.cn
@@ -980,7 +980,7 @@ neuronMonitor:
   name:
   image:
     repository: neuron-monitor
-    tag: 1.11.0
+    tag: 1.12.0
     repositoryDomainMap:
       public: public.ecr.aws/neuron
   resources:
@@ -1064,7 +1064,7 @@ kubeStateMetrics:
       us-gov-west-1: 013241004608.dkr.ecr.us-gov-west-1.amazonaws.com
     # Used in China/GovCloud regions where the public upstream image isn't available; the helper falls back to repositoryDomainMap[region]/restrictedRepository:restrictedTag
     restrictedRepository: eks/kube-state-metrics
-    restrictedTag: v2.19.1-eksbuild.3
+    restrictedTag: v2.19.1-eksbuild.6
   resources:
     limits:
       cpu: 200m
@@ -1099,7 +1099,7 @@ nodeExporter:
       us-gov-west-1: 013241004608.dkr.ecr.us-gov-west-1.amazonaws.com
     # Used in China/GovCloud regions where the public upstream image isn't available; the helper falls back to repositoryDomainMap[region]/restrictedRepository:restrictedTag
     restrictedRepository: eks/prometheus-node-exporter
-    restrictedTag: v1.12.1-eksbuild.2
+    restrictedTag: v1.12.1-eksbuild.3
   resources:
     limits:
       cpu: 200m
