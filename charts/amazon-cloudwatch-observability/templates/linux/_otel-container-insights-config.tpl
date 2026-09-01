@@ -566,11 +566,18 @@ processors:
           - set(attributes["namespace"], resource.attributes["namespace"]) where resource.attributes["namespace"] != nil
 
   {{- if .Values.dcgmExporter.enabled }}
+  # Group by both the native dcgm-exporter labels AND the OTEL
+  # semantic labels the awsdevicepodcorrelation processor sets. This moves whichever set is present onto the resource
+  # so DRA GPUs get resource-level pod identity + k8sattributes workload enrichment,
+  # matching the device-plugin path (and the efa/neuron pipelines).
   groupbyattrs/cw_k8s_ci_v0_dcgm:
     keys:
       - pod
       - namespace
       - container
+      - k8s.pod.name
+      - k8s.namespace.name
+      - k8s.container.name
 
   transform/cw_k8s_ci_v0_dcgm_promote:
     error_mode: ignore
@@ -648,6 +655,33 @@ processors:
         device_id_attribute: aws.efa.device
         resource_names:
           - vpc.amazonaws.com/efa
+    # DRA (Dynamic Resource Allocation) correlation paths. Keyed by DRA driver
+    # names; the processor watches ResourceClaims/Pods via the K8s API.
+    dra_device_types:
+      - name: efa-dra
+        device_id_attribute: aws.efa.device
+        driver_names:
+          - dra.net
+        # EFA DRA device name (pci-0000-00-1f-0) != metric label (rdmap0s31);
+        # source the key from the ResourceSlice attribute dra.net/rdmaDevice (Fix B).
+        dra_device_id_attribute: dra.net/rdmaDevice
+      - name: neuron-dra
+        device_id_attribute: neurondevice
+        driver_names:
+          - neuron.aws.com
+        dra_device_id_pattern: 'neuron-device-(\d+)'
+      - name: gpu-dra
+        device_id_attribute: gpu
+        driver_names:
+          - gpu.nvidia.com
+        dra_device_id_pattern: 'gpu-(\d+)'
+    node_name: ${env:K8S_NODE_NAME}
+
+  groupbyattrs/cw_k8s_ci_v0_efa:
+    keys:
+      - k8s.pod.name
+      - k8s.namespace.name
+      - k8s.container.name
 
   transform/cw_k8s_ci_v0_efa_promote:
     error_mode: ignore
@@ -890,7 +924,7 @@ service:
     {{- if .Values.dcgmExporter.enabled }}
     metrics/cw_k8s_ci_v0_dcgm:
       receivers: [prometheus/cw_k8s_ci_v0_dcgm]
-      processors: [filter/cw_k8s_ci_v0_scrape_metadata, transform/cw_k8s_ci_v0_set_unit, metricstarttime/cw_k8s_ci_v0, transform/cw_k8s_ci_v0_set_cluster_name, groupbyattrs/cw_k8s_ci_v0_dcgm, transform/cw_k8s_ci_v0_dcgm_promote, k8sattributes/cw_k8s_ci_v0_pod, transform/cw_k8s_ci_v0_set_node_name, transform/cw_k8s_ci_v0_promote_node_name, k8sattributes/cw_k8s_ci_v0_node, resourcedetection/cw_k8s_ci_v0, transform/cw_k8s_ci_v0_set_scope_dcgm, transform/cw_k8s_ci_v0_clear_schema_url, transform/cw_k8s_ci_v0_set_cloud_resource_id, transform/cw_k8s_ci_v0_set_workload, awsattributelimit/cw_k8s_ci_v0, batch/cw_k8s_ci_v0_metrics_dest]
+      processors: [filter/cw_k8s_ci_v0_scrape_metadata, transform/cw_k8s_ci_v0_set_unit, metricstarttime/cw_k8s_ci_v0, transform/cw_k8s_ci_v0_set_cluster_name, awsdevicepodcorrelation/cw_k8s_ci_v0, groupbyattrs/cw_k8s_ci_v0_dcgm, transform/cw_k8s_ci_v0_dcgm_promote, k8sattributes/cw_k8s_ci_v0_pod, transform/cw_k8s_ci_v0_set_node_name, transform/cw_k8s_ci_v0_promote_node_name, k8sattributes/cw_k8s_ci_v0_node, resourcedetection/cw_k8s_ci_v0, transform/cw_k8s_ci_v0_set_scope_dcgm, transform/cw_k8s_ci_v0_clear_schema_url, transform/cw_k8s_ci_v0_set_cloud_resource_id, transform/cw_k8s_ci_v0_set_workload, awsattributelimit/cw_k8s_ci_v0, batch/cw_k8s_ci_v0_metrics_dest]
       exporters:
         - otlphttp/cw_k8s_ci_v0_metrics_dest
     {{- end }}
@@ -932,6 +966,7 @@ service:
         - transform/cw_k8s_ci_v0_set_scope_efa
         - transform/cw_k8s_ci_v0_set_cluster_name
         - awsdevicepodcorrelation/cw_k8s_ci_v0
+        - groupbyattrs/cw_k8s_ci_v0_efa
         - transform/cw_k8s_ci_v0_efa_promote
         - transform/cw_k8s_ci_v0_set_node_name
         - transform/cw_k8s_ci_v0_promote_node_name
