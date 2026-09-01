@@ -81,8 +81,8 @@ spec:
     type: {{ $agent.updateStrategy.type | quote }}
     {{- if eq $agent.updateStrategy.type "RollingUpdate" }}
     rollingUpdate:
-      maxUnavailable: {{ $agent.updateStrategy.rollingUpdate.maxUnavailable | default (include "cloudwatch-agent.rolloutStrategyMaxUnavailable" (dict "mode" $agent.mode)) | toString | quote }}
-      maxSurge: {{ $agent.updateStrategy.rollingUpdate.maxSurge | default (include "cloudwatch-agent.rolloutStrategyMaxSurge" (dict "mode" $agent.mode)) | toString | quote }}
+      maxUnavailable: {{ include "cloudwatch-agent.intOrStringValue" ($agent.updateStrategy.rollingUpdate.maxUnavailable | default (include "cloudwatch-agent.rolloutStrategyMaxUnavailable" (dict "mode" $agent.mode))) }}
+      maxSurge: {{ include "cloudwatch-agent.intOrStringValue" ($agent.updateStrategy.rollingUpdate.maxSurge | default (include "cloudwatch-agent.rolloutStrategyMaxSurge" (dict "mode" $agent.mode))) }}
     {{- end }}
   image: {{ include "cloudwatch-agent.image" (merge $agent.image (dict "region" $.Values.region)) | quote }}
   mode: {{ $agent.mode | quote }}
