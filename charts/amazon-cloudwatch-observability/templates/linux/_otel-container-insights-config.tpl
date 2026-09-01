@@ -393,6 +393,18 @@ processors:
         cloud.region: { enabled: true }
         host.id: { enabled: true }
         host.name: { enabled: true }
+    {{- else if eq .Values.k8sMode "GKE" }}
+    detectors: [gcp]
+    gcp:
+      resource_attributes:
+        cloud.account.id: { enabled: true }
+        cloud.availability_zone: { enabled: true }
+        cloud.platform: { enabled: true }
+        cloud.provider: { enabled: true }
+        cloud.region: { enabled: true }
+        host.id: { enabled: true }
+        host.name: { enabled: true }
+        k8s.cluster.name: { enabled: false }
     {{- else }}
     detectors: [eks, ec2]
     ec2:
@@ -494,6 +506,12 @@ processors:
           - set(resource.attributes["cloud.resource_id"], Concat(["/subscriptions/", resource.attributes["cloud.account.id"], "/resourceGroups/", resource.attributes["_tmp.azure.resourcegroup.name"], "/providers/Microsoft.ContainerService/managedClusters/", resource.attributes["k8s.cluster.name"]], ""))
             where resource.attributes["cloud.account.id"] != nil and resource.attributes["_tmp.azure.resourcegroup.name"] != nil and resource.attributes["k8s.cluster.name"] != nil
           - delete_key(resource.attributes, "_tmp.azure.resourcegroup.name")
+          {{- else if eq .Values.k8sMode "GKE" }}
+          {{/* GKE full resource name: zones/<zone> (zonal) or locations/<region> (regional). */}}
+          - set(resource.attributes["cloud.resource_id"], Concat(["//container.googleapis.com/projects/", resource.attributes["cloud.account.id"], "/zones/", resource.attributes["cloud.availability_zone"], "/clusters/", resource.attributes["k8s.cluster.name"]], ""))
+            where resource.attributes["cloud.account.id"] != nil and resource.attributes["cloud.availability_zone"] != nil and resource.attributes["k8s.cluster.name"] != nil
+          - set(resource.attributes["cloud.resource_id"], Concat(["//container.googleapis.com/projects/", resource.attributes["cloud.account.id"], "/locations/", resource.attributes["cloud.region"], "/clusters/", resource.attributes["k8s.cluster.name"]], ""))
+            where resource.attributes["cloud.resource_id"] == nil and resource.attributes["cloud.account.id"] != nil and resource.attributes["cloud.region"] != nil and resource.attributes["k8s.cluster.name"] != nil
           {{- else }}
           - set(resource.attributes["cloud.resource_id"], Concat(["arn:aws:eks:", resource.attributes["cloud.region"], ":", resource.attributes["cloud.account.id"], ":cluster/", resource.attributes["k8s.cluster.name"]], ""))
             where resource.attributes["cloud.region"] != nil and resource.attributes["cloud.account.id"] != nil and resource.attributes["k8s.cluster.name"] != nil
@@ -518,7 +536,7 @@ processors:
           - set(resource.attributes["k8s.workload.type"], "CronJob") where resource.attributes["k8s.cronjob.name"] != nil and resource.attributes["k8s.workload.type"] == nil
           - set(resource.attributes["k8s.workload.name"], resource.attributes["k8s.replicaset.name"]) where resource.attributes["k8s.workload.name"] == nil and resource.attributes["k8s.replicaset.name"] != nil
           - set(resource.attributes["k8s.workload.type"], "ReplicaSet") where resource.attributes["k8s.replicaset.name"] != nil and resource.attributes["k8s.workload.type"] == nil
-          {{- if eq .Values.k8sMode "AKS" }}
+          {{- if or (eq .Values.k8sMode "AKS") (eq .Values.k8sMode "GKE") }}
           - set(resource.attributes["service.name"], resource.attributes["k8s.workload.name"]) where resource.attributes["service.name"] == nil and resource.attributes["k8s.workload.name"] != nil
           - set(resource.attributes["service.namespace"], resource.attributes["k8s.namespace.name"]) where resource.attributes["service.namespace"] == nil and resource.attributes["k8s.namespace.name"] != nil
           - set(resource.attributes["deployment.environment.name"], Concat([resource.attributes["cloud.platform"], Concat([resource.attributes["k8s.cluster.name"], resource.attributes["k8s.namespace.name"]], "/")], ":")) where resource.attributes["deployment.environment.name"] == nil and resource.attributes["cloud.platform"] != nil and resource.attributes["k8s.cluster.name"] != nil and resource.attributes["k8s.namespace.name"] != nil
@@ -707,7 +725,7 @@ processors:
           # Logs need service.name; metrics use k8s.workload.name directly, except on
           # AKS — see transform/cw_k8s_ci_v0_set_workload.
           - set(attributes["service.name"], attributes["k8s.workload.name"]) where attributes["service.name"] == nil and attributes["k8s.workload.name"] != nil
-          {{- if eq .Values.k8sMode "AKS" }}
+          {{- if or (eq .Values.k8sMode "AKS") (eq .Values.k8sMode "GKE") }}
           - set(attributes["service.namespace"], attributes["k8s.namespace.name"]) where attributes["service.namespace"] == nil and attributes["k8s.namespace.name"] != nil
           - set(attributes["deployment.environment.name"], Concat([attributes["cloud.platform"], Concat([attributes["k8s.cluster.name"], attributes["k8s.namespace.name"]], "/")], ":")) where attributes["deployment.environment.name"] == nil and attributes["cloud.platform"] != nil and attributes["k8s.cluster.name"] != nil and attributes["k8s.namespace.name"] != nil
           {{- end }}
@@ -733,6 +751,12 @@ processors:
           - set(attributes["cloud.resource_id"], Concat(["/subscriptions/", attributes["cloud.account.id"], "/resourceGroups/", attributes["_tmp.azure.resourcegroup.name"], "/providers/Microsoft.ContainerService/managedClusters/", attributes["k8s.cluster.name"]], ""))
             where attributes["cloud.account.id"] != nil and attributes["_tmp.azure.resourcegroup.name"] != nil and attributes["k8s.cluster.name"] != nil
           - delete_key(attributes, "_tmp.azure.resourcegroup.name")
+          {{- else if eq .Values.k8sMode "GKE" }}
+          {{/* GKE full resource name: zones/<zone> (zonal) or locations/<region> (regional). */}}
+          - set(attributes["cloud.resource_id"], Concat(["//container.googleapis.com/projects/", attributes["cloud.account.id"], "/zones/", attributes["cloud.availability_zone"], "/clusters/", attributes["k8s.cluster.name"]], ""))
+            where attributes["cloud.account.id"] != nil and attributes["cloud.availability_zone"] != nil and attributes["k8s.cluster.name"] != nil
+          - set(attributes["cloud.resource_id"], Concat(["//container.googleapis.com/projects/", attributes["cloud.account.id"], "/locations/", attributes["cloud.region"], "/clusters/", attributes["k8s.cluster.name"]], ""))
+            where attributes["cloud.resource_id"] == nil and attributes["cloud.account.id"] != nil and attributes["cloud.region"] != nil and attributes["k8s.cluster.name"] != nil
           {{- else }}
           - set(attributes["cloud.resource_id"], Concat(["arn:aws:eks:", attributes["cloud.region"], ":", attributes["cloud.account.id"], ":cluster/", attributes["k8s.cluster.name"]], ""))
             where attributes["cloud.region"] != nil and attributes["cloud.account.id"] != nil and attributes["k8s.cluster.name"] != nil

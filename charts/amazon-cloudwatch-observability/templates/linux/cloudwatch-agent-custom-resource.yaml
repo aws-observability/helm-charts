@@ -65,7 +65,10 @@ data:
 {{- $region := .Values.region | required ".Values.region is required." -}}
 {{- $isROSA := eq $.Values.k8sMode "ROSA" -}}
 {{- $isAKS := eq $.Values.k8sMode "AKS" -}}
-{{- if $isAKS }}{{- $_ := $.Values.roleArn | required ".Values.roleArn is required when k8sMode is AKS." -}}{{- end }}
+{{- $isGKE := eq $.Values.k8sMode "GKE" -}}
+{{- /* AKS and GKE both reach AWS via a projected Kubernetes service-account token (web-identity federation). */ -}}
+{{- $isWorkloadIdentity := or $isAKS $isGKE -}}
+{{- if $isWorkloadIdentity }}{{- $_ := $.Values.roleArn | required ".Values.roleArn is required when k8sMode is AKS or GKE." -}}{{- end }}
 {{- range .Values.agents }}
 {{- $agent := mergeOverwrite (deepCopy $.Values.agent) . }}
 {{- $agentName := include "cloudwatch-agent.validatedName" ($agent.name | default (include "cloudwatch-agent.name" $)) -}}
@@ -192,7 +195,7 @@ spec:
     name: kubelet-ca
     readOnly: true
     {{ end }}
-    {{ if $isAKS }}
+    {{ if $isWorkloadIdentity }}
   - mountPath: /var/run/secrets/aws
     name: aws-iam-token
     readOnly: true
@@ -267,7 +270,7 @@ spec:
     hostPath:
       path: /etc/kubernetes/kubelet-ca.crt
   {{end }}
-  {{ if $isAKS }}
+  {{ if $isWorkloadIdentity }}
   - name: aws-iam-token
     projected:
       sources:
@@ -300,6 +303,12 @@ spec:
   {{ if $isAKS }}
   - name: RUN_IN_AKS
     value: "True"
+  {{ end }}
+  {{ if $isGKE }}
+  - name: RUN_IN_GKE
+    value: "True"
+  {{ end }}
+  {{ if $isWorkloadIdentity }}
   - name: AWS_WEB_IDENTITY_TOKEN_FILE
     value: /var/run/secrets/aws/token
   - name: AWS_ROLE_ARN
