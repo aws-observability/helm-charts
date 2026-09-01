@@ -311,6 +311,23 @@ Validates metricResolution is in "<N>s" format.
 {{- end -}}
 {{- end -}}
 
+{{/*
+Render a Kubernetes IntOrString value (for example rollingUpdate.maxUnavailable).
+The API accepts either a bare integer or a percentage string, so a plain number
+must not be quoted: "1" is rejected with 'a valid percent string must be a
+numeric string followed by an ending %'. Emit digits bare and quote anything
+else, which keeps percentages valid while still preventing a configured value
+from breaking out of its YAML scalar.
+*/}}
+{{- define "cloudwatch-agent.intOrStringValue" -}}
+{{- $value := . | toString -}}
+{{- if regexMatch "^[0-9]+$" $value -}}
+{{- $value -}}
+{{- else -}}
+{{- $value | quote -}}
+{{- end -}}
+{{- end -}}
+
 {{- define "cloudwatch-agent.updateStrategy" -}}
 {{- if eq .mode "deployment" -}}
 deploymentUpdateStrategy
