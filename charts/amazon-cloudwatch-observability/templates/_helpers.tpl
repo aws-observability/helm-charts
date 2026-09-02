@@ -20,6 +20,100 @@ tolerations:
 {{- end }}
 
 {{/*
+Resolve podLabels for a workload. Component value overrides root when non-empty;
+empty component maps ({}) fall back to the root value. Returns the map rendered
+as YAML content (no wrapping key) — callers place it under
+`metadata.labels` / `spec.template.metadata.labels`.
+Usage:
+  {{- include "amazon-cloudwatch-observability.common.podLabels" (dict "component" .Values.manager "context" .) | nindent 8 }}
+*/}}
+{{- define "amazon-cloudwatch-observability.common.podLabels" -}}
+{{- $v := .context.Values.podLabels | default dict -}}
+{{- with .component }}{{- with dig "podLabels" nil . }}{{- $v = . }}{{- end }}{{- end }}
+{{- with $v }}{{ toYaml . }}{{ end }}
+{{- end }}
+
+{{/*
+Resolve podAnnotations for a workload. Component value overrides root when non-empty;
+empty component maps ({}) fall back to the root value. Returns the map rendered
+as YAML content (no wrapping key).
+*/}}
+{{- define "amazon-cloudwatch-observability.common.podAnnotations" -}}
+{{- $v := .context.Values.podAnnotations | default dict -}}
+{{- with .component }}{{- with dig "podAnnotations" nil . }}{{- $v = . }}{{- end }}{{- end }}
+{{- with $v }}{{ toYaml . }}{{ end }}
+{{- end }}
+
+{{/*
+Resolve topologySpreadConstraints for a workload. Component value overrides root
+when non-empty; empty component lists ([]) fall back to the root value. Emits
+`topologySpreadConstraints: [ ... ]` block or nothing.
+Usage:
+  {{- include "amazon-cloudwatch-observability.common.topologySpreadConstraints" (dict "component" .Values.manager "context" .) | nindent 6 }}
+*/}}
+{{- define "amazon-cloudwatch-observability.common.topologySpreadConstraints" -}}
+{{- $v := .context.Values.topologySpreadConstraints | default list -}}
+{{- with .component }}{{- with dig "topologySpreadConstraints" nil . }}{{- $v = . }}{{- end }}{{- end }}
+{{- with $v }}
+topologySpreadConstraints:
+  {{- toYaml . | nindent 2 }}
+{{- end }}
+{{- end }}
+
+{{/*
+Resolve priorityClassName for a workload. Returns the bare string (empty if unset).
+Component value takes precedence when non-empty; otherwise falls back to root.
+Usage:
+  {{- $pcn := include "amazon-cloudwatch-observability.common.priorityClassName" (dict "component" .Values.manager "context" .) }}
+  {{- if $pcn }}priorityClassName: {{ $pcn | quote }}{{ end }}
+*/}}
+{{- define "amazon-cloudwatch-observability.common.priorityClassName" -}}
+{{- $v := .context.Values.priorityClassName | default "" -}}
+{{- with .component }}{{- with dig "priorityClassName" nil . }}{{- $v = . }}{{- end }}{{- end }}
+{{- $v -}}
+{{- end }}
+
+{{/*
+Resolve podDisruptionBudget for a workload. Returns the effective PDB object as
+YAML (parse with fromYaml). Component value overrides root when non-empty (as a dict).
+Usage:
+  {{- $pdb := include "amazon-cloudwatch-observability.common.podDisruptionBudget" (dict "component" .Values.manager "context" .) | fromYaml }}
+  {{- if $pdb.enabled }}...{{ end }}
+*/}}
+{{- define "amazon-cloudwatch-observability.common.podDisruptionBudget" -}}
+{{- $v := .context.Values.podDisruptionBudget | default dict -}}
+{{- with .component }}{{- with dig "podDisruptionBudget" nil . }}{{- $v = . }}{{- end }}{{- end }}
+{{- toYaml $v -}}
+{{- end }}
+
+{{/*
+Render a PodDisruptionBudget resource. Callers pass:
+  name       — PDB metadata.name
+  namespace  — target namespace (usually .Release.Namespace)
+  selector   — dict of matchLabels for spec.selector
+  pdb        — the resolved PDB object (must have enabled: true; maxUnavailable and/or minAvailable)
+  ctx        — the root context (.) for common labels
+*/}}
+{{- define "amazon-cloudwatch-observability.renderPodDisruptionBudget" -}}
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ .name }}
+  namespace: {{ .namespace }}
+  labels:
+    {{- include "amazon-cloudwatch-observability.labels" .ctx | nindent 4 }}
+spec:
+  {{- if hasKey .pdb "minAvailable" }}
+  minAvailable: {{ .pdb.minAvailable }}
+  {{- else if hasKey .pdb "maxUnavailable" }}
+  maxUnavailable: {{ .pdb.maxUnavailable }}
+  {{- end }}
+  selector:
+    matchLabels:
+      {{- toYaml .selector | nindent 6 }}
+{{- end }}
+
+{{/*
 Helper function to determine monitorAllServices based on region
 */}}
 {{- define "manager.monitorAllServices" -}}
@@ -597,16 +691,16 @@ Create the name of the service account to use for neuron monitor
 {{- default "neuron-monitor-service-acct" .Values.neuronMonitor.serviceAccount.name }}
 {{- end }}
 
+{{/*
+Legacy helpers kept for backward compatibility. Delegate to the common helpers,
+sourcing from `manager` at the component level so root-level values are inherited.
+*/}}
 {{- define "amazon-cloudwatch-observability.podAnnotations" -}}
-{{- if .Values.manager.podAnnotations }}
-{{- .Values.manager.podAnnotations | toYaml }}
-{{- end }}
+{{- include "amazon-cloudwatch-observability.common.podAnnotations" (dict "component" .Values.manager "context" .) }}
 {{- end }}
 
 {{- define "amazon-cloudwatch-observability.podLabels" -}}
-{{- if .Values.manager.podLabels }}
-{{- .Values.manager.podLabels | toYaml }}
-{{- end }}
+{{- include "amazon-cloudwatch-observability.common.podLabels" (dict "component" .Values.manager "context" .) }}
 {{- end }}
 
 {{/*

@@ -15,6 +15,21 @@ spec:
   mode: daemonset
   serviceAccount: {{ include "cloudwatch-agent.serviceAccountName" . | quote }}
   priorityClassName: {{ .Values.agent.priorityClassName | quote }}
+  {{- $agentWinAnnotations := include "amazon-cloudwatch-observability.common.podAnnotations" (dict "component" .Values.agent "context" .) }}
+  {{- with $agentWinAnnotations }}
+  podAnnotations:
+    {{- . | nindent 4 }}
+  {{- end }}
+  {{- include "amazon-cloudwatch-observability.common.topologySpreadConstraints" (dict "component" .Values.agent "context" .) | nindent 2 }}
+  {{- $agentWinPdb := include "amazon-cloudwatch-observability.common.podDisruptionBudget" (dict "component" .Values.agent "context" .) | fromYaml }}
+  {{- if $agentWinPdb.enabled }}
+  podDisruptionBudget:
+    {{- if hasKey $agentWinPdb "minAvailable" }}
+    minAvailable: {{ $agentWinPdb.minAvailable }}
+    {{- else if hasKey $agentWinPdb "maxUnavailable" }}
+    maxUnavailable: {{ $agentWinPdb.maxUnavailable }}
+    {{- end }}
+  {{- end }}
   nodeSelector:
     kubernetes.io/os: windows
   config: {{ include "cloudwatch-agent.modify-config" (merge (dict "Config" $config) .) }}
