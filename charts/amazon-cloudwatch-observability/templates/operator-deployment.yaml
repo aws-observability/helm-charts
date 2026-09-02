@@ -41,6 +41,13 @@ spec:
         command:
         - /manager
         name: manager
+        env:
+        # K8S_MODE drives the eks: vs k8s: Environment prefix the operator injects into
+        # instrumented pods (k8s.cluster.name [+ cloud.platform=aws_eks on EKS]), mirroring
+        # the CloudWatch agent's KubernetesMode so AppSignals and ServiceEvents/Dynamic
+        # Instrumentation resolve a consistent Environment.
+        - name: K8S_MODE
+          value: {{ .Values.k8sMode | quote }}
         ports:
         - containerPort: {{ .Values.manager.ports.containerPort }}
           name: webhook-server
