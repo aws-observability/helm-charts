@@ -22,34 +22,6 @@ By default, the helm chart will enable [Container Insights](https://docs.aws.ama
 ## Windows Support
 CloudWatch DaemonSet on Windows is officially supported only for containerd runtime.
 
-## EKS Add-on Standard Configuration
-
-The following top-level values are the standard EKS add-on configuration keys. They are applied by default to all supported addon workloads and can be overridden per component (e.g. `manager.podLabels`, `containerLogs.fluentBit.podAnnotations`).
-
-| Key                          | Type   | Default | Description                                                                                       |
-| ---------------------------- | ------ | ------- | ------------------------------------------------------------------------------------------------- |
-| `podLabels`                  | map    | `{}`    | Extra labels attached to addon pods.                                                              |
-| `podAnnotations`             | map    | `{}`    | Extra annotations attached to addon pods.                                                         |
-| `topologySpreadConstraints`  | list   | `[]`    | Topology spread constraints applied to addon pods.                                                |
-| `priorityClassName`          | string | `""`    | Priority class name. Only applied to workloads that don't already declare a component-level value. |
-| `podDisruptionBudget.enabled` | bool   | `false` | Opt-in creation of a `PodDisruptionBudget` for each supported workload.                           |
-| `podDisruptionBudget.maxUnavailable` | int/string | `1` | `maxUnavailable` used when PDBs are created.                                             |
-| `podDisruptionBudget.minAvailable`   | int/string | _unset_ | Alternative to `maxUnavailable` (mutually exclusive).                                     |
-
-### Coverage
-
-| Workload                     | podLabels | podAnnotations | topologySpreadConstraints | priorityClassName | podDisruptionBudget |
-| ---------------------------- | :-------: | :------------: | :-----------------------: | :---------------: | :-----------------: |
-| Operator (controller-manager) | ✓         | ✓              | ✓                         | ✓                 | ✓ (Kubernetes PDB)  |
-| CloudWatch Agent (Linux/Windows) | ✗†     | ✓              | ✓                         | ✓                 | ✓ (via CR)          |
-| Fluent Bit (Linux/Windows)   | ✓         | ✓              | ✓                         | ✓                 | ✓ (Kubernetes PDB)  |
-| Node Exporter                | ✓         | ✓              | ✓                         | ✓                 | ✓ (Kubernetes PDB)  |
-| Kube State Metrics           | ✓         | ✓              | ✓                         | ✓                 | ✓ (Kubernetes PDB)  |
-| DCGM Exporter                | ✗†        | ✗†             | ✗†                        | ✗†                | ✗†                  |
-| Neuron Monitor               | ✗†        | ✗†             | ✗†                        | ✗†                | ✗†                  |
-
-† Not currently supported by the CloudWatch Agent Operator CRD. Support is planned in a follow-up.
-
 ## Security
 
 See [CONTRIBUTING](CONTRIBUTING.md#security-issue-notifications) for more information.
