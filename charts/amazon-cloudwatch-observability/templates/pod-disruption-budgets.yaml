@@ -1,5 +1,5 @@
 {{/*
-PodDisruptionBudgets for addon workloads.
+PodDisruptionBudgets for chart workloads.
 
 Each PDB is opt-in via `podDisruptionBudget.enabled` (root or component-level).
 Component-level `podDisruptionBudget` overrides root when non-empty.

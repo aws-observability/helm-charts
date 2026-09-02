@@ -2,11 +2,11 @@
 amazon-cloudwatch-observability v6.7.0 (unreleased)
 ========================================================================
 New Features:
-* Add standard EKS addon configuration values (podLabels, podAnnotations, topologySpreadConstraints, podDisruptionBudget, priorityClassName). Set at the chart root and inherited by all supported workloads; each component may override via the same key.
+* Add `podLabels`, `podAnnotations`, `topologySpreadConstraints`, `priorityClassName`, and `podDisruptionBudget` as top-level values applied to supported addon workloads. Each can be overridden per component (e.g. `manager.podLabels`, `containerLogs.fluentBit.podAnnotations`). `podDisruptionBudget` is opt-in via `podDisruptionBudget.enabled`.
 
 Known Limitations:
-* podLabels is not applied to AmazonCloudWatchAgent pods (operator CRD does not yet expose the field).
-* podLabels, podAnnotations, topologySpreadConstraints, podDisruptionBudget, and priorityClassName are not applied to DcgmExporter or NeuronMonitor pods (operator CRDs do not yet expose these fields). Follow-up operator changes are required to close these gaps.
+* `podLabels` is not applied to `AmazonCloudWatchAgent` pods (operator CRD does not yet expose the field).
+* None of these fields are applied to `DcgmExporter` or `NeuronMonitor` pods (operator CRDs do not yet expose them). A follow-up operator change is required.
 
 =======================================================================
 amazon-cloudwatch-observability v6.6.0 (2026-08-27)
