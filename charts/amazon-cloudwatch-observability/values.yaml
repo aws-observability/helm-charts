@@ -26,6 +26,41 @@ useDualstackEndpoint: false
 ## Provide default tolerations
 tolerations:
   - operator: Exists
+## ══════════════════════════════════════════════════════════════════════════════
+## EKS addon standard configuration values
+## ══════════════════════════════════════════════════════════════════════════════
+##
+## The following top-level fields are applied by default to all pod-producing
+## addon workloads that support them (operator, cloudwatch-agent, fluent-bit,
+## node-exporter, kube-state-metrics). Each field can be overridden at the
+## component level by setting the same key under that component (e.g.
+## `manager.podLabels`, `containerLogs.fluentBit.podAnnotations`); an
+## explicitly-empty component value falls back to the root value.
+##
+## CRD-driven workloads:
+##   AmazonCloudWatchAgent — propagates podAnnotations, podDisruptionBudget,
+##     topologySpreadConstraints, priorityClassName (podLabels is NOT supported
+##     by the operator CRD today; see follow-up).
+##   DcgmExporter, NeuronMonitor — the operator CRDs do not support any of
+##     these fields yet, so they are not applied to those pods.
+
+## Custom labels attached to addon pods (component overrides root when non-empty).
+podLabels: {}
+## Custom annotations attached to addon pods (component overrides root when non-empty).
+podAnnotations: {}
+## Spread pods across zones/nodes/other topology domains
+## See https://kubernetes.io/docs/concepts/scheduling-eviction/topology-spread-constraints/
+topologySpreadConstraints: []
+## Root PriorityClassName. Only applied to workloads that don't already declare
+## a component-level priorityClassName. Set to a non-empty value to apply broadly.
+priorityClassName: ""
+## PodDisruptionBudget for opt-in eviction protection.
+## When enabled, PodDisruptionBudget resources are created for supported workloads.
+## Provide either maxUnavailable OR minAvailable (mutually exclusive per PDB spec).
+podDisruptionBudget:
+  enabled: false
+  maxUnavailable: 1
+  # minAvailable:
 containerLogs:
   enabled: true
   fluentBit:

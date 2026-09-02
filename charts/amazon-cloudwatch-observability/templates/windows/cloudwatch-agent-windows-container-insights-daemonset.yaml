@@ -18,6 +18,25 @@ spec:
   workingDir: "%CONTAINER_SANDBOX_MOUNT_POINT%\\Program Files\\Amazon\\AmazonCloudWatchAgent"
   mode: daemonset
   serviceAccount: {{ include "cloudwatch-agent.serviceAccountName" . | quote }}
+  {{- $ciWinPcn := .Values.agent.priorityClassName | default (include "amazon-cloudwatch-observability.common.priorityClassName" (dict "component" .Values.agent "context" .)) }}
+  {{- if $ciWinPcn }}
+  priorityClassName: {{ $ciWinPcn | quote }}
+  {{- end }}
+  {{- $ciWinAnnotations := include "amazon-cloudwatch-observability.common.podAnnotations" (dict "component" .Values.agent "context" .) }}
+  {{- with $ciWinAnnotations }}
+  podAnnotations:
+    {{- . | nindent 4 }}
+  {{- end }}
+  {{- include "amazon-cloudwatch-observability.common.topologySpreadConstraints" (dict "component" .Values.agent "context" .) | nindent 2 }}
+  {{- $ciWinPdb := include "amazon-cloudwatch-observability.common.podDisruptionBudget" (dict "component" .Values.agent "context" .) | fromYaml }}
+  {{- if $ciWinPdb.enabled }}
+  podDisruptionBudget:
+    {{- if hasKey $ciWinPdb "minAvailable" }}
+    minAvailable: {{ $ciWinPdb.minAvailable }}
+    {{- else if hasKey $ciWinPdb "maxUnavailable" }}
+    maxUnavailable: {{ $ciWinPdb.maxUnavailable }}
+    {{- end }}
+  {{- end }}
   nodeSelector:
     kubernetes.io/os: windows
   config: {{ include "cloudwatch-agent.modify-config" (merge (dict "Config" $config) .) }}
