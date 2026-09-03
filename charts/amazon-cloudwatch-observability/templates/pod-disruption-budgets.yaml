@@ -1,0 +1,79 @@
+{{/*
+PodDisruptionBudgets for chart workloads.
+
+Each PDB is opt-in via `podDisruptionBudget.enabled` (root or component-level).
+Component-level `podDisruptionBudget` overrides root when defined.
+
+Naming: every PDB has a `-pdb` suffix so it does not collide with the workload
+resource name.
+
+Fluent Bit note: this template emits a single PDB (`fluent-bit-pdb`) with
+`selector.matchLabels.k8s-app: fluent-bit`. The Linux and Windows Fluent Bit
+DaemonSets both label their pods `k8s-app: fluent-bit`, so in mixed-OS clusters
+the budget is shared across Linux and Windows pods. `maxUnavailable: 1`
+serializes rollouts across the combined pool; percentage-based budgets should
+be sized with that in mind. If per-OS isolation is required, keep this PDB
+disabled and set your own via `containerLogs.fluentBit.podDisruptionBudget` /
+external PDB manifests.
+
+CRD-managed workloads:
+  AmazonCloudWatchAgent — PDB is emitted via the CR `spec.podDisruptionBudget`
+    field in `linux/cloudwatch-agent-custom-resource.yaml` and the Windows CR
+    templates. The operator provisions the PDB resource.
+  DcgmExporter, NeuronMonitor — operator CRDs do not support a PDB field today
+    and workload pods aren't labelled consistently for a matchLabels selector,
+    so PDBs for these workloads are not emitted.
+*/}}
+
+{{/* -------- Operator (controller-manager Deployment) -------- */}}
+{{- $mgrPdb := include "amazon-cloudwatch-observability.common.podDisruptionBudget" (dict "component" .Values.manager "context" .) | fromYaml }}
+{{- if $mgrPdb.enabled }}
+{{ include "amazon-cloudwatch-observability.renderPodDisruptionBudget" (dict
+    "name" (printf "%s-controller-manager-pdb" (include "amazon-cloudwatch-observability.name" .))
+    "namespace" .Release.Namespace
+    "selector" (dict "app.kubernetes.io/name" (include "amazon-cloudwatch-observability.name" .) "control-plane" "controller-manager")
+    "pdb" $mgrPdb
+    "ctx" .) }}
+{{- end }}
+
+{{/* -------- Fluent Bit DaemonSet (Linux; selector also matches Windows pods) -------- */}}
+{{- if .Values.containerLogs.enabled }}
+{{- $fbPdb := include "amazon-cloudwatch-observability.common.podDisruptionBudget" (dict "component" .Values.containerLogs.fluentBit "context" .) | fromYaml }}
+{{- if $fbPdb.enabled }}
+---
+{{ include "amazon-cloudwatch-observability.renderPodDisruptionBudget" (dict
+    "name" "fluent-bit-pdb"
+    "namespace" .Release.Namespace
+    "selector" (dict "k8s-app" "fluent-bit")
+    "pdb" $fbPdb
+    "ctx" .) }}
+{{- end }}
+{{- end }}
+
+{{/* -------- Node Exporter DaemonSet -------- */}}
+{{- if and .Values.nodeExporter.enabled .Values.otelContainerInsights.enabled }}
+{{- $nePdb := include "amazon-cloudwatch-observability.common.podDisruptionBudget" (dict "component" .Values.nodeExporter "context" .) | fromYaml }}
+{{- if $nePdb.enabled }}
+---
+{{ include "amazon-cloudwatch-observability.renderPodDisruptionBudget" (dict
+    "name" (printf "%s-pdb" (include "node-exporter.name" .))
+    "namespace" .Release.Namespace
+    "selector" (dict "k8s-app" (include "node-exporter.name" .))
+    "pdb" $nePdb
+    "ctx" .) }}
+{{- end }}
+{{- end }}
+
+{{/* -------- Kube State Metrics Deployment -------- */}}
+{{- if and .Values.kubeStateMetrics.enabled .Values.otelContainerInsights.enabled }}
+{{- $ksmPdb := include "amazon-cloudwatch-observability.common.podDisruptionBudget" (dict "component" .Values.kubeStateMetrics "context" .) | fromYaml }}
+{{- if $ksmPdb.enabled }}
+---
+{{ include "amazon-cloudwatch-observability.renderPodDisruptionBudget" (dict
+    "name" (printf "%s-pdb" (include "kube-state-metrics.name" .))
+    "namespace" .Release.Namespace
+    "selector" (dict "app.kubernetes.io/component" (include "kube-state-metrics.name" .))
+    "pdb" $ksmPdb
+    "ctx" .) }}
+{{- end }}
+{{- end }}

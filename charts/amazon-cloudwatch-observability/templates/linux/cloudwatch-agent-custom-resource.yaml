@@ -101,7 +101,22 @@ spec:
       add:
         - SYS_ADMIN
   {{ end }}
-  priorityClassName: {{ $agent.priorityClassName | default $.Values.agent.priorityClassName | quote }}
+  priorityClassName: {{ include "amazon-cloudwatch-observability.common.priorityClassName" (dict "component" $agent "context" $) | quote }}
+  {{- $agentAnnotations := include "amazon-cloudwatch-observability.common.podAnnotations" (dict "component" $agent "context" $) }}
+  {{- with $agentAnnotations }}
+  podAnnotations:
+    {{- . | nindent 4 }}
+  {{- end }}
+  {{- include "amazon-cloudwatch-observability.common.topologySpreadConstraints" (dict "component" $agent "context" $) | nindent 2 }}
+  {{- $agentPdb := include "amazon-cloudwatch-observability.common.podDisruptionBudget" (dict "component" $agent "context" $) | fromYaml }}
+  {{- if $agentPdb.enabled }}
+  podDisruptionBudget:
+    {{- if hasKey $agentPdb "minAvailable" }}
+    minAvailable: {{ $agentPdb.minAvailable }}
+    {{- else if hasKey $agentPdb "maxUnavailable" }}
+    maxUnavailable: {{ $agentPdb.maxUnavailable }}
+    {{- end }}
+  {{- end }}
   {{- with $agent.affinity }}
   affinity: {{- toYaml . | nindent 4 }}
   {{- end }}

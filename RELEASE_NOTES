@@ -1,4 +1,18 @@
 =======================================================================
+amazon-cloudwatch-observability v6.7.0 (unreleased)
+========================================================================
+New Features:
+* Add `podLabels`, `podAnnotations`, `topologySpreadConstraints`, `priorityClassName`, and `podDisruptionBudget` as top-level values applied to supported addon workloads. Each can be overridden per component (e.g. `manager.podLabels`, `containerLogs.fluentBit.podAnnotations`). `podDisruptionBudget` is opt-in via `podDisruptionBudget.enabled`.
+
+Compatibility:
+* `AmazonCloudWatchAgent` CR now emits `spec.podAnnotations`, `spec.topologySpreadConstraints`, and `spec.podDisruptionBudget` when the corresponding chart values are set. Requires CloudWatch Agent Operator v3.7.0 or later — pinning `manager.image.tag` to an older release whose CRD predates these fields will cause `kubectl apply` to reject the CR.
+* Behavior of the `amazon-cloudwatch-observability.podAnnotations` / `amazon-cloudwatch-observability.podLabels` helper templates has changed: when the manager-specific `.Values.manager.podAnnotations` / `.Values.manager.podLabels` is unset, they now fall back to the root-level `.Values.podAnnotations` / `.Values.podLabels`, whereas previously they returned an empty result. External chart-extenders that include these helpers directly will see root labels/annotations flow into their consumers whenever the manager-specific values are not defined.
+
+Known Limitations:
+* `podLabels` is not applied to `AmazonCloudWatchAgent` pods (operator CRD does not yet expose the field).
+* None of these fields are applied to `DcgmExporter` or `NeuronMonitor` pods (operator CRDs do not yet expose them). A follow-up operator change is required.
+
+=======================================================================
 amazon-cloudwatch-observability v6.6.0 (2026-08-27)
 ========================================================================
 New Features:
