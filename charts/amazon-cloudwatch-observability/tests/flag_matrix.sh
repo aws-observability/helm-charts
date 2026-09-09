@@ -126,6 +126,26 @@ FLUENT_BIT_IMAGE="aws-for-fluent-bit"
 # All OTEL log pipeline fragments (app + host).
 ALL_LOG_FRAGMENTS="$LOG_EXPORTER_APP,$LOG_EXPORTER_NODE,$LOG_SIGV4,$LOG_PIPELINE_APP,$FILELOG_APP"
 
+# ── Runtime CI config surface (spec.config JSON) ──
+# The chart no longer pre-renders the OTEL CI pipeline YAML into spec.otelConfig.
+# Instead it emits opentelemetry.collect.container_insights into spec.config and
+# the CloudWatch Agent builds the receivers/processors/exporters at runtime. The
+# JSON lives inside a quoted YAML string, so its inner quotes are escaped
+# (\"role\":\"node\"); the patterns below include the escaped-quote backslashes.
+CI_CONFIG="container_insights"
+CI_ROLE_NODE='role\\":\\"node'
+CI_ROLE_CLUSTER='role\\":\\"cluster'
+CI_CLUSTER_NAME='cluster_name\\":\\"test-cluster'
+CI_SOLUTIONS="solutions"
+CI_LOGS_ON='logs\\":{\\"enabled\\":true'
+CI_LOGS_OFF='logs\\":{\\"enabled\\":false'
+# The pre-rendered CI otelConfig block must no longer appear on any agent CR.
+OTEL_CONFIG_BLOCK="otelConfig:"
+
+# Everything the chart used to pre-render for OTEL CI — all must now be absent
+# whenever otelContainerInsights.enabled=true (pipelines are built at runtime).
+PRERENDER="$METRICS_EXPORTER,$METRICS_SIGV4,$ALL_LOG_FRAGMENTS,$OTEL_CONFIG_BLOCK"
+
 # ──────────────────────────────────────────────────────────────────────────
 # Run all 8 combinations.
 # ──────────────────────────────────────────────────────────────────────────
@@ -154,26 +174,32 @@ run_case 4 false true true "ok" \
     "$FLUENT_BIT_IMAGE" "$METRICS_EXPORTER,$ALL_LOG_FRAGMENTS"
 
 # State #5: OTEL metrics only.
+# Pipelines are built at runtime: assert container_insights (node + cluster roles,
+# cluster_name, logs disabled) is in spec.config, and no pre-rendered otelConfig.
 run_case 5 true false false "ok" \
     "OTEL metrics only, no logs" \
-    "$METRICS_EXPORTER,$METRICS_SIGV4" "$ALL_LOG_FRAGMENTS,$FLUENT_BIT_IMAGE"
+    "$CI_CONFIG,$CI_ROLE_NODE,$CI_ROLE_CLUSTER,$CI_CLUSTER_NAME,$CI_LOGS_OFF" \
+    "$PRERENDER,$FLUENT_BIT_IMAGE,$CI_LOGS_ON"
 
 # State #6: hybrid — OTEL metrics + FluentBit logs.
 run_case 6 true false true "ok" \
     "Hybrid — OTEL metrics + FluentBit logs" \
-    "$METRICS_EXPORTER,$METRICS_SIGV4,$FLUENT_BIT_IMAGE" "$ALL_LOG_FRAGMENTS"
+    "$CI_CONFIG,$CI_ROLE_NODE,$CI_ROLE_CLUSTER,$CI_CLUSTER_NAME,$CI_LOGS_OFF,$FLUENT_BIT_IMAGE" \
+    "$PRERENDER,$CI_LOGS_ON"
 
 # State #7: full OTEL (metrics + logs, no FluentBit).
+# logs.enabled=true flips container_insights.logs.enabled to true; solutions
+# appear on the cluster-scraper role.
 run_case 7 true true false "ok" \
     "Full OTEL (metrics + logs)" \
-    "$METRICS_EXPORTER,$METRICS_SIGV4,$LOG_EXPORTER_APP,$LOG_EXPORTER_NODE,$LOG_SIGV4,$FILELOG_APP" \
-    "$FLUENT_BIT_IMAGE"
+    "$CI_CONFIG,$CI_ROLE_NODE,$CI_ROLE_CLUSTER,$CI_CLUSTER_NAME,$CI_SOLUTIONS,$CI_LOGS_ON" \
+    "$PRERENDER,$FLUENT_BIT_IMAGE,$CI_LOGS_OFF"
 
 # State #8: dual-publish (migration window — OTEL logs + FluentBit both active).
 run_case 8 true true true "ok" \
     "Dual-publish — OTEL logs + FluentBit both active" \
-    "$METRICS_EXPORTER,$LOG_EXPORTER_APP,$LOG_EXPORTER_NODE,$FILELOG_APP,$FLUENT_BIT_IMAGE" \
-    ""
+    "$CI_CONFIG,$CI_ROLE_NODE,$CI_ROLE_CLUSTER,$CI_CLUSTER_NAME,$CI_SOLUTIONS,$CI_LOGS_ON,$FLUENT_BIT_IMAGE" \
+    "$PRERENDER"
 
 # ──────────────────────────────────────────────────────────────────────────
 # Summary.

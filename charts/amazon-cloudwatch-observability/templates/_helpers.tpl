@@ -110,6 +110,8 @@ Logic:
     when applicationSignals.enabled AND applicationSignals.targetAgent matches agentName
   - Includes logs.metrics_collected.kubernetes when containerInsights.enabled AND
     containerInsights.targetAgent matches agentName
+  - Includes opentelemetry.collect.container_insights when otelContainerInsights targets the agent
+    (node=targetAgent / cluster=clusterScraperAgent), so the agent builds CI pipelines at runtime.
   - Returns minimal {"agent":{"region":"<region>"}} when no feature targets the agent
 */}}
 {{- define "cloudwatch-agent.build-default-config" -}}
@@ -132,6 +134,49 @@ Logic:
 {{- end -}}
 {{- if $needsLogs -}}
   {{- $_ := set $config "logs" (dict "metrics_collected" $metricsCollected) -}}
+{{- end -}}
+{{/* Emit opentelemetry.collect.container_insights so the agent builds CI pipelines at runtime.
+     role=node (targetAgent) / cluster (clusterScraperAgent); cluster_name is a sibling of collect. */}}
+{{- if $ctx.Values.otelContainerInsights.enabled -}}
+  {{- $role := "" -}}
+  {{- if eq $ctx.Values.otelContainerInsights.targetAgent $agentName -}}
+    {{- $role = "node" -}}
+  {{- else if eq $ctx.Values.otelContainerInsights.clusterScraperAgent $agentName -}}
+    {{- $role = "cluster" -}}
+  {{- end -}}
+  {{- if $role -}}
+    {{/* collection_interval = seconds; trim trailing "s" from metricResolution ("30s"->30), default 30. */}}
+    {{- $interval := 30 -}}
+    {{- $raw := $ctx.Values.otelContainerInsights.metricResolution | toString -}}
+    {{- if $raw -}}
+      {{- $interval = trimSuffix "s" $raw | int -}}
+    {{- end -}}
+    {{- $ci := dict "role" $role "collection_interval" $interval "logs" (dict "enabled" $ctx.Values.otelContainerInsights.logs.enabled) -}}
+    {{/* solutions: cluster role only; mirror values.yaml, omit absent sub-fields. */}}
+    {{- if eq $role "cluster" -}}
+      {{- $sol := $ctx.Values.otelContainerInsights.solutions -}}
+      {{- $solOut := dict -}}
+      {{- if hasKey $sol "enabled" -}}
+        {{- $_ := set $solOut "enabled" $sol.enabled -}}
+      {{- end -}}
+      {{- range $name := list "karpenter" "keda" -}}
+        {{- if hasKey $sol $name -}}
+          {{- $s := index $sol $name -}}
+          {{- $entry := dict -}}
+          {{- if hasKey $s "enabled" -}}
+            {{- $_ := set $entry "enabled" $s.enabled -}}
+          {{- end -}}
+          {{- if hasKey $s "namespace" -}}
+            {{- $_ := set $entry "namespace" $s.namespace -}}
+          {{- end -}}
+          {{- $_ := set $solOut $name $entry -}}
+        {{- end -}}
+      {{- end -}}
+      {{- $_ := set $ci "solutions" $solOut -}}
+    {{- end -}}
+    {{- $otel := dict "cluster_name" ($ctx.Values.clusterName | toString) "collect" (dict "container_insights" $ci) -}}
+    {{- $_ := set $config "opentelemetry" $otel -}}
+  {{- end -}}
 {{- end -}}
 {{- $config | toJson -}}
 {{- end -}}
@@ -157,15 +202,14 @@ from other pods.
 {{- end -}}
 
 {{/*
-Build the default OTEL YAML config for a given agent based on which feature flags target it.
+Build the default OTEL YAML config base for a given agent.
 Accepts a dict with "agentName" (string) and "context" (root context $).
 Returns OTEL YAML string.
 
 Logic:
-  - When otelContainerInsights.enabled is false, return empty config ({})
-  - When otelContainerInsights.targetAgent matches agentName, return node-level OTEL CI config
-  - When otelContainerInsights.clusterScraperAgent matches agentName, return cluster-level OTEL CI config
-  - Default: return empty config ({})
+  - Always returns empty config ({}). CI pipelines are now built by the agent at runtime from
+    spec.config's opentelemetry.collect.container_insights (see cloudwatch-agent.build-default-config);
+    the {} base is only what a customer-supplied agent.otelConfig override merges onto.
 */}}
 {{- define "cloudwatch-agent.validate-flags" -}}
 {{- /*
@@ -197,18 +241,11 @@ Logic:
 {{- end -}}
 
 {{- define "cloudwatch-agent.build-default-otel-config" -}}
-{{- $agentName := .agentName -}}
 {{- $ctx := .context -}}
 {{- include "cloudwatch-agent.validate-flags" $ctx -}}
-{{- if not $ctx.Values.otelContainerInsights.enabled -}}
+{{/* CI pipelines now built by the agent at runtime (see cloudwatch-agent.build-default-config).
+     Returns {} base for customer agent.otelConfig override merge; emits no chart-generated CI default. */}}
 {}
-{{- else if eq $ctx.Values.otelContainerInsights.targetAgent $agentName -}}
-{{- include "otel-container-insights.config" $ctx -}}
-{{- else if eq $ctx.Values.otelContainerInsights.clusterScraperAgent $agentName -}}
-{{- include "otel-container-insights-cluster-scraper.config" $ctx -}}
-{{- else -}}
-{}
-{{- end -}}
 {{- end -}}
 
 {{/*
