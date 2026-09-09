@@ -61,30 +61,11 @@ func TestOTLPHybridMetricsFluentBit(t *testing.T) {
 		agentMap[agent.GetName()] = agent
 	}
 
-	nodeAgent, exists := agentMap["cloudwatch-agent"]
-	if !assert.True(t, exists, "cloudwatch-agent CR should exist") {
-		return
-	}
-
-	spec, ok := nodeAgent.Object["spec"].(map[string]interface{})
-	if !assert.True(t, ok, "spec should be a map") {
-		return
-	}
-
-	otelConfig, ok := spec["otelConfig"].(string)
-	if !assert.True(t, ok, "otelConfig should be a string") {
-		return
-	}
-
-	// OTEL metrics present.
-	assert.Contains(t, otelConfig, "otlphttp/cw_k8s_ci_v0_metrics_dest",
-		"metrics exporter must be present")
-	assert.Contains(t, otelConfig, "sigv4auth/cw_k8s_ci_v0_metrics_dest",
-		"metrics-side sigv4auth must be present")
-
-	// OTEL log pipeline absent (same assertions as the logs-disabled scenario —
-	// the logs sub-flag is the only thing controlling this, and it's false here).
-	assertLogPipelineAbsent(t, otelConfig)
+	// The CloudWatch Agent builds the CI pipelines at runtime from spec.config. CI is enabled
+	// (metrics), but logs.enabled=false (otelContainerInsights.logs.enabled=false), so the log
+	// pipeline is gated off at runtime.
+	assertNodeContainerInsights(t, agentMap, "cloudwatch-agent", false)
+	assertClusterScraperContainerInsights(t, agentMap, "cloudwatch-agent-cluster-scraper")
 
 	// CWA DaemonSet must not have log-related host mounts.
 	assertNoLogMounts(t, k8sClient, "cloudwatch-agent")

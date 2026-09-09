@@ -43,6 +43,7 @@ jobs:
         # TODO: add webhooks-disabled
         # Keep sorted alphabetically.
         scenario:
+          - agent-ci-translation
           - agent-config-merge-isolation
           - aks-otel-container-insights
           - appsignals-disabled
