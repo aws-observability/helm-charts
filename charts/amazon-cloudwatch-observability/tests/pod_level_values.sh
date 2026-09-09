@@ -194,22 +194,23 @@ helm template test-release "$CHART_DIR" \
 
 echo -e "${Y}== Case A: root-level fields propagate ==${N}"
 
-# PDB naming — all four end with -pdb.
+# PDB naming — Deployment-backed workloads only, all end with -pdb.
 assert_pdb_spec "amazon-cloudwatch-observability-controller-manager-pdb" "spec.maxUnavailable" "1" "$RENDER_FILE"
-assert_pdb_spec "fluent-bit-pdb"                                          "spec.maxUnavailable" "1" "$RENDER_FILE"
-assert_pdb_spec "node-exporter-pdb"                                       "spec.maxUnavailable" "1" "$RENDER_FILE"
 assert_pdb_spec "kube-state-metrics-pdb"                                  "spec.minAvailable"   "1" "$RENDER_FILE"
 
-# Exactly one fluent-bit PDB (no separate windows PDB emitted).
-if [[ "$(count_docs PodDisruptionBudget '^fluent-bit-pdb$' "$RENDER_FILE")" == "1" ]]; then
-  pass "exactly one fluent-bit PDB emitted"
+# DaemonSet-backed workloads must NOT get a chart-owned PDB: a
+# maxUnavailable PDB targeting pods of a controller without the scale
+# subresource is permanently SyncFailed with disruptionsAllowed=0, which
+# blocks eviction-API evictions instead of budgeting them.
+if [[ "$(count_docs PodDisruptionBudget 'fluent-bit' "$RENDER_FILE")" == "0" ]]; then
+  pass "no fluent-bit PDB emitted (DaemonSet)"
 else
-  fail "expected exactly one fluent-bit-pdb, found $(count_docs PodDisruptionBudget '^fluent-bit-pdb$' "$RENDER_FILE")"
+  fail "unexpected fluent-bit PDB emitted for a DaemonSet workload"
 fi
-if [[ "$(count_docs PodDisruptionBudget 'fluent-bit-windows' "$RENDER_FILE")" == "0" ]]; then
-  pass "no fluent-bit-windows PDB emitted"
+if [[ "$(count_docs PodDisruptionBudget 'node-exporter' "$RENDER_FILE")" == "0" ]]; then
+  pass "no node-exporter PDB emitted (DaemonSet)"
 else
-  fail "unexpected fluent-bit-windows PDB emitted"
+  fail "unexpected node-exporter PDB emitted for a DaemonSet workload"
 fi
 
 # Root podLabels/podAnnotations propagate.

@@ -13,6 +13,7 @@ Known Limitations:
 * `podLabels` is not applied to `AmazonCloudWatchAgent` pods. Requires the next operator release (which adds `spec.podLabels` to the CRD) plus chart-side wiring in a follow-up chart release.
 * `topologySpreadConstraints` on daemonset-mode agents takes effect only with the next operator release; the follow-up chart release will bump `manager.image.tag` accordingly.
 * None of these fields are applied to `DcgmExporter` or `NeuronMonitor` pods. Requires the next operator release (which adds the fields to those CRDs) plus chart-side CR template wiring in a follow-up chart release.
+* `podDisruptionBudget` only creates PDB objects for Deployment-backed workloads (operator, kube-state-metrics; plus deployment/statefulset-mode agents via the CR). DaemonSet-backed workloads (fluent-bit, node-exporter) get no PDB: `kubectl drain` skips DaemonSet pods anyway, and a `maxUnavailable` PDB targeting pods of a controller without the scale subresource is permanently `SyncFailed` with `disruptionsAllowed: 0`, which would block eviction-API evictions of those pods instead of budgeting them.
 
 =======================================================================
 amazon-cloudwatch-observability v6.6.0 (2026-08-27)
