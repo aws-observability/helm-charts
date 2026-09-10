@@ -20,6 +20,147 @@ tolerations:
 {{- end }}
 
 {{/*
+Resolve podLabels for a workload. Component value overrides root when defined
+(explicit empty map `{}` counts as an override — same semantics as
+`common.tolerations`).
+
+Callers may pass a `reserved` list of label keys the workload's pod template
+already emits as built-ins (e.g. selector labels). Those keys are stripped from
+the returned user-provided labels so the rendered pod template contains no
+duplicate keys and user input cannot override operator-managed selector labels.
+
+Returns the map rendered as YAML content (no wrapping key).
+
+Usage:
+  {{- $labels := include "amazon-cloudwatch-observability.common.podLabels" (dict
+       "component" .Values.manager
+       "context"   .
+       "reserved"  (list "app.kubernetes.io/name" "control-plane"))
+       }}
+  {{- with $labels }}{{ . | nindent 8 }}{{ end }}
+*/}}
+{{- define "amazon-cloudwatch-observability.common.podLabels" -}}
+{{- $v := .context.Values.podLabels }}
+{{- if .component }}
+  {{- $componentPodLabels := dig "podLabels" nil .component }}
+  {{- if ne nil $componentPodLabels }}
+    {{- $v = $componentPodLabels }}
+  {{- end }}
+{{- end }}
+{{- if and $v .reserved }}
+  {{- $reserved := .reserved }}
+  {{- $filtered := dict }}
+  {{- range $k, $val := $v }}
+    {{- if not (has $k $reserved) }}
+      {{- $_ := set $filtered $k $val }}
+    {{- end }}
+  {{- end }}
+  {{- $v = $filtered }}
+{{- end }}
+{{- with $v }}{{ toYaml . }}{{ end }}
+{{- end }}
+
+{{/*
+Resolve podAnnotations for a workload. Component value overrides root when
+defined (explicit empty map counts as an override).
+*/}}
+{{- define "amazon-cloudwatch-observability.common.podAnnotations" -}}
+{{- $v := .context.Values.podAnnotations }}
+{{- if .component }}
+  {{- $componentPodAnnotations := dig "podAnnotations" nil .component }}
+  {{- if ne nil $componentPodAnnotations }}
+    {{- $v = $componentPodAnnotations }}
+  {{- end }}
+{{- end }}
+{{- with $v }}{{ toYaml . }}{{ end }}
+{{- end }}
+
+{{/*
+Resolve topologySpreadConstraints for a workload. Component value overrides
+root when defined (explicit empty list counts as an override). Emits
+`topologySpreadConstraints: [ ... ]` block or nothing.
+Usage:
+  {{- include "amazon-cloudwatch-observability.common.topologySpreadConstraints" (dict "component" .Values.manager "context" .) | nindent 6 }}
+*/}}
+{{- define "amazon-cloudwatch-observability.common.topologySpreadConstraints" -}}
+{{- $v := .context.Values.topologySpreadConstraints }}
+{{- if .component }}
+  {{- $componentTsc := dig "topologySpreadConstraints" nil .component }}
+  {{- if ne nil $componentTsc }}
+    {{- $v = $componentTsc }}
+  {{- end }}
+{{- end }}
+{{- with $v }}
+topologySpreadConstraints:
+  {{- toYaml . | nindent 2 }}
+{{- end }}
+{{- end }}
+
+{{/*
+Resolve priorityClassName for a workload. Returns the bare string (empty if unset).
+Component value overrides root when defined (explicit empty string counts as an override).
+Usage:
+  {{- $pcn := include "amazon-cloudwatch-observability.common.priorityClassName" (dict "component" .Values.manager "context" .) }}
+  {{- if $pcn }}priorityClassName: {{ $pcn | quote }}{{ end }}
+*/}}
+{{- define "amazon-cloudwatch-observability.common.priorityClassName" -}}
+{{- $v := .context.Values.priorityClassName | default "" -}}
+{{- if .component }}
+  {{- $componentPcn := dig "priorityClassName" nil .component }}
+  {{- if ne nil $componentPcn }}
+    {{- $v = $componentPcn }}
+  {{- end }}
+{{- end }}
+{{- $v -}}
+{{- end }}
+
+{{/*
+Resolve podDisruptionBudget for a workload. Returns the effective PDB object
+as YAML (parse with fromYaml). Component value overrides root when defined
+(explicit empty dict counts as an override).
+Usage:
+  {{- $pdb := include "amazon-cloudwatch-observability.common.podDisruptionBudget" (dict "component" .Values.manager "context" .) | fromYaml }}
+  {{- if $pdb.enabled }}...{{ end }}
+*/}}
+{{- define "amazon-cloudwatch-observability.common.podDisruptionBudget" -}}
+{{- $v := .context.Values.podDisruptionBudget | default dict -}}
+{{- if .component }}
+  {{- $componentPdb := dig "podDisruptionBudget" nil .component }}
+  {{- if ne nil $componentPdb }}
+    {{- $v = $componentPdb }}
+  {{- end }}
+{{- end }}
+{{- toYaml $v -}}
+{{- end }}
+
+{{/*
+Render a PodDisruptionBudget resource. Callers pass:
+  name       — PDB metadata.name
+  namespace  — target namespace (usually .Release.Namespace)
+  selector   — dict of matchLabels for spec.selector
+  pdb        — the resolved PDB object (must have enabled: true; maxUnavailable and/or minAvailable)
+  ctx        — the root context (.) for common labels
+*/}}
+{{- define "amazon-cloudwatch-observability.renderPodDisruptionBudget" -}}
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ .name }}
+  namespace: {{ .namespace }}
+  labels:
+    {{- include "amazon-cloudwatch-observability.labels" .ctx | nindent 4 }}
+spec:
+  {{- if hasKey .pdb "minAvailable" }}
+  minAvailable: {{ .pdb.minAvailable }}
+  {{- else if hasKey .pdb "maxUnavailable" }}
+  maxUnavailable: {{ .pdb.maxUnavailable }}
+  {{- end }}
+  selector:
+    matchLabels:
+      {{- toYaml .selector | nindent 6 }}
+{{- end }}
+
+{{/*
 Helper function to determine monitorAllServices based on region
 */}}
 {{- define "manager.monitorAllServices" -}}
@@ -614,16 +755,16 @@ Create the name of the service account to use for neuron monitor
 {{- default "neuron-monitor-service-acct" .Values.neuronMonitor.serviceAccount.name }}
 {{- end }}
 
+{{/*
+Legacy helpers kept for backward compatibility. Delegate to the common helpers,
+sourcing from `manager` at the component level so root-level values are inherited.
+*/}}
 {{- define "amazon-cloudwatch-observability.podAnnotations" -}}
-{{- if .Values.manager.podAnnotations }}
-{{- .Values.manager.podAnnotations | toYaml }}
-{{- end }}
+{{- include "amazon-cloudwatch-observability.common.podAnnotations" (dict "component" .Values.manager "context" .) }}
 {{- end }}
 
 {{- define "amazon-cloudwatch-observability.podLabels" -}}
-{{- if .Values.manager.podLabels }}
-{{- .Values.manager.podLabels | toYaml }}
-{{- end }}
+{{- include "amazon-cloudwatch-observability.common.podLabels" (dict "component" .Values.manager "context" .) }}
 {{- end }}
 
 {{/*

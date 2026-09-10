@@ -15,8 +15,9 @@ spec:
   template:
     metadata:
       annotations:
-        {{- if .Values.manager.podAnnotations }}
-        {{- include "amazon-cloudwatch-observability.podAnnotations" . | nindent 8 }}
+        {{- $mgrAnnotations := include "amazon-cloudwatch-observability.common.podAnnotations" (dict "component" .Values.manager "context" .) }}
+        {{- with $mgrAnnotations }}
+        {{- . | nindent 8 }}
         {{- end }}
         {{- if .Values.manager.rolling }}
         rollme: {{ randAlphaNum 5 | quote }}
@@ -24,7 +25,10 @@ spec:
       labels:
         app.kubernetes.io/name: {{ template "amazon-cloudwatch-observability.name" . }}
         control-plane: controller-manager
-        {{- include "amazon-cloudwatch-observability.podLabels" . | nindent 8 }}
+        {{- $mgrLabels := include "amazon-cloudwatch-observability.common.podLabels" (dict "component" .Values.manager "context" . "reserved" (list "app.kubernetes.io/name" "control-plane")) }}
+        {{- with $mgrLabels }}
+        {{- . | nindent 8 }}
+        {{- end }}
     spec:
       containers:
       - image: {{ template "cloudwatch-agent-operator.image" . }}
@@ -75,4 +79,9 @@ spec:
       {{- with .Values.manager.nodeSelector }}
       nodeSelector: {{- toYaml . | nindent 8 }}
       {{- end }}
+      {{- $mgrPcn := include "amazon-cloudwatch-observability.common.priorityClassName" (dict "component" .Values.manager "context" .) }}
+      {{- if $mgrPcn }}
+      priorityClassName: {{ $mgrPcn | quote }}
+      {{- end }}
+      {{- include "amazon-cloudwatch-observability.common.topologySpreadConstraints" (dict "component" .Values.manager "context" .) | nindent 6 }}
       {{- dict "component" .Values.manager "context" . | include "amazon-cloudwatch-observability.common.tolerations" | nindent 6 }}

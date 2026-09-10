@@ -26,6 +26,26 @@ useDualstackEndpoint: false
 ## Provide default tolerations
 tolerations:
   - operator: Exists
+## Custom labels applied to addon pods. Overridable per component
+## (e.g. `manager.podLabels`, `containerLogs.fluentBit.podLabels`).
+podLabels: {}
+## Custom annotations applied to addon pods. Overridable per component.
+podAnnotations: {}
+## Topology spread constraints applied to addon pods. Overridable per component.
+## See https://kubernetes.io/docs/concepts/scheduling-eviction/topology-spread-constraints/
+topologySpreadConstraints: []
+## Default priorityClassName. Applied to workloads that don't already declare a
+## component-level priorityClassName; component values take precedence.
+priorityClassName: ""
+## Opt-in PodDisruptionBudget for supported workloads. Overridable per component.
+## When enabled, provide either maxUnavailable OR minAvailable
+## (mutually exclusive per Kubernetes PDB spec). If both are present after Helm
+## value merge (e.g. root default `maxUnavailable: 1` plus a component-level
+## `minAvailable: N`), `minAvailable` wins and `maxUnavailable` is dropped.
+podDisruptionBudget:
+  enabled: false
+  maxUnavailable: 1
+  # minAvailable:
 containerLogs:
   enabled: true
   fluentBit:
@@ -640,8 +660,6 @@ manager:
   serviceAccount:
     create: true
     annotations: {}
-  podAnnotations: {}
-  podLabels: {}
   service:
     name:
   affinity: {}
