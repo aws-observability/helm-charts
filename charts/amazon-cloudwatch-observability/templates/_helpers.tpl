@@ -102,7 +102,7 @@ Helper function to modify auto-monitor config based on agent configurations
 {{/*
 Build the default CW Agent JSON config for a given agent based on which feature flags target it.
 Accepts a dict with "agentName" (string) and "context" (root context $).
-Returns a dict (not JSON) — caller is responsible for serialization.
+Returns the agent config as a JSON string (serialized with toJson).
 
 Logic:
   - Always includes agent.region
@@ -110,6 +110,8 @@ Logic:
     when applicationSignals.enabled AND applicationSignals.targetAgent matches agentName
   - Includes logs.metrics_collected.kubernetes when containerInsights.enabled AND
     containerInsights.targetAgent matches agentName
+  - Includes opentelemetry.collect.container_insights when otelContainerInsights targets the agent
+    (node=targetAgent / cluster=clusterScraperAgent), so the CloudWatch Agent builds CI pipelines at runtime.
   - Returns minimal {"agent":{"region":"<region>"}} when no feature targets the agent
 */}}
 {{- define "cloudwatch-agent.build-default-config" -}}
@@ -132,6 +134,58 @@ Logic:
 {{- end -}}
 {{- if $needsLogs -}}
   {{- $_ := set $config "logs" (dict "metrics_collected" $metricsCollected) -}}
+{{- end -}}
+{{/* Emit opentelemetry.collect.container_insights so the CloudWatch Agent builds CI pipelines at runtime.
+     role=node (targetAgent) / cluster (clusterScraperAgent); cluster_name is a sibling of collect. */}}
+{{- if $ctx.Values.otelContainerInsights.enabled -}}
+  {{- $role := "" -}}
+  {{- if eq $ctx.Values.otelContainerInsights.targetAgent $agentName -}}
+    {{- $role = "node" -}}
+  {{- else if eq $ctx.Values.otelContainerInsights.clusterScraperAgent $agentName -}}
+    {{- $role = "cluster" -}}
+  {{- end -}}
+  {{- if $role -}}
+    {{/* collection_interval = seconds; trim trailing "s" from metricResolution ("30s"->30), default 30. */}}
+    {{- $interval := 30 -}}
+    {{- $raw := $ctx.Values.otelContainerInsights.metricResolution | toString -}}
+    {{- if $raw -}}
+      {{- if not (regexMatch "^[0-9]+s?$" $raw) -}}
+        {{- fail (printf "otelContainerInsights.metricResolution must be a number of seconds, e.g. \"30s\" or \"120s\"; got %q" $raw) -}}
+      {{- end -}}
+      {{- $interval = trimSuffix "s" $raw | int -}}
+    {{- end -}}
+    {{- $ci := dict "role" $role "collection_interval" $interval -}}
+    {{/* logs: node role only; the agent gates the filelog pipeline on node, so logs on cluster is a no-op. */}}
+    {{- if eq $role "node" -}}
+      {{- $logsEnabled := false -}}
+      {{- if hasKey $ctx.Values.otelContainerInsights "logs" -}}{{- $logsEnabled = $ctx.Values.otelContainerInsights.logs.enabled -}}{{- end -}}
+      {{- $_ := set $ci "logs" (dict "enabled" $logsEnabled) -}}
+    {{- end -}}
+    {{/* solutions: cluster role only; mirror values.yaml, omit absent sub-fields. */}}
+    {{- if eq $role "cluster" -}}
+      {{- $sol := $ctx.Values.otelContainerInsights.solutions -}}
+      {{- $solOut := dict -}}
+      {{- if hasKey $sol "enabled" -}}
+        {{- $_ := set $solOut "enabled" $sol.enabled -}}
+      {{- end -}}
+      {{- range $name := list "karpenter" "keda" -}}
+        {{- if hasKey $sol $name -}}
+          {{- $s := index $sol $name -}}
+          {{- $entry := dict -}}
+          {{- if hasKey $s "enabled" -}}
+            {{- $_ := set $entry "enabled" $s.enabled -}}
+          {{- end -}}
+          {{- if hasKey $s "namespace" -}}
+            {{- $_ := set $entry "namespace" $s.namespace -}}
+          {{- end -}}
+          {{- $_ := set $solOut $name $entry -}}
+        {{- end -}}
+      {{- end -}}
+      {{- $_ := set $ci "solutions" $solOut -}}
+    {{- end -}}
+    {{- $otel := dict "cluster_name" ($ctx.Values.clusterName | toString) "collect" (dict "container_insights" $ci) -}}
+    {{- $_ := set $config "opentelemetry" $otel -}}
+  {{- end -}}
 {{- end -}}
 {{- $config | toJson -}}
 {{- end -}}
@@ -157,15 +211,14 @@ from other pods.
 {{- end -}}
 
 {{/*
-Build the default OTEL YAML config for a given agent based on which feature flags target it.
+Build the default OTEL YAML config base for a given agent.
 Accepts a dict with "agentName" (string) and "context" (root context $).
 Returns OTEL YAML string.
 
 Logic:
-  - When otelContainerInsights.enabled is false, return empty config ({})
-  - When otelContainerInsights.targetAgent matches agentName, return node-level OTEL CI config
-  - When otelContainerInsights.clusterScraperAgent matches agentName, return cluster-level OTEL CI config
-  - Default: return empty config ({})
+  - Always returns empty config ({}). CI pipelines are now built by the agent at runtime from
+    spec.config's opentelemetry.collect.container_insights (see cloudwatch-agent.build-default-config);
+    the {} base is only what a customer-supplied agent.otelConfig override merges onto.
 */}}
 {{- define "cloudwatch-agent.validate-flags" -}}
 {{- /*
@@ -197,18 +250,11 @@ Logic:
 {{- end -}}
 
 {{- define "cloudwatch-agent.build-default-otel-config" -}}
-{{- $agentName := .agentName -}}
 {{- $ctx := .context -}}
 {{- include "cloudwatch-agent.validate-flags" $ctx -}}
-{{- if not $ctx.Values.otelContainerInsights.enabled -}}
+{{/* CI pipelines are built by the CloudWatch Agent at runtime (see cloudwatch-agent.build-default-config).
+     Returns {} base for customer agent.otelConfig override merge; emits no chart-generated CI default. */}}
 {}
-{{- else if eq $ctx.Values.otelContainerInsights.targetAgent $agentName -}}
-{{- include "otel-container-insights.config" $ctx -}}
-{{- else if eq $ctx.Values.otelContainerInsights.clusterScraperAgent $agentName -}}
-{{- include "otel-container-insights-cluster-scraper.config" $ctx -}}
-{{- else -}}
-{}
-{{- end -}}
 {{- end -}}
 
 {{/*
@@ -282,26 +328,6 @@ Helper function to modify cloudwatch-agent YAML config
 
 {{- $configCopy | toYaml | quote }}
 {{- end }}
-
-{{/*
-Compute scrape_timeout: use metricResolution if it's less than 10s, otherwise 10s.
-Validates metricResolution is in "<N>s" format.
-*/}}
-{{- define "otel-container-insights.scrapeTimeout" -}}
-{{- $raw := .Values.otelContainerInsights.metricResolution -}}
-{{- if not (hasSuffix "s" $raw) -}}
-  {{- fail (printf "otelContainerInsights.metricResolution must be in \"<N>s\" format (e.g. \"30s\"), got: %s" $raw) -}}
-{{- end -}}
-{{- $seconds := trimSuffix "s" $raw -}}
-{{- if not (regexMatch "^[0-9]+$" $seconds) -}}
-  {{- fail (printf "otelContainerInsights.metricResolution must be in \"<N>s\" format (e.g. \"30s\"), got: %s" $raw) -}}
-{{- end -}}
-{{- if lt ($seconds | int) 10 -}}
-{{- $raw }}
-{{- else -}}
-10s
-{{- end -}}
-{{- end -}}
 
 {{- define "cloudwatch-agent.rolloutStrategyMaxUnavailable" -}}
 {{- if eq .mode "daemonset" -}}
@@ -736,18 +762,6 @@ Create the name of the service account to use for node exporter
 {{- end }}
 
 {{/*
-Get the node-exporter scope version (image tag) for the configured region.
-Uses restrictedTag for regions with a repositoryDomainMap entry, public tag otherwise.
-*/}}
-{{- define "node-exporter.scopeVersion" -}}
-{{- if and (hasKey .Values.nodeExporter.image.repositoryDomainMap .Values.region) (index .Values.nodeExporter.image.repositoryDomainMap .Values.region) -}}
-{{- .Values.nodeExporter.image.restrictedTag -}}
-{{- else -}}
-{{- .Values.nodeExporter.image.tag -}}
-{{- end -}}
-{{- end -}}
-
-{{/*
 Get the node-exporter image for the configured region using repositoryDomainMap
 */}}
 {{- define "node-exporter.image" -}}
@@ -773,18 +787,6 @@ Create the name of the service account to use for kube-state-metrics
 {{- define "kube-state-metrics.serviceAccountName" -}}
 {{- default "kube-state-metrics-service-acct" .Values.kubeStateMetrics.serviceAccount.name }}
 {{- end }}
-
-{{/*
-Get the kube-state-metrics scope version (image tag) for the configured region.
-Uses restrictedTag for regions with a repositoryDomainMap entry, public tag otherwise.
-*/}}
-{{- define "kube-state-metrics.scopeVersion" -}}
-{{- if and (hasKey .Values.kubeStateMetrics.image.repositoryDomainMap .Values.region) (index .Values.kubeStateMetrics.image.repositoryDomainMap .Values.region) -}}
-{{- .Values.kubeStateMetrics.image.restrictedTag -}}
-{{- else -}}
-{{- .Values.kubeStateMetrics.image.tag -}}
-{{- end -}}
-{{- end -}}
 
 {{/*
 Get the kube-state-metrics image for the configured region using repositoryDomainMap

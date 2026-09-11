@@ -19,7 +19,7 @@ import (
 // TestOTLPLogsOtelOnly covers state #7: otelContainerInsights.enabled=true,
 // otelContainerInsights.logs.enabled=true, containerLogs.enabled=false.
 //
-// The fully-migrated production state — OTEL handles both metrics and logs,
+// The OTEL-only production state — OTEL handles both metrics and logs,
 // FluentBit is gone. Validates that OTEL log pipelines render and FluentBit
 // is not deployed.
 func TestOTLPLogsOtelOnly(t *testing.T) {
@@ -55,43 +55,14 @@ func TestOTLPLogsOtelOnly(t *testing.T) {
 		agentMap[agent.GetName()] = agent
 	}
 
-	nodeAgent, exists := agentMap["cloudwatch-agent"]
-	if !assert.True(t, exists, "cloudwatch-agent CR should exist") {
-		return
-	}
-
-	spec, ok := nodeAgent.Object["spec"].(map[string]interface{})
-	if !assert.True(t, ok, "spec should be a map") {
-		return
-	}
-
-	otelConfig, ok := spec["otelConfig"].(string)
-	if !assert.True(t, ok, "otelConfig should be a string") {
-		return
-	}
-
-	// OTEL metrics present.
-	assert.Contains(t, otelConfig, "otlphttp/cw_k8s_ci_v0_metrics_dest",
-		"metrics exporter must be present")
-	assert.Contains(t, otelConfig, "sigv4auth/cw_k8s_ci_v0_metrics_dest")
-
-	// OTEL log pipelines present.
-	logFragments := []string{
-		"filelog/cw_k8s_ci_v0_app",
-		"filelog/cw_k8s_ci_v0_node",
-		"logs/cw_k8s_ci_v0_app",
-		"logs/cw_k8s_ci_v0_node",
-		"otlphttp/cw_k8s_ci_v0_app_logs_dest",
-		"otlphttp/cw_k8s_ci_v0_node_logs_dest",
-		"sigv4auth/cw_k8s_ci_v0_logs_dest",
-	}
-	for _, fragment := range logFragments {
-		assert.Contains(t, otelConfig, fragment,
-			"otelConfig must contain %q when logs=true", fragment)
-	}
+	// The CloudWatch Agent builds the CI pipelines at runtime from the
+	// opentelemetry.collect.container_insights block in spec.config. Assert that surface for both
+	// CI agents; logs.enabled=true here (otelContainerInsights.logs.enabled=true).
+	assertNodeContainerInsights(t, agentMap, "cloudwatch-agent", true)
+	assertClusterScraperContainerInsights(t, agentMap, "cloudwatch-agent-cluster-scraper")
 
 	// CWA DaemonSet must carry the log mounts.
 	assertHasLogMounts(t, k8sClient, "cloudwatch-agent")
 
-	t.Log("OTLP OTEL-only (full migration) scenario validation passed")
+	t.Log("OTLP OTEL-only scenario validation passed")
 }

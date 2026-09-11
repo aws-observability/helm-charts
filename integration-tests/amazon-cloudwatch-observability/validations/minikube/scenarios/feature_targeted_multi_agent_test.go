@@ -6,7 +6,6 @@ package scenarios
 import (
 	"context"
 	"encoding/json"
-	"strings"
 	"testing"
 
 	"github.com/aws-observability/helm-charts/integration-tests/amazon-cloudwatch-observability/util"
@@ -124,16 +123,10 @@ func validateCloudWatchAgentFullConfig(t *testing.T, agentMap map[string]unstruc
 		}
 	}
 
-	// Validate OTEL config has node-level pipelines
-	otelConfig, ok := spec["otelConfig"].(string)
-	if !assert.True(t, ok, "otelConfig should be a string") {
-		return
-	}
-
-	assert.True(t, strings.Contains(otelConfig, "kubeletstats"),
-		"cloudwatch-agent otelConfig should contain kubeletstats receiver (node-level)")
-	assert.False(t, strings.Contains(otelConfig, "cw_k8s_ci_v0_apiserver"),
-		"cloudwatch-agent otelConfig should NOT contain apiserver receiver (cluster-level)")
+	// The CloudWatch Agent builds the node-level CI pipelines at runtime from the
+	// opentelemetry.collect.container_insights role=node block in spec.config. All features target
+	// cloudwatch-agent here.
+	assertNodeContainerInsights(t, agentMap, "cloudwatch-agent", true)
 }
 
 // validatePrometheusAgentMinimalConfig verifies prometheus-agent gets minimal config:
@@ -180,17 +173,11 @@ func validatePrometheusAgentMinimalConfig(t *testing.T, agentMap map[string]unst
 	_, hasTraces := config["traces"]
 	assert.False(t, hasTraces, "prometheus-agent config should NOT have traces section")
 
-	// Validate OTEL config is absent or empty (not targeted by any OTEL CI feature)
-	otelConfig, ok := spec["otelConfig"].(string)
-	if ok {
-		assert.False(t, strings.Contains(otelConfig, "kubeletstats"),
-			"prometheus-agent otelConfig should NOT contain kubeletstats receiver")
-		assert.False(t, strings.Contains(otelConfig, "cw_k8s_ci_v0_apiserver"),
-			"prometheus-agent otelConfig should NOT contain apiserver receiver")
-		assert.False(t, strings.Contains(otelConfig, "cw_k8s_ci_v0_kube_state_metrics"),
-			"prometheus-agent otelConfig should NOT contain kube_state_metrics receiver")
-	}
-	// otelConfig may be absent entirely when no OTEL CI features target this agent — that's valid
+	// prometheus-agent is not targeted by any OTEL CI feature, so spec.config carries no
+	// opentelemetry.collect.container_insights block and the CR no chart-generated otelConfig.
+	assert.Nil(t, containerInsightsOf(config),
+		"prometheus-agent should NOT have opentelemetry.collect.container_insights (not targeted)")
+	assertOtelConfigAbsent(t, agentMap, "prometheus-agent")
 }
 
 // validateClusterScraperConfig verifies cluster-scraper gets cluster-level OTEL config
@@ -211,16 +198,8 @@ func validateClusterScraperConfig(t *testing.T, agentMap map[string]unstructured
 	assert.True(t, ok, "hostNetwork should be a bool")
 	assert.True(t, hostNetwork, "cluster-scraper should have hostNetwork=true")
 
-	// Validate OTEL config has cluster-level pipelines
-	otelConfig, ok := spec["otelConfig"].(string)
-	if !assert.True(t, ok, "otelConfig should be a string") {
-		return
-	}
-
-	assert.True(t, strings.Contains(otelConfig, "cw_k8s_ci_v0_apiserver"),
-		"cluster-scraper otelConfig should contain apiserver receiver (cluster-level)")
-	assert.True(t, strings.Contains(otelConfig, "cw_k8s_ci_v0_kube_state_metrics"),
-		"cluster-scraper otelConfig should contain kube_state_metrics receiver (cluster-level)")
-	assert.False(t, strings.Contains(otelConfig, "kubeletstats"),
-		"cluster-scraper otelConfig should NOT contain kubeletstats receiver (node-level)")
+	// The CloudWatch Agent builds the cluster-level CI pipeline at runtime from the
+	// opentelemetry.collect.container_insights role=cluster block (with a solutions object) in
+	// spec.config.
+	assertClusterScraperContainerInsights(t, agentMap, "cloudwatch-agent-cluster-scraper")
 }

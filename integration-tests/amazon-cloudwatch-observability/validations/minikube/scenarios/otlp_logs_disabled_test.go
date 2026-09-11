@@ -5,7 +5,6 @@ package scenarios
 
 import (
 	"context"
-	"strings"
 	"testing"
 
 	"github.com/aws-observability/helm-charts/integration-tests/amazon-cloudwatch-observability/util"
@@ -21,11 +20,12 @@ import (
 // TestOTLPLogsDisabled covers state #5: otelContainerInsights.enabled=true,
 // otelContainerInsights.logs.enabled=false, containerLogs.enabled=false.
 //
-// Customer wants OTEL CI metrics but no log ingestion. Validates:
-//   - OTEL metrics pipeline components are present in otelConfig
-//   - OTEL log pipeline components (receivers, exporters, service pipelines)
-//     are completely absent
-//   - Log-only sigv4auth extension is absent; metrics-side sigv4auth is present
+// Customer wants OTEL CI metrics but no log ingestion. The CloudWatch Agent builds the CI pipelines
+// at runtime from spec.config, so this validates:
+//   - spec.config carries opentelemetry.collect.container_insights on both agents (CI enabled)
+//   - container_insights.logs.enabled is false (log pipeline gated off at runtime)
+//   - the node agent has role=node, the cluster-scraper role=cluster + a solutions object
+//   - no chart-generated spec.otelConfig is present
 //   - CWA DaemonSet does not mount /var/log or journald host paths
 //   - FluentBit DaemonSet is not rendered
 func TestOTLPLogsDisabled(t *testing.T) {
@@ -67,67 +67,16 @@ func TestOTLPLogsDisabled(t *testing.T) {
 		agentMap[agent.GetName()] = agent
 	}
 
-	nodeAgent, exists := agentMap["cloudwatch-agent"]
-	if !assert.True(t, exists, "cloudwatch-agent CR should exist") {
-		return
-	}
-
-	spec, ok := nodeAgent.Object["spec"].(map[string]interface{})
-	if !assert.True(t, ok, "spec should be a map") {
-		return
-	}
-
-	otelConfig, ok := spec["otelConfig"].(string)
-	if !assert.True(t, ok, "otelConfig should be a string") {
-		return
-	}
-
-	// Metrics pipeline present.
-	assert.Contains(t, otelConfig, "otlphttp/cw_k8s_ci_v0_metrics_dest",
-		"metrics exporter must be present when enabled=true")
-	assert.Contains(t, otelConfig, "sigv4auth/cw_k8s_ci_v0_metrics_dest",
-		"metrics-side sigv4auth must be present")
-
-	// Log pipeline completely absent.
-	assertLogPipelineAbsent(t, otelConfig)
+	// CI is enabled here, so the CloudWatch Agent emits container_insights on both agents from
+	// spec.config, but logs.enabled=false (otelContainerInsights.logs.enabled=false) gates the log
+	// pipeline off at runtime.
+	assertNodeContainerInsights(t, agentMap, "cloudwatch-agent", false)
+	assertClusterScraperContainerInsights(t, agentMap, "cloudwatch-agent-cluster-scraper")
 
 	// CWA DaemonSet must not have log-related host mounts.
 	assertNoLogMounts(t, k8sClient, "cloudwatch-agent")
 
 	t.Log("OTLP logs-disabled scenario validation passed")
-}
-
-// assertLogPipelineAbsent checks that no log-specific OTEL components appear in
-// the generated config. The shared names are gated by otelContainerInsights.logs.enabled.
-func assertLogPipelineAbsent(t *testing.T, otelConfig string) {
-	t.Helper()
-	logOnlyFragments := []string{
-		// Receivers
-		"filelog/cw_k8s_ci_v0_app",
-		"filelog/cw_k8s_ci_v0_node",
-		// Service pipelines
-		"logs/cw_k8s_ci_v0_app",
-		"logs/cw_k8s_ci_v0_node",
-		// Log exporters
-		"otlphttp/cw_k8s_ci_v0_app_logs_dest",
-		"otlphttp/cw_k8s_ci_v0_node_logs_dest",
-		// Log-specific processors
-		"batch/cw_k8s_ci_v0_logs_dest",
-		"transform/cw_k8s_ci_v0_logs_set_workload",
-		"transform/cw_k8s_ci_v0_logs_set_cluster_and_node",
-		"transform/cw_k8s_ci_v0_logs_set_cloud_resource_id",
-		"transform/cw_k8s_ci_v0_logs_clear_schema_url",
-		"transform/cw_k8s_ci_v0_logs_set_scope_app",
-		"transform/cw_k8s_ci_v0_logs_set_scope_host",
-		// Log-specific extensions
-		"sigv4auth/cw_k8s_ci_v0_logs_dest",
-		"awscloudwatchlogsprovisioner/cw_k8s_ci_v0_logs",
-		"file_storage/cw_k8s_ci_v0_logs_checkpoint",
-	}
-	for _, fragment := range logOnlyFragments {
-		assert.False(t, strings.Contains(otelConfig, fragment),
-			"otelConfig must not contain %q when otelContainerInsights.logs.enabled=false", fragment)
-	}
 }
 
 // assertNoLogMounts verifies the CWA DaemonSet does not carry the /var/log or

@@ -783,6 +783,8 @@ agent:
   serviceAccount:
     name: # override agent service account name
   config: # optional config that can be provided to override the default config
+  # NOTE: Overriding the curated Container Insights components (cw_k8s_ci_v0_*) via otelConfig is not supported;
+  # a conflicting override causes the agent to fail to start (it is rejected, not silently ignored).
   otelConfig: # optional YAML config that can be provided to combine with the build-default-otel-config output
   prometheus:
     config:

@@ -5,6 +5,7 @@ package scenarios
 
 import (
 	"context"
+	"encoding/json"
 	"strings"
 	"testing"
 
@@ -48,21 +49,34 @@ func TestOTLPCustomOtelConfig(t *testing.T) {
 
 	t.Logf("otelConfig length: %d", len(otelConfig))
 
-	// Verify generated OTLP CI pipelines are present
-	assert.True(t, strings.Contains(otelConfig, "cw_k8s_ci_v0"),
-		"merged otelConfig should contain generated OTLP CI pipelines (cw_k8s_ci_v0 prefix)")
+	// The CloudWatch Agent builds CI from spec.config, so the customer-supplied agent.otelConfig
+	// passes through verbatim with no chart overwrite.
 
-	// Verify user-defined custom pipeline is preserved
+	// User-defined custom pipeline is preserved verbatim.
 	assert.True(t, strings.Contains(otelConfig, "custom_test"),
-		"merged otelConfig should contain user-defined custom pipeline (custom_test prefix)")
+		"otelConfig should contain the user-defined custom pipeline (custom_test prefix)")
 
-	// Verify generated config takes precedence on name collision
-	// The user provided sigv4auth/cw_k8s_ci_v0_metrics_dest with service: "should-be-overwritten"
-	// The generated config has service: monitoring — generated should win
-	assert.True(t, strings.Contains(otelConfig, "service: monitoring"),
-		"merged otelConfig should contain generated value 'service: monitoring' for sigv4auth")
-	assert.False(t, strings.Contains(otelConfig, "should-be-overwritten"),
-		"merged otelConfig should NOT contain user's conflicting value 'should-be-overwritten'")
+	// The user's value on the sigv4auth/cw_k8s_ci_v0_metrics_dest key survives verbatim: chart CI
+	// lives in spec.config, so there is no chart-generated otelConfig entry to overwrite it.
+	assert.True(t, strings.Contains(otelConfig, "should-be-overwritten"),
+		"otelConfig should preserve the user's sigv4auth service value verbatim (no chart CI overwrite)")
 
-	t.Log("OTLP custom otel config merge scenario validation passed")
+	// The chart-generated collision value must NOT appear — chart CI lands in spec.config, not otelConfig.
+	assert.False(t, strings.Contains(otelConfig, "service: monitoring"),
+		"otelConfig should NOT contain a chart-generated 'service: monitoring' (CI no longer merged into otelConfig)")
+
+	// Chart-generated CI appears in spec.config as opentelemetry.collect.container_insights
+	// (role=node), not in otelConfig.
+	configStr, ok := spec["config"].(string)
+	if assert.True(t, ok, "config should be a string") {
+		var config map[string]interface{}
+		if assert.NoError(t, json.Unmarshal([]byte(configStr), &config), "config should be valid JSON") {
+			ci := containerInsightsOf(config)
+			if assert.NotNil(t, ci, "cloudwatch-agent spec.config should carry opentelemetry.collect.container_insights") {
+				assert.Equal(t, "node", ci["role"], "container_insights.role should be node")
+			}
+		}
+	}
+
+	t.Log("OTLP custom otel config passthrough scenario validation passed")
 }

@@ -29,6 +29,8 @@ import (
 func TestAgentConfigMergeIsolation(t *testing.T) {
 	// Must match the region in agent-config-merge-isolation/values.yaml
 	const expectedRegion = "us-west-2"
+	// Must match the clusterName in agent-config-merge-isolation/values.yaml
+	const expectedClusterName = "minikube"
 
 	k8sClient, err := util.NewK8sClient()
 	require.NoError(t, err)
@@ -75,24 +77,67 @@ func TestAgentConfigMergeIsolation(t *testing.T) {
 		// regardless of what the customer sets in $.agent.config — even if
 		// the customer's config happens to look similar to the auto-generated one.
 		//
-		// build-default-config for the cluster-scraper produces:
-		//   {"agent":{"region":"<region>"}}
-		// because no feature flags (AppSignals, ContainerInsights) target it.
+		// The scenario enables otelContainerInsights, so build-default-config for the
+		// cluster-scraper produces two top-level keys:
+		//   {"agent":{"region":"<region>"},
+		//    "opentelemetry":{"cluster_name":"<clusterName>",
+		//                     "collect":{"container_insights":{
+		//                        "role":"cluster","collection_interval":30,"solutions":{...}}}}}
+		// The container_insights block carries role=cluster + a solutions object and NO logs key
+		// (logs are node-only). No AppSignals/ContainerInsights feature flags target the scraper,
+		// so there is no top-level "logs" key either.
 		config := mergeIsolationGetAgentConfig(t, agentMap, "cloudwatch-agent-cluster-scraper")
 
 		var parsed map[string]interface{}
 		err := json.Unmarshal([]byte(config), &parsed)
 		require.NoError(t, err, "cluster-scraper config should be valid JSON")
 
-		// Must have exactly one top-level key: "agent"
-		require.Len(t, parsed, 1,
-			"cluster-scraper config should have exactly one top-level key (agent)")
+		// Must have exactly two top-level keys: "agent" and "opentelemetry".
+		require.Len(t, parsed, 2,
+			"cluster-scraper config should have exactly two top-level keys (agent, opentelemetry)")
 
 		agentSection, ok := parsed["agent"].(map[string]interface{})
 		require.True(t, ok, "cluster-scraper config should have agent section")
-
 		assert.Equal(t, expectedRegion, agentSection["region"],
 			"cluster-scraper config region should match the chart's region value")
+
+		// opentelemetry.cluster_name is a sibling of collect.
+		otel, ok := parsed["opentelemetry"].(map[string]interface{})
+		require.True(t, ok, "cluster-scraper config should have opentelemetry section")
+		assert.Equal(t, expectedClusterName, otel["cluster_name"],
+			"cluster-scraper opentelemetry.cluster_name should match the scenario clusterName")
+
+		collect, ok := otel["collect"].(map[string]interface{})
+		require.True(t, ok, "cluster-scraper opentelemetry should have a collect block")
+		ci, ok := collect["container_insights"].(map[string]interface{})
+		require.True(t, ok, "cluster-scraper opentelemetry.collect should have container_insights")
+
+		assert.Equal(t, "cluster", ci["role"],
+			"cluster-scraper container_insights.role should be cluster")
+		// JSON numbers unmarshal to float64; collection_interval is 30 for this scenario.
+		assert.Equal(t, float64(30), ci["collection_interval"],
+			"cluster-scraper container_insights.collection_interval should be 30")
+
+		// Cluster role carries NO logs key (logs are node-only after the OTel CI migration).
+		_, hasLogs := ci["logs"]
+		assert.False(t, hasLogs,
+			"cluster-scraper container_insights should NOT include a logs key (logs are node-only)")
+
+		// solutions object: enabled + karpenter{enabled,namespace} + keda{enabled,namespace}.
+		solutions, ok := ci["solutions"].(map[string]interface{})
+		require.True(t, ok, "cluster-scraper container_insights should include a solutions object")
+		assert.Equal(t, true, solutions["enabled"], "solutions.enabled should be true")
+
+		karpenter, ok := solutions["karpenter"].(map[string]interface{})
+		require.True(t, ok, "solutions should include karpenter")
+		assert.Equal(t, true, karpenter["enabled"], "solutions.karpenter.enabled should be true")
+		assert.Equal(t, "kube-system", karpenter["namespace"],
+			"solutions.karpenter.namespace should be kube-system")
+
+		keda, ok := solutions["keda"].(map[string]interface{})
+		require.True(t, ok, "solutions should include keda")
+		assert.Equal(t, true, keda["enabled"], "solutions.keda.enabled should be true")
+		assert.Equal(t, "keda", keda["namespace"], "solutions.keda.namespace should be keda")
 	})
 
 	t.Run("ClusterScraperIsDeploymentMode", func(t *testing.T) {
