@@ -22,8 +22,17 @@ spec:
       app.kubernetes.io/component: {{ include "kube-state-metrics.name" . }}
   template:
     metadata:
+      {{- $ksmAnnotations := include "amazon-cloudwatch-observability.common.podAnnotations" (dict "component" .Values.kubeStateMetrics "context" .) }}
+      {{- with $ksmAnnotations }}
+      annotations:
+        {{- . | nindent 8 }}
+      {{- end }}
       labels:
         app.kubernetes.io/component: {{ include "kube-state-metrics.name" . }}
+        {{- $ksmLabels := include "amazon-cloudwatch-observability.common.podLabels" (dict "component" .Values.kubeStateMetrics "context" . "reserved" (list "app.kubernetes.io/component")) }}
+        {{- with $ksmLabels }}
+        {{- . | nindent 8 }}
+        {{- end }}
     spec:
       serviceAccountName: {{ template "kube-state-metrics.serviceAccountName" . }}
       {{- with .Values.kubeStateMetrics.nodeSelector }}
@@ -35,6 +44,11 @@ spec:
       {{- with .Values.kubeStateMetrics.securityContext }}
       securityContext: {{- toYaml . | nindent 8 }}
       {{- end }}
+      {{- $ksmPcn := include "amazon-cloudwatch-observability.common.priorityClassName" (dict "component" .Values.kubeStateMetrics "context" .) }}
+      {{- if $ksmPcn }}
+      priorityClassName: {{ $ksmPcn | quote }}
+      {{- end }}
+      {{- include "amazon-cloudwatch-observability.common.topologySpreadConstraints" (dict "component" .Values.kubeStateMetrics "context" .) | nindent 6 }}
       {{- dict "component" .Values.kubeStateMetrics "context" . | include "amazon-cloudwatch-observability.common.tolerations" | nindent 6 }}
       containers:
         - name: kube-state-metrics

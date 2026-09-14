@@ -27,10 +27,18 @@ spec:
     metadata:
       annotations:
         checksum/config: {{ include (print $.Template.BasePath "/linux/fluent-bit-configmap.yaml") . | sha256sum }}
+        {{- $fbAnnotations := include "amazon-cloudwatch-observability.common.podAnnotations" (dict "component" .Values.containerLogs.fluentBit "context" .) }}
+        {{- with $fbAnnotations }}
+        {{- . | nindent 8 }}
+        {{- end }}
       labels:
         k8s-app: fluent-bit
         version: v1
         kubernetes.io/cluster-service: "true"
+        {{- $fbLabels := include "amazon-cloudwatch-observability.common.podLabels" (dict "component" .Values.containerLogs.fluentBit "context" . "reserved" (list "k8s-app" "version" "kubernetes.io/cluster-service")) }}
+        {{- with $fbLabels }}
+        {{- . | nindent 8 }}
+        {{- end }}
     spec:
       containers:
       - name: fluent-bit
@@ -101,7 +109,10 @@ spec:
       terminationGracePeriodSeconds: 10
       hostNetwork: true
       dnsPolicy: ClusterFirstWithHostNet
-      priorityClassName: {{ .Values.containerLogs.fluentBit.priorityClassName | quote }}
+      {{- $fbPcn := include "amazon-cloudwatch-observability.common.priorityClassName" (dict "component" .Values.containerLogs.fluentBit "context" .) }}
+      {{- if $fbPcn }}
+      priorityClassName: {{ $fbPcn | quote }}
+      {{- end }}
       volumes:
       - name: fluentbitstate
         hostPath:
@@ -151,5 +162,6 @@ spec:
       {{- with .Values.containerLogs.fluentBit.nodeSelector }}
       nodeSelector: {{- toYaml . | nindent 8 }}
       {{- end }}
+      {{- include "amazon-cloudwatch-observability.common.topologySpreadConstraints" (dict "component" .Values.containerLogs.fluentBit "context" .) | nindent 6 }}
       {{- dict "component" .Values.containerLogs.fluentBit "context" . | include "amazon-cloudwatch-observability.common.tolerations" | nindent 6 }}
 {{- end }}

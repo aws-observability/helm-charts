@@ -21,8 +21,17 @@ spec:
       k8s-app: {{ include "node-exporter.name" . }}
   template:
     metadata:
+      {{- $neAnnotations := include "amazon-cloudwatch-observability.common.podAnnotations" (dict "component" .Values.nodeExporter "context" .) }}
+      {{- with $neAnnotations }}
+      annotations:
+        {{- . | nindent 8 }}
+      {{- end }}
       labels:
         k8s-app: {{ include "node-exporter.name" . }}
+        {{- $neLabels := include "amazon-cloudwatch-observability.common.podLabels" (dict "component" .Values.nodeExporter "context" . "reserved" (list "k8s-app")) }}
+        {{- with $neLabels }}
+        {{- . | nindent 8 }}
+        {{- end }}
     spec:
       serviceAccountName: {{ template "node-exporter.serviceAccountName" . }}
       {{- with .Values.nodeExporter.nodeSelector }}
@@ -34,6 +43,11 @@ spec:
       {{- with .Values.nodeExporter.securityContext }}
       securityContext: {{- toYaml . | nindent 8 }}
       {{- end }}
+      {{- $nePcn := include "amazon-cloudwatch-observability.common.priorityClassName" (dict "component" .Values.nodeExporter "context" .) }}
+      {{- if $nePcn }}
+      priorityClassName: {{ $nePcn | quote }}
+      {{- end }}
+      {{- include "amazon-cloudwatch-observability.common.topologySpreadConstraints" (dict "component" .Values.nodeExporter "context" .) | nindent 6 }}
       {{- dict "component" .Values.nodeExporter "context" . | include "amazon-cloudwatch-observability.common.tolerations" | nindent 6 }}
       containers:
         - name: node-exporter

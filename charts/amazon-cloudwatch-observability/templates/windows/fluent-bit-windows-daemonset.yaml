@@ -18,17 +18,28 @@ spec:
     metadata:
       annotations:
         checksum/config: {{ include (print $.Template.BasePath "/windows/fluent-bit-windows-configmap.yaml") . | sha256sum }}
+        {{- $fbwAnnotations := include "amazon-cloudwatch-observability.common.podAnnotations" (dict "component" .Values.containerLogs.fluentBit "context" .) }}
+        {{- with $fbwAnnotations }}
+        {{- . | nindent 8 }}
+        {{- end }}
       labels:
         k8s-app: fluent-bit
         version: v1
         kubernetes.io/cluster-service: "true"
+        {{- $fbwLabels := include "amazon-cloudwatch-observability.common.podLabels" (dict "component" .Values.containerLogs.fluentBit "context" . "reserved" (list "k8s-app" "version" "kubernetes.io/cluster-service")) }}
+        {{- with $fbwLabels }}
+        {{- . | nindent 8 }}
+        {{- end }}
     spec:
       securityContext:
         windowsOptions:
           hostProcess: true
           runAsUserName: "NT AUTHORITY\\System"
       hostNetwork: true
-      priorityClassName: {{ .Values.containerLogs.fluentBit.priorityClassName | quote }}
+      {{- $fbwPcn := include "amazon-cloudwatch-observability.common.priorityClassName" (dict "component" .Values.containerLogs.fluentBit "context" .) }}
+      {{- if $fbwPcn }}
+      priorityClassName: {{ $fbwPcn | quote }}
+      {{- end }}
       nodeSelector:
         kubernetes.io/os: windows
       containers:
@@ -71,5 +82,6 @@ spec:
       terminationGracePeriodSeconds: 10
       dnsPolicy: ClusterFirstWithHostNet
       serviceAccountName: {{ include "cloudwatch-agent.serviceAccountName" . | quote }}
+      {{- include "amazon-cloudwatch-observability.common.topologySpreadConstraints" (dict "component" .Values.containerLogs.fluentBit "context" .) | nindent 6 }}
       {{- dict "component" .Values.containerLogs.fluentBit "context" . | include "amazon-cloudwatch-observability.common.tolerations" | nindent 6 }}
 {{- end }}
