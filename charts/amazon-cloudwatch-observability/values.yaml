@@ -51,7 +51,7 @@ containerLogs:
   fluentBit:
     image:
       repository: aws-for-fluent-bit
-      tag: 3.4.14
+      tag: 3.4.16
       tagWindows: 2.31.12-windowsservercore
       repositoryDomainMap:
         public: public.ecr.aws/aws-observability
@@ -744,7 +744,7 @@ agent:
   replicas: 1 # The total number non-terminated pods targeted by this AmazonCloudWatchAgent's deployment or statefulSet.
   image:
     repository: cloudwatch-agent
-    tag: 1.300072.0b1766
+    tag: 1.300073.0b1828
     repositoryDomainMap:
       public: public.ecr.aws/cloudwatch-agent
       cn-north-1: 934860584483.dkr.ecr.cn-north-1.amazonaws.com.cn
@@ -1073,7 +1073,7 @@ kubeStateMetrics:
   ## TODO: Add replicas, PDB, and HPA configuration in a follow-up.
   image:
     repository: kube-state-metrics/kube-state-metrics
-    tag: v2.19.1
+    tag: v2.20.0
     repositoryDomainMap:
       public: registry.k8s.io
       cn-north-1: 918309763551.dkr.ecr.cn-north-1.amazonaws.com.cn
@@ -1082,7 +1082,7 @@ kubeStateMetrics:
       us-gov-west-1: 013241004608.dkr.ecr.us-gov-west-1.amazonaws.com
     # Used in China/GovCloud regions where the public upstream image isn't available; the helper falls back to repositoryDomainMap[region]/restrictedRepository:restrictedTag
     restrictedRepository: eks/kube-state-metrics
-    restrictedTag: v2.19.1-eksbuild.6
+    restrictedTag: v2.20.0-eksbuild.6
   resources:
     limits:
       cpu: 200m
@@ -1117,7 +1117,7 @@ nodeExporter:
       us-gov-west-1: 013241004608.dkr.ecr.us-gov-west-1.amazonaws.com
     # Used in China/GovCloud regions where the public upstream image isn't available; the helper falls back to repositoryDomainMap[region]/restrictedRepository:restrictedTag
     restrictedRepository: eks/prometheus-node-exporter
-    restrictedTag: v1.12.1-eksbuild.3
+    restrictedTag: v1.12.1-eksbuild.7
   resources:
     limits:
       cpu: 200m
