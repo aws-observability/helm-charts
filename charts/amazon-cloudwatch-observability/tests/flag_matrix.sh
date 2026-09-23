@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
-# SPDX-License-Identifier: Apache-2.0
+# SPDX-License-Identifier: MIT
 #
 # Validates the 3-flag OTEL CI gating matrix by exhaustively rendering
 # `helm template` across all 8 combinations of:

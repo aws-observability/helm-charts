@@ -5,34 +5,16 @@
 apiVersion: cloudwatch.aws.amazon.com/v1alpha1
 kind: AmazonCloudWatchAgent
 metadata:
-  name: {{ printf "%s-windows" (include "cloudwatch-agent.name" .) | quote }}
+  name: {{ template "cloudwatch-agent.name" . }}-windows
   namespace: {{ .Release.Namespace }}
 spec:
   podSecurityContext:
     windowsOptions:
       runAsUserName: "NT AUTHORITY\\System"
-  image: {{ include "cloudwatch-agent.image" (merge .Values.agent.image (dict "region" .Values.region)) | quote }}
+  image: {{ template "cloudwatch-agent.image" (merge .Values.agent.image (dict "region" .Values.region)) }}
   mode: daemonset
-  serviceAccount: {{ include "cloudwatch-agent.serviceAccountName" . | quote }}
-  {{- $agentWinPcn := include "amazon-cloudwatch-observability.common.priorityClassName" (dict "component" .Values.agent "context" .) }}
-  {{- if $agentWinPcn }}
-  priorityClassName: {{ $agentWinPcn | quote }}
-  {{- end }}
-  {{- $agentWinAnnotations := include "amazon-cloudwatch-observability.common.podAnnotations" (dict "component" .Values.agent "context" .) }}
-  {{- with $agentWinAnnotations }}
-  podAnnotations:
-    {{- . | nindent 4 }}
-  {{- end }}
-  {{- include "amazon-cloudwatch-observability.common.topologySpreadConstraints" (dict "component" .Values.agent "context" .) | nindent 2 }}
-  {{- $agentWinPdb := include "amazon-cloudwatch-observability.common.podDisruptionBudget" (dict "component" .Values.agent "context" .) | fromYaml }}
-  {{- if $agentWinPdb.enabled }}
-  podDisruptionBudget:
-    {{- if hasKey $agentWinPdb "minAvailable" }}
-    minAvailable: {{ $agentWinPdb.minAvailable }}
-    {{- else if hasKey $agentWinPdb "maxUnavailable" }}
-    maxUnavailable: {{ $agentWinPdb.maxUnavailable }}
-    {{- end }}
-  {{- end }}
+  serviceAccount: {{ template "cloudwatch-agent.serviceAccountName" . }}
+  priorityClassName: {{ .Values.agent.priorityClassName }}
   nodeSelector:
     kubernetes.io/os: windows
   config: {{ include "cloudwatch-agent.modify-config" (merge (dict "Config" $config) .) }}

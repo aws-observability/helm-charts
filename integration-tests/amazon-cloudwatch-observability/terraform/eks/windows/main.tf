@@ -1,5 +1,5 @@
 // Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: MIT
 
 module "common" {
   source = "../../common"
@@ -208,10 +208,6 @@ resource "helm_release" "this" {
     {
       name  = "clusterName"
       value = aws_eks_cluster.this.name
-    },
-    {
-      name  = "otelContainerInsights.enabled"
-      value = "true"
     }
   ]
 }
@@ -226,9 +222,6 @@ resource "null_resource" "deployment_wait" {
       chmod +x kubectl
       ./kubectl rollout status daemonset fluent-bit-windows -n amazon-cloudwatch --timeout 1200s
       ./kubectl rollout status daemonset cloudwatch-agent-windows -n amazon-cloudwatch --timeout 1200s
-      ./kubectl rollout status daemonset node-exporter -n amazon-cloudwatch --timeout 1200s
-      ./kubectl rollout status deployment kube-state-metrics -n amazon-cloudwatch --timeout 1200s
-      ./kubectl rollout status deployment cloudwatch-agent-cluster-scraper -n amazon-cloudwatch --timeout 1200s
     EOT
   }
 }
