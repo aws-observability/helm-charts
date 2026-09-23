@@ -3,6 +3,11 @@ extensions:
   sigv4auth/cw_k8s_ci_v0_metrics_dest:
     region: {{ .Values.region }}
     service: monitoring
+{{- if include "otel-container-insights.vllmTracesEnabled" . }}
+  sigv4auth/cw_k8s_ci_v0_traces_dest:
+    region: {{ .Values.region }}
+    service: xray
+{{- end }}
 {{- if .Values.otelContainerInsights.logs.enabled }}
   sigv4auth/cw_k8s_ci_v0_logs_dest:
     region: {{ .Values.region }}
@@ -119,6 +124,108 @@ receivers:
             - source_labels: [__meta_kubernetes_pod_container_port_name]
               regex: metrics
               action: keep
+
+  {{- if and .Values.otelContainerInsights.solutions.enabled .Values.otelContainerInsights.solutions.vllm.enabled }}
+  # vLLM model-server metrics (vllm:* Prometheus series). Pod-discovery scrape on
+  # the local node, keyed on the KServe InferenceService label + the model
+  # container's name. Mirrors the ebs-csi-node pattern.
+  prometheus/cw_k8s_ci_v0_vllm:
+    config:
+      scrape_configs:
+        - job_name: vllm
+          scrape_interval: {{ .Values.otelContainerInsights.metricResolution }}
+          scrape_timeout: {{ include "otel-container-insights.scrapeTimeout" . }}
+          metrics_path: /metrics
+          kubernetes_sd_configs:
+            - role: pod
+              {{- if .Values.otelContainerInsights.solutions.vllm.namespace }}
+              namespaces:
+                names:
+                  - {{ .Values.otelContainerInsights.solutions.vllm.namespace }}
+              {{- end }}
+          relabel_configs:
+            # keep only KServe InferenceService pods (match the label VALUE, like
+            # the ebs-csi job keys on pod_label_app)
+            - source_labels: [__meta_kubernetes_pod_label_serving_kserve_io_inferenceservice]
+              regex: .+
+              action: keep
+            - source_labels: [__meta_kubernetes_pod_node_name]
+              regex: ${env:K8S_NODE_NAME}
+              action: keep
+            # Keep the model container only, so we scrape its port and not the
+            # sidecars'. Key on the container NAME, which KServe sets to
+            # "kserve-container" in both Serverless and RawDeployment mode --
+            # unlike the port name, which is unset in the ServingRuntime and only
+            # becomes "user-port" because Knative renames it when injecting the
+            # queue-proxy. Keying on the port name would find no targets at all in
+            # RawDeployment mode.
+            - source_labels: [__meta_kubernetes_pod_container_name]
+              regex: kserve-container
+              action: keep
+            # expose the InferenceService name as a label for CloudWatch dimensioning
+            - source_labels: [__meta_kubernetes_pod_label_serving_kserve_io_inferenceservice]
+              target_label: inferenceservice
+              action: replace
+  {{- end }}
+
+  {{- if include "otel-container-insights.vllmTracesEnabled" . }}
+  # vLLM request traces, pushed by the engine's OTLP exporter rather than
+  # scraped. Enabling this only opens the receiving end -- the engine sends
+  # nothing until it is started with --otlp-traces-endpoint.
+  #
+  # The agent runs with hostNetwork: true, so these bind on the node. They avoid
+  # the conventional 4317/4318, which a customer's own collector is likely to
+  # hold; Application Signals uses 4315/4316 for the same reason.
+  otlp/cw_k8s_ci_v0_vllm_traces:
+    protocols:
+      grpc:
+        endpoint: "0.0.0.0:{{ .Values.otelContainerInsights.solutions.vllm.traces.grpcPort }}"
+      http:
+        endpoint: "0.0.0.0:{{ .Values.otelContainerInsights.solutions.vllm.traces.httpPort }}"
+  {{- end }}
+
+  {{- if and .Values.otelContainerInsights.solutions.enabled .Values.otelContainerInsights.solutions.knative.dataPlane.enabled }}
+  # Knative data-plane request metrics from the queue-proxy sidecar's user-metric
+  # port (9091, named "http-usermetric"). Same pod-discovery pattern as the vLLM
+  # job, but keyed on the Knative revision label -- so this covers plain Knative
+  # Services too, not just KServe predictors. Runtime series are dropped
+  # downstream (see the *_keep filter).
+  #
+  # The port only serves once Knative is told to export request metrics. On
+  # Serving >= 1.19 that is `request-metrics-protocol: prometheus` in the
+  # config-observability ConfigMap; it defaults to none, and while it is none
+  # the port refuses connections and this scrape finds nothing.
+  prometheus/cw_k8s_ci_v0_knative_dataplane:
+    config:
+      scrape_configs:
+        - job_name: knative-dataplane
+          scrape_interval: {{ .Values.otelContainerInsights.metricResolution }}
+          scrape_timeout: {{ include "otel-container-insights.scrapeTimeout" . }}
+          metrics_path: /metrics
+          kubernetes_sd_configs:
+            - role: pod
+              {{- if .Values.otelContainerInsights.solutions.knative.dataPlane.namespace }}
+              namespaces:
+                names:
+                  - {{ .Values.otelContainerInsights.solutions.knative.dataPlane.namespace }}
+              {{- end }}
+          relabel_configs:
+            # keep only Knative revision (KServe predictor) pods
+            - source_labels: [__meta_kubernetes_pod_label_serving_knative_dev_revision]
+              regex: .+
+              action: keep
+            - source_labels: [__meta_kubernetes_pod_node_name]
+              regex: ${env:K8S_NODE_NAME}
+              action: keep
+            # scrape the queue-proxy user-metric port (9091, named "http-usermetric")
+            - source_labels: [__meta_kubernetes_pod_container_port_name]
+              regex: http-usermetric
+              action: keep
+            # expose the InferenceService name as a label for CloudWatch dimensioning
+            - source_labels: [__meta_kubernetes_pod_label_serving_kserve_io_inferenceservice]
+              target_label: inferenceservice
+              action: replace
+  {{- end }}
 
   kubeletstats/cw_k8s_ci_v0:
     auth_type: serviceAccount
@@ -338,6 +445,126 @@ processors:
           - set(attributes["cloudwatch.source"], "cloudwatch-agent")
           - set(attributes["cloudwatch.solution"], "k8s-otel-container-insights")
           - set(attributes["cloudwatch.pipeline"], "ebs-csi")
+
+  {{- if and .Values.otelContainerInsights.solutions.enabled .Values.otelContainerInsights.solutions.vllm.enabled }}
+  transform/cw_k8s_ci_v0_set_scope_vllm:
+    error_mode: ignore
+    metric_statements:
+      - context: scope
+        statements:
+          - set(scope.name, "github.com/vllm-project/vllm")
+          - set(scope.schema_url, "")
+          - set(attributes["cloudwatch.source"], "cloudwatch-agent")
+          - set(attributes["cloudwatch.solution"], "k8s-otel-container-insights")
+          - set(attributes["cloudwatch.pipeline"], "vllm")
+
+  # The vLLM /metrics endpoint exposes more than the engine's own series: the
+  # default Python client registry adds python_* and process_* families, and the
+  # FastAPI instrumentator adds http_*. Keep vllm:* (the engine) and http_*
+  # (per-endpoint request counts and latencies -- the only HTTP-status telemetry
+  # vLLM emits, and the stand-in for revision_* when KServe runs in
+  # RawDeployment mode without a queue-proxy). Drop the rest:
+  #   python_*   -- interpreter GC counters and a constant-1 python_info gauge.
+  #   process_*  -- API-server process CPU/memory/fds, already covered at the
+  #                 container level by Container Insights core, and colliding by
+  #                 name with the kube-apiserver's own process_* series.
+  #   *_created  -- client_python's per-metric creation timestamp: a constant
+  #                 value repeated on every scrape. Counter-reset detection is
+  #                 handled by metricstarttime/cw_k8s_ci_v0 instead. Safe to drop
+  #                 here because the prometheus receiver has already consumed
+  #                 these to set start timestamps before processors run.
+  filter/cw_k8s_ci_v0_vllm_keep:
+    error_mode: ignore
+    metrics:
+      metric:
+        - 'not IsMatch(name, "^(vllm:|http_).*")'
+        - 'IsMatch(name, ".*_created$")'
+  {{- end }}
+
+  {{- if include "otel-container-insights.vllmTracesEnabled" . }}
+  # Spans arrive with nothing Kubernetes-shaped on them, so give them the same
+  # resource identity the scraped vLLM metrics get. Association is by connection
+  # source IP, because the engine does not know what pod it is; the informer can
+  # stay node-scoped because the agent's Service is internalTrafficPolicy: Local,
+  # so the sender is always a pod on this node.
+  k8sattributes/cw_k8s_ci_v0_vllm_traces:
+    auth_type: serviceAccount
+    passthrough: false
+    filter:
+      node_from_env_var: K8S_NODE_NAME
+    extract:
+      metadata:
+        - k8s.namespace.name
+        - k8s.pod.name
+        - k8s.pod.uid
+        - k8s.node.name
+        - k8s.deployment.name
+        - k8s.statefulset.name
+        - k8s.daemonset.name
+        - k8s.replicaset.name
+        - k8s.job.name
+        - k8s.cronjob.name
+      labels:
+        # Same label the metrics scrape job relabels in, so both join on it.
+        - tag_name: "inferenceservice"
+          key: "serving.kserve.io/inferenceservice"
+          from: pod
+    pod_association:
+      - sources:
+          - from: connection
+
+  transform/cw_k8s_ci_v0_vllm_traces_resource:
+    error_mode: ignore
+    trace_statements:
+      - context: resource
+        statements:
+          - set(resource.attributes["k8s.cluster.name"], "{{ .Values.clusterName }}")
+          # Without OTEL_SERVICE_NAME the engine reports "unknown_service", which
+          # would collapse every vLLM pod onto one X-Ray node. Fall back to the
+          # InferenceService, then the workload, then the pod.
+          - set(resource.attributes["service.name"], resource.attributes["inferenceservice"]) where resource.attributes["inferenceservice"] != nil and (resource.attributes["service.name"] == nil or IsMatch(resource.attributes["service.name"], "^unknown_service"))
+          - set(resource.attributes["service.name"], resource.attributes["k8s.deployment.name"]) where resource.attributes["k8s.deployment.name"] != nil and (resource.attributes["service.name"] == nil or IsMatch(resource.attributes["service.name"], "^unknown_service"))
+          - set(resource.attributes["service.name"], resource.attributes["k8s.pod.name"]) where resource.attributes["k8s.pod.name"] != nil and (resource.attributes["service.name"] == nil or IsMatch(resource.attributes["service.name"], "^unknown_service"))
+          # Without this the backend derives the entity as "eks:default", detaching
+          # the service from its cluster.
+          - set(resource.attributes["deployment.environment"], Concat(["eks:", resource.attributes["k8s.cluster.name"], "/", resource.attributes["k8s.namespace.name"]], "")) where resource.attributes["k8s.namespace.name"] != nil
+      - context: span
+        statements:
+          - set(span.attributes["gen_ai.system"], "vllm")
+          # vLLM emits the pre-1.27 semconv token names; publish both.
+          - set(span.attributes["gen_ai.usage.input_tokens"], span.attributes["gen_ai.usage.prompt_tokens"]) where span.attributes["gen_ai.usage.prompt_tokens"] != nil
+          - set(span.attributes["gen_ai.usage.output_tokens"], span.attributes["gen_ai.usage.completion_tokens"]) where span.attributes["gen_ai.usage.completion_tokens"] != nil
+
+  batch/cw_k8s_ci_v0_traces_dest:
+    send_batch_size: 50
+    send_batch_max_size: 50
+    timeout: 5s
+  {{- end }}
+
+  {{- if and .Values.otelContainerInsights.solutions.enabled .Values.otelContainerInsights.solutions.knative.dataPlane.enabled }}
+  transform/cw_k8s_ci_v0_set_scope_knative_dataplane:
+    error_mode: ignore
+    metric_statements:
+      - context: scope
+        statements:
+          - set(scope.name, "knative.dev/serving")
+          - set(scope.schema_url, "")
+          - set(attributes["cloudwatch.source"], "cloudwatch-agent")
+          - set(attributes["cloudwatch.solution"], "k8s-otel-container-insights")
+          - set(attributes["cloudwatch.pipeline"], "knative-dataplane")
+
+  # Keep only the Knative request telemetry; drop the queue-proxy's runtime noise.
+  # Two name sets, because Serving 1.19 moved observability to the OpenTelemetry
+  # SDK and renamed every metric:
+  #   <= 1.18  revision_request_count / _latencies, revision_app_request_*
+  #   >= 1.19  kn_serving_invocation_duration_*, kn_serving_queue_depth
+  #            (from kn.serving.invocation.duration / kn.serving.queue.depth)
+  filter/cw_k8s_ci_v0_knative_dataplane_keep:
+    error_mode: ignore
+    metrics:
+      metric:
+        - 'not IsMatch(name, "^(revision_.*request.*|kn_serving_.*)")'
+  {{- end }}
 
   transform/cw_k8s_ci_v0_set_scope_lis_csi:
     error_mode: ignore
@@ -780,6 +1007,27 @@ processors:
 {{- end }}
 
 exporters:
+{{- if include "otel-container-insights.vllmTracesEnabled" . }}
+  # Spans go to the CloudWatch OTLP traces endpoint, which stores them in the
+  # OpenTelemetry semantic-convention format with W3C trace IDs -- so every
+  # attribute vLLM sets stays queryable in Transaction Search, with no indexed
+  # subset to declare and no 50-annotation segment cap to budget against.
+  #
+  # Requires Transaction Search to be enabled on the account. Until it is, this
+  # endpoint is not usable and spans do not appear.
+  #
+  # The endpoint is HTTP only -- it does not accept gRPC -- and takes SigV4 with
+  # the signing name "xray". CloudWatchAgentServerPolicy already grants it, so
+  # traces need no IAM change. Batches are 50 spans, well inside the endpoint's
+  # 10,000-span / 5 MB uncompressed request limits.
+  otlphttp/cw_k8s_ci_v0_traces_dest:
+    traces_endpoint: {{ if .Values.otelContainerInsights.cloudwatchTracesEndpoint }}{{ .Values.otelContainerInsights.cloudwatchTracesEndpoint | quote }}{{ else }}"https://xray.{{ .Values.region }}.amazonaws.com/v1/traces"{{ end }}
+    compression: gzip
+    tls:
+      insecure: false
+    auth:
+      authenticator: sigv4auth/cw_k8s_ci_v0_traces_dest
+{{- end }}
   otlphttp/cw_k8s_ci_v0_metrics_dest:
     endpoint: {{ if .Values.otelContainerInsights.cloudwatchMetricsEndpoint }}{{ .Values.otelContainerInsights.cloudwatchMetricsEndpoint | quote }}{{ else }}"https://monitoring.{{ .Values.region }}.amazonaws.com:443"{{ end }}
     tls:
@@ -835,6 +1083,9 @@ service:
       level: none
   extensions:
     - sigv4auth/cw_k8s_ci_v0_metrics_dest
+{{- if include "otel-container-insights.vllmTracesEnabled" . }}
+    - sigv4auth/cw_k8s_ci_v0_traces_dest
+{{- end }}
 {{- if .Values.otelContainerInsights.logs.enabled }}
     - sigv4auth/cw_k8s_ci_v0_logs_dest
     - awscloudwatchlogsprovisioner/cw_k8s_ci_v0_logs
@@ -966,6 +1217,66 @@ service:
         - batch/cw_k8s_ci_v0_metrics_dest
       exporters:
         - otlphttp/cw_k8s_ci_v0_metrics_dest
+
+{{- if and .Values.otelContainerInsights.solutions.enabled .Values.otelContainerInsights.solutions.vllm.enabled }}
+    metrics/cw_k8s_ci_v0_vllm:
+      receivers: [prometheus/cw_k8s_ci_v0_vllm]
+      processors:
+        - filter/cw_k8s_ci_v0_scrape_metadata
+        - filter/cw_k8s_ci_v0_vllm_keep
+        - transform/cw_k8s_ci_v0_set_unit
+        - metricstarttime/cw_k8s_ci_v0
+        - transform/cw_k8s_ci_v0_set_cluster_name
+        - transform/cw_k8s_ci_v0_set_node_name
+        - transform/cw_k8s_ci_v0_promote_node_name
+        - resourcedetection/cw_k8s_ci_v0
+        - transform/cw_k8s_ci_v0_set_cloud_resource_id
+        - k8sattributes/cw_k8s_ci_v0_node
+        - transform/cw_k8s_ci_v0_set_scope_vllm
+        - transform/cw_k8s_ci_v0_clear_schema_url
+        - transform/cw_k8s_ci_v0_set_workload
+        - awsattributelimit/cw_k8s_ci_v0
+        - batch/cw_k8s_ci_v0_metrics_dest
+      exporters:
+        - otlphttp/cw_k8s_ci_v0_metrics_dest
+{{- end }}
+
+{{- if include "otel-container-insights.vllmTracesEnabled" . }}
+    # No filter processor: nothing arrives unless an engine was pointed here.
+    # resourcedetection runs after k8sattributes, as in the metrics pipelines.
+    traces/cw_k8s_ci_v0_vllm:
+      receivers: [otlp/cw_k8s_ci_v0_vllm_traces]
+      processors:
+        - k8sattributes/cw_k8s_ci_v0_vllm_traces
+        - transform/cw_k8s_ci_v0_vllm_traces_resource
+        - resourcedetection/cw_k8s_ci_v0
+        - batch/cw_k8s_ci_v0_traces_dest
+      exporters:
+        - otlphttp/cw_k8s_ci_v0_traces_dest
+{{- end }}
+
+{{- if and .Values.otelContainerInsights.solutions.enabled .Values.otelContainerInsights.solutions.knative.dataPlane.enabled }}
+    metrics/cw_k8s_ci_v0_knative_dataplane:
+      receivers: [prometheus/cw_k8s_ci_v0_knative_dataplane]
+      processors:
+        - filter/cw_k8s_ci_v0_scrape_metadata
+        - filter/cw_k8s_ci_v0_knative_dataplane_keep
+        - transform/cw_k8s_ci_v0_set_unit
+        - metricstarttime/cw_k8s_ci_v0
+        - transform/cw_k8s_ci_v0_set_cluster_name
+        - transform/cw_k8s_ci_v0_set_node_name
+        - transform/cw_k8s_ci_v0_promote_node_name
+        - resourcedetection/cw_k8s_ci_v0
+        - transform/cw_k8s_ci_v0_set_cloud_resource_id
+        - k8sattributes/cw_k8s_ci_v0_node
+        - transform/cw_k8s_ci_v0_set_scope_knative_dataplane
+        - transform/cw_k8s_ci_v0_clear_schema_url
+        - transform/cw_k8s_ci_v0_set_workload
+        - awsattributelimit/cw_k8s_ci_v0
+        - batch/cw_k8s_ci_v0_metrics_dest
+      exporters:
+        - otlphttp/cw_k8s_ci_v0_metrics_dest
+{{- end }}
 
     metrics/cw_k8s_ci_v0_lis_csi_node:
       receivers: [prometheus/cw_k8s_ci_v0_lis_csi_node]
