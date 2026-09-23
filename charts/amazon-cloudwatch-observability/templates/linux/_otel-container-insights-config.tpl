@@ -41,6 +41,26 @@ receivers:
             - targets:
                 - ${env:HOST_IP}:10250
 
+{{- if dig "enabled" false (.Values.otelPrometheusMonitor | default dict) }}
+  # otelPrometheusMonitor: when otelContainerInsights is off, cloudwatch-agent.prometheus-monitor-config
+  # keeps only the metrics/cw_k8s_ci_v0_prometheuscr pipeline and the components it lists, so
+  # every component that pipeline uses must be defined in this template.
+  # ServiceMonitor/PodMonitor scraping via the Target Allocator (prometheusCR discovery).
+  # The Target Allocator deployed for otelPrometheusMonitor.targetAgent serves the scrape jobs derived from
+  # ServiceMonitor/PodMonitor CRs; this receiver pulls this collector's assigned shard and
+  # routes the series into the v2 OTLP pipeline (-> CloudWatch/Zeus). Requires the Target
+  # Allocator + prometheusCR to be enabled for otelPrometheusMonitor.targetAgent and the POD_NAME env (set below).
+  prometheus/cw_k8s_ci_v0_prometheuscr:
+    target_allocator:
+      endpoint: https://{{ .Values.otelPrometheusMonitor.targetAgent }}-target-allocator-service:80
+      interval: {{ .Values.otelPrometheusMonitor.scrapeInterval }}
+      collector_id: ${env:POD_NAME}
+      tls:
+        ca_file: /etc/amazon-cloudwatch-observability-agent-cert/tls-ca.crt
+        cert_file: /etc/amazon-cloudwatch-observability-agent-ta-client-cert/client.crt
+        key_file: /etc/amazon-cloudwatch-observability-agent-ta-client-cert/client.key
+{{- end }}
+
   {{- if .Values.dcgmExporter.enabled }}
   prometheus/cw_k8s_ci_v0_dcgm:
     config:
@@ -462,6 +482,16 @@ processors:
       metric:
         - IsMatch(name, "^(up|scrape_duration_seconds|scrape_samples_scraped|scrape_samples_post_metric_relabeling|scrape_series_added|node_scrape_collector_duration_seconds|node_scrape_collector_success)$")
 
+{{- if dig "enabled" false (.Values.otelPrometheusMonitor | default dict) }}
+  # ServiceMonitor/PodMonitor pipeline: drop the scrape metadata series but keep up, so
+  # up == 0 shows a monitor target that fails to scrape (auth rejected, pod down, wrong port).
+  filter/cw_k8s_ci_v0_prometheuscr_scrape_metadata:
+    error_mode: ignore
+    metrics:
+      metric:
+        - IsMatch(name, "^(scrape_duration_seconds|scrape_samples_scraped|scrape_samples_post_metric_relabeling|scrape_series_added)$")
+{{- end }}
+
   # Drop receiver-injected deprecated semconv attributes; their current-spelling
   # twins (server.address, server.port, url.scheme) carry the same values and stay.
   transform/cw_k8s_ci_v0_drop_deprecated_semconv:
@@ -625,6 +655,18 @@ processors:
           - set(attributes["cloudwatch.source"], "cloudwatch-agent")
           - set(attributes["cloudwatch.solution"], "k8s-otel-container-insights")
           - set(attributes["cloudwatch.pipeline"], "efa")
+
+{{- if dig "enabled" false (.Values.otelPrometheusMonitor | default dict) }}
+  transform/cw_k8s_ci_v0_set_scope_prometheuscr:
+    error_mode: ignore
+    metric_statements:
+      - context: scope
+        statements:
+          - set(scope.schema_url, "")
+          - set(attributes["cloudwatch.source"], "cloudwatch-agent")
+          - set(attributes["cloudwatch.solution"], "k8s-otel-prometheus-monitors")
+          - set(attributes["cloudwatch.pipeline"], "prometheus-monitors")
+{{- end }}
 
   transform/cw_k8s_ci_v0_set_scope_ebs_csi:
     error_mode: ignore
@@ -1224,6 +1266,17 @@ processors:
 exporters:
   {{- include "otel-shared.exporter.otlphttpMetrics" . | nindent 2 }}
 
+{{- if dig "enabled" false (.Values.otelPrometheusMonitor | default dict) }}
+  # ServiceMonitor/PodMonitor series always go to the regional endpoint;
+  # otelContainerInsights.cloudwatchMetricsEndpoint applies to Container Insights only.
+  otlphttp/cw_k8s_ci_v0_prometheuscr:
+    endpoint: "https://monitoring.{{ .Values.region }}.amazonaws.com:443"
+    tls:
+      insecure: false
+    auth:
+      authenticator: sigv4auth/cw_k8s_ci_v0_metrics_dest
+{{- end }}
+
 {{- if .Values.otelContainerInsights.logs.enabled }}
   otlphttp/cw_k8s_ci_v0_app_logs_dest:
     endpoint: {{ if .Values.otelContainerInsights.cloudwatchLogsEndpoint }}{{ .Values.otelContainerInsights.cloudwatchLogsEndpoint | quote }}{{ else if hasKey .Values.adcEndpointOverrides .Values.region }}"https://logs.{{ .Values.region }}.{{ index .Values.adcEndpointOverrides .Values.region }}:443"{{ else }}"https://logs.{{ .Values.region }}.amazonaws.com:443"{{ end }}
@@ -1344,6 +1397,36 @@ service:
         - batch/cw_k8s_ci_v0_metrics_dest
       exporters:
         - otlphttp/cw_k8s_ci_v0_metrics_dest
+
+{{- if dig "enabled" false (.Values.otelPrometheusMonitor | default dict) }}
+    metrics/cw_k8s_ci_v0_prometheuscr:
+      receivers: [prometheus/cw_k8s_ci_v0_prometheuscr]
+      # ServiceMonitor/PodMonitor series are customer application metrics, so they get the
+      # chart-wide service identity (_service-identity.tpl) with the same processors as the
+      # Container Insights metrics of the same pod: k8sattributes/cw_k8s_ci_v0_pod finds the
+      # scraped pod by the k8s.pod.name and k8s.namespace.name the receiver sets (this node's
+      # pods only, which per-node allocation assigns here), and the identity processor runs
+      # after resourcedetection, which sets the cloud.platform it needs. Targets without a pod
+      # keep the receiver's job name and target as service.name and service.instance.id.
+      processors:
+        - filter/cw_k8s_ci_v0_prometheuscr_scrape_metadata
+        - transform/cw_k8s_ci_v0_set_unit
+        - metricstarttime/cw_k8s_ci_v0
+        - transform/cw_k8s_ci_v0_set_cluster_name
+        - transform/cw_k8s_ci_v0_set_scope_prometheuscr
+        - k8sattributes/cw_k8s_ci_v0_pod
+        - resourcedetection/cw_k8s_ci_v0
+        - transform/cw_k8s_ci_v0_set_cloud_resource_id
+        - transform/cw_k8s_ci_v0_clear_schema_url
+        - transform/cw_k8s_ci_v0_service_identity
+        {{- if include "otel-container-insights.metricsLabelFilterEnabled" . }}
+        - transform/cw_k8s_ci_v0_metrics_labels
+        {{- end }}
+        - awsattributelimit/cw_k8s_ci_v0
+        - batch/cw_k8s_ci_v0_metrics_dest
+      exporters:
+        - otlphttp/cw_k8s_ci_v0_prometheuscr
+{{- end }}
 
     {{- if .Values.dcgmExporter.enabled }}
     metrics/cw_k8s_ci_v0_dcgm:

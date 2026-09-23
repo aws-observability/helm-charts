@@ -72,8 +72,13 @@ data:
 {{- range .Values.agents }}
 {{- $agent := mergeOverwrite (deepCopy $.Values.agent) . }}
 {{- $agentName := include "cloudwatch-agent.resolvedName" (dict "agent" . "context" $) -}}
-{{/* Skip cluster-scraper agent when otelContainerInsights is disabled */}}
-{{- if or $.Values.otelContainerInsights.enabled (ne $agentName $.Values.otelContainerInsights.clusterScraperAgent) }}
+{{- /* Skip a cluster-scraper agent unless the feature that names it is enabled:
+       otelContainerInsights.clusterScraperAgent needs otelContainerInsights, and
+       otelPrometheusMonitor.clusterScraperAgent needs otelPrometheusMonitor. */}}
+{{- $pmValues := $.Values.otelPrometheusMonitor | default dict }}
+{{- $ciScraper := eq $agentName $.Values.otelContainerInsights.clusterScraperAgent }}
+{{- $pmScraper := eq $agentName (dig "clusterScraperAgent" "" $pmValues) }}
+{{- if or (not (or $ciScraper $pmScraper)) (and $ciScraper $.Values.otelContainerInsights.enabled) (and $pmScraper (dig "enabled" false $pmValues)) }}
 apiVersion: cloudwatch.aws.amazon.com/v1alpha1
 kind: AmazonCloudWatchAgent
 metadata:
@@ -150,21 +155,57 @@ spec:
   {{- if $otelConfig }}
   otelConfig: {{ $otelConfig | quote }}
   {{- end }}
+  {{- $promMonitor := eq (include "cloudwatch-agent.prometheusMonitorEnabled" (dict "agentName" $agentName "context" $)) "true" }}
+  {{- $isClusterScraper := eq $agentName (dig "clusterScraperAgent" "" ($.Values.otelPrometheusMonitor | default dict)) }}
+  {{- $taEnabled := or $agent.prometheus.targetAllocator.enabled $promMonitor }}
+  {{- /* ServiceMonitor/PodMonitor scraping: the per-node agent takes the targets on its own node;
+         the cluster-scraper runs a single or few replicas, so it hashes. */}}
+  {{- $allocationStrategy := "consistent-hashing" }}
+  {{- if and $promMonitor (not $isClusterScraper) }}
+  {{-   $allocationStrategy = "per-node" }}
+  {{- end }}
   {{- if $agent.prometheus.config }}
   prometheus:
     {{- with $agent.prometheus.config }}
     config:
       {{- toYaml . | nindent 6 }}
     {{- end }}
+  {{- else if $taEnabled }}
+  # The operator builds the Target Allocator config from spec.prometheus and requires
+  # a prometheus.config containing a scrape_configs key (see operator
+  # targetallocator/adapters GetPromConfig). With prometheusCR (ServiceMonitor/
+  # PodMonitor) discovery the static scrape list is empty -- the Target Allocator
+  # discovers targets from ServiceMonitor/PodMonitor CRs.
+  prometheus:
+    config:
+      scrape_configs: []
   {{- end }}
-  {{- if $agent.prometheus.targetAllocator.enabled }}
+  {{- if $taEnabled }}
   targetAllocator:
-    enabled: {{ $agent.prometheus.targetAllocator.enabled | default false }}
+    enabled: true
     image: {{ include "target-allocator.image" (merge $agent.prometheus.targetAllocator.image (dict "region" $.Values.region)) | quote }}
-    allocationStrategy: "consistent-hashing"
-    {{- if $agent.prometheus.targetAllocator.prometheusCR.enabled }}
+    allocationStrategy: {{ $allocationStrategy | quote }}
+    {{- if or $agent.prometheus.targetAllocator.prometheusCR.enabled $promMonitor }}
     prometheusCR:
-      enabled: {{ $agent.prometheus.targetAllocator.prometheusCR.enabled | default false }}
+      enabled: true
+      {{- if $promMonitor }}
+      scrapeInterval: {{ $.Values.otelPrometheusMonitor.scrapeInterval | quote }}
+      {{- /* Unset or {} selects every monitor, so only a non-empty selector is rendered. */}}
+      {{- with $.Values.otelPrometheusMonitor.serviceMonitorSelector }}
+      serviceMonitorSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with $.Values.otelPrometheusMonitor.podMonitorSelector }}
+      podMonitorSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- if $isClusterScraper }}
+      # Annotation-based routing: this central agent's Target Allocator scrapes only monitors
+      # annotated cloudwatch.aws.amazon.com/scraper: cluster-scraper. The per-node agent (no scraperRole)
+      # scrapes only monitors that are NOT so annotated, so the two partition with no overlap/gap.
+      scraperRole: cluster-scraper
+      {{- end }}
+      {{- end }}
     {{- end }}
   {{- end }}
   {{- $prunedResources := include "cloudwatch-agent.pruneNulls" $agent.resources | fromYaml }}
@@ -350,6 +391,15 @@ spec:
   {{- if $.Values.otelContainerInsights.enabled }}
   - name: OTEL_CI_VERSION
     value: "1.0.0"
+  {{- end }}
+  {{- if $promMonitor }}
+  # POD_NAME is the Target Allocator collector_id for the prometheusCR receiver
+  # (otelPrometheusMonitor) so each scraping agent pulls its own shard.
+  # Scoped to the scrape path since only that receiver consumes ${env:POD_NAME}.
+  - name: POD_NAME
+    valueFrom:
+      fieldRef:
+        fieldPath: metadata.name
   {{- end }}
   {{- with $agent.env }}
   {{- . | toYaml | nindent 2 }}

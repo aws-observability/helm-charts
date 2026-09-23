@@ -84,6 +84,26 @@ receivers:
               target_label: node
 {{- end }}
 
+{{- if dig "enabled" false (.Values.otelPrometheusMonitor | default dict) }}
+  # otelPrometheusMonitor: when otelContainerInsights is off, cloudwatch-agent.prometheus-monitor-config
+  # keeps only the metrics/cw_k8s_ci_v0_prometheuscr pipeline and the components it lists, so
+  # every component that pipeline uses must be defined in this template.
+  # ServiceMonitor/PodMonitor scraping routed to the cluster-scraper via the
+  # cloudwatch.aws.amazon.com/scraper: cluster-scraper annotation. This agent's Target Allocator serves the
+  # routed scrape jobs (consistent-hashing across the cluster-scraper replicas); this receiver
+  # pulls this collector's assigned shard. Requires the Target Allocator + prometheusCR to be
+  # enabled for otelPrometheusMonitor.clusterScraperAgent and the POD_NAME env (set below).
+  prometheus/cw_k8s_ci_v0_prometheuscr:
+    target_allocator:
+      endpoint: https://{{ .Values.otelPrometheusMonitor.clusterScraperAgent }}-target-allocator-service:80
+      interval: {{ .Values.otelPrometheusMonitor.scrapeInterval }}
+      collector_id: ${env:POD_NAME}
+      tls:
+        ca_file: /etc/amazon-cloudwatch-observability-agent-cert/tls-ca.crt
+        cert_file: /etc/amazon-cloudwatch-observability-agent-ta-client-cert/client.crt
+        key_file: /etc/amazon-cloudwatch-observability-agent-ta-client-cert/client.key
+{{- end }}
+
 {{- if and .Values.otelContainerInsights.solutions.enabled .Values.otelContainerInsights.solutions.karpenter.enabled }}
   prometheus/cw_k8s_ci_v0_karpenter:
     config:
@@ -185,6 +205,16 @@ processors:
     metrics:
       metric:
         - IsMatch(name, "^(up|scrape_duration_seconds|scrape_samples_scraped|scrape_samples_post_metric_relabeling|scrape_series_added)$")
+
+{{- if dig "enabled" false (.Values.otelPrometheusMonitor | default dict) }}
+  # ServiceMonitor/PodMonitor pipeline: drop the scrape metadata series but keep up, so
+  # up == 0 shows a monitor target that fails to scrape (auth rejected, pod down, wrong port).
+  filter/cw_k8s_ci_v0_prometheuscr_scrape_metadata:
+    error_mode: ignore
+    metrics:
+      metric:
+        - IsMatch(name, "^(scrape_duration_seconds|scrape_samples_scraped|scrape_samples_post_metric_relabeling|scrape_series_added)$")
+{{- end }}
 
   # Drop receiver-injected deprecated semconv attributes; their current-spelling
   # twins (server.address, server.port, url.scheme) carry the same values and stay.
@@ -376,6 +406,18 @@ processors:
         cloud.availability_zone: { enabled: false }
         cloud.account.id: { enabled: true }
     {{- end }}
+{{- end }}
+
+{{- if dig "enabled" false (.Values.otelPrometheusMonitor | default dict) }}
+  transform/cw_k8s_ci_v0_set_scope_prometheuscr:
+    error_mode: ignore
+    metric_statements:
+      - context: scope
+        statements:
+          - set(scope.schema_url, "")
+          - set(attributes["cloudwatch.source"], "cloudwatch-agent")
+          - set(attributes["cloudwatch.solution"], "k8s-otel-prometheus-monitors")
+          - set(attributes["cloudwatch.pipeline"], "prometheus-monitors")
 {{- end }}
 
 {{- if and .Values.otelContainerInsights.solutions.enabled .Values.otelContainerInsights.solutions.karpenter.enabled }}
@@ -840,13 +882,13 @@ processors:
           - set(resource.attributes["k8s.workload.name"], resource.attributes["k8s.replicaset.name"]) where resource.attributes["k8s.workload.name"] == nil and resource.attributes["k8s.replicaset.name"] != nil
           - set(resource.attributes["k8s.workload.type"], "ReplicaSet") where resource.attributes["k8s.workload.type"] == nil and resource.attributes["k8s.replicaset.name"] != nil
 
-  {{- if .Values.kubeStateMetrics.enabled }}
+  {{- if or .Values.kubeStateMetrics.enabled (dig "enabled" false (.Values.otelPrometheusMonitor | default dict)) }}
 
-  # Service identity for kube-state-metrics series, with the same parameters as
-  # the node agent's metrics processor of the same name, so a pod's state
-  # metrics and its resource metrics carry the same service.name and
-  # service.instance.id. The receiver's job name (kube-state-metrics) is kept
-  # only on series about no workload, such as node and namespace series.
+  # Service identity for kube-state-metrics and ServiceMonitor/PodMonitor series,
+  # with the same parameters as the node agent's metrics processor of the same
+  # name, so a pod's state metrics, its resource metrics and its monitor series
+  # carry the same service.name and service.instance.id. The receiver's job name
+  # is kept only on series about no workload, such as node and namespace series.
   {{- include "service-identity.processor" (dict "Values" .Values "name" "transform/cw_k8s_ci_v0_service_identity" "groups" (list "metric_statements") "inputs" (list "kserveInferenceService") "receiverDefault" true) | nindent 2 }}
   {{- end }}
 
@@ -1000,6 +1042,17 @@ exporters:
     auth:
       authenticator: sigv4auth/cw_k8s_ci_v0_cwotel
 
+{{- if dig "enabled" false (.Values.otelPrometheusMonitor | default dict) }}
+  # ServiceMonitor/PodMonitor series always go to the regional endpoint;
+  # otelContainerInsights.cloudwatchMetricsEndpoint applies to Container Insights only.
+  otlphttp/cw_k8s_ci_v0_prometheuscr:
+    endpoint: "https://monitoring.{{ .Values.region }}.amazonaws.com:443"
+    tls:
+      insecure: false
+    auth:
+      authenticator: sigv4auth/cw_k8s_ci_v0_cwotel
+{{- end }}
+
 service:
   # Pin internal self-telemetry off. Without this the collector falls back to its
   # built-in default (metrics level Normal + a Prometheus reader on localhost:8888),
@@ -1108,6 +1161,33 @@ service:
         - batch/cw_k8s_ci_v0_cwotel
       exporters:
         - otlphttp/cw_k8s_ci_v0_cwotel
+{{- end }}
+
+{{- if dig "enabled" false (.Values.otelPrometheusMonitor | default dict) }}
+    metrics/cw_k8s_ci_v0_prometheuscr:
+      receivers: [prometheus/cw_k8s_ci_v0_prometheuscr]
+      # Central scraper: no per-node (set_node_name/promote_node_name) enrichment, since a
+      # single/few consistent-hashing replicas serve the routed monitors (not node-local).
+      # Service identity as on the per-node agent: the cluster-wide k8sattributes/cw_k8s_ci_v0_pod
+      # finds the scraped pod, and the identity processor runs after resourcedetection.
+      processors:
+        - filter/cw_k8s_ci_v0_prometheuscr_scrape_metadata
+        - transform/cw_k8s_ci_v0_set_unit
+        - metricstarttime/cw_k8s_ci_v0
+        - transform/cw_k8s_ci_v0_set_scope_prometheuscr
+        - transform/cw_k8s_ci_v0_set_cluster_name
+        - k8sattributes/cw_k8s_ci_v0_pod
+        - resourcedetection/cw_k8s_ci_v0
+        - transform/cw_k8s_ci_v0_set_cloud_resource_id
+        - transform/cw_k8s_ci_v0_clear_schema_url
+        - transform/cw_k8s_ci_v0_service_identity
+        {{- if include "otel-container-insights.metricsLabelFilterEnabled" . }}
+        - transform/cw_k8s_ci_v0_metrics_labels
+        {{- end }}
+        - awsattributelimit/cw_k8s_ci_v0
+        - batch/cw_k8s_ci_v0_cwotel
+      exporters:
+        - otlphttp/cw_k8s_ci_v0_prometheuscr
 {{- end }}
 
 {{- if and .Values.otelContainerInsights.solutions.enabled .Values.otelContainerInsights.solutions.karpenter.enabled }}
