@@ -1,0 +1,10 @@
+region: us-west-2
+clusterName: minikube
+# Full OTel CI on with logs: the CloudWatch Agent builds the CI pipelines at runtime from the
+# opentelemetry.collect.container_insights block in spec.config. The node agent gets role=node plus
+# logs.enabled (the filelog pipeline runs only on the node daemonset); the cluster-scraper gets
+# role=cluster + a solutions object and NO logs key (logs would be a no-op on the cluster role).
+otelContainerInsights:
+  enabled: true
+  logs:
+    enabled: true

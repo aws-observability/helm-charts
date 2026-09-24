@@ -19,6 +19,8 @@ helm install --wait --create-namespace --namespace amazon-cloudwatch amazon-clou
 
 By default, the helm chart will enable [Container Insights](https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/ContainerInsights.html) enhanced observability with container logging, and [CloudWatch Application Signals](https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/CloudWatch-Application-Monitoring-Sections.html). This helps you to collect infrastructure metrics, application performance telemetry, and container logs from the Amazon EKS cluster.
 
+> **Note:** Overriding the curated Container Insights components (`cw_k8s_ci_v0_*`) via `agent.otelConfig` is not supported and will cause the agent to fail to start.
+
 ## Windows Support
 CloudWatch DaemonSet on Windows is officially supported only for containerd runtime.
 

@@ -44,10 +44,13 @@ fail_count=0
 # Optional args (only checked when $5 == "ok"):
 #   $7  comma-separated list of fragments that MUST be present in output
 #   $8  comma-separated list of fragments that MUST NOT be present in output
+#   $9  comma-separated list of fragments that MUST appear EXACTLY ONCE in output
+#       (used to prove a key is emitted for a single agent — e.g. container_insights.logs
+#        only on the node agent, never on the cluster-scraper)
 # ──────────────────────────────────────────────────────────────────────────
 run_case() {
     local num="$1" enabled="$2" logs="$3" fb="$4" expected="$5" desc="$6"
-    local must_have="${7:-}" must_not="${8:-}"
+    local must_have="${7:-}" must_not="${8:-}" must_once="${9:-}"
 
     printf "\n${Y}[State #%s]${N} enabled=%s logs=%s containerLogs=%s  —  %s\n" \
         "$num" "$enabled" "$logs" "$fb" "$desc"
@@ -101,6 +104,18 @@ run_case() {
         done
     fi
 
+    if [[ -n "$must_once" ]]; then
+        IFS=',' read -ra fragments <<< "$must_once"
+        for f in "${fragments[@]}"; do
+            local count
+            count=$(grep -o "$f" <<< "$output" | wc -l | tr -d ' ')
+            if [[ "$count" -ne 1 ]]; then
+                echo -e "  ${R}FAIL${N}: fragment should appear exactly once (got $count): $f"
+                local_fail=1
+            fi
+        done
+    fi
+
     if [[ $local_fail -eq 0 ]]; then
         echo -e "  ${G}PASS${N}"
         pass_count=$((pass_count + 1))
@@ -125,6 +140,29 @@ FLUENT_BIT_IMAGE="aws-for-fluent-bit"
 
 # All OTEL log pipeline fragments (app + host).
 ALL_LOG_FRAGMENTS="$LOG_EXPORTER_APP,$LOG_EXPORTER_NODE,$LOG_SIGV4,$LOG_PIPELINE_APP,$FILELOG_APP"
+
+# ── Runtime CI config surface (spec.config JSON) ──
+# The chart emits opentelemetry.collect.container_insights into spec.config and the CloudWatch
+# Agent builds the receivers/processors/exporters at runtime. The JSON lives inside a quoted YAML
+# string, so its inner quotes are escaped
+# (\"role\":\"node\"); the patterns below include the escaped-quote backslashes.
+CI_CONFIG="container_insights"
+CI_ROLE_NODE='role\\":\\"node'
+CI_ROLE_CLUSTER='role\\":\\"cluster'
+CI_CLUSTER_NAME='cluster_name\\":\\"test-cluster'
+CI_SOLUTIONS="solutions"
+# logs is a node-only key: the filelog pipeline runs on the node daemonset, so the chart emits
+# container_insights.logs only for role=node. The cluster-scraper (role=cluster) carries NO logs key.
+# Because node is now the ONLY agent with a logs key, these fragments track the node agent, and a
+# "must appear exactly once" assertion on them proves the cluster-scraper has no logs key.
+CI_LOGS_ON='logs\\":{\\"enabled\\":true'
+CI_LOGS_OFF='logs\\":{\\"enabled\\":false'
+# No chart-generated otelConfig block should appear on any agent CR (chart CI lives in spec.config).
+OTEL_CONFIG_BLOCK="otelConfig:"
+
+# These otelConfig fragments must be absent whenever otelContainerInsights.enabled=true —
+# the CloudWatch Agent builds the CI pipelines from spec.config.
+PRERENDER="$METRICS_EXPORTER,$METRICS_SIGV4,$ALL_LOG_FRAGMENTS,$OTEL_CONFIG_BLOCK"
 
 # ──────────────────────────────────────────────────────────────────────────
 # Run all 8 combinations.
@@ -154,26 +192,37 @@ run_case 4 false true true "ok" \
     "$FLUENT_BIT_IMAGE" "$METRICS_EXPORTER,$ALL_LOG_FRAGMENTS"
 
 # State #5: OTEL metrics only.
+# The agent builds pipelines at runtime: assert container_insights (node + cluster roles,
+# cluster_name) is in spec.config. The node role carries logs.enabled=false; the cluster role
+# carries NO logs key (the single logs occurrence proves node-only). No chart-generated otelConfig.
 run_case 5 true false false "ok" \
     "OTEL metrics only, no logs" \
-    "$METRICS_EXPORTER,$METRICS_SIGV4" "$ALL_LOG_FRAGMENTS,$FLUENT_BIT_IMAGE"
+    "$CI_CONFIG,$CI_ROLE_NODE,$CI_ROLE_CLUSTER,$CI_CLUSTER_NAME,$CI_LOGS_OFF" \
+    "$PRERENDER,$FLUENT_BIT_IMAGE,$CI_LOGS_ON" \
+    "$CI_LOGS_OFF"
 
 # State #6: hybrid — OTEL metrics + FluentBit logs.
 run_case 6 true false true "ok" \
     "Hybrid — OTEL metrics + FluentBit logs" \
-    "$METRICS_EXPORTER,$METRICS_SIGV4,$FLUENT_BIT_IMAGE" "$ALL_LOG_FRAGMENTS"
+    "$CI_CONFIG,$CI_ROLE_NODE,$CI_ROLE_CLUSTER,$CI_CLUSTER_NAME,$CI_LOGS_OFF,$FLUENT_BIT_IMAGE" \
+    "$PRERENDER,$CI_LOGS_ON" \
+    "$CI_LOGS_OFF"
 
 # State #7: full OTEL (metrics + logs, no FluentBit).
+# logs.enabled=true flips the node container_insights.logs.enabled to true; the cluster-scraper role
+# still carries solutions but NO logs key (the single logs occurrence proves node-only).
 run_case 7 true true false "ok" \
     "Full OTEL (metrics + logs)" \
-    "$METRICS_EXPORTER,$METRICS_SIGV4,$LOG_EXPORTER_APP,$LOG_EXPORTER_NODE,$LOG_SIGV4,$FILELOG_APP" \
-    "$FLUENT_BIT_IMAGE"
+    "$CI_CONFIG,$CI_ROLE_NODE,$CI_ROLE_CLUSTER,$CI_CLUSTER_NAME,$CI_SOLUTIONS,$CI_LOGS_ON" \
+    "$PRERENDER,$FLUENT_BIT_IMAGE,$CI_LOGS_OFF" \
+    "$CI_LOGS_ON"
 
-# State #8: dual-publish (migration window — OTEL logs + FluentBit both active).
+# State #8: dual-publish — OTEL logs + FluentBit both active.
 run_case 8 true true true "ok" \
     "Dual-publish — OTEL logs + FluentBit both active" \
-    "$METRICS_EXPORTER,$LOG_EXPORTER_APP,$LOG_EXPORTER_NODE,$FILELOG_APP,$FLUENT_BIT_IMAGE" \
-    ""
+    "$CI_CONFIG,$CI_ROLE_NODE,$CI_ROLE_CLUSTER,$CI_CLUSTER_NAME,$CI_SOLUTIONS,$CI_LOGS_ON,$FLUENT_BIT_IMAGE" \
+    "$PRERENDER,$CI_LOGS_OFF" \
+    "$CI_LOGS_ON"
 
 # ──────────────────────────────────────────────────────────────────────────
 # Summary.

@@ -47,25 +47,25 @@ func TestFeatureTargetedCustomOtelConfig(t *testing.T) {
 		agentMap[agent.GetName()] = agent
 	}
 
-	t.Run("GeneratedConfigWinsOnCollision", func(t *testing.T) {
-		validateGeneratedConfigWinsOnCollision(t, agentMap)
+	t.Run("CustomOtelConfigPassthrough", func(t *testing.T) {
+		validateCustomOtelConfigPassthrough(t, agentMap)
 	})
 
 	t.Run("UserNonCollidingKeysPreserved", func(t *testing.T) {
 		validateUserNonCollidingKeysPreserved(t, agentMap)
 	})
 
-	t.Run("GeneratedPipelinesPresent", func(t *testing.T) {
-		validateGeneratedPipelinesPresent(t, agentMap)
+	t.Run("ContainerInsightsInSpecConfig", func(t *testing.T) {
+		validateContainerInsightsInSpecConfig(t, agentMap)
 	})
 
 	t.Log("Feature targeted custom otel config scenario validation passed")
 }
 
-// validateGeneratedConfigWinsOnCollision verifies that when the user supplies an otelConfig
-// with a colliding sigv4auth/cw_k8s_ci_v0_metrics_dest extension (region "us-fake-99"), the
-// generated config's region ("us-west-2") wins (Requirement 4.4, 12.1).
-func validateGeneratedConfigWinsOnCollision(t *testing.T, agentMap map[string]unstructured.Unstructured) {
+// validateCustomOtelConfigPassthrough verifies the customer-supplied agent.otelConfig passes through
+// verbatim: the CloudWatch Agent builds CI from spec.config, so the user's sigv4auth region
+// (us-fake-99) survives and no chart-generated region (us-west-2) is merged into otelConfig.
+func validateCustomOtelConfigPassthrough(t *testing.T, agentMap map[string]unstructured.Unstructured) {
 	agent, exists := agentMap["cloudwatch-agent"]
 	if !assert.True(t, exists, "cloudwatch-agent CR should exist") {
 		return
@@ -77,18 +77,18 @@ func validateGeneratedConfigWinsOnCollision(t *testing.T, agentMap map[string]un
 	}
 
 	otelConfig, ok := spec["otelConfig"].(string)
-	if !assert.True(t, ok, "otelConfig should be a string") {
+	if !assert.True(t, ok, "otelConfig should be a string (customer passthrough present)") {
 		return
 	}
 	assert.NotEmpty(t, otelConfig, "otelConfig should not be empty")
 
-	// The generated sigv4auth region (us-west-2) should be present
-	assert.True(t, strings.Contains(otelConfig, "us-west-2"),
-		"merged otelConfig should contain generated sigv4auth region us-west-2")
+	// The user's colliding-key region survives verbatim — no chart CI overwrites it anymore.
+	assert.True(t, strings.Contains(otelConfig, "us-fake-99"),
+		"otelConfig should preserve the user's sigv4auth region us-fake-99 verbatim")
 
-	// The user's colliding region (us-fake-99) should NOT be present
-	assert.False(t, strings.Contains(otelConfig, "us-fake-99"),
-		"merged otelConfig should NOT contain user's colliding sigv4auth region us-fake-99")
+	// The chart-generated region is not merged into otelConfig (chart CI lives in spec.config).
+	assert.False(t, strings.Contains(otelConfig, "us-west-2"),
+		"otelConfig should NOT contain a chart-generated region us-west-2 (CI no longer merged into otelConfig)")
 }
 
 // validateUserNonCollidingKeysPreserved verifies that user-supplied keys that do not collide
@@ -126,33 +126,21 @@ func validateUserNonCollidingKeysPreserved(t *testing.T, agentMap map[string]uns
 		"merged otelConfig should contain user's custom pipeline (custom_user_pipeline)")
 }
 
-// validateGeneratedPipelinesPresent verifies that the generated OTLP Container Insights
-// pipelines are present in the merged output, confirming they were not lost during merge.
-func validateGeneratedPipelinesPresent(t *testing.T, agentMap map[string]unstructured.Unstructured) {
-	agent, exists := agentMap["cloudwatch-agent"]
-	if !assert.True(t, exists, "cloudwatch-agent CR should exist") {
-		return
+// validateContainerInsightsInSpecConfig verifies chart-generated CI lands in spec.config as
+// opentelemetry.collect.container_insights (node role=node + cluster_name; cluster-scraper
+// role=cluster + solutions). The node agent also carries the customer otelConfig passthrough, so its
+// container_insights block is asserted directly rather than via the otelConfig-absent asserter.
+func validateContainerInsightsInSpecConfig(t *testing.T, agentMap map[string]unstructured.Unstructured) {
+	config := configJSONOf(t, agentMap, "cloudwatch-agent")
+	if config != nil {
+		ci := containerInsightsOf(config)
+		if assert.NotNil(t, ci, "cloudwatch-agent spec.config should carry opentelemetry.collect.container_insights") {
+			assert.Equal(t, "node", ci["role"], "cloudwatch-agent container_insights.role should be node")
+			assert.Equal(t, clusterName, otelClusterNameOf(config),
+				"cloudwatch-agent opentelemetry.cluster_name should be %q", clusterName)
+		}
 	}
 
-	spec, ok := agent.Object["spec"].(map[string]interface{})
-	if !assert.True(t, ok, "spec should be a map") {
-		return
-	}
-
-	otelConfig, ok := spec["otelConfig"].(string)
-	if !assert.True(t, ok, "otelConfig should be a string") {
-		return
-	}
-
-	// Generated OTLP CI pipelines should be present (cw_k8s_ci_v0 prefix for node-level)
-	assert.True(t, strings.Contains(otelConfig, "cw_k8s_ci_v0"),
-		"merged otelConfig should contain generated OTLP CI pipelines (cw_k8s_ci_v0 prefix)")
-
-	// Generated kubeletstats receiver should be present (node-level)
-	assert.True(t, strings.Contains(otelConfig, "kubeletstats"),
-		"merged otelConfig should contain generated kubeletstats receiver")
-
-	// Generated sigv4auth extension should be present
-	assert.True(t, strings.Contains(otelConfig, "sigv4auth"),
-		"merged otelConfig should contain generated sigv4auth extension")
+	// The cluster-scraper carries no customer otelConfig, so the full asserter applies.
+	assertClusterScraperContainerInsights(t, agentMap, "cloudwatch-agent-cluster-scraper")
 }

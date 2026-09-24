@@ -5,7 +5,6 @@ package scenarios
 
 import (
 	"context"
-	"strings"
 	"testing"
 
 	"github.com/aws-observability/helm-charts/integration-tests/amazon-cloudwatch-observability/util"
@@ -91,65 +90,19 @@ func validateClusterScraperCRExists(t *testing.T, agentMap map[string]unstructur
 	assert.True(t, hostNetwork, "cluster-scraper CR should have hostNetwork=true")
 }
 
-// validateOTELConfigRouting verifies that OTEL configs are correctly routed:
-// - cloudwatch-agent gets node-level pipelines (cadvisor, kubeletstats, node-exporter receivers)
-// - cloudwatch-agent-cluster-scraper gets cluster-level pipelines (apiserver, kube-state-metrics receivers)
+// validateOTELConfigRouting verifies that OTEL Container Insights configs are correctly routed: the
+// chart emits opentelemetry.collect.container_insights JSON in spec.config and the CloudWatch Agent
+// builds the pipelines at runtime. The node agent (cloudwatch-agent) gets role=node; the
+// cluster-scraper gets role=cluster + a solutions object. logs.enabled=true here (logs default on).
 func validateOTELConfigRouting(t *testing.T, agentMap map[string]unstructured.Unstructured) {
-	// Validate cloudwatch-agent has node-level OTEL config
+	// Node agent carries the node-role container_insights block and no chart otelConfig.
 	t.Run("CloudWatchAgentNodeLevel", func(t *testing.T) {
-		agent, exists := agentMap["cloudwatch-agent"]
-		if !assert.True(t, exists, "cloudwatch-agent CR should exist") {
-			return
-		}
-
-		spec, ok := agent.Object["spec"].(map[string]interface{})
-		if !assert.True(t, ok, "spec should be a map") {
-			return
-		}
-
-		otelConfig, ok := spec["otelConfig"].(string)
-		if !assert.True(t, ok, "otelConfig should be a string") {
-			return
-		}
-		assert.NotEmpty(t, otelConfig, "otelConfig should not be empty")
-
-		// Node-level config should contain node-exporter, cadvisor, kubeletstats receivers
-		assert.True(t, strings.Contains(otelConfig, "kubeletstats"),
-			"cloudwatch-agent otelConfig should contain kubeletstats receiver (node-level)")
-
-		// Node-level config should NOT contain cluster-level receivers
-		assert.False(t, strings.Contains(otelConfig, "cw_k8s_ci_v0_apiserver"),
-			"cloudwatch-agent otelConfig should NOT contain apiserver receiver (cluster-level)")
-		assert.False(t, strings.Contains(otelConfig, "cw_k8s_ci_v0_kube_state_metrics"),
-			"cloudwatch-agent otelConfig should NOT contain kube_state_metrics receiver (cluster-level)")
+		assertNodeContainerInsights(t, agentMap, "cloudwatch-agent", true)
 	})
 
-	// Validate cluster-scraper has cluster-level OTEL config
+	// Cluster-scraper carries the cluster-role container_insights block (with solutions) and no
+	// chart otelConfig.
 	t.Run("ClusterScraperClusterLevel", func(t *testing.T) {
-		agent, exists := agentMap["cloudwatch-agent-cluster-scraper"]
-		if !assert.True(t, exists, "cloudwatch-agent-cluster-scraper CR should exist") {
-			return
-		}
-
-		spec, ok := agent.Object["spec"].(map[string]interface{})
-		if !assert.True(t, ok, "spec should be a map") {
-			return
-		}
-
-		otelConfig, ok := spec["otelConfig"].(string)
-		if !assert.True(t, ok, "otelConfig should be a string") {
-			return
-		}
-		assert.NotEmpty(t, otelConfig, "otelConfig should not be empty")
-
-		// Cluster-level config should contain apiserver and kube-state-metrics receivers
-		assert.True(t, strings.Contains(otelConfig, "cw_k8s_ci_v0_apiserver"),
-			"cluster-scraper otelConfig should contain apiserver receiver (cluster-level)")
-		assert.True(t, strings.Contains(otelConfig, "cw_k8s_ci_v0_kube_state_metrics"),
-			"cluster-scraper otelConfig should contain kube_state_metrics receiver (cluster-level)")
-
-		// Cluster-level config should NOT contain node-level receivers
-		assert.False(t, strings.Contains(otelConfig, "kubeletstats"),
-			"cluster-scraper otelConfig should NOT contain kubeletstats receiver (node-level)")
+		assertClusterScraperContainerInsights(t, agentMap, "cloudwatch-agent-cluster-scraper")
 	})
 }
