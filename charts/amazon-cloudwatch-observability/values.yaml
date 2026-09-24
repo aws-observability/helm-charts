@@ -908,6 +908,12 @@ dcgmExporter:
                   - g6e.24xlarge
                   - g6e.48xlarge
                   - g6e.xlarge
+                  - g7e.2xlarge
+                  - g7e.4xlarge
+                  - g7e.8xlarge
+                  - g7e.12xlarge
+                  - g7e.24xlarge
+                  - g7e.48xlarge
                   - gr6.4xlarge
                   - gr6.8xlarge
                   - p2.8xlarge
@@ -971,6 +977,12 @@ dcgmExporter:
                   - ml.g6e.24xlarge
                   - ml.g6e.48xlarge
                   - ml.g6e.xlarge
+                  - ml.g7e.2xlarge
+                  - ml.g7e.4xlarge
+                  - ml.g7e.8xlarge
+                  - ml.g7e.12xlarge
+                  - ml.g7e.24xlarge
+                  - ml.g7e.48xlarge
                   - ml.gr6.4xlarge
                   - ml.gr6.8xlarge
                   - ml.p2.8xlarge
