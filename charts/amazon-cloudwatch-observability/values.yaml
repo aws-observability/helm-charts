@@ -1203,6 +1203,9 @@ otelContainerInsights:
   cloudwatchMetricsEndpoint: ""
   # Override the CloudWatch Logs OTLP endpoint. If empty, defaults to logs.<region>.amazonaws.com.
   cloudwatchLogsEndpoint: ""
+  # Override the CloudWatch Traces OTLP endpoint. If empty, defaults to
+  # xray.<region>.amazonaws.com/v1/traces.
+  cloudwatchTracesEndpoint: ""
   ## ── Solutions ──────────────────────────────────────────────────────────
   ## Optional Prometheus metric scraping for well-known cluster components.
   ## Each solution is gated by its own enabled flag so customers only scrape
@@ -1225,3 +1228,71 @@ otelContainerInsights:
       enabled: true
       ## Namespace where KEDA is deployed.
       namespace: "keda"
+    ## ── Model serving ────────────────────────────────────────────────────
+    ## A KServe deployment emits telemetry from three independent components,
+    ## each with its own toggle below. Which of them exist depends on the
+    ## KServe deployment mode:
+    ##
+    ##   Serverless (KServe's default) — KServe reconciles an InferenceService
+    ##     into a Knative Service, so all three sources are present.
+    ##   RawDeployment — KServe reconciles into a plain Deployment + HPA and
+    ##     Knative is not involved at all, so only vllm and kserve.controlPlane
+    ##     exist. The knative.* scrapes will find no targets. Use the HPA
+    ##     metrics from kube-state-metrics for the autoscaling view instead.
+    ##
+    ## Note that the request-level telemetry (revision_*) is emitted by the
+    ## Knative queue-proxy, not by KServe — KServe is a control plane only and
+    ## is never in the request path. Hence knative.dataPlane, not kserve.
+    ##
+    ## vLLM model server — the engine's own metrics (vllm:* series), scraped
+    ## from the model container. Covers time-to-first-token, inter-token
+    ## latency, KV cache utilisation and scheduler queue depth.
+    vllm:
+      enabled: true
+      ## Namespace where the vLLM/KServe InferenceService pods run. Empty = all namespaces.
+      namespace: ""
+      ## vLLM request traces, exported to the CloudWatch OTLP traces endpoint.
+      ##
+      ## Requires Transaction Search enabled on the account, and the engine
+      ## started with --otlp-traces-endpoint=grpc://cloudwatch-agent.amazon-cloudwatch:4319
+      ## (this chart only opens the receiver). See the chart README.
+      traces:
+        enabled: false
+        ## Agent listen ports for engine-pushed spans; bound on the node
+        ## (hostNetwork), so they avoid the usual 4317/4318.
+        grpcPort: 4319
+        httpPort: 4320
+    ## KServe operator health (controller_runtime_* / workqueue_* /
+    ## rest_client_* / leader_election_*) from the kserve-controller-manager,
+    ## via its kube-rbac-proxy on :8443. Scraped by the cluster-scraper.
+    kserve:
+      controlPlane:
+        enabled: true
+        ## Namespace where the kserve-controller-manager runs.
+        namespace: kserve
+    ## Knative Serving — the substrate KServe uses in Serverless mode; absent in
+    ## RawDeployment mode. Metric names differ either side of Serving 1.19; both
+    ## sets are handled. See the chart README.
+    knative:
+      ## Request metrics from the queue-proxy sidecar (:9091), scraped by the
+      ## daemonset. On >= 1.19 also needs `request-metrics-protocol: prometheus`
+      ## in the config-observability ConfigMap, or :9091 serves nothing.
+      dataPlane:
+        enabled: true
+        ## Namespace where the Knative revision (KServe predictor) pods run.
+        ## Empty = all namespaces.
+        namespace: ""
+      ## Autoscaler / activator / controller / webhook metrics from :9090 in the
+      ## knative-serving namespace, scraped by the cluster-scraper.
+      controlPlane:
+        enabled: true
+        ## Namespace where the Knative Serving components run.
+        namespace: knative-serving
+      ## Knative request traces from the queue-proxy and activator, received on
+      ## the same ports as vllm.traces.
+      ##
+      ## Requires Transaction Search on the account, and `tracing-protocol` plus
+      ## `tracing-endpoint` set in the config-observability ConfigMap (they
+      ## default to none). See the chart README.
+      traces:
+        enabled: false
