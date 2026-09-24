@@ -340,6 +340,20 @@ Logic:
 {{- if not (kindIs "bool" .Values.otelContainerInsights.logs.enabled) }}
 {{- fail "otelContainerInsights.logs.enabled must be a boolean (true/false)" }}
 {{- end }}
+{{- end -}}
+
+{{- define "cloudwatch-agent.validate-new-flags" -}}
+{{- /*
+  Type validation for the flags this chart adds on top of the CI matrix:
+  selfTelemetry.enabled, containerInsights.watchReplicaset, and
+  otelContainerInsights.watchReplicaset, plus the self-telemetry port
+  uniqueness guard. These live in their own helper (not validate-flags) and
+  are invoked unconditionally from the top of the agent custom-resource
+  template, so a non-bool value such as selfTelemetry.enabled: "yes" fails at
+  render time regardless of which pipelines (application_signals / kubernetes)
+  are enabled. The pre-existing validate-flags checks stay scoped to
+  build-default-otel-config exactly as on main.
+*/ -}}
 {{- if not (kindIs "bool" .Values.containerInsights.watchReplicaset) }}
 {{- fail "containerInsights.watchReplicaset must be a boolean (true/false)" }}
 {{- end }}
@@ -443,7 +457,6 @@ such as the Windows daemonsets, out of it.
 Helper function to modify customer supplied agent config if ContainerInsights or ApplicationSignals is enabled
 */}}
 {{- define "cloudwatch-agent.modify-config" -}}
-{{- include "cloudwatch-agent.validate-flags" . -}}
 {{- $configCopy := deepCopy .Config }}
 {{- $selfTelemetry := .Values.selfTelemetry | default dict }}
 {{- $selfTelemetryPort := include "cloudwatch-agent.self-telemetry-port" (dict "agentName" .agentName "context" .) }}

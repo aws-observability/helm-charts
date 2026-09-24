@@ -1195,8 +1195,18 @@ otelContainerInsights:
   enabled: false
   ## Watch ReplicaSets to attribute pods to their Deployment via the k8sattributes
   ## processor (adds k8s.deployment.name to the extract). Set to false to drop
-  ## k8s.deployment.name, which stops the k8sattributes ReplicaSet informer on every
-  ## agent running this pipeline; k8s.replicaset.name is unaffected. Default true.
+  ## k8s.deployment.name from the extract on every agent running this pipeline, which
+  ## stops the cluster-wide ReplicaSet informer. The informer is created iff
+  ## rules.DeploymentName || rules.DeploymentUID (k8sattributesprocessor
+  ## internal/kube/client.go, upstream v0.124.1 L173; unchanged at v0.150.0 L214).
+  ## k8s.deployment.name in extract.metadata sets rules.DeploymentName=true
+  ## (options.go L157-158); the agent translator's default metadata list carries
+  ## k8s.deployment.name but never k8s.deployment.uid, so dropping k8s.deployment.name
+  ## flips both gate booleans false and the informer is not created. k8s.replicaset.name
+  ## is read from the pod ownerRef (no informer) and is unaffected. RBAC is not changed
+  ## by this toggle: the agent ClusterRole still grants apps/replicasets list/watch/get
+  ## unconditionally (cloudwatch-agent-clusterrole.yaml), so the toggle only stops the
+  ## client-side watch, not the granted permission. Default true.
   watchReplicaset: true
   ## OTEL-native CI log pipelines (application, host).
   ## Only takes effect when otelContainerInsights.enabled is true.
