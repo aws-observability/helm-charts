@@ -3,7 +3,7 @@ extensions:
   sigv4auth/cw_k8s_ci_v0_metrics_dest:
     region: {{ .Values.region }}
     service: monitoring
-{{- if include "otel-container-insights.vllmTracesEnabled" . }}
+{{- if include "otel-container-insights.llmTracesEnabled" . }}
   sigv4auth/cw_k8s_ci_v0_traces_dest:
     region: {{ .Values.region }}
     service: xray
@@ -168,10 +168,12 @@ receivers:
               action: replace
   {{- end }}
 
-  {{- if include "otel-container-insights.vllmTracesEnabled" . }}
-  # vLLM request traces, pushed by the engine's OTLP exporter rather than
-  # scraped. Enabling this only opens the receiving end -- the engine sends
-  # nothing until it is started with --otlp-traces-endpoint.
+  {{- if include "otel-container-insights.llmTracesEnabled" . }}
+  # Model-serving traces, pushed by the sender's OTLP exporter rather than
+  # scraped. Shared by the vLLM engine (llm_request) and the Knative queue-proxy
+  # and activator, whose spans are the parents of the engine's. Enabling this
+  # only opens the receiving end -- nothing arrives until a sender is pointed at
+  # it (--otlp-traces-endpoint for vLLM, tracing-endpoint for Knative).
   #
   # The agent runs with hostNetwork: true, so these bind on the node. They avoid
   # the conventional 4317/4318, which a customer's own collector is likely to
@@ -481,7 +483,7 @@ processors:
         - 'IsMatch(name, ".*_created$")'
   {{- end }}
 
-  {{- if include "otel-container-insights.vllmTracesEnabled" . }}
+  {{- if include "otel-container-insights.llmTracesEnabled" . }}
   # Spans arrive with nothing Kubernetes-shaped on them, so give them the same
   # resource identity the scraped vLLM metrics get. Association is by connection
   # source IP, because the engine does not know what pod it is; the informer can
@@ -509,6 +511,11 @@ processors:
         - tag_name: "inferenceservice"
           key: "serving.kserve.io/inferenceservice"
           from: pod
+        # Knative spans come from the queue-proxy sidecar, which shares the pod
+        # with the model container, so this resolves for engine spans too.
+        - tag_name: "revision"
+          key: "serving.knative.dev/revision"
+          from: pod
     pod_association:
       - sources:
           - from: connection
@@ -530,7 +537,10 @@ processors:
           - set(resource.attributes["deployment.environment"], Concat(["eks:", resource.attributes["k8s.cluster.name"], "/", resource.attributes["k8s.namespace.name"]], "")) where resource.attributes["k8s.namespace.name"] != nil
       - context: span
         statements:
-          - set(span.attributes["gen_ai.system"], "vllm")
+          # Only the engine's own spans are vLLM: "llm_request" is the request
+          # span, "vllm:*" the detailed ones. Knative's queue-proxy and activator
+          # spans share this pipeline and must not be tagged as the engine.
+          - set(span.attributes["gen_ai.system"], "vllm") where span.name == "llm_request" or IsMatch(span.name, "^vllm:")
           # vLLM emits the pre-1.27 semconv token names; publish both.
           - set(span.attributes["gen_ai.usage.input_tokens"], span.attributes["gen_ai.usage.prompt_tokens"]) where span.attributes["gen_ai.usage.prompt_tokens"] != nil
           - set(span.attributes["gen_ai.usage.output_tokens"], span.attributes["gen_ai.usage.completion_tokens"]) where span.attributes["gen_ai.usage.completion_tokens"] != nil
@@ -1007,7 +1017,7 @@ processors:
 {{- end }}
 
 exporters:
-{{- if include "otel-container-insights.vllmTracesEnabled" . }}
+{{- if include "otel-container-insights.llmTracesEnabled" . }}
   # Spans go to the CloudWatch OTLP traces endpoint, which stores them in the
   # OpenTelemetry semantic-convention format with W3C trace IDs -- so every
   # attribute vLLM sets stays queryable in Transaction Search, with no indexed
@@ -1083,7 +1093,7 @@ service:
       level: none
   extensions:
     - sigv4auth/cw_k8s_ci_v0_metrics_dest
-{{- if include "otel-container-insights.vllmTracesEnabled" . }}
+{{- if include "otel-container-insights.llmTracesEnabled" . }}
     - sigv4auth/cw_k8s_ci_v0_traces_dest
 {{- end }}
 {{- if .Values.otelContainerInsights.logs.enabled }}
@@ -1241,7 +1251,7 @@ service:
         - otlphttp/cw_k8s_ci_v0_metrics_dest
 {{- end }}
 
-{{- if include "otel-container-insights.vllmTracesEnabled" . }}
+{{- if include "otel-container-insights.llmTracesEnabled" . }}
     # No filter processor: nothing arrives unless an engine was pointed here.
     # resourcedetection runs after k8sattributes, as in the metrics pipelines.
     traces/cw_k8s_ci_v0_vllm:

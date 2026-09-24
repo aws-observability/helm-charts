@@ -319,6 +319,34 @@ true
 {{- end -}}
 
 {{/*
+True when the Knative request traces (queue-proxy and activator spans) should be
+collected. Gated only on the Knative solution, not on dataPlane -- the activator
+spans come from the control-plane namespace.
+*/}}
+{{- define "otel-container-insights.knativeTracesEnabled" -}}
+{{- $s := .Values.otelContainerInsights.solutions -}}
+{{- $t := $s.knative.traces | default dict -}}
+{{- if and $s.enabled $t.enabled -}}
+{{- $vt := $s.vllm.traces | default dict -}}
+{{- include "otel-container-insights.vllmTracesPort" (dict "v" $vt.grpcPort "n" "grpcPort") -}}
+{{- include "otel-container-insights.vllmTracesPort" (dict "v" $vt.httpPort "n" "httpPort") -}}
+true
+{{- end -}}
+{{- end -}}
+
+{{/*
+True when either model-serving trace source is on. vLLM engine spans and Knative
+request spans share one OTLP receiver and one pipeline, because queue-proxy's span
+is the parent of the engine's -- they belong to the same trace and need identical
+resource enrichment.
+*/}}
+{{- define "otel-container-insights.llmTracesEnabled" -}}
+{{- if or (include "otel-container-insights.vllmTracesEnabled" .) (include "otel-container-insights.knativeTracesEnabled" .) -}}
+true
+{{- end -}}
+{{- end -}}
+
+{{/*
 Validate one vLLM traces port. A missing port renders `endpoint: 0.0.0.0:`, which
 Helm accepts but the operator rejects, aborting the reconcile with no sign of it
 in the Helm output -- so fail here instead. `--reuse-values` is the usual way to

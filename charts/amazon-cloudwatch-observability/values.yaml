@@ -1258,3 +1258,11 @@ otelContainerInsights:
         enabled: true
         ## Namespace where the Knative Serving components run.
         namespace: knative-serving
+      ## Knative request traces from the queue-proxy and activator, received on
+      ## the same ports as vllm.traces.
+      ##
+      ## Requires Transaction Search on the account, and `tracing-protocol` plus
+      ## `tracing-endpoint` set in the config-observability ConfigMap (they
+      ## default to none). See the chart README.
+      traces:
+        enabled: false
