@@ -1218,7 +1218,7 @@ otelContainerInsights:
     ## from the model container. Covers time-to-first-token, inter-token
     ## latency, KV cache utilisation and scheduler queue depth.
     vllm:
-      enabled: false
+      enabled: true
       ## Namespace where the vLLM/KServe InferenceService pods run. Empty = all namespaces.
       namespace: ""
       ## vLLM request traces, exported to the CloudWatch OTLP traces endpoint.
@@ -1237,7 +1237,7 @@ otelContainerInsights:
     ## via its kube-rbac-proxy on :8443. Scraped by the cluster-scraper.
     kserve:
       controlPlane:
-        enabled: false
+        enabled: true
         ## Namespace where the kserve-controller-manager runs.
         namespace: kserve
     ## Knative Serving — the substrate KServe uses in Serverless mode; absent in
@@ -1248,13 +1248,13 @@ otelContainerInsights:
       ## daemonset. On >= 1.19 also needs `request-metrics-protocol: prometheus`
       ## in the config-observability ConfigMap, or :9091 serves nothing.
       dataPlane:
-        enabled: false
+        enabled: true
         ## Namespace where the Knative revision (KServe predictor) pods run.
         ## Empty = all namespaces.
         namespace: ""
       ## Autoscaler / activator / controller / webhook metrics from :9090 in the
       ## knative-serving namespace, scraped by the cluster-scraper.
       controlPlane:
-        enabled: false
+        enabled: true
         ## Namespace where the Knative Serving components run.
         namespace: knative-serving
