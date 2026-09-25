@@ -10,16 +10,12 @@ data:
   fluent-bit.conf: |
     {{- .Values.containerLogs.fluentBit.configWindows.service  | nindent 4 }}
     {{- range $key, $val := .Values.containerLogs.fluentBit.configWindows.extraFiles }}
-    {{- $safeKey := include "fluent-bit.validatedConfigKey" $key }}
-    @INCLUDE {{ $safeKey }}
+    @INCLUDE {{ $key }}
     {{- end }}
   parsers.conf: |
     {{- .Values.containerLogs.fluentBit.configWindows.customParsers  | nindent 4 }}
   {{- range $key, $val := .Values.containerLogs.fluentBit.configWindows.extraFiles }}
-  {{- $safeKey := include "fluent-bit.validatedConfigKey" $key }}
-  {{ $safeKey | quote }}: |
-    {{- /* tpl is required by supported endpoint substitutions in default extraFiles.
-          nindent keeps all rendered content inside this ConfigMap literal block. */ -}}
+  {{ $key }}: |
     {{- (tpl $val $) | nindent 4 }}
   {{- end -}}
 {{- end -}}

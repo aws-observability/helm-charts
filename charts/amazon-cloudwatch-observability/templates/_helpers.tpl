@@ -20,147 +20,6 @@ tolerations:
 {{- end }}
 
 {{/*
-Resolve podLabels for a workload. Component value overrides root when defined
-(explicit empty map `{}` counts as an override — same semantics as
-`common.tolerations`).
-
-Callers may pass a `reserved` list of label keys the workload's pod template
-already emits as built-ins (e.g. selector labels). Those keys are stripped from
-the returned user-provided labels so the rendered pod template contains no
-duplicate keys and user input cannot override operator-managed selector labels.
-
-Returns the map rendered as YAML content (no wrapping key).
-
-Usage:
-  {{- $labels := include "amazon-cloudwatch-observability.common.podLabels" (dict
-       "component" .Values.manager
-       "context"   .
-       "reserved"  (list "app.kubernetes.io/name" "control-plane"))
-       }}
-  {{- with $labels }}{{ . | nindent 8 }}{{ end }}
-*/}}
-{{- define "amazon-cloudwatch-observability.common.podLabels" -}}
-{{- $v := .context.Values.podLabels }}
-{{- if .component }}
-  {{- $componentPodLabels := dig "podLabels" nil .component }}
-  {{- if ne nil $componentPodLabels }}
-    {{- $v = $componentPodLabels }}
-  {{- end }}
-{{- end }}
-{{- if and $v .reserved }}
-  {{- $reserved := .reserved }}
-  {{- $filtered := dict }}
-  {{- range $k, $val := $v }}
-    {{- if not (has $k $reserved) }}
-      {{- $_ := set $filtered $k $val }}
-    {{- end }}
-  {{- end }}
-  {{- $v = $filtered }}
-{{- end }}
-{{- with $v }}{{ toYaml . }}{{ end }}
-{{- end }}
-
-{{/*
-Resolve podAnnotations for a workload. Component value overrides root when
-defined (explicit empty map counts as an override).
-*/}}
-{{- define "amazon-cloudwatch-observability.common.podAnnotations" -}}
-{{- $v := .context.Values.podAnnotations }}
-{{- if .component }}
-  {{- $componentPodAnnotations := dig "podAnnotations" nil .component }}
-  {{- if ne nil $componentPodAnnotations }}
-    {{- $v = $componentPodAnnotations }}
-  {{- end }}
-{{- end }}
-{{- with $v }}{{ toYaml . }}{{ end }}
-{{- end }}
-
-{{/*
-Resolve topologySpreadConstraints for a workload. Component value overrides
-root when defined (explicit empty list counts as an override). Emits
-`topologySpreadConstraints: [ ... ]` block or nothing.
-Usage:
-  {{- include "amazon-cloudwatch-observability.common.topologySpreadConstraints" (dict "component" .Values.manager "context" .) | nindent 6 }}
-*/}}
-{{- define "amazon-cloudwatch-observability.common.topologySpreadConstraints" -}}
-{{- $v := .context.Values.topologySpreadConstraints }}
-{{- if .component }}
-  {{- $componentTsc := dig "topologySpreadConstraints" nil .component }}
-  {{- if ne nil $componentTsc }}
-    {{- $v = $componentTsc }}
-  {{- end }}
-{{- end }}
-{{- with $v }}
-topologySpreadConstraints:
-  {{- toYaml . | nindent 2 }}
-{{- end }}
-{{- end }}
-
-{{/*
-Resolve priorityClassName for a workload. Returns the bare string (empty if unset).
-Component value overrides root when defined (explicit empty string counts as an override).
-Usage:
-  {{- $pcn := include "amazon-cloudwatch-observability.common.priorityClassName" (dict "component" .Values.manager "context" .) }}
-  {{- if $pcn }}priorityClassName: {{ $pcn | quote }}{{ end }}
-*/}}
-{{- define "amazon-cloudwatch-observability.common.priorityClassName" -}}
-{{- $v := .context.Values.priorityClassName | default "" -}}
-{{- if .component }}
-  {{- $componentPcn := dig "priorityClassName" nil .component }}
-  {{- if ne nil $componentPcn }}
-    {{- $v = $componentPcn }}
-  {{- end }}
-{{- end }}
-{{- $v -}}
-{{- end }}
-
-{{/*
-Resolve podDisruptionBudget for a workload. Returns the effective PDB object
-as YAML (parse with fromYaml). Component value overrides root when defined
-(explicit empty dict counts as an override).
-Usage:
-  {{- $pdb := include "amazon-cloudwatch-observability.common.podDisruptionBudget" (dict "component" .Values.manager "context" .) | fromYaml }}
-  {{- if $pdb.enabled }}...{{ end }}
-*/}}
-{{- define "amazon-cloudwatch-observability.common.podDisruptionBudget" -}}
-{{- $v := .context.Values.podDisruptionBudget | default dict -}}
-{{- if .component }}
-  {{- $componentPdb := dig "podDisruptionBudget" nil .component }}
-  {{- if ne nil $componentPdb }}
-    {{- $v = $componentPdb }}
-  {{- end }}
-{{- end }}
-{{- toYaml $v -}}
-{{- end }}
-
-{{/*
-Render a PodDisruptionBudget resource. Callers pass:
-  name       — PDB metadata.name
-  namespace  — target namespace (usually .Release.Namespace)
-  selector   — dict of matchLabels for spec.selector
-  pdb        — the resolved PDB object (must have enabled: true; maxUnavailable and/or minAvailable)
-  ctx        — the root context (.) for common labels
-*/}}
-{{- define "amazon-cloudwatch-observability.renderPodDisruptionBudget" -}}
-apiVersion: policy/v1
-kind: PodDisruptionBudget
-metadata:
-  name: {{ .name }}
-  namespace: {{ .namespace }}
-  labels:
-    {{- include "amazon-cloudwatch-observability.labels" .ctx | nindent 4 }}
-spec:
-  {{- if hasKey .pdb "minAvailable" }}
-  minAvailable: {{ .pdb.minAvailable }}
-  {{- else if hasKey .pdb "maxUnavailable" }}
-  maxUnavailable: {{ .pdb.maxUnavailable }}
-  {{- end }}
-  selector:
-    matchLabels:
-      {{- toYaml .selector | nindent 6 }}
-{{- end }}
-
-{{/*
 Helper function to determine monitorAllServices based on region
 */}}
 {{- define "manager.monitorAllServices" -}}
@@ -222,7 +81,7 @@ Helper function to modify auto-monitor config based on agent configurations
 {{- range .Values.agents -}}
   {{- $agent := mergeOverwrite (deepCopy $.Values.agent) . -}}
   {{- if and $.Values.applicationSignals.enabled (eq $.Values.applicationSignals.targetAgent $agent.name) -}}
-    {{- if and $agent.config (not (has ($agent.config | toString) (list "default" "default:otel"))) -}}
+    {{- if and $agent.config (ne ($agent.config | toString) "default") -}}
       {{- $agentConfig := $agent.config -}}
       {{- if or (and (hasKey $agentConfig "logs") (hasKey $agentConfig.logs "metrics_collected") (hasKey $agentConfig.logs.metrics_collected "application_signals")) (and (hasKey $agentConfig "traces") (hasKey $agentConfig.traces "traces_collected") (hasKey $agentConfig.traces.traces_collected "application_signals")) -}}
         {{- $hasAppSignals = true -}}
@@ -275,26 +134,6 @@ Logic:
   {{- $_ := set $config "logs" (dict "metrics_collected" $metricsCollected) -}}
 {{- end -}}
 {{- $config | toJson -}}
-{{- end -}}
-
-{{/*
-Build the "default:otel" CW Agent JSON config: the default config plus an OTLP receiver.
-Accepts a dict with "agentName" (string) and "context" (root context $).
-Returns a dict serialized to JSON.
-
-Adds otlp to whatever collect block build-default-config produced, rather than replacing it, so an
-otelContainerInsights container_insights section survives alongside it.
-
-Endpoints are set explicitly rather than left to the agent default so the receiver accepts traffic
-from other pods.
-*/}}
-{{- define "cloudwatch-agent.build-config-default-otel" -}}
-{{- $config := include "cloudwatch-agent.build-default-config" . | fromJson -}}
-{{- $otlp := dict "opentelemetry" (dict "collect" (dict "otlp" (dict
-      "span_metrics_enabled" true
-      "grpc_endpoint" "0.0.0.0:4317"
-      "http_endpoint" "0.0.0.0:4318"))) -}}
-{{- mergeOverwrite $config $otlp | toJson -}}
 {{- end -}}
 
 {{/*
@@ -452,23 +291,6 @@ Validates metricResolution is in "<N>s" format.
 {{- end -}}
 {{- end -}}
 
-{{/*
-Render a Kubernetes IntOrString value (for example rollingUpdate.maxUnavailable).
-The API accepts either a bare integer or a percentage string, so a plain number
-must not be quoted: "1" is rejected with 'a valid percent string must be a
-numeric string followed by an ending %'. Emit digits bare and quote anything
-else, which keeps percentages valid while still preventing a configured value
-from breaking out of its YAML scalar.
-*/}}
-{{- define "cloudwatch-agent.intOrStringValue" -}}
-{{- $value := . | toString -}}
-{{- if regexMatch "^[0-9]+$" $value -}}
-{{- $value -}}
-{{- else -}}
-{{- $value | quote -}}
-{{- end -}}
-{{- end -}}
-
 {{- define "cloudwatch-agent.updateStrategy" -}}
 {{- if eq .mode "deployment" -}}
 deploymentUpdateStrategy
@@ -486,26 +308,10 @@ updateStrategy
 {{- end -}}
 
 {{/*
-Validate a CloudWatch Agent name. The 36-character limit leaves room for the
-longest generated resource suffix (-windows-container-insights) within the
-Kubernetes 63-character DNS label limit.
-*/}}
-{{- define "cloudwatch-agent.validatedName" -}}
-{{- $name := . | toString -}}
-{{- if gt (len $name) 36 -}}
-{{- fail "CloudWatch Agent names must be at most 36 characters" -}}
-{{- end -}}
-{{- if not (regexMatch "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$" $name) -}}
-{{- fail "CloudWatch Agent names must be valid DNS-1123 labels" -}}
-{{- end -}}
-{{- $name -}}
-{{- end }}
-
-{{/*
 Name for cloudwatch-agent
 */}}
 {{- define "cloudwatch-agent.name" -}}
-{{- include "cloudwatch-agent.validatedName" (default "cloudwatch-agent" .Values.agent.name) -}}
+{{- default "cloudwatch-agent" .Values.agent.name }}
 {{- end }}
 
 {{/*
@@ -571,20 +377,6 @@ Get the current recommended fluent-bit image for a region
 {{- end -}}
 {{- printf "%s/%s:%s" $imageDomain .Values.containerLogs.fluentBit.image.repository .Values.containerLogs.fluentBit.image.tag -}}
 {{- end -}}
-
-{{/*
-Validate a Fluent Bit ConfigMap key and @INCLUDE file name.
-*/}}
-{{- define "fluent-bit.validatedConfigKey" -}}
-{{- $key := . | toString -}}
-{{- if gt (len $key) 253 -}}
-{{- fail "Fluent Bit extraFiles keys must be at most 253 characters" -}}
-{{- end -}}
-{{- if not (regexMatch "^[A-Za-z0-9._-]+$" $key) -}}
-{{- fail "Fluent Bit extraFiles keys may contain only alphanumeric characters, '.', '_' or '-'" -}}
-{{- end -}}
-{{- $key -}}
-{{- end }}
 
 {{/*
 Helper function to add dualstack endpoints to fluent-bit OUTPUT sections
@@ -658,7 +450,7 @@ Set DCGM_EXPORTER_INTERVAL environment variable for dcgmExporter if accelerated_
 {{- range .Values.agents -}}
   {{- $agent := mergeOverwrite (deepCopy $.Values.agent) . -}}
   {{- $agentConfig := $agent.config -}}
-  {{- if or (not $agentConfig) (has ($agentConfig | toString) (list "default" "default:otel")) -}}
+  {{- if or (not $agentConfig) (eq ($agentConfig | toString) "default") -}}
     {{- $agentConfig = dict -}}
   {{- end -}}
   {{- if and (hasKey $agentConfig "logs") (hasKey $agentConfig.logs "metrics_collected") (hasKey $agentConfig.logs.metrics_collected "kubernetes") (hasKey $agentConfig.logs.metrics_collected.kubernetes "accelerated_compute_gpu_metrics_collection_interval") -}}
@@ -755,16 +547,16 @@ Create the name of the service account to use for neuron monitor
 {{- default "neuron-monitor-service-acct" .Values.neuronMonitor.serviceAccount.name }}
 {{- end }}
 
-{{/*
-Legacy helpers kept for backward compatibility. Delegate to the common helpers,
-sourcing from `manager` at the component level so root-level values are inherited.
-*/}}
 {{- define "amazon-cloudwatch-observability.podAnnotations" -}}
-{{- include "amazon-cloudwatch-observability.common.podAnnotations" (dict "component" .Values.manager "context" .) }}
+{{- if .Values.manager.podAnnotations }}
+{{- .Values.manager.podAnnotations | toYaml }}
+{{- end }}
 {{- end }}
 
 {{- define "amazon-cloudwatch-observability.podLabels" -}}
-{{- include "amazon-cloudwatch-observability.common.podLabels" (dict "component" .Values.manager "context" .) }}
+{{- if .Values.manager.podLabels }}
+{{- .Values.manager.podLabels | toYaml }}
+{{- end }}
 {{- end }}
 
 {{/*
@@ -991,21 +783,4 @@ winning on key collision.
   {{- $_ := set $merged "service" $user.service -}}
 {{- end -}}
 {{- $merged | toYaml -}}
-{{- end -}}
-
-{{/* Recursively drop nil leaves so a user-supplied `cpu: null` removes the limit instead of emitting literal null. mergeOverwrite keeps nil values from the default, so prune after merge. */}}
-{{- define "cloudwatch-agent.pruneNulls" -}}
-{{- $in := . -}}
-{{- $out := dict -}}
-{{- range $k, $v := $in -}}
-  {{- if kindIs "map" $v -}}
-    {{- $nested := include "cloudwatch-agent.pruneNulls" $v | fromYaml -}}
-    {{- if $nested -}}
-      {{- $_ := set $out $k $nested -}}
-    {{- end -}}
-  {{- else if not (kindIs "invalid" $v) -}}
-    {{- $_ := set $out $k $v -}}
-  {{- end -}}
-{{- end -}}
-{{- $out | toYaml -}}
 {{- end -}}

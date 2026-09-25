@@ -18,40 +18,18 @@ adcEndpointOverrides:
   eusc-de-east-1: amazonaws.eu
 ## Provide the Region (this is a required parameter)
 region:
-k8sMode: EKS # can be EKS | ROSA | K8S | AKS | GKE
-## IAM role ARN for AKS/GKE workload-identity federation (required when k8sMode is AKS or GKE)
-roleArn:
+k8sMode: EKS # can be EKS | ROSA | K8S
 ## Enable dualstack endpoints for IPv6 support (default: false)
 useDualstackEndpoint: false
 ## Provide default tolerations
 tolerations:
   - operator: Exists
-## Custom labels applied to addon pods. Overridable per component
-## (e.g. `manager.podLabels`, `containerLogs.fluentBit.podLabels`).
-podLabels: {}
-## Custom annotations applied to addon pods. Overridable per component.
-podAnnotations: {}
-## Topology spread constraints applied to addon pods. Overridable per component.
-## See https://kubernetes.io/docs/concepts/scheduling-eviction/topology-spread-constraints/
-topologySpreadConstraints: []
-## Default priorityClassName. Applied to workloads that don't already declare a
-## component-level priorityClassName; component values take precedence.
-priorityClassName: ""
-## Opt-in PodDisruptionBudget for supported workloads. Overridable per component.
-## When enabled, provide either maxUnavailable OR minAvailable
-## (mutually exclusive per Kubernetes PDB spec). If both are present after Helm
-## value merge (e.g. root default `maxUnavailable: 1` plus a component-level
-## `minAvailable: N`), `minAvailable` wins and `maxUnavailable` is dropped.
-podDisruptionBudget:
-  enabled: false
-  maxUnavailable: 1
-  # minAvailable:
 containerLogs:
   enabled: true
   fluentBit:
     image:
       repository: aws-for-fluent-bit
-      tag: 3.4.16
+      tag: 3.4.3
       tagWindows: 2.31.12-windowsservercore
       repositoryDomainMap:
         public: public.ecr.aws/aws-observability
@@ -486,7 +464,7 @@ manager:
   name:
   image:
     repository: cloudwatch-agent-operator
-    tag: 3.7.0
+    tag: 3.5.0
     repositoryDomainMap:
       public: public.ecr.aws/cloudwatch-agent
       cn-north-1: 934860584483.dkr.ecr.cn-north-1.amazonaws.com.cn
@@ -497,15 +475,15 @@ manager:
     java:
       repositoryDomain: public.ecr.aws/aws-observability
       repository: adot-autoinstrumentation-java
-      tag: v2.30.0
+      tag: v2.28.2
     python:
       repositoryDomain: public.ecr.aws/aws-observability
       repository: adot-autoinstrumentation-python
-      tag: v0.19.0
+      tag: v0.18.0
     dotnet:
       repositoryDomain: public.ecr.aws/aws-observability
       repository: adot-autoinstrumentation-dotnet
-      tag: v1.15.0
+      tag: v1.13.0
     nodejs:
       repositoryDomain: public.ecr.aws/aws-observability
       repository: adot-autoinstrumentation-node
@@ -660,6 +638,8 @@ manager:
   serviceAccount:
     create: true
     annotations: {}
+  podAnnotations: {}
+  podLabels: {}
   service:
     name:
   affinity: {}
@@ -744,7 +724,7 @@ agent:
   replicas: 1 # The total number non-terminated pods targeted by this AmazonCloudWatchAgent's deployment or statefulSet.
   image:
     repository: cloudwatch-agent
-    tag: 1.300073.0b1828
+    tag: 1.300070.0b1586
     repositoryDomainMap:
       public: public.ecr.aws/cloudwatch-agent
       cn-north-1: 934860584483.dkr.ecr.cn-north-1.amazonaws.com.cn
@@ -822,7 +802,7 @@ dcgmExporter:
   name:
   image:
     repository: dcgm-exporter
-    tag: 4.6.0-4.8.3-distroless
+    tag: 4.5.2-4.8.1-ubuntu22.04
     repositoryDomainMap:
       public: nvcr.io/nvidia/k8s
       cn-north-1: 934860584483.dkr.ecr.cn-north-1.amazonaws.com.cn
@@ -1010,7 +990,7 @@ neuronMonitor:
   name:
   image:
     repository: neuron-monitor
-    tag: 1.12.0
+    tag: 1.10.0
     repositoryDomainMap:
       public: public.ecr.aws/neuron
   resources:
@@ -1085,7 +1065,7 @@ kubeStateMetrics:
   ## TODO: Add replicas, PDB, and HPA configuration in a follow-up.
   image:
     repository: kube-state-metrics/kube-state-metrics
-    tag: v2.20.0
+    tag: v2.19.1
     repositoryDomainMap:
       public: registry.k8s.io
       cn-north-1: 918309763551.dkr.ecr.cn-north-1.amazonaws.com.cn
@@ -1094,7 +1074,7 @@ kubeStateMetrics:
       us-gov-west-1: 013241004608.dkr.ecr.us-gov-west-1.amazonaws.com
     # Used in China/GovCloud regions where the public upstream image isn't available; the helper falls back to repositoryDomainMap[region]/restrictedRepository:restrictedTag
     restrictedRepository: eks/kube-state-metrics
-    restrictedTag: v2.20.0-eksbuild.6
+    restrictedTag: v2.18.0-eksbuild.10
   resources:
     limits:
       cpu: 200m
@@ -1120,7 +1100,7 @@ nodeExporter:
   name:
   image:
     repository: prometheus/node-exporter
-    tag: v1.12.1
+    tag: v1.11.1
     repositoryDomainMap:
       public: quay.io
       cn-north-1: 918309763551.dkr.ecr.cn-north-1.amazonaws.com.cn
@@ -1129,7 +1109,7 @@ nodeExporter:
       us-gov-west-1: 013241004608.dkr.ecr.us-gov-west-1.amazonaws.com
     # Used in China/GovCloud regions where the public upstream image isn't available; the helper falls back to repositoryDomainMap[region]/restrictedRepository:restrictedTag
     restrictedRepository: eks/prometheus-node-exporter
-    restrictedTag: v1.12.1-eksbuild.7
+    restrictedTag: v1.11.1-eksbuild.4
   resources:
     limits:
       cpu: 200m
@@ -1203,25 +1183,3 @@ otelContainerInsights:
   cloudwatchMetricsEndpoint: ""
   # Override the CloudWatch Logs OTLP endpoint. If empty, defaults to logs.<region>.amazonaws.com.
   cloudwatchLogsEndpoint: ""
-  ## ── Solutions ──────────────────────────────────────────────────────────
-  ## Optional Prometheus metric scraping for well-known cluster components.
-  ## Each solution is gated by its own enabled flag so customers only scrape
-  ## what they actually run. Solutions only take effect when
-  ## otelContainerInsights.enabled is true.
-  solutions:
-    ## Global toggle: set to false to disable ALL solutions at once.
-    ## Individual solutions won't activate even if their own enabled flag is true.
-    enabled: true
-    ## Karpenter — cluster autoscaler for Kubernetes.
-    ## Scrapes the Prometheus metrics endpoint exposed by the Karpenter controller.
-    karpenter:
-      enabled: true
-      ## Namespace where Karpenter is deployed.
-      namespace: "kube-system"
-    ## KEDA — Kubernetes Event-Driven Autoscaling.
-    ## Scrapes the Prometheus metrics endpoint exposed by the KEDA operator.
-    ## Requires prometheus.operator.enabled=true in KEDA's Helm values.
-    keda:
-      enabled: true
-      ## Namespace where KEDA is deployed.
-      namespace: "keda"

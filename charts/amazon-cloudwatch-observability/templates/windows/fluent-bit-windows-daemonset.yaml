@@ -18,38 +18,27 @@ spec:
     metadata:
       annotations:
         checksum/config: {{ include (print $.Template.BasePath "/windows/fluent-bit-windows-configmap.yaml") . | sha256sum }}
-        {{- $fbwAnnotations := include "amazon-cloudwatch-observability.common.podAnnotations" (dict "component" .Values.containerLogs.fluentBit "context" .) }}
-        {{- with $fbwAnnotations }}
-        {{- . | nindent 8 }}
-        {{- end }}
       labels:
         k8s-app: fluent-bit
         version: v1
         kubernetes.io/cluster-service: "true"
-        {{- $fbwLabels := include "amazon-cloudwatch-observability.common.podLabels" (dict "component" .Values.containerLogs.fluentBit "context" . "reserved" (list "k8s-app" "version" "kubernetes.io/cluster-service")) }}
-        {{- with $fbwLabels }}
-        {{- . | nindent 8 }}
-        {{- end }}
     spec:
       securityContext:
         windowsOptions:
           hostProcess: true
           runAsUserName: "NT AUTHORITY\\System"
       hostNetwork: true
-      {{- $fbwPcn := include "amazon-cloudwatch-observability.common.priorityClassName" (dict "component" .Values.containerLogs.fluentBit "context" .) }}
-      {{- if $fbwPcn }}
-      priorityClassName: {{ $fbwPcn | quote }}
-      {{- end }}
+      priorityClassName: {{ .Values.containerLogs.fluentBit.priorityClassName }}
       nodeSelector:
         kubernetes.io/os: windows
       containers:
       - name: fluent-bit
-        image: {{ include "fluent-bit-windows.image" . | quote }}
+        image: {{ template "fluent-bit-windows.image" . }}
         imagePullPolicy: Always
         command: ["powershell.exe", "-Command", "New-Item -ItemType Directory -Path C:\\var\\fluent-bit\\state -Force;", "%CONTAINER_SANDBOX_MOUNT_POINT%/fluent-bit/bin/fluent-bit.exe", "-e", "%CONTAINER_SANDBOX_MOUNT_POINT%/fluent-bit/kinesis.dll", "-e", "%CONTAINER_SANDBOX_MOUNT_POINT%/fluent-bit/firehose.dll", "-e", "%CONTAINER_SANDBOX_MOUNT_POINT%/fluent-bit/cloudwatch.dll", "-c", "%CONTAINER_SANDBOX_MOUNT_POINT%/fluent-bit/configuration/fluent-bit.conf"]
         env:
         - name: AWS_REGION
-          value: {{ .Values.region | quote }}
+          value: {{ .Values.region }}
         - name: CLUSTER_NAME
           value: {{ .Values.clusterName | quote }}
         - name: READ_FROM_HEAD
@@ -81,7 +70,6 @@ spec:
             name: fluent-bit-windows-config
       terminationGracePeriodSeconds: 10
       dnsPolicy: ClusterFirstWithHostNet
-      serviceAccountName: {{ include "cloudwatch-agent.serviceAccountName" . | quote }}
-      {{- include "amazon-cloudwatch-observability.common.topologySpreadConstraints" (dict "component" .Values.containerLogs.fluentBit "context" .) | nindent 6 }}
+      serviceAccountName: {{ template "cloudwatch-agent.serviceAccountName" . }}
       {{- dict "component" .Values.containerLogs.fluentBit "context" . | include "amazon-cloudwatch-observability.common.tolerations" | nindent 6 }}
 {{- end }}

@@ -17,12 +17,6 @@ receivers:
           tls_config:
             ca_file: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
             insecure_skip_verify: false
-            {{- if or (eq .Values.k8sMode "AKS") (eq .Values.k8sMode "GKE") }}
-            # Endpoints SD dials the apiserver by IP. On AKS and GKE the managed control-plane endpoint IP
-            # is not in the serving cert's SANs (only DNS names + the ClusterIP are), so verify against a
-            # DNS SAN instead. On EKS the endpoint IPs are in the SANs, so this is not needed there.
-            server_name: kubernetes.default.svc
-            {{- end }}
           bearer_token_file: /var/run/secrets/kubernetes.io/serviceaccount/token
           kubernetes_sd_configs:
             - role: endpoints
@@ -52,62 +46,6 @@ receivers:
           static_configs:
             - targets:
                 - {{ include "kube-state-metrics.name" . }}.{{ .Release.Namespace }}.svc:{{ .Values.kubeStateMetrics.service.port }}
-{{- end }}
-
-{{- if and .Values.otelContainerInsights.solutions.enabled .Values.otelContainerInsights.solutions.karpenter.enabled }}
-  prometheus/cw_k8s_ci_v0_karpenter:
-    config:
-      scrape_configs:
-        - job_name: karpenter
-          scrape_interval: {{ .Values.otelContainerInsights.metricResolution }}
-          scrape_timeout: {{ include "otel-container-insights.scrapeTimeout" . }}
-          metrics_path: /metrics
-          kubernetes_sd_configs:
-            - role: pod
-              namespaces:
-                names:
-                  - {{ .Values.otelContainerInsights.solutions.karpenter.namespace }}
-          relabel_configs:
-            - source_labels: [__meta_kubernetes_pod_label_app_kubernetes_io_name]
-              regex: karpenter
-              action: keep
-            - source_labels: [__meta_kubernetes_pod_container_port_name]
-              regex: http-metrics
-              action: keep
-            - source_labels: [__meta_kubernetes_pod_name]
-              target_label: pod
-            - source_labels: [__meta_kubernetes_namespace]
-              target_label: namespace
-            - source_labels: [__meta_kubernetes_pod_node_name]
-              target_label: node
-{{- end }}
-
-{{- if and .Values.otelContainerInsights.solutions.enabled .Values.otelContainerInsights.solutions.keda.enabled }}
-  prometheus/cw_k8s_ci_v0_keda:
-    config:
-      scrape_configs:
-        - job_name: keda
-          scrape_interval: {{ .Values.otelContainerInsights.metricResolution }}
-          scrape_timeout: {{ include "otel-container-insights.scrapeTimeout" . }}
-          metrics_path: /metrics
-          kubernetes_sd_configs:
-            - role: pod
-              namespaces:
-                names:
-                  - {{ .Values.otelContainerInsights.solutions.keda.namespace }}
-          relabel_configs:
-            - source_labels: [__meta_kubernetes_pod_label_app_kubernetes_io_name]
-              regex: keda-operator
-              action: keep
-            - source_labels: [__meta_kubernetes_pod_container_port_name]
-              regex: metrics
-              action: keep
-            - source_labels: [__meta_kubernetes_pod_name]
-              target_label: pod
-            - source_labels: [__meta_kubernetes_namespace]
-              target_label: namespace
-            - source_labels: [__meta_kubernetes_pod_node_name]
-              target_label: node
 {{- end }}
 
 processors:
@@ -196,185 +134,6 @@ processors:
           - set(attributes["cloudwatch.pipeline"], "kube-state-metrics")
 {{- end }}
 
-{{- if and .Values.otelContainerInsights.solutions.enabled .Values.otelContainerInsights.solutions.karpenter.enabled }}
-  transform/cw_k8s_ci_v0_set_scope_karpenter:
-    error_mode: ignore
-    metric_statements:
-      - context: scope
-        statements:
-          - set(scope.name, "github.com/aws/karpenter")
-          - set(scope.schema_url, "")
-          - set(attributes["cloudwatch.source"], "cloudwatch-agent")
-          - set(attributes["cloudwatch.solution"], "k8s-otel-container-insights")
-          - set(attributes["cloudwatch.pipeline"], "karpenter")
-
-  # Promote scraped pod/namespace/node labels to OTel K8s resource attributes.
-  # This allows the shared k8sattributes processor to enrich with deployment/workload info.
-  groupbyattrs/cw_k8s_ci_v0_karpenter:
-    keys:
-      - pod
-      - namespace
-      - node
-
-  transform/cw_k8s_ci_v0_karpenter_promote:
-    error_mode: ignore
-    metric_statements:
-      - context: resource
-        statements:
-          - set(attributes["k8s.pod.name"], attributes["pod"]) where attributes["pod"] != nil
-          - set(attributes["k8s.namespace.name"], attributes["namespace"]) where attributes["namespace"] != nil
-          - set(attributes["k8s.node.name"], attributes["node"]) where attributes["node"] != nil
-          # Remove deprecated/unwanted attributes auto-injected by the Prometheus receiver.
-          - delete_key(attributes, "net.host.name") where attributes["net.host.name"] != nil
-          - delete_key(attributes, "net.host.port") where attributes["net.host.port"] != nil
-          - delete_key(attributes, "url.scheme") where attributes["url.scheme"] != nil
-      - context: datapoint
-        statements:
-          - set(attributes["pod"], resource.attributes["pod"]) where resource.attributes["pod"] != nil
-          - set(attributes["namespace"], resource.attributes["namespace"]) where resource.attributes["namespace"] != nil
-          - set(attributes["node"], resource.attributes["node"]) where resource.attributes["node"] != nil
-
-  # Karpenter-specific resource detection: only cloud-level attributes (region, account).
-  # No host/AZ attributes — those would incorrectly reflect the scraper's node, not Karpenter's.
-  resourcedetection/cw_k8s_ci_v0_karpenter:
-    {{- if eq .Values.k8sMode "AKS" }}
-    detectors: [aks, azure]
-    aks:
-      resource_attributes:
-        cloud.platform: { enabled: true }
-        cloud.provider: { enabled: true }
-        k8s.cluster.name: { enabled: false }
-    azure:
-      resource_attributes:
-        azure.resourcegroup.name: { enabled: true }
-        azure.vm.name: { enabled: false }
-        azure.vm.scaleset.name: { enabled: false }
-        azure.vm.size: { enabled: false }
-        cloud.account.id: { enabled: true }
-        cloud.platform: { enabled: true }
-        cloud.provider: { enabled: true }
-        cloud.region: { enabled: true }
-        host.id: { enabled: false }
-        host.name: { enabled: false }
-    {{- else if eq .Values.k8sMode "GKE" }}
-    detectors: [gcp]
-    gcp:
-      resource_attributes:
-        cloud.account.id: { enabled: true }
-        cloud.availability_zone: { enabled: true }
-        cloud.platform: { enabled: true }
-        cloud.provider: { enabled: true }
-        cloud.region: { enabled: true }
-        host.id: { enabled: false }
-        host.name: { enabled: false }
-        k8s.cluster.name: { enabled: false }
-    {{- else }}
-    detectors: [eks, ec2]
-    ec2:
-      resource_attributes:
-        host.id: { enabled: false }
-        host.type: { enabled: false }
-        host.name: { enabled: false }
-        host.image.id: { enabled: false }
-        cloud.provider: { enabled: true }
-        cloud.platform: { enabled: true }
-        cloud.region: { enabled: true }
-        cloud.availability_zone: { enabled: false }
-        cloud.account.id: { enabled: true }
-    {{- end }}
-{{- end }}
-
-{{- if and .Values.otelContainerInsights.solutions.enabled .Values.otelContainerInsights.solutions.keda.enabled }}
-  # Drop generic client-go / control-plane metrics that KEDA's Go runtime exposes.
-  # These conflict with the apiserver pipeline which owns them with a different scope.
-  filter/cw_k8s_ci_v0_keda_drop_non_keda:
-    error_mode: ignore
-    metrics:
-      metric:
-        - IsMatch(name, "^(rest_client_.*|apiserver_.*|workqueue_.*|process_.*|go_.*)$")
-
-  transform/cw_k8s_ci_v0_set_scope_keda:
-    error_mode: ignore
-    metric_statements:
-      - context: scope
-        statements:
-          - set(scope.name, "github.com/kedacore/keda")
-          - set(scope.schema_url, "")
-          - set(attributes["cloudwatch.source"], "cloudwatch-agent")
-          - set(attributes["cloudwatch.solution"], "k8s-otel-container-insights")
-          - set(attributes["cloudwatch.pipeline"], "keda")
-
-  groupbyattrs/cw_k8s_ci_v0_keda:
-    keys:
-      - pod
-      - namespace
-      - node
-
-  transform/cw_k8s_ci_v0_keda_promote:
-    error_mode: ignore
-    metric_statements:
-      - context: resource
-        statements:
-          - set(attributes["k8s.pod.name"], attributes["pod"]) where attributes["pod"] != nil
-          - set(attributes["k8s.namespace.name"], attributes["namespace"]) where attributes["namespace"] != nil
-          - set(attributes["k8s.node.name"], attributes["node"]) where attributes["node"] != nil
-          - delete_key(attributes, "net.host.name") where attributes["net.host.name"] != nil
-          - delete_key(attributes, "net.host.port") where attributes["net.host.port"] != nil
-          - delete_key(attributes, "url.scheme") where attributes["url.scheme"] != nil
-      - context: datapoint
-        statements:
-          - set(attributes["pod"], resource.attributes["pod"]) where resource.attributes["pod"] != nil
-          - set(attributes["namespace"], resource.attributes["namespace"]) where resource.attributes["namespace"] != nil
-          - set(attributes["node"], resource.attributes["node"]) where resource.attributes["node"] != nil
-
-  resourcedetection/cw_k8s_ci_v0_keda:
-    {{- if eq .Values.k8sMode "AKS" }}
-    detectors: [aks, azure]
-    aks:
-      resource_attributes:
-        cloud.platform: { enabled: true }
-        cloud.provider: { enabled: true }
-        k8s.cluster.name: { enabled: false }
-    azure:
-      resource_attributes:
-        azure.resourcegroup.name: { enabled: true }
-        azure.vm.name: { enabled: false }
-        azure.vm.scaleset.name: { enabled: false }
-        azure.vm.size: { enabled: false }
-        cloud.account.id: { enabled: true }
-        cloud.platform: { enabled: true }
-        cloud.provider: { enabled: true }
-        cloud.region: { enabled: true }
-        host.id: { enabled: false }
-        host.name: { enabled: false }
-    {{- else if eq .Values.k8sMode "GKE" }}
-    detectors: [gcp]
-    gcp:
-      resource_attributes:
-        cloud.account.id: { enabled: true }
-        cloud.availability_zone: { enabled: true }
-        cloud.platform: { enabled: true }
-        cloud.provider: { enabled: true }
-        cloud.region: { enabled: true }
-        host.id: { enabled: false }
-        host.name: { enabled: false }
-        k8s.cluster.name: { enabled: false }
-    {{- else }}
-    detectors: [eks, ec2]
-    ec2:
-      resource_attributes:
-        host.id: { enabled: false }
-        host.type: { enabled: false }
-        host.name: { enabled: false }
-        host.image.id: { enabled: false }
-        cloud.provider: { enabled: true }
-        cloud.platform: { enabled: true }
-        cloud.region: { enabled: true }
-        cloud.availability_zone: { enabled: false }
-        cloud.account.id: { enabled: true }
-    {{- end }}
-{{- end }}
-
   transform/cw_k8s_ci_v0_set_cluster_name:
     error_mode: ignore
     metric_statements:
@@ -458,22 +217,6 @@ processors:
           - set(attributes["owner_name"], resource.attributes["owner_name"]) where resource.attributes["owner_name"] != nil
           - set(attributes["owner_kind"], resource.attributes["owner_kind"]) where resource.attributes["owner_kind"] != nil
 
-  k8sattributes/cw_k8s_ci_v0_node:
-    auth_type: serviceAccount
-    passthrough: false
-    extract:
-      metadata:
-        - k8s.node.name
-      labels:
-        - tag_name: "k8s.node.label.$$$1"
-          key_regex: "(.*)"
-          from: node
-    pod_association:
-      - sources:
-          - from: resource_attribute
-            name: k8s.node.name
-{{- end }}
-
   k8sattributes/cw_k8s_ci_v0_pod:
     auth_type: serviceAccount
     passthrough: false
@@ -517,6 +260,22 @@ processors:
           - set(resource.attributes["k8s.workload.name"], resource.attributes["k8s.replicaset.name"]) where resource.attributes["k8s.workload.name"] == nil and resource.attributes["k8s.replicaset.name"] != nil
           - set(resource.attributes["k8s.workload.type"], "ReplicaSet") where resource.attributes["k8s.workload.type"] == nil and resource.attributes["k8s.replicaset.name"] != nil
 
+  k8sattributes/cw_k8s_ci_v0_node:
+    auth_type: serviceAccount
+    passthrough: false
+    extract:
+      metadata:
+        - k8s.node.name
+      labels:
+        - tag_name: "k8s.node.label.$$$1"
+          key_regex: "(.*)"
+          from: node
+    pod_association:
+      - sources:
+          - from: resource_attribute
+            name: k8s.node.name
+{{- end }}
+
   transform/cw_k8s_ci_v0_set_component:
     error_mode: ignore
     metric_statements:
@@ -532,38 +291,6 @@ processors:
           - set(resource.attributes["k8s.component.name"], attributes["component"])
 
   resourcedetection/cw_k8s_ci_v0:
-    {{- if eq .Values.k8sMode "AKS" }}
-    detectors: [aks, azure]
-    aks:
-      resource_attributes:
-        cloud.platform: { enabled: true }
-        cloud.provider: { enabled: true }
-        k8s.cluster.name: { enabled: false }
-    azure:
-      resource_attributes:
-        azure.resourcegroup.name: { enabled: true }
-        azure.vm.name: { enabled: false }
-        azure.vm.scaleset.name: { enabled: false }
-        azure.vm.size: { enabled: false }
-        cloud.account.id: { enabled: true }
-        cloud.platform: { enabled: true }
-        cloud.provider: { enabled: true }
-        cloud.region: { enabled: true }
-        host.id: { enabled: false }
-        host.name: { enabled: false }
-    {{- else if eq .Values.k8sMode "GKE" }}
-    detectors: [gcp]
-    gcp:
-      resource_attributes:
-        cloud.account.id: { enabled: true }
-        cloud.availability_zone: { enabled: true }
-        cloud.platform: { enabled: true }
-        cloud.provider: { enabled: true }
-        cloud.region: { enabled: true }
-        host.id: { enabled: false }
-        host.name: { enabled: false }
-        k8s.cluster.name: { enabled: false }
-    {{- else }}
     detectors: [eks, ec2]
     ec2:
       resource_attributes:
@@ -576,7 +303,6 @@ processors:
         cloud.region: { enabled: true }
         cloud.availability_zone: { enabled: true }
         cloud.account.id: { enabled: true }
-    {{- end }}
 
   nodemetadataenricher/cw_k8s_ci_v0: {}
 
@@ -614,25 +340,8 @@ processors:
     metric_statements:
       - context: resource
         statements:
-          {{- if eq .Values.k8sMode "AKS" }}
-          {{/* azure.resourcegroup.name is the node's group, not the cluster's: AKS nodes live in an
-               auto-generated MC_<clusterResourceGroup>_<cluster>_<region> group. */}}
-          - set(resource.attributes["_tmp.azure.resourcegroup.name"], resource.attributes["azure.resourcegroup.name"])
-            where resource.attributes["azure.resourcegroup.name"] != nil
-          - replace_pattern(resource.attributes["_tmp.azure.resourcegroup.name"], "^MC_(.+)_{{ .Values.clusterName }}_[^_]+$", "$$$1")
-          - set(resource.attributes["cloud.resource_id"], Concat(["/subscriptions/", resource.attributes["cloud.account.id"], "/resourceGroups/", resource.attributes["_tmp.azure.resourcegroup.name"], "/providers/Microsoft.ContainerService/managedClusters/", resource.attributes["k8s.cluster.name"]], ""))
-            where resource.attributes["cloud.account.id"] != nil and resource.attributes["_tmp.azure.resourcegroup.name"] != nil and resource.attributes["k8s.cluster.name"] != nil
-          - delete_key(resource.attributes, "_tmp.azure.resourcegroup.name")
-          {{- else if eq .Values.k8sMode "GKE" }}
-          {{/* GKE full resource name: zones/<zone> (zonal) or locations/<region> (regional). */}}
-          - set(resource.attributes["cloud.resource_id"], Concat(["//container.googleapis.com/projects/", resource.attributes["cloud.account.id"], "/zones/", resource.attributes["cloud.availability_zone"], "/clusters/", resource.attributes["k8s.cluster.name"]], ""))
-            where resource.attributes["cloud.account.id"] != nil and resource.attributes["cloud.availability_zone"] != nil and resource.attributes["k8s.cluster.name"] != nil
-          - set(resource.attributes["cloud.resource_id"], Concat(["//container.googleapis.com/projects/", resource.attributes["cloud.account.id"], "/locations/", resource.attributes["cloud.region"], "/clusters/", resource.attributes["k8s.cluster.name"]], ""))
-            where resource.attributes["cloud.resource_id"] == nil and resource.attributes["cloud.account.id"] != nil and resource.attributes["cloud.region"] != nil and resource.attributes["k8s.cluster.name"] != nil
-          {{- else }}
           - set(resource.attributes["cloud.resource_id"], Concat(["arn:aws:eks:", resource.attributes["cloud.region"], ":", resource.attributes["cloud.account.id"], ":cluster/", resource.attributes["k8s.cluster.name"]], ""))
             where resource.attributes["cloud.region"] != nil and resource.attributes["cloud.account.id"] != nil and resource.attributes["k8s.cluster.name"] != nil
-          {{- end }}
 
   batch/cw_k8s_ci_v0_cwotel:
     send_batch_size: 500
@@ -648,12 +357,6 @@ exporters:
       authenticator: sigv4auth/cw_k8s_ci_v0_cwotel
 
 service:
-  # Pin internal self-telemetry off. Without this the collector falls back to its
-  # built-in default (metrics level Normal + a Prometheus reader on localhost:8888),
-  # which collides with the co-scheduled node DaemonSet agent on the node's :8888.
-  telemetry:
-    metrics:
-      level: none
   extensions:
     - sigv4auth/cw_k8s_ci_v0_cwotel
     - nodemetadatacache/cw_k8s_ci_v0
@@ -695,49 +398,6 @@ service:
         - transform/cw_k8s_ci_v0_set_workload
         - resourcedetection/cw_k8s_ci_v0
         - nodemetadataenricher/cw_k8s_ci_v0
-        - transform/cw_k8s_ci_v0_clear_schema_url
-        - transform/cw_k8s_ci_v0_set_cloud_resource_id
-        - awsattributelimit/cw_k8s_ci_v0
-        - batch/cw_k8s_ci_v0_cwotel
-      exporters:
-        - otlphttp/cw_k8s_ci_v0_cwotel
-{{- end }}
-{{- if and .Values.otelContainerInsights.solutions.enabled .Values.otelContainerInsights.solutions.karpenter.enabled }}
-    metrics/cw_k8s_ci_v0_karpenter:
-      receivers: [prometheus/cw_k8s_ci_v0_karpenter]
-      processors:
-        - filter/cw_k8s_ci_v0_scrape_metadata
-        - transform/cw_k8s_ci_v0_set_unit
-        - metricstarttime/cw_k8s_ci_v0
-        - transform/cw_k8s_ci_v0_set_scope_karpenter
-        - transform/cw_k8s_ci_v0_set_cluster_name
-        - groupbyattrs/cw_k8s_ci_v0_karpenter
-        - transform/cw_k8s_ci_v0_karpenter_promote
-        - k8sattributes/cw_k8s_ci_v0_pod
-        - transform/cw_k8s_ci_v0_set_workload
-        - resourcedetection/cw_k8s_ci_v0_karpenter
-        - transform/cw_k8s_ci_v0_clear_schema_url
-        - transform/cw_k8s_ci_v0_set_cloud_resource_id
-        - awsattributelimit/cw_k8s_ci_v0
-        - batch/cw_k8s_ci_v0_cwotel
-      exporters:
-        - otlphttp/cw_k8s_ci_v0_cwotel
-{{- end }}
-{{- if and .Values.otelContainerInsights.solutions.enabled .Values.otelContainerInsights.solutions.keda.enabled }}
-    metrics/cw_k8s_ci_v0_keda:
-      receivers: [prometheus/cw_k8s_ci_v0_keda]
-      processors:
-        - filter/cw_k8s_ci_v0_scrape_metadata
-        - filter/cw_k8s_ci_v0_keda_drop_non_keda
-        - transform/cw_k8s_ci_v0_set_unit
-        - metricstarttime/cw_k8s_ci_v0
-        - transform/cw_k8s_ci_v0_set_scope_keda
-        - transform/cw_k8s_ci_v0_set_cluster_name
-        - groupbyattrs/cw_k8s_ci_v0_keda
-        - transform/cw_k8s_ci_v0_keda_promote
-        - k8sattributes/cw_k8s_ci_v0_pod
-        - transform/cw_k8s_ci_v0_set_workload
-        - resourcedetection/cw_k8s_ci_v0_keda
         - transform/cw_k8s_ci_v0_clear_schema_url
         - transform/cw_k8s_ci_v0_set_cloud_resource_id
         - awsattributelimit/cw_k8s_ci_v0
