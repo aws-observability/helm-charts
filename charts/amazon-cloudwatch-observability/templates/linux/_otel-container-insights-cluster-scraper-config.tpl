@@ -117,6 +117,17 @@ processors:
       metric:
         - IsMatch(name, "^(up|scrape_duration_seconds|scrape_samples_scraped|scrape_samples_post_metric_relabeling|scrape_series_added)$")
 
+  # Drop receiver-injected deprecated semconv attributes; their current-spelling
+  # twins (server.address, server.port, url.scheme) carry the same values and stay.
+  transform/cw_k8s_ci_v0_drop_deprecated_semconv:
+    error_mode: ignore
+    metric_statements:
+      - context: resource
+        statements:
+          - delete_key(attributes, "net.host.name") where attributes["net.host.name"] != nil
+          - delete_key(attributes, "net.host.port") where attributes["net.host.port"] != nil
+          - delete_key(attributes, "http.scheme") where attributes["http.scheme"] != nil
+
   transform/cw_k8s_ci_v0_set_unit:
     error_mode: ignore
     metric_statements:
@@ -224,15 +235,18 @@ processors:
           - set(attributes["k8s.pod.name"], attributes["pod"]) where attributes["pod"] != nil
           - set(attributes["k8s.namespace.name"], attributes["namespace"]) where attributes["namespace"] != nil
           - set(attributes["k8s.node.name"], attributes["node"]) where attributes["node"] != nil
-          # Remove deprecated/unwanted attributes auto-injected by the Prometheus receiver.
-          - delete_key(attributes, "net.host.name") where attributes["net.host.name"] != nil
-          - delete_key(attributes, "net.host.port") where attributes["net.host.port"] != nil
-          - delete_key(attributes, "url.scheme") where attributes["url.scheme"] != nil
       - context: datapoint
         statements:
           - set(attributes["pod"], resource.attributes["pod"]) where resource.attributes["pod"] != nil
           - set(attributes["namespace"], resource.attributes["namespace"]) where resource.attributes["namespace"] != nil
           - set(attributes["node"], resource.attributes["node"]) where resource.attributes["node"] != nil
+      # Drop the resource-level raw copies; the datapoint block above already copied
+      # them down. Must run after it — statement groups execute in declaration order.
+      - context: resource
+        statements:
+          - delete_key(attributes, "pod") where attributes["pod"] != nil
+          - delete_key(attributes, "namespace") where attributes["namespace"] != nil
+          - delete_key(attributes, "node") where attributes["node"] != nil
 
   # Karpenter-specific resource detection: only cloud-level attributes (region, account).
   # No host/AZ attributes — those would incorrectly reflect the scraper's node, not Karpenter's.
@@ -318,14 +332,18 @@ processors:
           - set(attributes["k8s.pod.name"], attributes["pod"]) where attributes["pod"] != nil
           - set(attributes["k8s.namespace.name"], attributes["namespace"]) where attributes["namespace"] != nil
           - set(attributes["k8s.node.name"], attributes["node"]) where attributes["node"] != nil
-          - delete_key(attributes, "net.host.name") where attributes["net.host.name"] != nil
-          - delete_key(attributes, "net.host.port") where attributes["net.host.port"] != nil
-          - delete_key(attributes, "url.scheme") where attributes["url.scheme"] != nil
       - context: datapoint
         statements:
           - set(attributes["pod"], resource.attributes["pod"]) where resource.attributes["pod"] != nil
           - set(attributes["namespace"], resource.attributes["namespace"]) where resource.attributes["namespace"] != nil
           - set(attributes["node"], resource.attributes["node"]) where resource.attributes["node"] != nil
+      # Drop the resource-level raw copies; the datapoint block above already copied
+      # them down. Must run after it — statement groups execute in declaration order.
+      - context: resource
+        statements:
+          - delete_key(attributes, "pod") where attributes["pod"] != nil
+          - delete_key(attributes, "namespace") where attributes["namespace"] != nil
+          - delete_key(attributes, "node") where attributes["node"] != nil
 
   resourcedetection/cw_k8s_ci_v0_keda:
     {{- if eq .Values.k8sMode "AKS" }}
@@ -457,6 +475,23 @@ processors:
           - set(attributes["cronjob"], resource.attributes["cronjob"]) where resource.attributes["cronjob"] != nil
           - set(attributes["owner_name"], resource.attributes["owner_name"]) where resource.attributes["owner_name"] != nil
           - set(attributes["owner_kind"], resource.attributes["owner_kind"]) where resource.attributes["owner_kind"] != nil
+      # Drop the resource-level raw copies; the datapoint block above already copied
+      # them down. Must run after it — statement groups execute in declaration order.
+      - context: resource
+        statements:
+          - delete_key(attributes, "pod") where attributes["pod"] != nil
+          - delete_key(attributes, "namespace") where attributes["namespace"] != nil
+          - delete_key(attributes, "node") where attributes["node"] != nil
+          - delete_key(attributes, "uid") where attributes["uid"] != nil
+          - delete_key(attributes, "container") where attributes["container"] != nil
+          - delete_key(attributes, "owner_name") where attributes["owner_name"] != nil
+          - delete_key(attributes, "owner_kind") where attributes["owner_kind"] != nil
+          - delete_key(attributes, "deployment") where attributes["deployment"] != nil
+          - delete_key(attributes, "daemonset") where attributes["daemonset"] != nil
+          - delete_key(attributes, "statefulset") where attributes["statefulset"] != nil
+          - delete_key(attributes, "replicaset") where attributes["replicaset"] != nil
+          - delete_key(attributes, "job_name") where attributes["job_name"] != nil
+          - delete_key(attributes, "cronjob") where attributes["cronjob"] != nil
 
   k8sattributes/cw_k8s_ci_v0_node:
     auth_type: serviceAccount
@@ -662,6 +697,7 @@ service:
       receivers: [prometheus/cw_k8s_ci_v0_apiserver]
       processors:
         - filter/cw_k8s_ci_v0_scrape_metadata
+        - transform/cw_k8s_ci_v0_drop_deprecated_semconv
         - transform/cw_k8s_ci_v0_set_unit
         - metricstarttime/cw_k8s_ci_v0
         - transform/cw_k8s_ci_v0_apiserver_extract_version
@@ -683,6 +719,7 @@ service:
       receivers: [prometheus/cw_k8s_ci_v0_kube_state_metrics]
       processors:
         - filter/cw_k8s_ci_v0_scrape_metadata
+        - transform/cw_k8s_ci_v0_drop_deprecated_semconv
         - transform/cw_k8s_ci_v0_set_unit
         - metricstarttime/cw_k8s_ci_v0
         - transform/cw_k8s_ci_v0_set_scope_kube_state_metrics
@@ -707,6 +744,7 @@ service:
       receivers: [prometheus/cw_k8s_ci_v0_karpenter]
       processors:
         - filter/cw_k8s_ci_v0_scrape_metadata
+        - transform/cw_k8s_ci_v0_drop_deprecated_semconv
         - transform/cw_k8s_ci_v0_set_unit
         - metricstarttime/cw_k8s_ci_v0
         - transform/cw_k8s_ci_v0_set_scope_karpenter
@@ -729,6 +767,7 @@ service:
       processors:
         - filter/cw_k8s_ci_v0_scrape_metadata
         - filter/cw_k8s_ci_v0_keda_drop_non_keda
+        - transform/cw_k8s_ci_v0_drop_deprecated_semconv
         - transform/cw_k8s_ci_v0_set_unit
         - metricstarttime/cw_k8s_ci_v0
         - transform/cw_k8s_ci_v0_set_scope_keda
