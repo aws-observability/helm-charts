@@ -110,6 +110,52 @@ receivers:
               target_label: node
 {{- end }}
 
+{{- if and .Values.otelContainerInsights.solutions.enabled .Values.otelContainerInsights.solutions.kserve.controlPlane.enabled }}
+  prometheus/cw_k8s_ci_v0_kserve_controlplane:
+    config:
+      scrape_configs:
+        - job_name: kserve-controlplane
+          scrape_interval: {{ .Values.otelContainerInsights.metricResolution }}
+          scrape_timeout: {{ include "otel-container-insights.scrapeTimeout" . }}
+          scheme: https
+          # The plain metrics bind to 127.0.0.1:8080, so they are only reachable via
+          # the kube-rbac-proxy on :8443, which serves a self-signed cert.
+          tls_config:
+            insecure_skip_verify: true
+          bearer_token_file: /var/run/secrets/kubernetes.io/serviceaccount/token
+          metrics_path: /metrics
+          static_configs:
+            - targets:
+                - kserve-controller-manager-service.{{ .Values.otelContainerInsights.solutions.kserve.controlPlane.namespace }}.svc:8443
+{{- end }}
+
+{{- if and .Values.otelContainerInsights.solutions.enabled .Values.otelContainerInsights.solutions.knative.controlPlane.enabled }}
+  prometheus/cw_k8s_ci_v0_knative_controlplane:
+    config:
+      scrape_configs:
+        - job_name: knative-controlplane
+          scrape_interval: {{ .Values.otelContainerInsights.metricResolution }}
+          scrape_timeout: {{ include "otel-container-insights.scrapeTimeout" . }}
+          # These serve plain HTTP on the "metrics" port with no auth, unlike the
+          # KServe controller, so no scheme/tls/bearer here.
+          kubernetes_sd_configs:
+            - role: pod
+              namespaces:
+                names:
+                  - {{ .Values.otelContainerInsights.solutions.knative.controlPlane.namespace }}
+          relabel_configs:
+            # Fully anchored by Prometheus, so the net-istio-* pods are excluded.
+            - source_labels: [__meta_kubernetes_pod_label_app]
+              action: keep
+              regex: (autoscaler|activator|controller|webhook)
+            - source_labels: [__meta_kubernetes_pod_container_port_name]
+              action: keep
+              regex: metrics
+            - source_labels: [__meta_kubernetes_pod_label_app]
+              target_label: knative_component
+              action: replace
+{{- end }}
+
 processors:
   filter/cw_k8s_ci_v0_scrape_metadata:
     error_mode: ignore
@@ -373,6 +419,52 @@ processors:
         cloud.availability_zone: { enabled: false }
         cloud.account.id: { enabled: true }
     {{- end }}
+{{- end }}
+
+{{- if and .Values.otelContainerInsights.solutions.enabled .Values.otelContainerInsights.solutions.kserve.controlPlane.enabled }}
+  # Keep the operator health families; drop go_*/process_* runtime noise.
+  filter/cw_k8s_ci_v0_kserve_controlplane_keep:
+    error_mode: ignore
+    metrics:
+      metric:
+        - 'not IsMatch(name, "^(controller_runtime_|workqueue_|rest_client_|leader_election_).*")'
+
+  transform/cw_k8s_ci_v0_set_scope_kserve_controlplane:
+    error_mode: ignore
+    metric_statements:
+      - context: scope
+        statements:
+          - set(scope.name, "github.com/kserve/kserve")
+          - set(scope.schema_url, "")
+          - set(attributes["cloudwatch.source"], "cloudwatch-agent")
+          - set(attributes["cloudwatch.solution"], "k8s-otel-container-insights")
+          - set(attributes["cloudwatch.pipeline"], "kserve-controlplane")
+{{- end }}
+
+{{- if and .Values.otelContainerInsights.solutions.enabled .Values.otelContainerInsights.solutions.knative.controlPlane.enabled }}
+  # Drop runtime noise, keep the scaling decision, activator and reconcile
+  # families. Serving <= 1.18 emitted the runtime metrics per component
+  # (autoscaler_go_*), >= 1.19 emits them bare, so both patterns are needed --
+  # ".*_go_.*" does not match "go_*".
+  filter/cw_k8s_ci_v0_knative_controlplane_keep:
+    error_mode: ignore
+    metrics:
+      metric:
+        - 'IsMatch(name, ".*_go_.*")'
+        - 'IsMatch(name, "^go_.*")'
+        - 'IsMatch(name, "^process_.*")'
+        - 'IsMatch(name, "^promhttp_.*")'
+
+  transform/cw_k8s_ci_v0_set_scope_knative_controlplane:
+    error_mode: ignore
+    metric_statements:
+      - context: scope
+        statements:
+          - set(scope.name, "knative.dev/serving")
+          - set(scope.schema_url, "")
+          - set(attributes["cloudwatch.source"], "cloudwatch-agent")
+          - set(attributes["cloudwatch.solution"], "k8s-otel-container-insights")
+          - set(attributes["cloudwatch.pipeline"], "knative-controlplane")
 {{- end }}
 
   transform/cw_k8s_ci_v0_set_cluster_name:
@@ -738,6 +830,42 @@ service:
         - k8sattributes/cw_k8s_ci_v0_pod
         - transform/cw_k8s_ci_v0_set_workload
         - resourcedetection/cw_k8s_ci_v0_keda
+        - transform/cw_k8s_ci_v0_clear_schema_url
+        - transform/cw_k8s_ci_v0_set_cloud_resource_id
+        - awsattributelimit/cw_k8s_ci_v0
+        - batch/cw_k8s_ci_v0_cwotel
+      exporters:
+        - otlphttp/cw_k8s_ci_v0_cwotel
+{{- end }}
+{{- if and .Values.otelContainerInsights.solutions.enabled .Values.otelContainerInsights.solutions.kserve.controlPlane.enabled }}
+    metrics/cw_k8s_ci_v0_kserve_controlplane:
+      receivers: [prometheus/cw_k8s_ci_v0_kserve_controlplane]
+      processors:
+        - filter/cw_k8s_ci_v0_scrape_metadata
+        - filter/cw_k8s_ci_v0_kserve_controlplane_keep
+        - transform/cw_k8s_ci_v0_set_unit
+        - metricstarttime/cw_k8s_ci_v0
+        - transform/cw_k8s_ci_v0_set_scope_kserve_controlplane
+        - transform/cw_k8s_ci_v0_set_cluster_name
+        - resourcedetection/cw_k8s_ci_v0
+        - transform/cw_k8s_ci_v0_clear_schema_url
+        - transform/cw_k8s_ci_v0_set_cloud_resource_id
+        - awsattributelimit/cw_k8s_ci_v0
+        - batch/cw_k8s_ci_v0_cwotel
+      exporters:
+        - otlphttp/cw_k8s_ci_v0_cwotel
+{{- end }}
+{{- if and .Values.otelContainerInsights.solutions.enabled .Values.otelContainerInsights.solutions.knative.controlPlane.enabled }}
+    metrics/cw_k8s_ci_v0_knative_controlplane:
+      receivers: [prometheus/cw_k8s_ci_v0_knative_controlplane]
+      processors:
+        - filter/cw_k8s_ci_v0_scrape_metadata
+        - filter/cw_k8s_ci_v0_knative_controlplane_keep
+        - transform/cw_k8s_ci_v0_set_unit
+        - metricstarttime/cw_k8s_ci_v0
+        - transform/cw_k8s_ci_v0_set_scope_knative_controlplane
+        - transform/cw_k8s_ci_v0_set_cluster_name
+        - resourcedetection/cw_k8s_ci_v0
         - transform/cw_k8s_ci_v0_clear_schema_url
         - transform/cw_k8s_ci_v0_set_cloud_resource_id
         - awsattributelimit/cw_k8s_ci_v0
