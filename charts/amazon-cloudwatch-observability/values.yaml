@@ -1225,3 +1225,17 @@ otelContainerInsights:
       enabled: true
       ## Namespace where KEDA is deployed.
       namespace: "keda"
+    ## vLLM model server.
+    vllm:
+      ## vLLM request traces (llm_request spans), received on the agent's OTLP
+      ## endpoint (4317/4318). Requires Transaction Search on the account and
+      ## --otlp-traces-endpoint on the engine; see the README.
+      traces:
+        enabled: false
+    ## Knative Serving.
+    knative:
+      ## Knative request traces (activator and queue-proxy spans), received on the
+      ## agent's OTLP endpoint (4317/4318). Requires Transaction Search on the
+      ## account and tracing settings in config-observability; see the README.
+      traces:
+        enabled: false

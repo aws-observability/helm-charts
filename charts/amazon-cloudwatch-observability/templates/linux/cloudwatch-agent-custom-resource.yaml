@@ -121,13 +121,9 @@ spec:
   affinity: {{- toYaml . | nindent 4 }}
   {{- end }}
   hostNetwork: {{ $agent.hostNetwork }}
-  {{- if eq ($agent.config | toString) "default:otel" }}
-  config: {{ include "cloudwatch-agent.modify-config" (merge (dict "Config" (include "cloudwatch-agent.build-config-default-otel" (dict "agentName" $agentName "context" $) | fromJson)) $ ) }}
-  {{- else if and $agent.config (ne ($agent.config | toString) "default") }}
-  config: {{ include "cloudwatch-agent.modify-config" (merge (dict "Config" $agent.config) $ ) }}
-  {{- else }}
-  config: {{ include "cloudwatch-agent.modify-config" (merge (dict "Config" (include "cloudwatch-agent.build-default-config" (dict "agentName" $agentName "context" $) | fromJson)) $ ) }}
-  {{- end }}
+  {{- $resolvedConfig := include "cloudwatch-agent.resolved-config" (dict "agent" $agent "agentName" $agentName "context" $) | fromJson }}
+  {{- $resolvedConfig = include "cloudwatch-agent.with-llm-traces" (dict "config" $resolvedConfig "agentName" $agentName "context" $) | fromJson }}
+  config: {{ include "cloudwatch-agent.modify-config" (merge (dict "Config" $resolvedConfig) $ ) }}
   {{- $generatedOtelConfig := include "cloudwatch-agent.build-default-otel-config" (dict "agentName" $agentName "context" $) -}}
   {{- if $agent.otelConfig }}
   otelConfig: {{ include "cloudwatch-agent.modify-otel-config" (merge (dict "OtelConfig" (include "cloudwatch-agent.merge-otel-configs" (dict "Base" $generatedOtelConfig "User" $agent.otelConfig))) $) }}
