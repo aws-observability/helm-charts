@@ -477,6 +477,7 @@ processors:
       - "k8s.node.label.beta.kubernetes.io/"
       - "k8s.node.label.failure-domain.beta.kubernetes.io/"
       - "k8s.node.label.alpha.eksctl.io/"
+      - "k8s.node.label.karpenter.k8s.aws/instance-"
     unconditional_removal_keys:
       - "k8s.node.label.topology.kubernetes.io/region"
       - "k8s.node.label.topology.kubernetes.io/zone"
@@ -491,6 +492,14 @@ processors:
       - "k8s.node.label.eks.amazonaws.com/sourceLaunchTemplateVersion"
       - "k8s.pod.label.pod-template-hash"
       - "k8s.pod.label.controller-revision-hash"
+      - "k8s.pod.label.pod-template-generation"
+      - "k8s.pod.label.topology.kubernetes.io/region"
+      - "k8s.pod.label.topology.kubernetes.io/zone"
+      - "k8s.pod.label.helm.sh/chart"
+      - "k8s.pod.label.release"
+      - "k8s.node.label.karpenter.sh/do-not-sync-taints"
+      - "k8s.node.label.karpenter.sh/initialized"
+      - "k8s.node.label.karpenter.sh/registered"
 
   transform/cw_k8s_ci_v0_set_cloud_resource_id:
     error_mode: ignore
