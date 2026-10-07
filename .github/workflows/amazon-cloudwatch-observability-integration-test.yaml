@@ -33,6 +33,16 @@ jobs:
       - name: Build
         run: make all
 
+  OTel-Processor-Tests:
+    name: OTel Processors
+    needs: [ Build ]
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@f43a0e5ff2bd294095638e18286ca9a3d1956744 # v3.6.0
+      - name: Run OTel processor tests
+        run: make otel-processor-tests
+
   Minikube-IntegrationTests:
     name: Minikube
     needs: [ Build ]
@@ -301,7 +311,7 @@ jobs:
 
   verify-all:
     name: Verify All Integration Test Jobs
-    needs: [ Build, Minikube-IntegrationTests, EKS-IntegrationTest, EKS-IntegrationTest-Win2022,
+    needs: [ Build, OTel-Processor-Tests, Minikube-IntegrationTests, EKS-IntegrationTest, EKS-IntegrationTest-Win2022,
              EKS-IntegrationTest-Win2019 ]
     runs-on: ubuntu-latest
     if: always()

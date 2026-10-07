@@ -7,7 +7,7 @@ HELM=helm
 GOIMPORTS = $(TOOLS_BIN_DIR)/goimports
 LINTER = $(TOOLS_BIN_DIR)/golangci-lint
 
-.PHONY: all deps tidy helm-lint helm-flag-matrix helm-yaml-injection helm-neuron-shape check_secrets fmt lint install-goimports install-golangci-lint
+.PHONY: all deps tidy helm-lint helm-flag-matrix helm-yaml-injection helm-neuron-shape otel-processor-tests check_secrets fmt lint install-goimports install-golangci-lint
 
 all: deps tidy check_secrets fmt lint helm-lint helm-flag-matrix helm-yaml-injection helm-neuron-shape
 
@@ -26,7 +26,7 @@ tidy:
 	$(GOCMD) mod tidy
 
 check_secrets:
-	if grep --exclude-dir=build --exclude-dir=vendor -E "(A3T[A-Z0-9]|AKIA|AGPA|AIDA|AROA|AIPA|ANPA|ANVA|ASIA)[A-Z0-9]{16}|(\"')?( AWS|aws|Aws)?_?(SECRET|secret|Secret)?_?(ACCESS|access|Access)?_?(KEY|key|Key)(\"')?\\s*(:|=>|=)\\s*(\"')?[A-Za-z0-9/\\+=]{40}(\"')?" -Rn .; then echo "check_secrets failed"; exit 1; fi;
+	if grep --exclude-dir=build --exclude-dir=vendor -E "(A3T[A-Z0-9]|AKIA|AGPA|AIDA|AROA|AIPA|ANPA|ANVA|ASIA)[A-Z0-9]{16}|(\"')?( AWS|aws|Aws)?_?(SECRET|secret|Secret)?_?(ACCESS|access|Access)?_?(KEY|key|Key)(\"')?\s*(:|=>|=)\s*(\"')?[A-Za-z0-9/\\+=]{40}(\"')?" -Rn .; then echo "check_secrets failed"; exit 1; fi;
 
 fmt: install-goimports
 	go fmt ./...
@@ -46,3 +46,6 @@ helm-yaml-injection:
 
 helm-neuron-shape:
 	bash charts/amazon-cloudwatch-observability/tests/neuron_pipeline_shape.sh
+
+otel-processor-tests:
+	$(GOCMD) test -count=1 -v ./integration-tests/amazon-cloudwatch-observability/otelprocessors/
