@@ -694,6 +694,11 @@ processors:
           - delete_key(attributes, "instance_id") where attributes["instance_id"] != nil
           - delete_key(attributes, "volume_id") where attributes["volume_id"] != nil
 
+  {{- if include "otel-container-insights.metricsNamespaceFilterEnabled" . }}
+
+  {{- include "otel-container-insights.namespaceFilter" (dict "Values" .Values "signal" "metrics") | nindent 2 }}
+  {{- end }}
+
 {{- if .Values.otelContainerInsights.logs.enabled }}
   # ── CI Logs processors ──
   transform/cw_k8s_ci_v0_logs_set_workload:
@@ -796,6 +801,11 @@ processors:
     send_batch_size: 500
     send_batch_max_size: 500
     timeout: 5s
+
+  {{- if include "otel-container-insights.logsNamespaceFilterEnabled" . }}
+
+  {{- include "otel-container-insights.namespaceFilter" (dict "Values" .Values "signal" "logs") | nindent 2 }}
+  {{- end }}
 {{- end }}
 
 exporters:
@@ -896,6 +906,9 @@ service:
         - transform/cw_k8s_ci_v0_promote_node_name
         - resourcedetection/cw_k8s_ci_v0
         - transform/cw_k8s_ci_v0_set_cloud_resource_id
+        {{- if include "otel-container-insights.metricsNamespaceFilterEnabled" . }}
+        - filter/cw_k8s_ci_v0_metrics_namespaces
+        {{- end }}
         - k8sattributes/cw_k8s_ci_v0_node
         - k8sattributes/cw_k8s_ci_v0_pod
         - transform/cw_k8s_ci_v0_set_scope_cadvisor
@@ -909,7 +922,7 @@ service:
     {{- if .Values.dcgmExporter.enabled }}
     metrics/cw_k8s_ci_v0_dcgm:
       receivers: [prometheus/cw_k8s_ci_v0_dcgm]
-      processors: [filter/cw_k8s_ci_v0_scrape_metadata, transform/cw_k8s_ci_v0_set_unit, metricstarttime/cw_k8s_ci_v0, transform/cw_k8s_ci_v0_set_cluster_name, groupbyattrs/cw_k8s_ci_v0_dcgm, transform/cw_k8s_ci_v0_dcgm_promote, k8sattributes/cw_k8s_ci_v0_pod, transform/cw_k8s_ci_v0_set_node_name, transform/cw_k8s_ci_v0_promote_node_name, k8sattributes/cw_k8s_ci_v0_node, resourcedetection/cw_k8s_ci_v0, transform/cw_k8s_ci_v0_set_scope_dcgm, transform/cw_k8s_ci_v0_clear_schema_url, transform/cw_k8s_ci_v0_set_cloud_resource_id, transform/cw_k8s_ci_v0_set_workload, awsattributelimit/cw_k8s_ci_v0, batch/cw_k8s_ci_v0_metrics_dest]
+      processors: [filter/cw_k8s_ci_v0_scrape_metadata, transform/cw_k8s_ci_v0_set_unit, metricstarttime/cw_k8s_ci_v0, transform/cw_k8s_ci_v0_set_cluster_name, groupbyattrs/cw_k8s_ci_v0_dcgm, transform/cw_k8s_ci_v0_dcgm_promote, {{ if include "otel-container-insights.metricsNamespaceFilterEnabled" . }}filter/cw_k8s_ci_v0_metrics_namespaces, {{ end }}k8sattributes/cw_k8s_ci_v0_pod, transform/cw_k8s_ci_v0_set_node_name, transform/cw_k8s_ci_v0_promote_node_name, k8sattributes/cw_k8s_ci_v0_node, resourcedetection/cw_k8s_ci_v0, transform/cw_k8s_ci_v0_set_scope_dcgm, transform/cw_k8s_ci_v0_clear_schema_url, transform/cw_k8s_ci_v0_set_cloud_resource_id, transform/cw_k8s_ci_v0_set_workload, awsattributelimit/cw_k8s_ci_v0, batch/cw_k8s_ci_v0_metrics_dest]
       exporters:
         - otlphttp/cw_k8s_ci_v0_metrics_dest
     {{- end }}
@@ -928,6 +941,9 @@ service:
         - groupbyattrs/cw_k8s_ci_v0_neuron
         - transform/cw_k8s_ci_v0_neuron_promote
         - transform/cw_k8s_ci_v0_neuron_hw_attrs
+        {{- if include "otel-container-insights.metricsNamespaceFilterEnabled" . }}
+        - filter/cw_k8s_ci_v0_metrics_namespaces
+        {{- end }}
         - k8sattributes/cw_k8s_ci_v0_pod
         - transform/cw_k8s_ci_v0_set_node_name
         - transform/cw_k8s_ci_v0_promote_node_name
@@ -954,6 +970,9 @@ service:
         - transform/cw_k8s_ci_v0_efa_promote
         - transform/cw_k8s_ci_v0_set_node_name
         - transform/cw_k8s_ci_v0_promote_node_name
+        {{- if include "otel-container-insights.metricsNamespaceFilterEnabled" . }}
+        - filter/cw_k8s_ci_v0_metrics_namespaces
+        {{- end }}
         - k8sattributes/cw_k8s_ci_v0_pod
         - k8sattributes/cw_k8s_ci_v0_node
         - resourcedetection/cw_k8s_ci_v0
@@ -1015,6 +1034,9 @@ service:
         - transform/cw_k8s_ci_v0_set_cluster_name
         - resourcedetection/cw_k8s_ci_v0
         - transform/cw_k8s_ci_v0_set_cloud_resource_id
+        {{- if include "otel-container-insights.metricsNamespaceFilterEnabled" . }}
+        - filter/cw_k8s_ci_v0_metrics_namespaces
+        {{- end }}
         - k8sattributes/cw_k8s_ci_v0_pod
         - k8sattributes/cw_k8s_ci_v0_node
         - transform/cw_k8s_ci_v0_clear_schema_url
@@ -1032,6 +1054,9 @@ service:
         - transform/cw_k8s_ci_v0_logs_set_cluster_and_node
         - resourcedetection/cw_k8s_ci_v0
         - transform/cw_k8s_ci_v0_logs_set_cloud_resource_id
+        {{- if include "otel-container-insights.logsNamespaceFilterEnabled" . }}
+        - filter/cw_k8s_ci_v0_logs_namespaces
+        {{- end }}
         - k8sattributes/cw_k8s_ci_v0_node
         - k8sattributes/cw_k8s_ci_v0_pod
         - transform/cw_k8s_ci_v0_logs_set_scope_app
