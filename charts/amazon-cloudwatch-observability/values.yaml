@@ -1261,6 +1261,14 @@ otelContainerInsights:
         include: []
         exclude: []
         recommendedExclusions: true
+      ## Metric names (metrics only). Each entry is an exact metric name, a
+      ## prefix followed by "*" (e.g. "container_*"), or "*" alone. Names may
+      ## contain letters, digits, "_", ":" and ".". Applied last before
+      ## export in every Container Insights metrics pipeline, so entries
+      ## match the exported metric names.
+      metricNames:
+        include: []
+        exclude: []
     logs:
       ## Namespaces of application logs. Host logs are not filtered by namespace.
       namespaces:

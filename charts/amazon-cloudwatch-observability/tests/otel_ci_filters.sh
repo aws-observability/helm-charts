@@ -590,6 +590,159 @@ for kind in nodeLabels podLabels; do
     done
 done
 
+# ── Metric names ────────────────────────────────────────────────────────
+
+METRIC_NAMES="filter/cw_k8s_ci_v0_metric_names"
+
+NAME_BLOCKS="
+def metric_names(*conditions):
+    return {'error_mode': 'ignore', 'metrics': {'metric': list(conditions)}}
+def assert_metric_names(*conditions):
+    for agent in ('$NODE', '$SCRAPER'):
+        got = processor(agent, '$METRIC_NAMES')
+        assert got == metric_names(*conditions), (agent, got)
+def no_metric_names():
+    for agent in cfg:
+        assert processor(agent, '$METRIC_NAMES') is None, agent
+        assert not pipelines_with(agent, '$METRIC_NAMES'), agent
+"
+
+for value in '{}' '{"metrics":{"metricNames":{}}}' \
+    '{"metrics":{"metricNames":{"include":[],"exclude":[]}}}' \
+    '{"metrics":{"metricNames":{"include":null,"exclude":null}}}'; do
+    check_case "No metric name filter processor for $value" "$value" "$NAME_BLOCKS
+no_metric_names()"
+done
+
+check_case "Metric names include exact" \
+    '{"metrics":{"metricNames":{"include":["kube_pod_info"]}}}' "$NAME_BLOCKS
+assert_metric_names('not (name == \"kube_pod_info\")')"
+
+check_case "Metric names include prefix" \
+    '{"metrics":{"metricNames":{"include":["container_*"]}}}' "$NAME_BLOCKS
+assert_metric_names('not (IsMatch(name, \"^container_\"))')"
+
+check_case "Metric names include * — no metric name filter processor" \
+    '{"metrics":{"metricNames":{"include":["*"]}}}' "$NAME_BLOCKS
+no_metric_names()"
+
+check_case "Metric names exclude exact" \
+    '{"metrics":{"metricNames":{"exclude":["kube_pod_status_phase"]}}}' "$NAME_BLOCKS
+assert_metric_names('(name == \"kube_pod_status_phase\")')"
+
+check_case "Metric names exclude prefix" \
+    '{"metrics":{"metricNames":{"exclude":["kube_replicaset_*"]}}}' "$NAME_BLOCKS
+assert_metric_names('(IsMatch(name, \"^kube_replicaset_\"))')"
+
+check_case "Metric names exclude *" \
+    '{"metrics":{"metricNames":{"exclude":["*"]}}}' "$NAME_BLOCKS
+assert_metric_names('(true)')"
+
+check_case "Metric names several entries, include and exclude" \
+    '{"metrics":{"metricNames":{"include":["container_*","kube_*","up"],"exclude":["kube_replicaset_*","kube_pod_status_phase"]}}}' "$NAME_BLOCKS
+assert_metric_names(
+    'not (IsMatch(name, \"^container_\") or IsMatch(name, \"^kube_\") or name == \"up\")',
+    '(IsMatch(name, \"^kube_replicaset_\") or name == \"kube_pod_status_phase\")')"
+
+check_case "Metric names duplicates render as given" \
+    '{"metrics":{"metricNames":{"exclude":["a","a"]}}}' "$NAME_BLOCKS
+assert_metric_names('(name == \"a\" or name == \"a\")')"
+
+check_case "Metric names include * with exclude exact and prefix" \
+    '{"metrics":{"metricNames":{"include":["*"],"exclude":["kube_replicaset_*","up"]}}}' "$NAME_BLOCKS
+assert_metric_names('(IsMatch(name, \"^kube_replicaset_\") or name == \"up\")')"
+
+check_case "Metric names prefix with dots is escaped" \
+    '{"metrics":{"metricNames":{"exclude":["k8s.pod.*"]}}}' "$NAME_BLOCKS
+assert_metric_names('(IsMatch(name, \"^k8s\\\\\\\\.pod\\\\\\\\.\"))')"
+
+check_case "Metric names exact entry with dots and a colon is not escaped" \
+    '{"metrics":{"metricNames":{"include":["k8s.pod.cpu:total"]}}}' "$NAME_BLOCKS
+assert_metric_names('not (name == \"k8s.pod.cpu:total\")')"
+
+for extra in "" "--set otelContainerInsights.logs.enabled=false" "--set kubeStateMetrics.enabled=false"; do
+    check_case "Metric names — last before batch in every metrics pipeline${extra:+ ($extra)}" \
+        '{"metrics":{"metricNames":{"exclude":["x"]}}}' "$NAME_BLOCKS
+for agent in ('$NODE', '$SCRAPER'):
+    metrics = sorted(p for p in cfg[agent]['service']['pipelines'] if p.startswith('metrics/'))
+    assert metrics, agent
+    assert pipelines_with(agent, '$METRIC_NAMES') == metrics, agent
+    for name in metrics:
+        procs = pipeline(agent, name)
+        assert procs.index('$METRIC_NAMES') == len(procs) - 2, (name, procs)
+        assert procs[-1].startswith('batch/'), (name, procs)
+        assert procs[-3] == 'awsattributelimit/cw_k8s_ci_v0', (name, procs)
+    for name in cfg[agent]['service']['pipelines']:
+        if name.startswith('logs/'):
+            assert '$METRIC_NAMES' not in pipeline(agent, name), name" "$extra"
+done
+
+check_case "Metric names with DCGM, Neuron and EFA enabled — in their pipelines too" \
+    '{"metrics":{"metricNames":{"exclude":["x"]}}}' "$NAME_BLOCKS
+for name in ('metrics/cw_k8s_ci_v0_dcgm', 'metrics/cw_k8s_ci_v0_neuron', 'metrics/cw_k8s_ci_v0_efa'):
+    procs = pipeline('$NODE', name)
+    assert procs[-2:] == ['$METRIC_NAMES', 'batch/cw_k8s_ci_v0_metrics_dest'], (name, procs)" \
+    "--set dcgmExporter.enabled=true --set neuronMonitor.enabled=true"
+
+# ── All filters together ────────────────────────────────────────────────
+
+ALL_FILTERS='{"metrics":{"namespaces":{"include":["*"],"exclude":["kube-*"]},"nodeLabels":{"include":["*"],"exclude":["team-x"]},"podLabels":{"include":["app*"],"exclude":["app-secret"]},"metricNames":{"include":["container_*","kube_*"],"exclude":["kube_replicaset_*"]}},"logs":{"namespaces":{"include":["prod-*"],"exclude":["prod-secret"]},"nodeLabels":{"include":["*"]},"podLabels":{"include":["app*"],"exclude":["app-secret"]}}}'
+
+check_case "All filters together — each processor renders as it does alone" \
+    "$ALL_FILTERS" "$NS_BLOCKS
+$LABEL_BLOCKS
+$NAME_BLOCKS
+for agent in ('$NODE', '$SCRAPER'):
+    assert processor(agent, '$METRICS_NS') == metrics_ns(
+        NS + ' != nil and (IsMatch(' + NS + ', \"^kube-\"))'), agent
+assert processor('$NODE', '$LOGS_NS') == logs_ns(
+    NS + ' != nil and not (IsMatch(' + NS + ', \"^prod-\"))',
+    NS + ' != nil and (' + NS + ' == \"prod-secret\")')
+assert_labels('node', all_labels('node'))
+assert_labels('pod', [{'tag_name': 'k8s.pod.label.\$\$\$1', 'key_regex': '(app.*)', 'from': 'pod'}])
+assert_attribute_limit(RECOMMENDED_PREFIXES,
+    RECOMMENDED_NODE_KEYS + ['k8s.node.label.team-x'] + RECOMMENDED_POD_KEYS + ['k8s.pod.label.app-secret'])
+assert processor('$NODE', '$LOGS_LABELS') == logs_labels(delete_key('k8s.pod.label.app-secret'))
+assert_metric_names(
+    'not (IsMatch(name, \"^container_\") or IsMatch(name, \"^kube_\"))',
+    '(IsMatch(name, \"^kube_replicaset_\"))')"
+
+check_case "All filters together — order in the metrics and application logs pipelines" \
+    "$ALL_FILTERS" "
+def order(agent, name, expected):
+    procs = pipeline(agent, name)
+    got = [p for p in procs if p in expected or p.startswith('k8sattributes/') or p.startswith('batch/')]
+    got = [p if not p.startswith('k8sattributes/') else 'k8sattributes' for p in got]
+    got = [g for i, g in enumerate(got) if g != 'k8sattributes' or got[i - 1] != 'k8sattributes']
+    got = [p if not p.startswith('batch/') else 'batch' for p in got]
+    assert got == expected, (agent, name, procs)
+
+metrics = ['$METRICS_NS', 'k8sattributes', 'awsattributelimit/cw_k8s_ci_v0', '$METRIC_NAMES', 'batch']
+order('$SCRAPER', 'metrics/cw_k8s_ci_v0_kube_state_metrics', metrics)
+order('$NODE', 'metrics/cw_k8s_ci_v0_cadvisor', metrics)
+order('$NODE', 'metrics/cw_k8s_ci_v0_kubeletstats', metrics)
+order('$NODE', 'logs/cw_k8s_ci_v0_app', ['$LOGS_NS', 'k8sattributes', '$LOGS_LABELS', 'batch'])"
+
+message="otelContainerInsights.filters.metrics.metricNames entries must be"
+for list in include exclude; do
+    for entry in '"kube pod"' '"kube_*_total"' '"a-b"' '"a\"b"' '"a/b"' '""' '123'; do
+        check_fails "Invalid metricNames.$list entry $entry" \
+            "{\"metrics\":{\"metricNames\":{\"$list\":[$entry]}}}" "$message"
+    done
+    check_fails "Invalid metricNames.$list — a string, not a list" \
+        "{\"metrics\":{\"metricNames\":{\"$list\":\"up\"}}}" "otelContainerInsights.filters.metrics.metricNames.$list must be a list"
+done
+check_fails "Invalid metricNames — exact entry in include and exclude" \
+    '{"metrics":{"metricNames":{"include":["a","b"],"exclude":["b"]}}}' 'otelContainerInsights.filters.metrics.metricNames: "b" is in both include and exclude'
+check_fails "Invalid metricNames — * in include and exclude" \
+    '{"metrics":{"metricNames":{"include":["*"],"exclude":["*"]}}}' 'otelContainerInsights.filters.metrics.metricNames: "*" is in both include and exclude'
+check_fails "Invalid metricNames — unknown key" \
+    '{"metrics":{"metricNames":{"excludes":["up"]}}}' 'otelContainerInsights.filters.metrics.metricNames has an unknown key "excludes"'
+check_fails "Invalid metricNames — not a map" \
+    '{"metrics":{"metricNames":["up"]}}' "otelContainerInsights.filters.metrics.metricNames must be a map"
+check_fails "Invalid logs.metricNames — metric names filter metrics only" \
+    '{"logs":{"metricNames":{"exclude":["up"]}}}' 'otelContainerInsights.filters.logs has an unknown key "metricNames"'
+
 # ──────────────────────────────────────────────────────────────────────────
 # Summary.
 # ──────────────────────────────────────────────────────────────────────────
