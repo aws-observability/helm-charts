@@ -481,7 +481,6 @@ processors:
       - "k8s.node.label.topology.kubernetes.io/region"
       - "k8s.node.label.topology.kubernetes.io/zone"
       - "k8s.node.label.topology.ebs.csi.aws.com/zone"
-      - "k8s.node.label.topology.k8s.aws/zone-id"
       - "k8s.node.label.node.kubernetes.io/instance-type"
       - "k8s.node.label.kubernetes.io/hostname"
       - "k8s.node.label.helm.sh/chart"
