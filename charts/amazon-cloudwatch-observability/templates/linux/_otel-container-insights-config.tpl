@@ -210,11 +210,13 @@ receivers:
 {{- end }}
 
 processors:
+  # node-exporter's own per-collector scrape timing/status, same category as the five
+  # scrape_* names. node_textfile_scrape_error stays: kubernetes-mixin alerts on it.
   filter/cw_k8s_ci_v0_scrape_metadata:
     error_mode: ignore
     metrics:
       metric:
-        - IsMatch(name, "^(up|scrape_duration_seconds|scrape_samples_scraped|scrape_samples_post_metric_relabeling|scrape_series_added)$")
+        - IsMatch(name, "^(up|scrape_duration_seconds|scrape_samples_scraped|scrape_samples_post_metric_relabeling|scrape_series_added|node_scrape_collector_duration_seconds|node_scrape_collector_success)$")
 
   transform/cw_k8s_ci_v0_set_unit:
     error_mode: ignore
@@ -562,6 +564,16 @@ processors:
       datapoint:
         - attributes["container"] == "POD"
 
+  # Drop the pod cgroup slice and pause/sandbox duplicates of each container_* family.
+  # container_network_* is sandbox-only so must stay; `container` arrives absent, not "".
+  filter/cw_k8s_ci_v0_cadvisor_rollup:
+    error_mode: ignore
+    metrics:
+      datapoint:
+        - (attributes["container"] == nil or attributes["container"] == "")
+            and attributes["pod"] != nil and attributes["pod"] != ""
+            and IsMatch(metric.name, "^container_network_") != true
+
   groupbyattrs/cw_k8s_ci_v0_cadvisor:
     keys:
       - container
@@ -895,6 +907,7 @@ service:
         - transform/cw_k8s_ci_v0_set_cluster_name
         - filter/cw_k8s_ci_v0_cadvisor_empty
         - filter/cw_k8s_ci_v0_cadvisor_pod
+        - filter/cw_k8s_ci_v0_cadvisor_rollup
         - groupbyattrs/cw_k8s_ci_v0_cadvisor
         - transform/cw_k8s_ci_v0_cadvisor_promote
         - transform/cw_k8s_ci_v0_set_node_name
