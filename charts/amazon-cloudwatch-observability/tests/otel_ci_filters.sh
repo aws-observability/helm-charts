@@ -314,6 +314,282 @@ done
 check_fails "Invalid filters — unknown key" '{"traces":{}}' 'otelContainerInsights.filters has an unknown key "traces"'
 check_fails "Invalid filters — not a map" '[]' "otelContainerInsights.filters must be a map"
 
+# ── Labels ──────────────────────────────────────────────────────────────
+
+LOGS_LABELS="transform/cw_k8s_ci_v0_logs_labels"
+
+# Expected processor blocks. The recommended exclusions are the
+# awsattributelimit removal lists before label filters were added.
+LABEL_BLOCKS="
+RECOMMENDED_PREFIXES = [
+    'k8s.node.label.feature.node.kubernetes.io/',
+    'k8s.node.label.beta.kubernetes.io/',
+    'k8s.node.label.failure-domain.beta.kubernetes.io/',
+    'k8s.node.label.alpha.eksctl.io/',
+]
+RECOMMENDED_NODE_KEYS = [
+    'k8s.node.label.topology.kubernetes.io/region',
+    'k8s.node.label.topology.kubernetes.io/zone',
+    'k8s.node.label.topology.ebs.csi.aws.com/zone',
+    'k8s.node.label.node.kubernetes.io/instance-type',
+    'k8s.node.label.kubernetes.io/hostname',
+    'k8s.node.label.helm.sh/chart',
+    'k8s.node.label.release',
+    'k8s.node.label.eks.amazonaws.com/nodegroup-image',
+    'k8s.node.label.k8s.io/cloud-provider-aws',
+    'k8s.node.label.eks.amazonaws.com/sourceLaunchTemplateId',
+    'k8s.node.label.eks.amazonaws.com/sourceLaunchTemplateVersion',
+]
+RECOMMENDED_POD_KEYS = [
+    'k8s.pod.label.pod-template-hash',
+    'k8s.pod.label.controller-revision-hash',
+]
+RECOMMENDED_KEYS = RECOMMENDED_NODE_KEYS + RECOMMENDED_POD_KEYS
+
+def attribute_limit(prefixes, keys):
+    block = {'max_total_attributes': 150}
+    if prefixes:
+        block['unconditional_removal_prefixes'] = prefixes
+    if keys:
+        block['unconditional_removal_keys'] = keys
+    return block
+
+def assert_attribute_limit(prefixes, keys):
+    for agent in ('$NODE', '$SCRAPER'):
+        got = processor(agent, 'awsattributelimit/cw_k8s_ci_v0')
+        assert got == attribute_limit(prefixes, keys), (agent, got)
+
+def all_labels(source):
+    return [{'tag_name': 'k8s.' + source + '.label.\$\$\$1', 'key_regex': '(.*)', 'from': source}]
+
+def assert_labels(source, rules):
+    for agent in ('$NODE', '$SCRAPER'):
+        got = processor(agent, 'k8sattributes/cw_k8s_ci_v0_' + source)['extract']['labels']
+        assert got == rules, (agent, got)
+
+def logs_labels(*statements):
+    return {'error_mode': 'ignore',
+            'log_statements': [{'context': 'resource', 'statements': list(statements)}]}
+
+def delete_prefix(prefix):
+    quoted = ''.join('\\\\\\\\' + c if c in '\\\\.+*?()|[]{}^\$' else c for c in prefix)
+    return 'delete_matching_keys(attributes, \"^' + quoted + '\")'
+
+def delete_key(key):
+    return 'delete_key(attributes, \"' + key + '\")'
+
+def no_logs_labels():
+    for agent in cfg:
+        assert processor(agent, '$LOGS_LABELS') is None, agent
+        assert not pipelines_with(agent, '$LOGS_LABELS'), agent
+"
+
+for value in '{}' '{"metrics":{"nodeLabels":{},"podLabels":{}},"logs":{"nodeLabels":{},"podLabels":{}}}' \
+    '{"metrics":{"nodeLabels":{"include":null,"exclude":null},"podLabels":{"include":[],"exclude":[]}},"logs":{"nodeLabels":{"include":null,"exclude":null},"podLabels":{"include":[],"exclude":[]}}}' \
+    '{"metrics":null,"logs":null}' '{"metrics":null}' '{"logs":null}' \
+    '{"metrics":{"nodeLabels":null,"podLabels":null},"logs":{"nodeLabels":null,"podLabels":null}}' \
+    '{"metrics":{"nodeLabels":{"recommendedExclusions":null},"podLabels":{"recommendedExclusions":null}},"logs":{"nodeLabels":{"recommendedExclusions":null},"podLabels":{"recommendedExclusions":null}}}'; do
+    check_case "No label filters for $value — all labels, recommended exclusions on metrics only" "$value" "$LABEL_BLOCKS
+assert_labels('node', all_labels('node'))
+assert_labels('pod', all_labels('pod'))
+assert_attribute_limit(RECOMMENDED_PREFIXES, RECOMMENDED_KEYS)
+no_logs_labels()"
+done
+
+for source in node pod; do
+    kind="${source}Labels"
+
+    check_case "$kind include exact" \
+        "{\"metrics\":{\"$kind\":{\"include\":[\"app\"]}},\"logs\":{\"$kind\":{\"include\":[\"app\"]}}}" "$LABEL_BLOCKS
+assert_labels('$source', [{'tag_name': 'k8s.$source.label.app', 'key': 'app', 'from': '$source'}])"
+
+    check_case "$kind include prefix" \
+        "{\"metrics\":{\"$kind\":{\"include\":[\"team*\"]}},\"logs\":{\"$kind\":{\"include\":[\"team*\"]}}}" "$LABEL_BLOCKS
+assert_labels('$source', [{'tag_name': 'k8s.$source.label.\$\$\$1', 'key_regex': '(team.*)', 'from': '$source'}])"
+
+    check_case "$kind include prefix with dots and a slash is escaped" \
+        "{\"metrics\":{\"$kind\":{\"include\":[\"app.kubernetes.io/*\"]}},\"logs\":{\"$kind\":{\"include\":[\"app.kubernetes.io/*\"]}}}" "$LABEL_BLOCKS
+assert_labels('$source', [{'tag_name': 'k8s.$source.label.\$\$\$1', 'key_regex': '(app\\\\.kubernetes\\\\.io/.*)', 'from': '$source'}])"
+
+    check_case "$kind include *" \
+        "{\"metrics\":{\"$kind\":{\"include\":[\"*\"]}},\"logs\":{\"$kind\":{\"include\":[\"*\"]}}}" "$LABEL_BLOCKS
+assert_labels('$source', all_labels('$source'))"
+
+    check_case "$kind include several entries, in order and listed once, logs in another order" \
+        "{\"metrics\":{\"$kind\":{\"include\":[\"app\",\"team*\",\"app\"]}},\"logs\":{\"$kind\":{\"include\":[\"team*\",\"app\"]}}}" "$LABEL_BLOCKS
+exact = {'tag_name': 'k8s.$source.label.app', 'key': 'app', 'from': '$source'}
+prefix = {'tag_name': 'k8s.$source.label.\$\$\$1', 'key_regex': '(team.*)', 'from': '$source'}
+assert_labels('$source', [exact, prefix])"
+
+    check_case "$kind include * among other entries extracts all labels once" \
+        "{\"metrics\":{\"$kind\":{\"include\":[\"app\",\"*\"]}},\"logs\":{\"$kind\":{\"include\":[\"*\"]}}}" "$LABEL_BLOCKS
+assert_labels('$source', all_labels('$source'))"
+
+    check_case "$kind include empty, *, and * listed twice are the same list" \
+        "{\"metrics\":{\"$kind\":{\"include\":[\"*\",\"*\"]}},\"logs\":{\"$kind\":{\"include\":[]}}}" "$LABEL_BLOCKS
+assert_labels('$source', all_labels('$source'))"
+
+    check_case "$kind include keys with uppercase, underscore and hyphen" \
+        "{\"metrics\":{\"$kind\":{\"include\":[\"Team_X\",\"my-label*\"]}},\"logs\":{\"$kind\":{\"include\":[\"Team_X\",\"my-label*\"]}}}" "$LABEL_BLOCKS
+assert_labels('$source', [{'tag_name': 'k8s.$source.label.Team_X', 'key': 'Team_X', 'from': '$source'},
+                          {'tag_name': 'k8s.$source.label.\$\$\$1', 'key_regex': '(my-label.*)', 'from': '$source'}])"
+done
+
+check_case "Node and pod label include are independent" \
+    '{"metrics":{"nodeLabels":{"include":["a"]},"podLabels":{"include":["b"]}},"logs":{"nodeLabels":{"include":["a"]},"podLabels":{"include":["b"]}}}' "$LABEL_BLOCKS
+assert_labels('node', [{'tag_name': 'k8s.node.label.a', 'key': 'a', 'from': 'node'}])
+assert_labels('pod', [{'tag_name': 'k8s.pod.label.b', 'key': 'b', 'from': 'pod'}])"
+
+check_case "Metrics label exclude exact and prefix are added to the recommended exclusions" \
+    '{"metrics":{"nodeLabels":{"exclude":["team-x","example.com/*"]},"podLabels":{"exclude":["app","tier*"]}}}' "$LABEL_BLOCKS
+assert_attribute_limit(
+    RECOMMENDED_PREFIXES + ['k8s.node.label.example.com/', 'k8s.pod.label.tier'],
+    RECOMMENDED_NODE_KEYS + ['k8s.node.label.team-x'] + RECOMMENDED_POD_KEYS + ['k8s.pod.label.app'])
+no_logs_labels()"
+
+check_case "Metrics label exclude * removes every label of that kind" \
+    '{"metrics":{"nodeLabels":{"exclude":["*"],"recommendedExclusions":false},"podLabels":{"exclude":["*"],"recommendedExclusions":false}}}' "$LABEL_BLOCKS
+assert_attribute_limit(['k8s.node.label.', 'k8s.pod.label.'], [])"
+
+check_case "Metrics label exclude duplicates and recommended entries are listed once" \
+    '{"metrics":{"nodeLabels":{"exclude":["release","x","x"]},"podLabels":{"exclude":["pod-template-hash"]}}}' "$LABEL_BLOCKS
+assert_attribute_limit(RECOMMENDED_PREFIXES,
+    RECOMMENDED_NODE_KEYS + ['k8s.node.label.x'] + RECOMMENDED_POD_KEYS)"
+
+check_case "Metrics node recommended exclusions off" \
+    '{"metrics":{"nodeLabels":{"recommendedExclusions":false}}}' "$LABEL_BLOCKS
+assert_attribute_limit([], RECOMMENDED_POD_KEYS)"
+
+check_case "Metrics pod recommended exclusions off" \
+    '{"metrics":{"podLabels":{"recommendedExclusions":false}}}' "$LABEL_BLOCKS
+assert_attribute_limit(RECOMMENDED_PREFIXES, RECOMMENDED_NODE_KEYS)"
+
+check_case "Metrics recommended exclusions off — no removal lists" \
+    '{"metrics":{"nodeLabels":{"recommendedExclusions":false},"podLabels":{"recommendedExclusions":false}}}' "$LABEL_BLOCKS
+assert_attribute_limit([], [])"
+
+check_case "Metrics label exclude is placed where awsattributelimit is today" \
+    '{"metrics":{"nodeLabels":{"exclude":["x"]}}}' "$LABEL_BLOCKS
+for agent in ('$NODE', '$SCRAPER'):
+    metrics = sorted(p for p in cfg[agent]['service']['pipelines'] if p.startswith('metrics/'))
+    assert pipelines_with(agent, 'awsattributelimit/cw_k8s_ci_v0') == metrics, agent
+no_logs_labels()"
+
+check_case "Logs label exclude exact and prefix" \
+    '{"logs":{"nodeLabels":{"exclude":["team-x","example.com/*"]},"podLabels":{"exclude":["app","tier*"]}}}' "$LABEL_BLOCKS
+assert processor('$NODE', '$LOGS_LABELS') == logs_labels(
+    delete_prefix('k8s.node.label.example.com/'),
+    delete_prefix('k8s.pod.label.tier'),
+    delete_key('k8s.node.label.team-x'),
+    delete_key('k8s.pod.label.app'))
+assert_attribute_limit(RECOMMENDED_PREFIXES, RECOMMENDED_KEYS)"
+
+check_case "Logs label exclude * removes every label of that kind" \
+    '{"logs":{"nodeLabels":{"exclude":["*"]},"podLabels":{"exclude":["*"]}}}' "$LABEL_BLOCKS
+assert processor('$NODE', '$LOGS_LABELS') == logs_labels(
+    delete_prefix('k8s.node.label.'), delete_prefix('k8s.pod.label.'))"
+
+check_case "Logs label exclude duplicates are listed once" \
+    '{"logs":{"podLabels":{"exclude":["x","x"]}}}' "$LABEL_BLOCKS
+assert processor('$NODE', '$LOGS_LABELS') == logs_labels(delete_key('k8s.pod.label.x'))"
+
+check_case "Logs recommended exclusions on" \
+    '{"logs":{"nodeLabels":{"recommendedExclusions":true},"podLabels":{"recommendedExclusions":true}}}' "$LABEL_BLOCKS
+assert processor('$NODE', '$LOGS_LABELS') == logs_labels(
+    *[delete_prefix(p) for p in RECOMMENDED_PREFIXES], *[delete_key(k) for k in RECOMMENDED_KEYS])"
+
+check_case "Logs pod recommended exclusions on, node off" \
+    '{"logs":{"podLabels":{"recommendedExclusions":true}}}' "$LABEL_BLOCKS
+assert processor('$NODE', '$LOGS_LABELS') == logs_labels(*[delete_key(k) for k in RECOMMENDED_POD_KEYS])"
+
+check_case "Logs label exclude — in the application and host logs pipelines, before batch" \
+    '{"logs":{"nodeLabels":{"exclude":["x"]}}}' "$LABEL_BLOCKS
+assert pipelines_with('$NODE', '$LOGS_LABELS') == ['logs/cw_k8s_ci_v0_app', 'logs/cw_k8s_ci_v0_node']
+app = pipeline('$NODE', 'logs/cw_k8s_ci_v0_app')
+assert app[-3:] == ['transform/cw_k8s_ci_v0_logs_set_workload', '$LOGS_LABELS', 'batch/cw_k8s_ci_v0_logs_dest'], app
+host = pipeline('$NODE', 'logs/cw_k8s_ci_v0_node')
+assert host[-3:] == ['transform/cw_k8s_ci_v0_logs_clear_schema_url', '$LOGS_LABELS', 'batch/cw_k8s_ci_v0_logs_dest'], host
+assert processor('$SCRAPER', '$LOGS_LABELS') is None"
+
+check_case "Logs label exclude * with recommended exclusions on" \
+    '{"logs":{"nodeLabels":{"exclude":["*"],"recommendedExclusions":true}}}' "$LABEL_BLOCKS
+assert processor('$NODE', '$LOGS_LABELS') == logs_labels(
+    *[delete_prefix(p) for p in RECOMMENDED_PREFIXES + ['k8s.node.label.']],
+    *[delete_key(k) for k in RECOMMENDED_NODE_KEYS])"
+
+check_case "Logs label exclude with OTEL logs disabled — no logs label processor" \
+    '{"logs":{"podLabels":{"exclude":["x"]}}}' "$LABEL_BLOCKS
+no_logs_labels()" "--set otelContainerInsights.logs.enabled=false"
+
+# Include and exclude together: include picks what k8sattributes extracts,
+# exclude removes from it (awsattributelimit for metrics, transform for logs).
+check_case "Labels include * with exclude exact and prefix — metrics and logs" \
+    '{"metrics":{"nodeLabels":{"include":["*"],"exclude":["team-x","example.com/*"]},"podLabels":{"include":["*"],"exclude":["app-secret"]}},"logs":{"nodeLabels":{"include":["*"],"exclude":["team-x","example.com/*"]},"podLabels":{"include":["*"],"exclude":["app-secret"]}}}' "$LABEL_BLOCKS
+assert_labels('node', all_labels('node'))
+assert_labels('pod', all_labels('pod'))
+assert_attribute_limit(
+    RECOMMENDED_PREFIXES + ['k8s.node.label.example.com/'],
+    RECOMMENDED_NODE_KEYS + ['k8s.node.label.team-x'] + RECOMMENDED_POD_KEYS + ['k8s.pod.label.app-secret'])
+assert processor('$NODE', '$LOGS_LABELS') == logs_labels(
+    delete_prefix('k8s.node.label.example.com/'),
+    delete_key('k8s.node.label.team-x'),
+    delete_key('k8s.pod.label.app-secret'))"
+
+check_case "Labels include prefix with exclude exact and prefix inside it — metrics and logs" \
+    '{"metrics":{"podLabels":{"include":["app*"],"exclude":["app-secret","app.k8s/*"]}},"logs":{"podLabels":{"include":["app*"],"exclude":["app-secret","app.k8s/*"]}}}' "$LABEL_BLOCKS
+assert_labels('node', all_labels('node'))
+assert_labels('pod', [{'tag_name': 'k8s.pod.label.\$\$\$1', 'key_regex': '(app.*)', 'from': 'pod'}])
+assert_attribute_limit(
+    RECOMMENDED_PREFIXES + ['k8s.pod.label.app.k8s/'],
+    RECOMMENDED_KEYS + ['k8s.pod.label.app-secret'])
+assert processor('$NODE', '$LOGS_LABELS') == logs_labels(
+    delete_prefix('k8s.pod.label.app.k8s/'),
+    delete_key('k8s.pod.label.app-secret'))"
+
+check_case "Labels include exact with exclude and recommended exclusions off — metrics" \
+    '{"metrics":{"nodeLabels":{"include":["team","zone"],"exclude":["zone"],"recommendedExclusions":false},"podLabels":{"recommendedExclusions":false}},"logs":{"nodeLabels":{"include":["zone","team"]}}}' "$LABEL_BLOCKS
+assert_labels('node', [{'tag_name': 'k8s.node.label.team', 'key': 'team', 'from': 'node'},
+                       {'tag_name': 'k8s.node.label.zone', 'key': 'zone', 'from': 'node'}])
+assert_attribute_limit([], ['k8s.node.label.zone'])
+no_logs_labels()"
+
+for kind in nodeLabels podLabels; do
+    check_fails "Invalid — metrics $kind include without the logs list" \
+        "{\"metrics\":{\"$kind\":{\"include\":[\"app\"]}}}" \
+        "otelContainerInsights.filters.metrics.$kind.include and otelContainerInsights.filters.logs.$kind.include must contain the same labels"
+    check_fails "Invalid — logs $kind include without the metrics list" \
+        "{\"logs\":{\"$kind\":{\"include\":[\"app\"]}}}" \
+        "otelContainerInsights.filters.metrics.$kind.include and otelContainerInsights.filters.logs.$kind.include must contain the same labels"
+    check_fails "Invalid — $kind include lists differ" \
+        "{\"metrics\":{\"$kind\":{\"include\":[\"a\"]}},\"logs\":{\"$kind\":{\"include\":[\"b\"]}}}" \
+        'must contain the same labels, got ["a"] and ["b"]'
+    for signal in metrics logs; do
+        check_fails "Invalid — $signal.$kind.recommendedExclusions is not a boolean" \
+            "{\"$signal\":{\"$kind\":{\"recommendedExclusions\":\"yes\"}}}" \
+            "otelContainerInsights.filters.$signal.$kind.recommendedExclusions must be a boolean"
+        message="otelContainerInsights.filters.$signal.$kind entries must be"
+        for entry in '"a b"' '"a*b"' '"-a"' '"a\"b"' '""' 'true'; do
+            check_fails "Invalid $signal.$kind.exclude entry $entry" \
+                "{\"$signal\":{\"$kind\":{\"exclude\":[$entry]}}}" "$message"
+        done
+        check_fails "Invalid $signal.$kind.include entry \"a b\"" \
+            "{\"$signal\":{\"$kind\":{\"include\":[\"a b\"]}}}" "$message"
+        check_fails "Invalid — $signal.$kind.recommendedExclusions is a number" \
+            "{\"$signal\":{\"$kind\":{\"recommendedExclusions\":1}}}" \
+            "otelContainerInsights.filters.$signal.$kind.recommendedExclusions must be a boolean"
+        check_fails "Invalid $signal.$kind — not a map" \
+            "{\"$signal\":{\"$kind\":[\"app\"]}}" "otelContainerInsights.filters.$signal.$kind must be a map"
+        check_fails "Invalid $signal.$kind — unknown key" \
+            "{\"$signal\":{\"$kind\":{\"excludes\":[\"app\"]}}}" \
+            "otelContainerInsights.filters.$signal.$kind has an unknown key \"excludes\""
+        for list in include exclude; do
+            check_fails "Invalid $signal.$kind.$list — a string, not a list" \
+                "{\"$signal\":{\"$kind\":{\"$list\":\"app\"}}}" \
+                "otelContainerInsights.filters.$signal.$kind.$list must be a list"
+        done
+    done
+done
+
 # ──────────────────────────────────────────────────────────────────────────
 # Summary.
 # ──────────────────────────────────────────────────────────────────────────
