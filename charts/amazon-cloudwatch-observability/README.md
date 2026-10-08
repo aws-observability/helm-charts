@@ -19,6 +19,24 @@ helm install --wait --create-namespace --namespace amazon-cloudwatch amazon-clou
 
 By default, the helm chart will enable [Container Insights](https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/ContainerInsights.html) enhanced observability with container logging, and [CloudWatch Application Signals](https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/CloudWatch-Application-Monitoring-Sections.html). This helps you to collect infrastructure metrics, application performance telemetry, and container logs from the Amazon EKS cluster.
 
+## KServe control-plane metrics
+
+Set under `otelContainerInsights.solutions.kserve.controlPlane`, on by default. The
+cluster-scraper finds the `kserve-controller-manager` pod by its
+`control-plane: kserve-controller-manager` label in `namespace` (default `kserve`), so a
+cluster without KServe has no target. The controller binds its plain metrics to
+`127.0.0.1:8080`, so they are scraped through its kube-rbac-proxy on `:8443`, with the agent's
+service-account token.
+
+Only the operator's own `controller_runtime_*` and `leader_election_*` families are kept.
+client-go's `workqueue_*` and `rest_client_*` are dropped: the apiserver pipeline already
+publishes those names under its own scope. The series are attributed to the controller pod
+and its Deployment.
+
+KServe is a control plane only and is never in the request path: request-level metrics for
+an InferenceService come from the model server (`solutions.vllm`) and, in Serverless mode,
+from the Knative queue-proxy (`solutions.knative.dataPlane`).
+
 ## Windows Support
 CloudWatch DaemonSet on Windows is officially supported only for containerd runtime.
 
