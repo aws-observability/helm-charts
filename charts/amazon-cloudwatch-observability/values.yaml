@@ -1225,3 +1225,10 @@ otelContainerInsights:
       enabled: true
       ## Namespace where KEDA is deployed.
       namespace: "keda"
+    ## KServe — operator health from the kserve-controller-manager, via its
+    ## kube-rbac-proxy on :8443. Scraped by the cluster-scraper.
+    kserve:
+      controlPlane:
+        enabled: true
+        ## Namespace where the kserve-controller-manager runs.
+        namespace: kserve
