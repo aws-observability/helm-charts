@@ -73,6 +73,29 @@ receivers:
                 - neuron-monitor-service:8000
   {{- end }}
 
+  {{- if .Values.tpuMetrics.enabled }}
+  prometheus/cw_k8s_ci_v0_tpu:
+    config:
+      scrape_configs:
+        - job_name: tpu-device-plugin
+          scrape_interval: {{ .Values.otelContainerInsights.metricResolution }}
+          scrape_timeout: {{ include "otel-container-insights.scrapeTimeout" . }}
+          kubernetes_sd_configs:
+            - role: node
+          relabel_configs:
+            - source_labels: [__meta_kubernetes_node_label_cloud_google_com_gke_tpu_accelerator]
+              regex: (.+)
+              action: keep
+            - source_labels: [__meta_kubernetes_node_name]
+              regex: ${env:K8S_NODE_NAME}
+              action: keep
+            - target_label: __tpu_metrics_port
+              replacement: {{ .Values.tpuMetrics.port | quote }}
+            - source_labels: [__meta_kubernetes_node_address_InternalIP, __tpu_metrics_port]
+              separator: ":"
+              target_label: __address__
+  {{- end }}
+
   awsefareceiver/cw_k8s_ci_v0:
     collection_interval: {{ .Values.otelContainerInsights.metricResolution }}
 
@@ -610,6 +633,15 @@ processors:
           - delete_key(attributes, "pci_bus_id") where attributes["pci_bus_id"] != nil
   {{- end }}
 
+  {{- if .Values.tpuMetrics.enabled }}
+  filter/cw_k8s_ci_v0_tpu:
+    error_mode: ignore
+    metrics:
+      metric:
+        - IsMatch(name, "^(tensorcore_utilization_node|memory_bandwidth_utilization_node)$") != true
+
+  {{- end }}
+
   {{- if .Values.neuronMonitor.enabled }}
   filter/cw_k8s_ci_v0_neuron:
     error_mode: ignore
@@ -938,6 +970,17 @@ service:
         - transform/cw_k8s_ci_v0_clear_schema_url
         - transform/cw_k8s_ci_v0_set_workload
         - awsattributelimit/cw_k8s_ci_v0
+        - batch/cw_k8s_ci_v0_metrics_dest
+      exporters:
+        - otlphttp/cw_k8s_ci_v0_metrics_dest
+    {{- end }}
+
+    {{- if .Values.tpuMetrics.enabled }}
+    metrics/cw_k8s_ci_v0_tpu:
+      receivers: [prometheus/cw_k8s_ci_v0_tpu]
+      processors:
+        - filter/cw_k8s_ci_v0_tpu
+        - transform/cw_k8s_ci_v0_set_cluster_name
         - batch/cw_k8s_ci_v0_metrics_dest
       exporters:
         - otlphttp/cw_k8s_ci_v0_metrics_dest
