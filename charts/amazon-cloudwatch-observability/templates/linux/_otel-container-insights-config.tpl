@@ -600,11 +600,6 @@ processors:
           - delete_key(attributes, "container") where attributes["container"] != nil
           - delete_key(attributes, "pod") where attributes["pod"] != nil
           - delete_key(attributes, "namespace") where attributes["namespace"] != nil
-      # Drop the cgroup path. Its only content is the pod UID, already on the resource as
-      # k8s.pod.uid, plus the container ID, which stays on the datapoint as "name".
-      - context: datapoint
-        statements:
-          - delete_key(attributes, "id") where attributes["id"] != nil
 
   {{- if .Values.dcgmExporter.enabled }}
   groupbyattrs/cw_k8s_ci_v0_dcgm:
