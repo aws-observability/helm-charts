@@ -1225,3 +1225,18 @@ otelContainerInsights:
       enabled: true
       ## Namespace where KEDA is deployed.
       namespace: "keda"
+    ## Knative Serving — the substrate KServe uses in Serverless mode, absent in
+    ## RawDeployment mode. Both pre- and post-1.19 metric names are handled.
+    knative:
+      ## Request metrics from the queue-proxy sidecar (:9091). On Serving >= 1.19
+      ## this also needs request-metrics-protocol set; see the README.
+      dataPlane:
+        enabled: true
+        ## Namespace where the Knative revision pods run. Empty = all namespaces.
+        namespace: ""
+      ## Autoscaler, activator, controller and webhook metrics from :9090.
+      ## Scraped by the cluster-scraper.
+      controlPlane:
+        enabled: true
+        ## Namespace where the Knative Serving components run.
+        namespace: knative-serving
