@@ -1003,6 +1003,20 @@ dcgmExporter:
                 operator: NotIn
                 values:
                   - fargate
+  ## Affinity used instead of the above when k8sMode is AKS (no Fargate equivalent on AKS).
+  affinityAKS:
+    nodeAffinity:
+      requiredDuringSchedulingIgnoredDuringExecution:
+        nodeSelectorTerms:
+          - matchExpressions:
+              - key: accelerator
+                operator: In
+                values: ["nvidia"]
+              # AKS sets kubernetes.azure.com/dcgm-exporter=enabled ONLY on
+              # --enable-managed-gpu pools, where it already runs DCGM on the
+              # host at :19400. Skip those so we never double-report a GPU.
+              - key: kubernetes.azure.com/dcgm-exporter
+                operator: DoesNotExist
   nodeSelector:
     kubernetes.io/os: linux
 neuronMonitor:
