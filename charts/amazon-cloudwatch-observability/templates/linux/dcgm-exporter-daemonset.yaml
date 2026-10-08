@@ -1,4 +1,7 @@
-{{- if .Values.dcgmExporter.enabled }}
+{{- /* On GKE, only run dcgm-exporter behind the OTel Container Insights pipeline:
+   the legacy containerInsights path doesn't give usable GPU metrics on GKE, and
+   running both at once leads to confusing, partially-duplicated collection. */}}
+{{- if and .Values.dcgmExporter.enabled (or (ne .Values.k8sMode "GKE") (and .Values.otelContainerInsights.enabled (not .Values.containerInsights.enabled))) }}
 apiVersion: cloudwatch.aws.amazon.com/v1alpha1
 kind: DcgmExporter
 metadata:
