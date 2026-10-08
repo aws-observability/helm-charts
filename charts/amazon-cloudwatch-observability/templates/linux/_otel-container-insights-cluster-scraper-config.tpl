@@ -472,6 +472,11 @@ processors:
       - sources:
           - from: resource_attribute
             name: k8s.node.name
+
+  {{- if include "otel-container-insights.metricsNamespaceFilterEnabled" . }}
+
+  {{- include "otel-container-insights.namespaceFilter" (dict "Values" .Values "signal" "metrics") | nindent 2 }}
+  {{- end }}
 {{- end }}
 
   k8sattributes/cw_k8s_ci_v0_pod:
@@ -690,6 +695,9 @@ service:
         - transform/cw_k8s_ci_v0_ksm_clean_resource
         - groupbyattrs/cw_k8s_ci_v0_ksm
         - transform/cw_k8s_ci_v0_ksm_promote
+        {{- if include "otel-container-insights.metricsNamespaceFilterEnabled" . }}
+        - filter/cw_k8s_ci_v0_metrics_namespaces
+        {{- end }}
         - k8sattributes/cw_k8s_ci_v0_pod
         - k8sattributes/cw_k8s_ci_v0_node
         - transform/cw_k8s_ci_v0_set_workload

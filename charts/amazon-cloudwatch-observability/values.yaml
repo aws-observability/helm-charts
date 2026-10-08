@@ -1225,3 +1225,25 @@ otelContainerInsights:
       enabled: true
       ## Namespace where KEDA is deployed.
       namespace: "keda"
+  ## ── Filters ────────────────────────────────────────────────────────────
+  ## Filters for the OTEL Container Insights pipelines. Each list entry is an
+  ## exact namespace name (lowercase DNS-1123 label, at most 63 characters),
+  ## that name or prefix followed by "*" for a prefix match (e.g. "prod-*"),
+  ## or "*" alone for all namespaces.
+  ## An empty include list, or one containing "*", includes everything.
+  ## Exclude takes precedence. An entry may not be in both lists.
+  ## Records without a Kubernetes namespace are never filtered.
+  filters:
+    metrics:
+      ## Namespaces of workload metrics: every metric with a Kubernetes
+      ## namespace (kube-state-metrics, cAdvisor, kubelet, GPU, Neuron, EFA).
+      ## Node-level metrics and the Karpenter and KEDA controller metrics are
+      ## not filtered by namespace.
+      namespaces:
+        include: []
+        exclude: []
+    logs:
+      ## Namespaces of application logs. Host logs are not filtered by namespace.
+      namespaces:
+        include: []
+        exclude: []
