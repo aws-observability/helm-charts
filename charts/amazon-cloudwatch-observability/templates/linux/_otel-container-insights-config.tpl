@@ -73,7 +73,7 @@ receivers:
                 - neuron-monitor-service:8000
   {{- end }}
 
-  {{- if .Values.tpuMetrics.enabled }}
+  {{- if and .Values.tpuMetrics.enabled (eq .Values.k8sMode "GKE") }}
   prometheus/cw_k8s_ci_v0_tpu:
     config:
       scrape_configs:
@@ -633,7 +633,7 @@ processors:
           - delete_key(attributes, "pci_bus_id") where attributes["pci_bus_id"] != nil
   {{- end }}
 
-  {{- if .Values.tpuMetrics.enabled }}
+  {{- if and .Values.tpuMetrics.enabled (eq .Values.k8sMode "GKE") }}
   filter/cw_k8s_ci_v0_tpu:
     error_mode: ignore
     metrics:
@@ -975,7 +975,7 @@ service:
         - otlphttp/cw_k8s_ci_v0_metrics_dest
     {{- end }}
 
-    {{- if .Values.tpuMetrics.enabled }}
+    {{- if and .Values.tpuMetrics.enabled (eq .Values.k8sMode "GKE") }}
     metrics/cw_k8s_ci_v0_tpu:
       receivers: [prometheus/cw_k8s_ci_v0_tpu]
       processors:
