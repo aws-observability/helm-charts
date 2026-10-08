@@ -1225,3 +1225,9 @@ otelContainerInsights:
       enabled: true
       ## Namespace where KEDA is deployed.
       namespace: "keda"
+    ## vLLM — the model server's own metrics (vllm:* and http_* series).
+    ## Scrapes the model container of KServe InferenceService pods and any
+    ## container running a vLLM image.
+    ## See the chart README.
+    vllm:
+      enabled: true
