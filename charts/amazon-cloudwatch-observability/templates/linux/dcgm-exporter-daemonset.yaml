@@ -13,8 +13,21 @@ spec:
   nodeSelector: {{- toYaml . | nindent 4 }}
   {{- end }}
   serviceAccount: {{ template "dcgm-exporter.serviceAccountName" . }}
+  {{- if eq .Values.k8sMode "GKE" }}
+  {{- /* The default affinity below matches AWS GPU instance-type families and never
+     matches GKE nodes. On GKE, schedule onto any node carrying the standard GKE GPU
+     node-pool label instead, regardless of accelerator model. */}}
+  affinity:
+    nodeAffinity:
+      requiredDuringSchedulingIgnoredDuringExecution:
+        nodeSelectorTerms:
+          - matchExpressions:
+              - key: cloud.google.com/gke-accelerator
+                operator: Exists
+  {{- else }}
   {{- with .Values.dcgmExporter.affinity }}
   affinity: {{- toYaml . | nindent 4 }}
+  {{- end }}
   {{- end }}
   {{- with .Values.dcgmExporter.resources }}
   resources: {{- toYaml . | nindent 4}}
@@ -32,6 +45,14 @@ spec:
       fieldRef:
         fieldPath: spec.nodeName
   {{- include "dcgm-exporter.env" . | nindent 2 }}
+  {{- if eq .Values.k8sMode "GKE" }}
+  {{- /* GKE's stock NVIDIA device-plugin model mounts the host driver's userspace
+     libraries at /usr/local/nvidia/lib64, which the distroless image's own
+     LD_LIBRARY_PATH doesn't include. Without this, dcgm-exporter stays "Running"
+     and serves empty (zero-byte) metric responses instead of failing visibly. */}}
+  - name: LD_LIBRARY_PATH
+    value: /usr/local/nvidia/lib64:/lib/distroless
+  {{- end }}
   ports:
   - name: "metrics"
     port: {{ .Values.dcgmExporter.service.port }}
@@ -64,7 +85,13 @@ spec:
     DCGM_FI_DEV_MEMORY_TEMP, gauge, Memory temperature (in C).
     DCGM_FI_DEV_GPU_TEMP,    gauge, GPU temperature (in C).
     DCGM_FI_DEV_POWER_USAGE,              gauge, Power draw (in W).
+    {{- if ne .Values.k8sMode "GKE" }}
+    {{- /* On GKE, the cluster-managed dcgm-exporter (namespace gke-managed-system)
+       holds an exclusive lock on DCGM's profiling module, so watching this field
+       here fails the whole field group and the exporter exits before serving any
+       metric at all (see NVIDIA/dcgm-exporter#537). Drop it on GKE. */}}
     DCGM_FI_PROF_PIPE_TENSOR_ACTIVE, gauge, Tensor Core utilization (in %).
+    {{- end }}
     DCGM_FI_DRIVER_VERSION, label, Driver Version.
   tlsConfig: |
     tls_server_config:
