@@ -90,7 +90,7 @@ receivers:
               regex: ${env:K8S_NODE_NAME}
               action: keep
             - target_label: __tpu_metrics_port
-              replacement: {{ .Values.tpuMetrics.port | quote }}
+              replacement: "2112"
             - source_labels: [__meta_kubernetes_node_address_InternalIP, __tpu_metrics_port]
               separator: ":"
               target_label: __address__

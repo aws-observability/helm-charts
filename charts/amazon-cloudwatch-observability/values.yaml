@@ -1235,5 +1235,3 @@ otelContainerInsights:
 ## of otelContainerInsights.targetAgent receives the pipeline).
 tpuMetrics:
   enabled: false
-  ## Port of the TPU metrics endpoint on the node.
-  port: 2112
