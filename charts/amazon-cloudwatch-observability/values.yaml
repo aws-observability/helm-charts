@@ -1225,3 +1225,14 @@ otelContainerInsights:
       enabled: true
       ## Namespace where KEDA is deployed.
       namespace: "keda"
+
+## Google Cloud TPU metrics (GKE).
+## Scrapes the TPU runtime metrics endpoint that GKE exposes on every TPU node and
+## forwards tensorcore_utilization_node and memory_bandwidth_utilization_node to CloudWatch.
+## Nodes are discovered by the cloud.google.com/gke-tpu-accelerator label and each agent
+## pod only scrapes the TPU node it runs on.
+## Only takes effect when k8sMode is GKE, containerInsights.enabled is false and
+## otelContainerInsights.enabled is true (the node-level OTEL config of
+## otelContainerInsights.targetAgent receives the pipeline).
+tpuMetrics:
+  enabled: false
