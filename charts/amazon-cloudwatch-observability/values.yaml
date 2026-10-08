@@ -2,12 +2,72 @@
 # This is a YAML-formatted file.
 # Declare variables to be passed into your templates.
 
+## Azure Marketplace CNAB packaging (cpa buildbundle) requires every container image
+## referenced by this chart to be declared here. templates/_helpers.tpl reads these
+## values directly when resolving each component's public image reference.
+global:
+  azure:
+    images:
+      fluentBit:
+        registry: public.ecr.aws/aws-observability
+        image: aws-for-fluent-bit
+        tag: 3.4.16
+      fluentBitWindows:
+        registry: public.ecr.aws/aws-observability
+        image: aws-for-fluent-bit
+        tag: 2.31.12-windowsservercore
+      cloudwatchAgentOperator:
+        registry: public.ecr.aws/cloudwatch-agent
+        image: cloudwatch-agent-operator
+        tag: 3.7.0
+      autoInstrumentationJava:
+        registry: public.ecr.aws/aws-observability
+        image: adot-autoinstrumentation-java
+        tag: v2.30.0
+      autoInstrumentationPython:
+        registry: public.ecr.aws/aws-observability
+        image: adot-autoinstrumentation-python
+        tag: v0.19.0
+      autoInstrumentationDotnet:
+        registry: public.ecr.aws/aws-observability
+        image: adot-autoinstrumentation-dotnet
+        tag: v1.15.0
+      autoInstrumentationNodejs:
+        registry: public.ecr.aws/aws-observability
+        image: adot-autoinstrumentation-node
+        tag: v0.12.0
+      cloudwatchAgent:
+        registry: public.ecr.aws/cloudwatch-agent
+        image: cloudwatch-agent
+        tag: 1.300073.0b1828
+      targetAllocator:
+        registry: public.ecr.aws/cloudwatch-agent
+        image: cloudwatch-agent-target-allocator
+        tag: 1.0.0
+      dcgmExporter:
+        registry: nvcr.io/nvidia/k8s
+        image: dcgm-exporter
+        tag: 4.6.0-4.8.3-distroless
+      neuronMonitor:
+        registry: public.ecr.aws/neuron
+        image: neuron-monitor
+        tag: 1.12.0
+      kubeStateMetrics:
+        registry: registry.k8s.io
+        image: kube-state-metrics/kube-state-metrics
+        tag: v2.20.0
+      nodeExporter:
+        registry: quay.io
+        image: prometheus/node-exporter
+        tag: v1.12.1
+
 replicaCount: 1
 ## Provide a name in place of cloudwatchagent-operator.
 ##
 nameOverride: ""
 ## Provide the ClusterName (this is a required parameter)
-clusterName:
+## Overridden at install time via the Marketplace extension's configurationSettings.
+clusterName: "REPLACE_WITH_CLUSTER_NAME"
 # Endpoint overrides for isolated regions (commercial regions defaults to empty) the front will have logs.${REGION}
 adcEndpointOverrides:
   us-iso-east-1: c2s.ic.gov
@@ -17,10 +77,12 @@ adcEndpointOverrides:
   eu-isoe-west-1: cloud.adc-e.uk
   eusc-de-east-1: amazonaws.eu
 ## Provide the Region (this is a required parameter)
-region:
-k8sMode: EKS # can be EKS | ROSA | K8S | AKS | GKE
+## Overridden at install time via the Marketplace extension's configurationSettings.
+region: "us-east-1"
+k8sMode: AKS # can be EKS | ROSA | K8S | AKS | GKE
 ## IAM role ARN for AKS/GKE workload-identity federation (required when k8sMode is AKS or GKE)
-roleArn:
+## Overridden at install time via the Marketplace extension's configurationProtectedSettings.
+roleArn: "arn:aws:iam::000000000000:role/REPLACE_WITH_ROLE"
 ## Enable dualstack endpoints for IPv6 support (default: false)
 useDualstackEndpoint: false
 ## Provide default tolerations
@@ -110,6 +172,8 @@ containerLogs:
           Time_Format         %Y-%m-%dT%H:%M:%S.%LZ
       extraFiles:
         application-log.conf: |
+          {{- /* Skipped when OTEL CI logs are active — OTEL publishes app container logs. */}}
+          {{- if not (include "cloudwatch-agent.otel-logs-active" .) }}
           [INPUT]
             Name                tail
             Tag                 application.*
@@ -123,6 +187,7 @@ containerLogs:
             Rotate_Wait         30
             storage.type        filesystem
             Read_from_Head      ${READ_FROM_HEAD}
+          {{- end }}
 
           [INPUT]
             Name                tail
@@ -173,7 +238,7 @@ containerLogs:
             Name                cloudwatch_logs
             Match               application.*
             region              ${AWS_REGION}
-            log_group_name      /aws/containerinsights/${CLUSTER_NAME}/application
+            log_group_name      /azure/containerinsights/${CLUSTER_NAME}/application
             log_stream_prefix   ${HOST_NAME}-
             auto_create_group   true
             extra_user_agent    container-insights
@@ -222,7 +287,7 @@ containerLogs:
             Name                cloudwatch_logs
             Match               dataplane.*
             region              ${AWS_REGION}
-            log_group_name      /aws/containerinsights/${CLUSTER_NAME}/dataplane
+            log_group_name      /azure/containerinsights/${CLUSTER_NAME}/dataplane
             log_stream_prefix   ${HOST_NAME}-
             auto_create_group   true
             extra_user_agent    container-insights
@@ -230,6 +295,8 @@ containerLogs:
             endpoint            logs.${AWS_REGION}.{{ index .Values.adcEndpointOverrides .Values.region }}
             {{- end }}
         host-log.conf: |
+          {{- /* Skipped when OTEL CI logs are active — OTEL publishes host logs. An empty file is not included. */}}
+          {{- if not (include "cloudwatch-agent.otel-logs-active" .) }}
           [INPUT]
             Name                systemd
             Tag                 host.dmesg
@@ -283,13 +350,14 @@ containerLogs:
             Name                cloudwatch_logs
             Match               host.*
             region              ${AWS_REGION}
-            log_group_name      /aws/containerinsights/${CLUSTER_NAME}/host
+            log_group_name      /azure/containerinsights/${CLUSTER_NAME}/host
             log_stream_prefix   ${HOST_NAME}.
             auto_create_group   true
             extra_user_agent    container-insights
             {{- if hasKey .Values.adcEndpointOverrides .Values.region }}
             endpoint            logs.${AWS_REGION}.{{ index .Values.adcEndpointOverrides .Values.region }}
             {{- end }}
+          {{- end }}
     configWindows:
       service: |
         [ SERVICE ]
@@ -386,7 +454,7 @@ containerLogs:
             Name                cloudwatch_logs
             Match               application.*
             region              ${AWS_REGION}
-            log_group_name      /aws/containerinsights/${CLUSTER_NAME}/application
+            log_group_name      /azure/containerinsights/${CLUSTER_NAME}/application
             log_stream_prefix   ${HOST_NAME}-
             auto_create_group   true
             extra_user_agent    container-insights
@@ -436,7 +504,7 @@ containerLogs:
             Name                cloudwatch_logs
             Match               dataplane.*
             region              ${AWS_REGION}
-            log_group_name      /aws/containerinsights/${CLUSTER_NAME}/dataplane
+            log_group_name      /azure/containerinsights/${CLUSTER_NAME}/dataplane
             log_stream_prefix   ${HOST_NAME}-
             auto_create_group   true
             extra_user_agent    container-insights
@@ -445,7 +513,7 @@ containerLogs:
             Name                cloudwatch_logs
             Match               winlog.*
             region              ${AWS_REGION}
-            log_group_name      /aws/containerinsights/${CLUSTER_NAME}/dataplane
+            log_group_name      /azure/containerinsights/${CLUSTER_NAME}/dataplane
             log_stream_name     ${HOST_NAME}.windows.kubelet.kubeproxy.service
             auto_create_group   true
             extra_user_agent    container-insights
@@ -465,7 +533,7 @@ containerLogs:
             Name                cloudwatch_logs
             Match               winlog.*
             region              ${AWS_REGION}
-            log_group_name      /aws/containerinsights/${CLUSTER_NAME}/host
+            log_group_name      /azure/containerinsights/${CLUSTER_NAME}/host
             log_stream_name     ${HOST_NAME}.windows.system.events
             auto_create_group   true
             extra_user_agent    container-insights
@@ -1159,7 +1227,7 @@ nodeExporter:
 ## When set to false, the kubernetes key is removed from the agent config, disabling legacy CI metrics collection.
 ## Can run alongside otelContainerInsights — both pipelines are independent.
 containerInsights:
-  enabled: true
+  enabled: false
   ## The agent in the agents array that receives legacy Container Insights config.
   targetAgent: "cloudwatch-agent"
 
@@ -1188,7 +1256,7 @@ applicationSignals:
 ##   enabled=true, logs.enabled=false   → OTEL metrics only
 ##
 otelContainerInsights:
-  enabled: false
+  enabled: true
   ## OTEL-native CI log pipelines (application, host).
   ## Only takes effect when otelContainerInsights.enabled is true.
   logs:

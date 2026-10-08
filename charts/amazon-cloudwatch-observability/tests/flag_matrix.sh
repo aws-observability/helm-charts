@@ -122,6 +122,13 @@ FILELOG_APP="filelog/cw_k8s_ci_v0_app"
 # OTEL config paths like /var/log/containers/fluent-bit* (which exist in the
 # filelog exclude list regardless of the FB DaemonSet flag).
 FLUENT_BIT_IMAGE="aws-for-fluent-bit"
+# Linux FluentBit inputs that OTEL CI logs replace (forward-slash paths are
+# Linux-only; the Windows config uses C:\\ paths).
+FB_APP_INPUT="/var/fluent-bit/state/flb_container.db"
+FB_HOST_INPUT="/var/fluent-bit/state/flb_dmesg.db"
+# Linux FluentBit input OTEL does not replace (dataplane).
+FB_DATAPLANE_INPUT="/var/fluent-bit/state/flb_dataplane_tail.db"
+OTEL_APP_LOG_GROUP="/azure/otel/containerinsights/test-cluster/application"
 
 # All OTEL log pipeline fragments (app + host).
 ALL_LOG_FRAGMENTS="$LOG_EXPORTER_APP,$LOG_EXPORTER_NODE,$LOG_SIGV4,$LOG_PIPELINE_APP,$FILELOG_APP"
@@ -161,7 +168,7 @@ run_case 5 true false false "ok" \
 # State #6: hybrid — OTEL metrics + FluentBit logs.
 run_case 6 true false true "ok" \
     "Hybrid — OTEL metrics + FluentBit logs" \
-    "$METRICS_EXPORTER,$METRICS_SIGV4,$FLUENT_BIT_IMAGE" "$ALL_LOG_FRAGMENTS"
+    "$METRICS_EXPORTER,$METRICS_SIGV4,$FLUENT_BIT_IMAGE,$FB_APP_INPUT,$FB_HOST_INPUT" "$ALL_LOG_FRAGMENTS"
 
 # State #7: full OTEL (metrics + logs, no FluentBit).
 run_case 7 true true false "ok" \
@@ -169,11 +176,12 @@ run_case 7 true true false "ok" \
     "$METRICS_EXPORTER,$METRICS_SIGV4,$LOG_EXPORTER_APP,$LOG_EXPORTER_NODE,$LOG_SIGV4,$FILELOG_APP" \
     "$FLUENT_BIT_IMAGE"
 
-# State #8: dual-publish (migration window — OTEL logs + FluentBit both active).
+# State #8: OTEL logs + FluentBit — no duplicates. OTEL publishes app + host
+# logs; FluentBit keeps only what OTEL does not collect (dataplane etc.).
 run_case 8 true true true "ok" \
-    "Dual-publish — OTEL logs + FluentBit both active" \
-    "$METRICS_EXPORTER,$LOG_EXPORTER_APP,$LOG_EXPORTER_NODE,$FILELOG_APP,$FLUENT_BIT_IMAGE" \
-    ""
+    "OTEL logs + FluentBit for non-OTEL log types only" \
+    "$METRICS_EXPORTER,$LOG_EXPORTER_APP,$LOG_EXPORTER_NODE,$FILELOG_APP,$FLUENT_BIT_IMAGE,$FB_DATAPLANE_INPUT,$OTEL_APP_LOG_GROUP" \
+    "$FB_APP_INPUT,$FB_HOST_INPUT"
 
 # ──────────────────────────────────────────────────────────────────────────
 # Summary.

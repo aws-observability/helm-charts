@@ -87,7 +87,7 @@ spec:
       maxUnavailable: {{ include "cloudwatch-agent.intOrStringValue" ($agent.updateStrategy.rollingUpdate.maxUnavailable | default (include "cloudwatch-agent.rolloutStrategyMaxUnavailable" (dict "mode" $agent.mode))) }}
       maxSurge: {{ include "cloudwatch-agent.intOrStringValue" ($agent.updateStrategy.rollingUpdate.maxSurge | default (include "cloudwatch-agent.rolloutStrategyMaxSurge" (dict "mode" $agent.mode))) }}
     {{- end }}
-  image: {{ include "cloudwatch-agent.image" (merge $agent.image (dict "region" $.Values.region)) | quote }}
+  image: {{ include "cloudwatch-agent.image" (merge $agent.image (dict "region" $.Values.region "azureImages" $.Values.global.azure.images)) | quote }}
   mode: {{ $agent.mode | quote }}
   replicas: {{ $agent.replicas }}
   {{- with $agent.nodeSelector }}
@@ -144,7 +144,7 @@ spec:
   {{- if $agent.prometheus.targetAllocator.enabled }}
   targetAllocator:
     enabled: {{ $agent.prometheus.targetAllocator.enabled | default false }}
-    image: {{ include "target-allocator.image" (merge $agent.prometheus.targetAllocator.image (dict "region" $.Values.region)) | quote }}
+    image: {{ include "target-allocator.image" (merge $agent.prometheus.targetAllocator.image (dict "region" $.Values.region "azureImages" $.Values.global.azure.images)) | quote }}
     allocationStrategy: "consistent-hashing"
     {{- if $agent.prometheus.targetAllocator.prometheusCR.enabled }}
     prometheusCR:
