@@ -74,6 +74,31 @@ receivers:
           static_configs:
             - targets:
                 - dcgm-exporter-service:9400
+  {{- if eq .Values.k8sMode "AKS" }}
+  # Managed-GPU AKS node pools run DCGM on the host at :19400 instead of as a
+  # pod (see dcgmExporter.affinityAKS, which excludes those nodes from the
+  # chart's own dcgm-exporter daemonset so we never double-report a GPU).
+  prometheus/cw_k8s_ci_v0_dcgm_host:
+    config:
+      scrape_configs:
+        - job_name: dcgm-host
+          scrape_interval: {{ .Values.otelContainerInsights.metricResolution }}
+          scrape_timeout: {{ include "otel-container-insights.scrapeTimeout" . }}
+          kubernetes_sd_configs:
+            - role: node
+          relabel_configs:
+            # own node only - node SD returns every node in the cluster
+            - source_labels: [__meta_kubernetes_node_name]
+              regex: ${env:K8S_NODE_NAME}
+              action: keep
+            # managed-GPU pools only
+            - source_labels: [__meta_kubernetes_node_label_kubernetes_azure_com_dcgm_exporter]
+              regex: enabled
+              action: keep
+            # node SD hands back the kubelet port; point it at DCGM.
+            - target_label: __address__
+              replacement: ${env:HOST_IP}:19400
+  {{- end }}
   {{- end }}
 
   {{- if .Values.neuronMonitor.enabled }}
@@ -1566,6 +1591,16 @@ service:
       processors: [filter/cw_k8s_ci_v0_scrape_metadata, transform/cw_k8s_ci_v0_drop_deprecated_semconv, transform/cw_k8s_ci_v0_set_unit, metricstarttime/cw_k8s_ci_v0, transform/cw_k8s_ci_v0_set_cluster_name, groupbyattrs/cw_k8s_ci_v0_dcgm, transform/cw_k8s_ci_v0_dcgm_promote, {{ if include "otel-container-insights.metricsNamespaceFilterEnabled" . }}transform/cw_k8s_ci_v0_device_namespaces, {{ end }}k8sattributes/cw_k8s_ci_v0_pod, transform/cw_k8s_ci_v0_set_node_name, transform/cw_k8s_ci_v0_promote_node_name, k8sattributes/cw_k8s_ci_v0_node, resourcedetection/cw_k8s_ci_v0, transform/cw_k8s_ci_v0_set_scope_dcgm, transform/cw_k8s_ci_v0_clear_schema_url, transform/cw_k8s_ci_v0_set_cloud_resource_id, transform/cw_k8s_ci_v0_set_workload, transform/cw_k8s_ci_v0_service_identity, transform/cw_k8s_ci_v0_pod_topology, {{ if include "otel-container-insights.metricsLabelFilterEnabled" . }}transform/cw_k8s_ci_v0_metrics_labels, {{ end }}awsattributelimit/cw_k8s_ci_v0, {{ if include "otel-container-insights.metricNamesFilterEnabled" . }}filter/cw_k8s_ci_v0_metric_names, {{ end }}batch/cw_k8s_ci_v0_metrics_dest]
       exporters:
         - otlphttp/cw_k8s_ci_v0_metrics_dest
+    {{- end }}
+
+    {{- if .Values.dcgmExporter.enabled }}
+    {{- if eq .Values.k8sMode "AKS" }}
+    metrics/cw_k8s_ci_v0_dcgm_host:
+      receivers: [prometheus/cw_k8s_ci_v0_dcgm_host]
+      processors: [filter/cw_k8s_ci_v0_scrape_metadata, transform/cw_k8s_ci_v0_set_unit, metricstarttime/cw_k8s_ci_v0, transform/cw_k8s_ci_v0_set_cluster_name, groupbyattrs/cw_k8s_ci_v0_dcgm, transform/cw_k8s_ci_v0_dcgm_promote, k8sattributes/cw_k8s_ci_v0_pod, transform/cw_k8s_ci_v0_set_node_name, transform/cw_k8s_ci_v0_promote_node_name, k8sattributes/cw_k8s_ci_v0_node, resourcedetection/cw_k8s_ci_v0, transform/cw_k8s_ci_v0_set_scope_dcgm, transform/cw_k8s_ci_v0_clear_schema_url, transform/cw_k8s_ci_v0_set_cloud_resource_id, transform/cw_k8s_ci_v0_set_workload, awsattributelimit/cw_k8s_ci_v0, batch/cw_k8s_ci_v0_metrics_dest]
+      exporters:
+        - otlphttp/cw_k8s_ci_v0_metrics_dest
+    {{- end }}
     {{- end }}
 
     {{- if .Values.neuronMonitor.enabled }}
