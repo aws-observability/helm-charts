@@ -11,7 +11,7 @@ spec:
   podSecurityContext:
     windowsOptions:
       runAsUserName: "NT AUTHORITY\\System"
-  image: {{ include "cloudwatch-agent.image" (merge .Values.agent.image (dict "region" .Values.region "azureImages" .Values.global.azure.images)) | quote }}
+  image: {{ include "cloudwatch-agent.image" (merge .Values.agent.image (dict "region" .Values.region "azure" .Values.global.azure)) | quote }}
   mode: daemonset
   serviceAccount: {{ include "cloudwatch-agent.serviceAccountName" . | quote }}
   {{- $agentWinPcn := include "amazon-cloudwatch-observability.common.priorityClassName" (dict "component" .Values.agent "context" .) }}

@@ -3,10 +3,14 @@
 # Declare variables to be passed into your templates.
 
 ## Azure Marketplace CNAB packaging (cpa buildbundle) requires every container image
-## referenced by this chart to be declared here. templates/_helpers.tpl reads these
-## values directly when resolving each component's public image reference.
+## referenced by this chart to be declared here.
+## global.azure.images is only used when global.azure.enabled=true (set by the Azure
+## Marketplace packaging); in that case every image is taken from it. When false
+## (default, EKS/GKE/other installs) images resolve via each component's
+## repositoryDomainMap/repository/tag as before and global.azure.images is ignored.
 global:
   azure:
+    enabled: false
     images:
       fluentBit:
         registry: public.ecr.aws/aws-observability
@@ -78,8 +82,8 @@ adcEndpointOverrides:
   eusc-de-east-1: amazonaws.eu
 ## Provide the Region (this is a required parameter)
 ## Overridden at install time via the Marketplace extension's configurationSettings.
-region: "us-east-1"
-k8sMode: AKS # can be EKS | ROSA | K8S | AKS | GKE
+region: "REPLACE_WITH_AWS_REGION"
+k8sMode: EKS # can be EKS | ROSA | K8S | AKS | GKE
 ## IAM role ARN for AKS/GKE workload-identity federation (required when k8sMode is AKS or GKE)
 ## Overridden at install time via the Marketplace extension's configurationProtectedSettings.
 roleArn: "arn:aws:iam::000000000000:role/REPLACE_WITH_ROLE"
@@ -238,7 +242,7 @@ containerLogs:
             Name                cloudwatch_logs
             Match               application.*
             region              ${AWS_REGION}
-            log_group_name      /azure/containerinsights/${CLUSTER_NAME}/application
+            log_group_name      /{{ include "cloudwatch-agent.log-group-prefix" . }}/containerinsights/${CLUSTER_NAME}/application
             log_stream_prefix   ${HOST_NAME}-
             auto_create_group   true
             extra_user_agent    container-insights
@@ -287,7 +291,7 @@ containerLogs:
             Name                cloudwatch_logs
             Match               dataplane.*
             region              ${AWS_REGION}
-            log_group_name      /azure/containerinsights/${CLUSTER_NAME}/dataplane
+            log_group_name      /{{ include "cloudwatch-agent.log-group-prefix" . }}/containerinsights/${CLUSTER_NAME}/dataplane
             log_stream_prefix   ${HOST_NAME}-
             auto_create_group   true
             extra_user_agent    container-insights
@@ -350,7 +354,7 @@ containerLogs:
             Name                cloudwatch_logs
             Match               host.*
             region              ${AWS_REGION}
-            log_group_name      /azure/containerinsights/${CLUSTER_NAME}/host
+            log_group_name      /{{ include "cloudwatch-agent.log-group-prefix" . }}/containerinsights/${CLUSTER_NAME}/host
             log_stream_prefix   ${HOST_NAME}.
             auto_create_group   true
             extra_user_agent    container-insights
@@ -454,7 +458,7 @@ containerLogs:
             Name                cloudwatch_logs
             Match               application.*
             region              ${AWS_REGION}
-            log_group_name      /azure/containerinsights/${CLUSTER_NAME}/application
+            log_group_name      /{{ include "cloudwatch-agent.log-group-prefix" . }}/containerinsights/${CLUSTER_NAME}/application
             log_stream_prefix   ${HOST_NAME}-
             auto_create_group   true
             extra_user_agent    container-insights
@@ -504,7 +508,7 @@ containerLogs:
             Name                cloudwatch_logs
             Match               dataplane.*
             region              ${AWS_REGION}
-            log_group_name      /azure/containerinsights/${CLUSTER_NAME}/dataplane
+            log_group_name      /{{ include "cloudwatch-agent.log-group-prefix" . }}/containerinsights/${CLUSTER_NAME}/dataplane
             log_stream_prefix   ${HOST_NAME}-
             auto_create_group   true
             extra_user_agent    container-insights
@@ -513,7 +517,7 @@ containerLogs:
             Name                cloudwatch_logs
             Match               winlog.*
             region              ${AWS_REGION}
-            log_group_name      /azure/containerinsights/${CLUSTER_NAME}/dataplane
+            log_group_name      /{{ include "cloudwatch-agent.log-group-prefix" . }}/containerinsights/${CLUSTER_NAME}/dataplane
             log_stream_name     ${HOST_NAME}.windows.kubelet.kubeproxy.service
             auto_create_group   true
             extra_user_agent    container-insights
@@ -533,7 +537,7 @@ containerLogs:
             Name                cloudwatch_logs
             Match               winlog.*
             region              ${AWS_REGION}
-            log_group_name      /azure/containerinsights/${CLUSTER_NAME}/host
+            log_group_name      /{{ include "cloudwatch-agent.log-group-prefix" . }}/containerinsights/${CLUSTER_NAME}/host
             log_stream_name     ${HOST_NAME}.windows.system.events
             auto_create_group   true
             extra_user_agent    container-insights
@@ -1244,15 +1248,15 @@ applicationSignals:
 ## OTEL Container Insights
 ## ══════════════════════════════════════════════════════════════════════════════
 ##
-## When otelContainerInsights.enabled is false (default), everything under this
+## When otelContainerInsights.enabled is false, everything under this
 ## section is ignored.
 ##
 ## When enabled, the agent collects metrics and logs via OTEL pipelines.
 ## To disable OTEL logs while keeping metrics, set otelContainerInsights.logs.enabled to false.
 ##
 ## Supported combinations:
-##   enabled=false              → no OTEL CI (default)
-##   enabled=true               → OTEL metrics + OTEL logs
+##   enabled=false              → no OTEL CI
+##   enabled=true               → OTEL metrics + OTEL logs (default)
 ##   enabled=true, logs.enabled=false   → OTEL metrics only
 ##
 otelContainerInsights:

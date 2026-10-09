@@ -14,7 +14,7 @@ spec:
       hostProcess: true
       runAsUserName: "NT AUTHORITY\\System"
   hostNetwork: true
-  image: {{ include "cloudwatch-agent.image" (merge .Values.agent.image (dict "region" .Values.region "azureImages" .Values.global.azure.images)) | quote }}
+  image: {{ include "cloudwatch-agent.image" (merge .Values.agent.image (dict "region" .Values.region "azure" .Values.global.azure)) | quote }}
   workingDir: "%CONTAINER_SANDBOX_MOUNT_POINT%\\Program Files\\Amazon\\AmazonCloudWatchAgent"
   mode: daemonset
   serviceAccount: {{ include "cloudwatch-agent.serviceAccountName" . | quote }}
