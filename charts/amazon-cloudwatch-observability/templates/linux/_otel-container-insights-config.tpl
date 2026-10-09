@@ -818,7 +818,7 @@ exporters:
     # Logs Pipeline Optimizations doc for details.
     compression: none
     headers:
-      x-aws-log-group: "/aws/otel/containerinsights/{{ .Values.clusterName }}/application"
+      x-aws-log-group: "/{{ include "cloudwatch-agent.log-group-prefix" . }}/otel/containerinsights/{{ .Values.clusterName }}/application"
       x-aws-log-stream: "${env:K8S_NODE_NAME}-application"
     sending_queue:
       queue_size: 500
@@ -833,7 +833,7 @@ exporters:
     # See app_logs_dest comment for compression tradeoff rationale.
     compression: none
     headers:
-      x-aws-log-group: "/aws/otel/containerinsights/{{ .Values.clusterName }}/host"
+      x-aws-log-group: "/{{ include "cloudwatch-agent.log-group-prefix" . }}/otel/containerinsights/{{ .Values.clusterName }}/host"
       x-aws-log-stream: "${env:K8S_NODE_NAME}-host"
     sending_queue:
       queue_size: 500
