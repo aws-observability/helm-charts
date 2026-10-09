@@ -362,6 +362,9 @@ containerLogs:
             endpoint            logs.${AWS_REGION}.{{ index .Values.adcEndpointOverrides .Values.region }}
             {{- end }}
           {{- end }}
+    ## Windows nodes are never covered by OTEL Container Insights: the OTEL pipelines (metrics and logs)
+    ## only run on Linux. The Windows Fluent Bit config therefore always collects ALL Windows
+    ## application, dataplane and host logs, regardless of otelContainerInsights.logs.enabled.
     configWindows:
       service: |
         [ SERVICE ]
@@ -1253,6 +1256,9 @@ applicationSignals:
 ##
 ## When enabled, the agent collects metrics and logs via OTEL pipelines.
 ## To disable OTEL logs while keeping metrics, set otelContainerInsights.logs.enabled to false.
+##
+## Linux only: OTEL Container Insights does not run on Windows nodes. Windows keeps using the
+## legacy CloudWatch Agent Container Insights config and Fluent Bit for all of its logs.
 ##
 ## Supported combinations:
 ##   enabled=false              → no OTEL CI

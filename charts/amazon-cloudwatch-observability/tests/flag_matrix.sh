@@ -346,6 +346,42 @@ for otel_logs in true false; do
 done
 
 # ──────────────────────────────────────────────────────────────────────────
+# Windows — OTEL CI never runs on Windows nodes. The Windows Fluent Bit config
+# must be identical whether OTEL logs are on or off (it always collects all
+# Windows logs), and no OTEL config may be rendered for the Windows agents.
+# ──────────────────────────────────────────────────────────────────────────
+
+echo ""
+echo "=== Windows (OTEL does not run on Windows) ==="
+
+render_windows() { # $1 k8sMode, $2 otel logs enabled, $3 template
+    helm template "$CHART_DIR" --set region=us-west-2 --set clusterName=test-cluster \
+        --set "k8sMode=$1" --set roleArn=arn:aws:iam::123456789012:role/r \
+        --set otelContainerInsights.enabled=true \
+        --set "otelContainerInsights.logs.enabled=$2" \
+        --set containerLogs.enabled=true -s "$3" 2>&1
+}
+
+for mode in AKS GKE EKS; do
+    case "$mode" in AKS) p=azure;; GKE) p=gcp;; *) p=aws;; esac
+    printf "\n${Y}[Windows]${N} k8sMode=%s  —  Fluent Bit config independent of OTEL logs, prefix /%s\n" "$mode" "$p"
+    cfg_on=$(render_windows "$mode" true templates/windows/fluent-bit-windows-configmap.yaml) || true
+    cfg_off=$(render_windows "$mode" false templates/windows/fluent-bit-windows-configmap.yaml) || true
+    local_fail=0
+    [[ -n "$cfg_on" && "$cfg_on" == "$cfg_off" ]] || { echo -e "  ${R}FAIL${N}: Windows Fluent Bit config differs between OTEL logs on/off"; local_fail=1; }
+    for g in application dataplane host; do
+        grep -q "/$p/containerinsights/\${CLUSTER_NAME}/$g" <<< "$cfg_on" || { echo -e "  ${R}FAIL${N}: missing Windows /$p/.../$g log group"; local_fail=1; }
+    done
+    grep -q 'C:\\\\var\\\\log\\\\containers\\\\\*.log' <<< "$cfg_on" || { echo -e "  ${R}FAIL${N}: Windows application logs not collected"; local_fail=1; }
+    for t in templates/windows/cloudwatch-agent-windows-daemonset.yaml templates/windows/cloudwatch-agent-windows-container-insights-daemonset.yaml; do
+        if render_windows "$mode" true "$t" | grep -qiE "otelConfig|cw_k8s_ci_v0|otlphttp"; then
+            echo -e "  ${R}FAIL${N}: OTEL config rendered in $t"; local_fail=1
+        fi
+    done
+    if [[ $local_fail -eq 0 ]]; then echo -e "  ${G}PASS${N}"; pass_count=$((pass_count + 1)); else fail_count=$((fail_count + 1)); fi
+done
+
+# ──────────────────────────────────────────────────────────────────────────
 # Summary.
 # ──────────────────────────────────────────────────────────────────────────
 total=$((pass_count + fail_count))
