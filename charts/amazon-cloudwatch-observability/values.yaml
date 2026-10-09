@@ -1227,12 +1227,14 @@ otelContainerInsights:
       namespace: "keda"
   ## ── Filters ────────────────────────────────────────────────────────────
   ## Filters for the OTEL Container Insights pipelines. Each list entry is an
-  ## exact namespace name (lowercase DNS-1123 label, at most 63 characters),
-  ## that name or prefix followed by "*" for a prefix match (e.g. "prod-*"),
-  ## or "*" alone for all namespaces.
-  ## An empty include list, or one containing "*", includes everything.
-  ## Exclude takes precedence. An entry may not be in both lists.
-  ## Records without a Kubernetes namespace are never filtered.
+  ## exact name, a prefix followed by "*" for a prefix match (e.g. "prod-*"),
+  ## or "*" alone for everything. An empty include list, or one containing
+  ## "*", includes everything. Exclude takes precedence.
+  ## - Namespace entries are namespace names (lowercase DNS-1123 labels, at
+  ##   most 63 characters). An entry may not be in both lists. Records without
+  ##   a Kubernetes namespace are never filtered.
+  ## - Label entries are label keys. A label may be in both lists, e.g.
+  ##   include "app*" and exclude "app-secret".
   filters:
     metrics:
       ## Namespaces of workload metrics: every metric with a Kubernetes
@@ -1242,8 +1244,38 @@ otelContainerInsights:
       namespaces:
         include: []
         exclude: []
+      ## Node and pod labels added to metrics and logs as k8s.node.label.*
+      ## and k8s.pod.label.* attributes.
+      ## - include: the labels collected, for metrics and logs. Metrics and
+      ##   logs share the collection, so the logs include lists must match.
+      ## - exclude: labels removed from metrics after collection.
+      ## - recommendedExclusions: also removes a built-in list of
+      ##   high-cardinality labels (topology, hostname, instance type, ...).
+      ##   On by default for metrics, matching the labels removed before
+      ##   these filters existed. Defaults to true when unset.
+      nodeLabels:
+        include: []
+        exclude: []
+        recommendedExclusions: true
+      podLabels:
+        include: []
+        exclude: []
+        recommendedExclusions: true
     logs:
       ## Namespaces of application logs. Host logs are not filtered by namespace.
       namespaces:
         include: []
         exclude: []
+      ## Node and pod labels on logs. The include lists must match the metrics
+      ## include lists. Exclusions apply to application logs and, for node
+      ## labels, to host logs. recommendedExclusions is off by default so log
+      ## attributes are unchanged unless you opt in. Defaults to false when
+      ## unset.
+      nodeLabels:
+        include: []
+        exclude: []
+        recommendedExclusions: false
+      podLabels:
+        include: []
+        exclude: []
+        recommendedExclusions: false
