@@ -54,6 +54,39 @@ receivers:
                 - {{ include "kube-state-metrics.name" . }}.{{ .Release.Namespace }}.svc:{{ .Values.kubeStateMetrics.service.port }}
 {{- end }}
 
+{{- if and .Values.otelContainerInsights.solutions.enabled .Values.otelContainerInsights.solutions.knative.controlPlane.enabled }}
+  prometheus/cw_k8s_ci_v0_knative_controlplane:
+    config:
+      scrape_configs:
+        - job_name: knative-controlplane
+          scrape_interval: {{ .Values.otelContainerInsights.metricResolution }}
+          scrape_timeout: {{ include "otel-container-insights.scrapeTimeout" . }}
+          # These serve plain HTTP on the "metrics" port with no auth, unlike the
+          # KServe controller, so no scheme/tls/bearer here.
+          kubernetes_sd_configs:
+            - role: pod
+              namespaces:
+                names:
+                  - {{ .Values.otelContainerInsights.solutions.knative.controlPlane.namespace }}
+          relabel_configs:
+            # Fully anchored by Prometheus, so the net-istio-* pods are excluded.
+            - source_labels: [__meta_kubernetes_pod_label_app]
+              action: keep
+              regex: (autoscaler|activator|controller|webhook)
+            - source_labels: [__meta_kubernetes_pod_container_port_name]
+              action: keep
+              regex: metrics
+            - source_labels: [__meta_kubernetes_pod_label_app]
+              target_label: knative_component
+              action: replace
+            - source_labels: [__meta_kubernetes_pod_name]
+              target_label: pod
+            - source_labels: [__meta_kubernetes_namespace]
+              target_label: namespace
+            - source_labels: [__meta_kubernetes_pod_node_name]
+              target_label: node
+{{- end }}
+
 {{- if and .Values.otelContainerInsights.solutions.enabled .Values.otelContainerInsights.solutions.karpenter.enabled }}
   prometheus/cw_k8s_ci_v0_karpenter:
     config:
@@ -194,6 +227,104 @@ processors:
           - set(attributes["cloudwatch.source"], "cloudwatch-agent")
           - set(attributes["cloudwatch.solution"], "k8s-otel-container-insights")
           - set(attributes["cloudwatch.pipeline"], "kube-state-metrics")
+{{- end }}
+
+{{- if and .Values.otelContainerInsights.solutions.enabled .Values.otelContainerInsights.solutions.knative.controlPlane.enabled }}
+  # Drop runtime noise, keep the scaling decision, activator and reconcile
+  # families. Serving <= 1.18 emitted the runtime metrics per component
+  # (autoscaler_go_*), >= 1.19 emits them bare, so both patterns are needed --
+  # ".*_go_.*" does not match "go_*".
+  filter/cw_k8s_ci_v0_knative_controlplane_keep:
+    error_mode: ignore
+    metrics:
+      metric:
+        - 'IsMatch(name, ".*_go_.*")'
+        - 'IsMatch(name, "^go_.*")'
+        - 'IsMatch(name, "^process_.*")'
+        - 'IsMatch(name, "^promhttp_.*")'
+
+  transform/cw_k8s_ci_v0_set_scope_knative_controlplane:
+    error_mode: ignore
+    metric_statements:
+      - context: scope
+        statements:
+          - set(scope.name, "knative.dev/serving")
+          - set(scope.schema_url, "")
+          - set(attributes["cloudwatch.source"], "cloudwatch-agent")
+          - set(attributes["cloudwatch.solution"], "k8s-otel-container-insights")
+          - set(attributes["cloudwatch.pipeline"], "knative-controlplane")
+
+  groupbyattrs/cw_k8s_ci_v0_knative_controlplane:
+    keys:
+      - pod
+      - namespace
+      - node
+
+  transform/cw_k8s_ci_v0_knative_controlplane_promote:
+    error_mode: ignore
+    metric_statements:
+      - context: resource
+        statements:
+          - set(attributes["k8s.pod.name"], attributes["pod"]) where attributes["pod"] != nil
+          - set(attributes["k8s.namespace.name"], attributes["namespace"]) where attributes["namespace"] != nil
+          - set(attributes["k8s.node.name"], attributes["node"]) where attributes["node"] != nil
+          - delete_key(attributes, "net.host.name") where attributes["net.host.name"] != nil
+          - delete_key(attributes, "net.host.port") where attributes["net.host.port"] != nil
+          - delete_key(attributes, "url.scheme") where attributes["url.scheme"] != nil
+      - context: datapoint
+        statements:
+          - set(attributes["pod"], resource.attributes["pod"]) where resource.attributes["pod"] != nil
+          - set(attributes["namespace"], resource.attributes["namespace"]) where resource.attributes["namespace"] != nil
+          - set(attributes["node"], resource.attributes["node"]) where resource.attributes["node"] != nil
+
+  # Cloud-level attributes only, as for Karpenter and KEDA: this pipeline runs
+  # on the cluster-scraper, so host and AZ would describe its node, not the target's.
+  resourcedetection/cw_k8s_ci_v0_knative_controlplane:
+    {{- if eq .Values.k8sMode "AKS" }}
+    detectors: [aks, azure]
+    aks:
+      resource_attributes:
+        cloud.platform: { enabled: true }
+        cloud.provider: { enabled: true }
+        k8s.cluster.name: { enabled: false }
+    azure:
+      resource_attributes:
+        azure.resourcegroup.name: { enabled: true }
+        azure.vm.name: { enabled: false }
+        azure.vm.scaleset.name: { enabled: false }
+        azure.vm.size: { enabled: false }
+        cloud.account.id: { enabled: true }
+        cloud.platform: { enabled: true }
+        cloud.provider: { enabled: true }
+        cloud.region: { enabled: true }
+        host.id: { enabled: false }
+        host.name: { enabled: false }
+    {{- else if eq .Values.k8sMode "GKE" }}
+    detectors: [gcp]
+    gcp:
+      resource_attributes:
+        cloud.account.id: { enabled: true }
+        cloud.availability_zone: { enabled: true }
+        cloud.platform: { enabled: true }
+        cloud.provider: { enabled: true }
+        cloud.region: { enabled: true }
+        host.id: { enabled: false }
+        host.name: { enabled: false }
+        k8s.cluster.name: { enabled: false }
+    {{- else }}
+    detectors: [eks, ec2]
+    ec2:
+      resource_attributes:
+        host.id: { enabled: false }
+        host.type: { enabled: false }
+        host.name: { enabled: false }
+        host.image.id: { enabled: false }
+        cloud.provider: { enabled: true }
+        cloud.platform: { enabled: true }
+        cloud.region: { enabled: true }
+        cloud.availability_zone: { enabled: false }
+        cloud.account.id: { enabled: true }
+    {{- end }}
 {{- end }}
 
 {{- if and .Values.otelContainerInsights.solutions.enabled .Values.otelContainerInsights.solutions.karpenter.enabled }}
@@ -702,6 +833,30 @@ service:
       exporters:
         - otlphttp/cw_k8s_ci_v0_cwotel
 {{- end }}
+
+{{- if and .Values.otelContainerInsights.solutions.enabled .Values.otelContainerInsights.solutions.knative.controlPlane.enabled }}
+    metrics/cw_k8s_ci_v0_knative_controlplane:
+      receivers: [prometheus/cw_k8s_ci_v0_knative_controlplane]
+      processors:
+        - filter/cw_k8s_ci_v0_scrape_metadata
+        - filter/cw_k8s_ci_v0_knative_controlplane_keep
+        - transform/cw_k8s_ci_v0_set_unit
+        - metricstarttime/cw_k8s_ci_v0
+        - transform/cw_k8s_ci_v0_set_scope_knative_controlplane
+        - transform/cw_k8s_ci_v0_set_cluster_name
+        - groupbyattrs/cw_k8s_ci_v0_knative_controlplane
+        - transform/cw_k8s_ci_v0_knative_controlplane_promote
+        - k8sattributes/cw_k8s_ci_v0_pod
+        - transform/cw_k8s_ci_v0_set_workload
+        - resourcedetection/cw_k8s_ci_v0_knative_controlplane
+        - transform/cw_k8s_ci_v0_clear_schema_url
+        - transform/cw_k8s_ci_v0_set_cloud_resource_id
+        - awsattributelimit/cw_k8s_ci_v0
+        - batch/cw_k8s_ci_v0_cwotel
+      exporters:
+        - otlphttp/cw_k8s_ci_v0_cwotel
+{{- end }}
+
 {{- if and .Values.otelContainerInsights.solutions.enabled .Values.otelContainerInsights.solutions.karpenter.enabled }}
     metrics/cw_k8s_ci_v0_karpenter:
       receivers: [prometheus/cw_k8s_ci_v0_karpenter]
