@@ -1250,7 +1250,9 @@ otelContainerInsights:
       ##   logs share the collection, so the logs include lists must match.
       ## - exclude: labels removed from metrics after collection.
       ## - recommendedExclusions: also removes a built-in list of
-      ##   high-cardinality labels (topology, hostname, instance type, ...).
+      ##   high-cardinality labels (topology, hostname, instance type,
+      ##   Karpenter and EKS Auto Mode instance labels, controller revision
+      ##   markers, ...).
       ##   On by default for metrics, matching the labels removed before
       ##   these filters existed. Defaults to true when unset.
       nodeLabels:

@@ -319,13 +319,16 @@ check_fails "Invalid filters — not a map" '[]' "otelContainerInsights.filters 
 LOGS_LABELS="transform/cw_k8s_ci_v0_logs_labels"
 
 # Expected processor blocks. The recommended exclusions are the
-# awsattributelimit removal lists before label filters were added.
+# awsattributelimit removal lists before label filters were added, plus
+# the Karpenter, EKS Auto Mode and pod-label additions from #383.
 LABEL_BLOCKS="
 RECOMMENDED_PREFIXES = [
     'k8s.node.label.feature.node.kubernetes.io/',
     'k8s.node.label.beta.kubernetes.io/',
     'k8s.node.label.failure-domain.beta.kubernetes.io/',
     'k8s.node.label.alpha.eksctl.io/',
+    'k8s.node.label.karpenter.k8s.aws/instance-',
+    'k8s.node.label.eks.amazonaws.com/instance-',
 ]
 RECOMMENDED_NODE_KEYS = [
     'k8s.node.label.topology.kubernetes.io/region',
@@ -339,10 +342,16 @@ RECOMMENDED_NODE_KEYS = [
     'k8s.node.label.k8s.io/cloud-provider-aws',
     'k8s.node.label.eks.amazonaws.com/sourceLaunchTemplateId',
     'k8s.node.label.eks.amazonaws.com/sourceLaunchTemplateVersion',
+    'k8s.node.label.karpenter.sh/do-not-sync-taints',
+    'k8s.node.label.karpenter.sh/initialized',
+    'k8s.node.label.karpenter.sh/registered',
 ]
 RECOMMENDED_POD_KEYS = [
     'k8s.pod.label.pod-template-hash',
     'k8s.pod.label.controller-revision-hash',
+    'k8s.pod.label.pod-template-generation',
+    'k8s.pod.label.topology.kubernetes.io/region',
+    'k8s.pod.label.topology.kubernetes.io/zone',
 ]
 RECOMMENDED_KEYS = RECOMMENDED_NODE_KEYS + RECOMMENDED_POD_KEYS
 
