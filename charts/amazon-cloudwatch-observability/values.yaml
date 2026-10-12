@@ -839,6 +839,17 @@ dcgmExporter:
   ## Override root tolerations
   # tolerations: []
   configmap: dcgm-exporter-config-map
+  # dcgm-exporter metrics CSV that replaces the default list. Pass it with --set-file or a values file.
+  # When set, metricsConfigFrom is not used.
+  metricsConfig: ""
+  # ConfigMap in the release namespace holding a metrics CSV that replaces the default list. If the
+  # ConfigMap or key does not exist or is empty, the default list is used. With optional: false, the
+  # metrics already applied are kept instead. Set name to "" to use only the default list.
+  metricsConfigFrom:
+    configMapKeyRef:
+      name: dcgm-exporter-metrics-config
+      key: dcp-metrics-included.csv
+      optional: true
   arguments:
     - --web-config-file=/etc/dcgm-exporter/web-config.yaml
   service:

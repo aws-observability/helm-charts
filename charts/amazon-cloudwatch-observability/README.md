@@ -151,6 +151,38 @@ spec:
 Port-level settings only take effect with a workload selector. The Knative control plane in
 `knative-serving` is not sidecar-injected by default.
 
+## DCGM exporter metrics
+
+dcgm-exporter collects the NVIDIA DCGM fields listed in its metrics CSV. By default this is the
+chart's built-in list, in the DcgmExporter template. The DcgmExporter also points at the optional
+ConfigMap `dcgm-exporter-metrics-config` in the release namespace. When that ConfigMap exists, its
+`dcp-metrics-included.csv` key replaces the built-in list, so Helm and EKS add-on users can bring
+their own list without changing any values:
+
+```bash
+kubectl -n amazon-cloudwatch create configmap dcgm-exporter-metrics-config \
+  --from-file=dcp-metrics-included.csv=./dcgm.csv
+```
+
+The CSV replaces the built-in list, so it lists every field to collect, defaults included. An
+invalid line stops dcgm-exporter. Editing the ConfigMap restarts the dcgm-exporter pods, and
+deleting it returns to the built-in list.
+
+With Helm, `--set-file dcgmExporter.metricsConfig=./dcgm.csv` sets the list inline instead, and
+`dcgmExporter.metricsConfigFrom.configMapKeyRef` selects another ConfigMap name or key. With
+`optional: false`, a missing ConfigMap keeps the metrics already applied.
+
+`helm upgrade` does not update the CRDs in `crds/`. Before you upgrade from a chart version without
+`metricsConfigFrom`, apply the new CRDs. Otherwise the API server drops the field from the
+DcgmExporter:
+
+```bash
+helm pull aws-observability/amazon-cloudwatch-observability --version <version> --untar
+kubectl apply --server-side --force-conflicts -f amazon-cloudwatch-observability/crds/
+```
+
+If you already upgraded, apply the CRDs and then run the same `helm upgrade` again with `--force`.
+
 ## Windows Support
 CloudWatch DaemonSet on Windows is officially supported only for containerd runtime.
 

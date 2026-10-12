@@ -91,6 +91,22 @@ cases = {
         {"containerLogs": {"fluentBit": {"configWindows": {"extraFiles": {"safe.conf": "[INPUT]\n  Name tail"}}}}},
         {"containerLogs": {"fluentBit": {"configWindows": {"extraFiles": {"safe.conf": injected("[INPUT]", "v1", "ConfigMap")}}}}},
     ),
+    "dcgm-metrics-config": pair(
+        {"dcgmExporter": {"metricsConfig": "DCGM_FI_DEV_GPU_UTIL, gauge, GPU utilization."}},
+        {"dcgmExporter": {"metricsConfig": injected("DCGM_FI_DEV_GPU_UTIL, gauge, GPU utilization.", "cloudwatch.aws.amazon.com/v1alpha1", "DcgmExporter")}},
+    ),
+    "dcgm-metrics-configmap-name": pair(
+        {"dcgmExporter": {"metricsConfigFrom": {"configMapKeyRef": {"name": "safe-dcgm"}}}},
+        {"dcgmExporter": {"metricsConfigFrom": {"configMapKeyRef": {"name": injected("safe-dcgm", "cloudwatch.aws.amazon.com/v1alpha1", "DcgmExporter")}}}},
+    ),
+    "dcgm-metrics-configmap-key": pair(
+        {"dcgmExporter": {"metricsConfigFrom": {"configMapKeyRef": {"key": "gpu.csv"}}}},
+        {"dcgmExporter": {"metricsConfigFrom": {"configMapKeyRef": {"key": injected("gpu.csv", "cloudwatch.aws.amazon.com/v1alpha1", "DcgmExporter")}}}},
+    ),
+    "dcgm-metrics-configmap-optional": pair(
+        {"dcgmExporter": {"metricsConfigFrom": {"configMapKeyRef": {"optional": False}}}},
+        {"dcgmExporter": {"metricsConfigFrom": {"configMapKeyRef": {"optional": injected("false", "cloudwatch.aws.amazon.com/v1alpha1", "DcgmExporter")}}}},
+    ),
 }
 
 for name, values in cases.items():
