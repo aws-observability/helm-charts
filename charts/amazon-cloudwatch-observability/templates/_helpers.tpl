@@ -391,6 +391,66 @@ Helper function to modify cloudwatch-agent config
 {{/*
 Helper function to modify customer supplied agent config if ContainerInsights or ApplicationSignals is enabled
 */}}
+{{/*
+The JSON config an agent entry resolves to, before modify-config. Accepts a dict with
+"agent" (the merged agent entry), "agentName" and "context". Returns JSON.
+*/}}
+{{- define "cloudwatch-agent.resolved-config" -}}
+{{- $agent := .agent -}}
+{{- if eq ($agent.config | toString) "default:otel" -}}
+{{- include "cloudwatch-agent.build-config-default-otel" (dict "agentName" .agentName "context" .context) -}}
+{{- else if and $agent.config (ne ($agent.config | toString) "default") -}}
+{{- if kindIs "string" $agent.config }}{{ $agent.config }}{{ else }}{{ $agent.config | toJson }}{{ end -}}
+{{- else -}}
+{{- include "cloudwatch-agent.build-default-config" (dict "agentName" .agentName "context" .context) -}}
+{{- end -}}
+{{- end -}}
+
+{{/*
+True when vLLM request traces should be collected.
+*/}}
+{{- define "otel-container-insights.vllmTracesEnabled" -}}
+{{- $s := .Values.otelContainerInsights.solutions -}}
+{{- if and .Values.otelContainerInsights.enabled $s.enabled (dig "vllm" "traces" "enabled" false $s) -}}true{{- end -}}
+{{- end -}}
+
+{{/*
+True when Knative request traces (activator and queue-proxy spans) should be collected. Gated
+on the Knative solution only, not on dataPlane: the activator runs in the control-plane namespace.
+*/}}
+{{- define "otel-container-insights.knativeTracesEnabled" -}}
+{{- $s := .Values.otelContainerInsights.solutions -}}
+{{- if and .Values.otelContainerInsights.enabled $s.enabled (dig "knative" "traces" "enabled" false $s) -}}true{{- end -}}
+{{- end -}}
+
+{{/*
+Model-serving traces are received by the agent's generic OTLP receiver. When vLLM or Knative
+traces are on, enable opentelemetry.collect.otlp on the agent that hosts the OTel Container
+Insights pipelines, listening on the pod network, with the vLLM workload enrichment when vLLM
+traces are on. Existing otlp settings are kept. Accepts a dict with "config" (dict),
+"agentName" and "context". Returns JSON.
+*/}}
+{{- define "cloudwatch-agent.with-llm-traces" -}}
+{{- $cfg := deepCopy .config -}}
+{{- $ctx := .context -}}
+{{- $vllm := include "otel-container-insights.vllmTracesEnabled" $ctx -}}
+{{- if and (eq .agentName $ctx.Values.otelContainerInsights.targetAgent) (or $vllm (include "otel-container-insights.knativeTracesEnabled" $ctx)) -}}
+{{- $otel := $cfg.opentelemetry | default dict -}}
+{{- $collect := $otel.collect | default dict -}}
+{{- $otlp := $collect.otlp | default dict -}}
+{{- $_ := set $otlp "grpc_endpoint" ($otlp.grpc_endpoint | default "0.0.0.0:4317") -}}
+{{- $_ := set $otlp "http_endpoint" ($otlp.http_endpoint | default "0.0.0.0:4318") -}}
+{{- if $vllm -}}
+{{- $_ := set $otlp "workloads" (append ($otlp.workloads | default list) "vllm" | uniq) -}}
+{{- end -}}
+{{- $_ := set $collect "otlp" $otlp -}}
+{{- $_ := set $otel "collect" $collect -}}
+{{- if not $otel.cluster_name -}}{{- $_ := set $otel "cluster_name" $ctx.Values.clusterName -}}{{- end -}}
+{{- $_ := set $cfg "opentelemetry" $otel -}}
+{{- end -}}
+{{- $cfg | toJson -}}
+{{- end -}}
+
 {{- define "cloudwatch-agent.modify-config" -}}
 {{- if and (hasKey .Config "logs") (or (and (hasKey .Config.logs "metrics_collected") (hasKey .Config.logs.metrics_collected "application_signals")) (and (hasKey .Config.logs "metrics_collected") (hasKey .Config.logs.metrics_collected "kubernetes"))) }}
 {{- include "cloudwatch-agent.config-modifier" . }}
