@@ -110,6 +110,45 @@ receivers:
               target_label: node
 {{- end }}
 
+{{- if and .Values.otelContainerInsights.solutions.enabled .Values.otelContainerInsights.solutions.kserve.controlPlane.enabled }}
+  prometheus/cw_k8s_ci_v0_kserve_controlplane:
+    config:
+      scrape_configs:
+        - job_name: kserve-controlplane
+          scrape_interval: {{ .Values.otelContainerInsights.metricResolution }}
+          scrape_timeout: {{ include "otel-container-insights.scrapeTimeout" . }}
+          scheme: https
+          # The plain metrics bind to 127.0.0.1:8080, so they are only reachable via
+          # the kube-rbac-proxy on :8443, which serves a self-signed cert.
+          tls_config:
+            insecure_skip_verify: true
+          bearer_token_file: /var/run/secrets/kubernetes.io/serviceaccount/token
+          metrics_path: /metrics
+          # Found by label like Karpenter and KEDA, so a cluster without KServe
+          # discovers nothing rather than failing a fixed Service address.
+          kubernetes_sd_configs:
+            - role: pod
+              namespaces:
+                names:
+                  - {{ .Values.otelContainerInsights.solutions.kserve.controlPlane.namespace }}
+              selectors:
+                - role: pod
+                  label: control-plane=kserve-controller-manager
+          relabel_configs:
+            - source_labels: [__meta_kubernetes_pod_container_port_number]
+              regex: "8443"
+              action: keep
+            - source_labels: [__meta_kubernetes_pod_phase]
+              regex: Running
+              action: keep
+            - source_labels: [__meta_kubernetes_pod_name]
+              target_label: pod
+            - source_labels: [__meta_kubernetes_namespace]
+              target_label: namespace
+            - source_labels: [__meta_kubernetes_pod_node_name]
+              target_label: node
+{{- end }}
+
 processors:
   filter/cw_k8s_ci_v0_scrape_metadata:
     error_mode: ignore
@@ -328,6 +367,100 @@ processors:
           - set(attributes["node"], resource.attributes["node"]) where resource.attributes["node"] != nil
 
   resourcedetection/cw_k8s_ci_v0_keda:
+    {{- if eq .Values.k8sMode "AKS" }}
+    detectors: [aks, azure]
+    aks:
+      resource_attributes:
+        cloud.platform: { enabled: true }
+        cloud.provider: { enabled: true }
+        k8s.cluster.name: { enabled: false }
+    azure:
+      resource_attributes:
+        azure.resourcegroup.name: { enabled: true }
+        azure.vm.name: { enabled: false }
+        azure.vm.scaleset.name: { enabled: false }
+        azure.vm.size: { enabled: false }
+        cloud.account.id: { enabled: true }
+        cloud.platform: { enabled: true }
+        cloud.provider: { enabled: true }
+        cloud.region: { enabled: true }
+        host.id: { enabled: false }
+        host.name: { enabled: false }
+    {{- else if eq .Values.k8sMode "GKE" }}
+    detectors: [gcp]
+    gcp:
+      resource_attributes:
+        cloud.account.id: { enabled: true }
+        cloud.availability_zone: { enabled: true }
+        cloud.platform: { enabled: true }
+        cloud.provider: { enabled: true }
+        cloud.region: { enabled: true }
+        host.id: { enabled: false }
+        host.name: { enabled: false }
+        k8s.cluster.name: { enabled: false }
+    {{- else }}
+    detectors: [eks, ec2]
+    ec2:
+      resource_attributes:
+        host.id: { enabled: false }
+        host.type: { enabled: false }
+        host.name: { enabled: false }
+        host.image.id: { enabled: false }
+        cloud.provider: { enabled: true }
+        cloud.platform: { enabled: true }
+        cloud.region: { enabled: true }
+        cloud.availability_zone: { enabled: false }
+        cloud.account.id: { enabled: true }
+    {{- end }}
+{{- end }}
+
+{{- if and .Values.otelContainerInsights.solutions.enabled .Values.otelContainerInsights.solutions.kserve.controlPlane.enabled }}
+  # Keep the operator's reconcile and leader-election families. workqueue_* and
+  # rest_client_* are client-go's, which the apiserver pipeline already owns under
+  # its own scope; dropped for the same reason as in filter/cw_k8s_ci_v0_keda_drop_non_keda.
+  filter/cw_k8s_ci_v0_kserve_controlplane_keep:
+    error_mode: ignore
+    metrics:
+      metric:
+        - 'not IsMatch(name, "^(controller_runtime_|leader_election_).*")'
+
+  transform/cw_k8s_ci_v0_set_scope_kserve_controlplane:
+    error_mode: ignore
+    metric_statements:
+      - context: scope
+        statements:
+          - set(scope.name, "github.com/kserve/kserve")
+          - set(scope.schema_url, "")
+          - set(attributes["cloudwatch.source"], "cloudwatch-agent")
+          - set(attributes["cloudwatch.solution"], "k8s-otel-container-insights")
+          - set(attributes["cloudwatch.pipeline"], "kserve-controlplane")
+
+  groupbyattrs/cw_k8s_ci_v0_kserve_controlplane:
+    keys:
+      - pod
+      - namespace
+      - node
+
+  transform/cw_k8s_ci_v0_kserve_controlplane_promote:
+    error_mode: ignore
+    metric_statements:
+      - context: resource
+        statements:
+          - set(attributes["k8s.pod.name"], attributes["pod"]) where attributes["pod"] != nil
+          - set(attributes["k8s.namespace.name"], attributes["namespace"]) where attributes["namespace"] != nil
+          - set(attributes["k8s.node.name"], attributes["node"]) where attributes["node"] != nil
+          - delete_key(attributes, "net.host.name") where attributes["net.host.name"] != nil
+          - delete_key(attributes, "net.host.port") where attributes["net.host.port"] != nil
+          - delete_key(attributes, "url.scheme") where attributes["url.scheme"] != nil
+      - context: datapoint
+        statements:
+          - set(attributes["pod"], resource.attributes["pod"]) where resource.attributes["pod"] != nil
+          - set(attributes["namespace"], resource.attributes["namespace"]) where resource.attributes["namespace"] != nil
+          - set(attributes["node"], resource.attributes["node"]) where resource.attributes["node"] != nil
+
+  # Cloud-level attributes only, as for Karpenter and KEDA: this pipeline runs
+  # on the cluster-scraper, so host and AZ would describe its node, not the target's.
+  resourcedetection/cw_k8s_ci_v0_kserve_controlplane:
     {{- if eq .Values.k8sMode "AKS" }}
     detectors: [aks, azure]
     aks:
@@ -745,5 +878,29 @@ service:
       exporters:
         - otlphttp/cw_k8s_ci_v0_cwotel
 {{- end }}
+
+{{- if and .Values.otelContainerInsights.solutions.enabled .Values.otelContainerInsights.solutions.kserve.controlPlane.enabled }}
+    metrics/cw_k8s_ci_v0_kserve_controlplane:
+      receivers: [prometheus/cw_k8s_ci_v0_kserve_controlplane]
+      processors:
+        - filter/cw_k8s_ci_v0_scrape_metadata
+        - filter/cw_k8s_ci_v0_kserve_controlplane_keep
+        - transform/cw_k8s_ci_v0_set_unit
+        - metricstarttime/cw_k8s_ci_v0
+        - transform/cw_k8s_ci_v0_set_scope_kserve_controlplane
+        - transform/cw_k8s_ci_v0_set_cluster_name
+        - groupbyattrs/cw_k8s_ci_v0_kserve_controlplane
+        - transform/cw_k8s_ci_v0_kserve_controlplane_promote
+        - k8sattributes/cw_k8s_ci_v0_pod
+        - transform/cw_k8s_ci_v0_set_workload
+        - resourcedetection/cw_k8s_ci_v0_kserve_controlplane
+        - transform/cw_k8s_ci_v0_clear_schema_url
+        - transform/cw_k8s_ci_v0_set_cloud_resource_id
+        - awsattributelimit/cw_k8s_ci_v0
+        - batch/cw_k8s_ci_v0_cwotel
+      exporters:
+        - otlphttp/cw_k8s_ci_v0_cwotel
+{{- end }}
+
 {{- end -}}
 
