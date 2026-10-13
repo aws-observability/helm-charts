@@ -7,9 +7,9 @@ HELM=helm
 GOIMPORTS = $(TOOLS_BIN_DIR)/goimports
 LINTER = $(TOOLS_BIN_DIR)/golangci-lint
 
-.PHONY: all deps tidy helm-lint helm-flag-matrix helm-yaml-injection helm-neuron-shape helm-kserve-shape helm-vllm-shape check_secrets fmt lint install-goimports install-golangci-lint
+.PHONY: all deps tidy helm-lint helm-flag-matrix helm-yaml-injection helm-neuron-shape helm-kserve-shape helm-vllm-shape helm-karpenter-shape check_secrets fmt lint install-goimports install-golangci-lint
 
-all: deps tidy check_secrets fmt lint helm-lint helm-flag-matrix helm-yaml-injection helm-neuron-shape helm-kserve-shape helm-vllm-shape
+all: deps tidy check_secrets fmt lint helm-lint helm-flag-matrix helm-yaml-injection helm-neuron-shape helm-kserve-shape helm-vllm-shape helm-karpenter-shape
 
 install-goimports:
 	GOBIN=$(TOOLS_BIN_DIR) go install golang.org/x/tools/cmd/goimports@latest
@@ -52,3 +52,6 @@ helm-kserve-shape:
 
 helm-vllm-shape:
 	bash charts/amazon-cloudwatch-observability/tests/vllm_pipeline_shape.sh
+
+helm-karpenter-shape:
+	bash charts/amazon-cloudwatch-observability/tests/karpenter_pipeline_shape.sh

@@ -247,6 +247,15 @@ processors:
           - set(attributes["cloudwatch.solution"], "k8s-otel-container-insights")
           - set(attributes["cloudwatch.pipeline"], "karpenter")
 
+  # Drop generic client-go / control-plane metrics that Karpenter's Go runtime exposes.
+  # These conflict with the apiserver pipeline which owns them with a different scope.
+  # Same set as filter/cw_k8s_ci_v0_keda_drop_non_keda.
+  filter/cw_k8s_ci_v0_karpenter_drop_non_karpenter:
+    error_mode: ignore
+    metrics:
+      metric:
+        - IsMatch(name, "^(rest_client_.*|apiserver_.*|workqueue_.*|process_.*|go_.*)$")
+
   # Promote scraped pod/namespace/node labels to OTel K8s resource attributes.
   # This allows the shared k8sattributes processor to enrich with deployment/workload info.
   groupbyattrs/cw_k8s_ci_v0_karpenter:
@@ -840,6 +849,7 @@ service:
       receivers: [prometheus/cw_k8s_ci_v0_karpenter]
       processors:
         - filter/cw_k8s_ci_v0_scrape_metadata
+        - filter/cw_k8s_ci_v0_karpenter_drop_non_karpenter
         - transform/cw_k8s_ci_v0_set_unit
         - metricstarttime/cw_k8s_ci_v0
         - transform/cw_k8s_ci_v0_set_scope_karpenter
