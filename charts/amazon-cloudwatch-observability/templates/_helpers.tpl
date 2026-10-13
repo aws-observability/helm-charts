@@ -335,6 +335,7 @@ Logic:
 {{- if not (kindIs "bool" .Values.otelContainerInsights.logs.enabled) }}
 {{- fail "otelContainerInsights.logs.enabled must be a boolean (true/false)" }}
 {{- end }}
+{{- include "otel-container-insights.validate-filters" . }}
 {{- end -}}
 
 {{- define "cloudwatch-agent.build-default-otel-config" -}}
