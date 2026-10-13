@@ -63,6 +63,10 @@ data:
 
 {{- $clusterName := .Values.clusterName | required ".Values.clusterName is required." -}}
 {{- $region := .Values.region | required ".Values.region is required." -}}
+{{- /* Validate the chart's added flags (selfTelemetry.enabled, watchReplicaset toggles, self-telemetry
+       port uniqueness) once per render, before the agent loop, so bad input fails regardless of which
+       pipelines are enabled. Pre-existing flag checks stay in validate-flags via build-default-otel-config. */ -}}
+{{- include "cloudwatch-agent.validate-new-flags" $ -}}
 {{- $isROSA := eq $.Values.k8sMode "ROSA" -}}
 {{- $isAKS := eq $.Values.k8sMode "AKS" -}}
 {{- $isGKE := eq $.Values.k8sMode "GKE" -}}
@@ -122,11 +126,11 @@ spec:
   {{- end }}
   hostNetwork: {{ $agent.hostNetwork }}
   {{- if eq ($agent.config | toString) "default:otel" }}
-  config: {{ include "cloudwatch-agent.modify-config" (merge (dict "Config" (include "cloudwatch-agent.build-config-default-otel" (dict "agentName" $agentName "context" $) | fromJson)) $ ) }}
+  config: {{ include "cloudwatch-agent.modify-config" (merge (dict "Config" (include "cloudwatch-agent.build-config-default-otel" (dict "agentName" $agentName "context" $) | fromJson) "agentName" $agentName) $ ) }}
   {{- else if and $agent.config (ne ($agent.config | toString) "default") }}
-  config: {{ include "cloudwatch-agent.modify-config" (merge (dict "Config" $agent.config) $ ) }}
+  config: {{ include "cloudwatch-agent.modify-config" (merge (dict "Config" $agent.config "agentName" $agentName) $ ) }}
   {{- else }}
-  config: {{ include "cloudwatch-agent.modify-config" (merge (dict "Config" (include "cloudwatch-agent.build-default-config" (dict "agentName" $agentName "context" $) | fromJson)) $ ) }}
+  config: {{ include "cloudwatch-agent.modify-config" (merge (dict "Config" (include "cloudwatch-agent.build-default-config" (dict "agentName" $agentName "context" $) | fromJson) "agentName" $agentName) $ ) }}
   {{- end }}
   {{- $generatedOtelConfig := include "cloudwatch-agent.build-default-otel-config" (dict "agentName" $agentName "context" $) -}}
   {{- if $agent.otelConfig }}
