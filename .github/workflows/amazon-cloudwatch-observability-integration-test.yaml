@@ -39,6 +39,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     strategy:
+      fail-fast: false
       matrix:
         # TODO: add webhooks-disabled
         # Keep sorted alphabetically.
@@ -104,15 +105,28 @@ jobs:
           terraform_version: "1.1.7"
 
       - name: Run scenario test
-        run: |
-          cd integration-tests/amazon-cloudwatch-observability/terraform/minikube/scenarios/${{ matrix.scenario }}
-          terraform init
-          terraform apply -auto-approve
-          terraform destroy -auto-approve
+        uses: nick-fields/retry@14672906e672a08bd6eeb15720e9ed3ce869cdd4 # v2.9.0
+        with:
+          max_attempts: 2
+          timeout_minutes: 10
+          retry_wait_seconds: 5
+          on_retry_command: |
+            kubectl get pods -A -o wide || true
+            kubectl get events -A --sort-by=.lastTimestamp | tail -50 || true
+            cd integration-tests/amazon-cloudwatch-observability/terraform/minikube/scenarios/${{ matrix.scenario }}
+            terraform destroy -auto-approve || true
+          command: |
+            cd integration-tests/amazon-cloudwatch-observability/terraform/minikube/scenarios/${{ matrix.scenario }}
+            terraform init
+            terraform apply -auto-approve
+            terraform destroy -auto-approve
 
       - name: Cleanup on failure
         if: ${{ cancelled() || failure() }}
         run: |
+          kubectl get pods -A -o wide || true
+          kubectl describe pods -n amazon-cloudwatch || true
+          kubectl get events -A --sort-by=.lastTimestamp | tail -100 || true
           cd integration-tests/amazon-cloudwatch-observability/terraform/minikube/scenarios/${{ matrix.scenario }}
           terraform destroy -auto-approve || true
 
