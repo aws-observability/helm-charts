@@ -7,9 +7,9 @@ HELM=helm
 GOIMPORTS = $(TOOLS_BIN_DIR)/goimports
 LINTER = $(TOOLS_BIN_DIR)/golangci-lint
 
-.PHONY: all deps tidy helm-lint helm-flag-matrix helm-yaml-injection helm-neuron-shape helm-kserve-shape helm-vllm-shape helm-knative-shape helm-otel-ci-filters helm-availability-zone helm-dcgm-metrics-csv check_secrets fmt lint install-goimports install-golangci-lint
+.PHONY: all deps tidy helm-lint helm-flag-matrix helm-yaml-injection helm-neuron-shape helm-kserve-shape helm-vllm-shape helm-knative-shape helm-otel-ci-filters helm-availability-zone helm-dcgm-metrics-csv helm-prometheus-attribute-shape check_secrets fmt lint install-goimports install-golangci-lint
 
-all: deps tidy check_secrets fmt lint helm-lint helm-flag-matrix helm-yaml-injection helm-neuron-shape helm-kserve-shape helm-vllm-shape helm-knative-shape helm-otel-ci-filters helm-availability-zone helm-dcgm-metrics-csv
+all: deps tidy check_secrets fmt lint helm-lint helm-flag-matrix helm-yaml-injection helm-neuron-shape helm-kserve-shape helm-vllm-shape helm-knative-shape helm-otel-ci-filters helm-availability-zone helm-dcgm-metrics-csv helm-prometheus-attribute-shape
 
 install-goimports:
 	GOBIN=$(TOOLS_BIN_DIR) go install golang.org/x/tools/cmd/goimports@latest
@@ -64,3 +64,6 @@ helm-availability-zone:
 
 helm-dcgm-metrics-csv:
 	bash charts/amazon-cloudwatch-observability/tests/dcgm_metrics_csv.sh
+
+helm-prometheus-attribute-shape:
+	bash charts/amazon-cloudwatch-observability/tests/prometheus_attribute_shape.sh
