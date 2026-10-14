@@ -303,6 +303,17 @@ processors:
       metric:
         - IsMatch(name, "^(up|scrape_duration_seconds|scrape_samples_scraped|scrape_samples_post_metric_relabeling|scrape_series_added|node_scrape_collector_duration_seconds|node_scrape_collector_success)$")
 
+  # Drop receiver-injected deprecated semconv attributes; their current-spelling
+  # twins (server.address, server.port, url.scheme) carry the same values and stay.
+  transform/cw_k8s_ci_v0_drop_deprecated_semconv:
+    error_mode: ignore
+    metric_statements:
+      - context: resource
+        statements:
+          - delete_key(attributes, "net.host.name") where attributes["net.host.name"] != nil
+          - delete_key(attributes, "net.host.port") where attributes["net.host.port"] != nil
+          - delete_key(attributes, "http.scheme") where attributes["http.scheme"] != nil
+
   transform/cw_k8s_ci_v0_set_unit:
     error_mode: ignore
     metric_statements:
@@ -737,6 +748,13 @@ processors:
           - set(attributes["container"], resource.attributes["container"]) where resource.attributes["container"] != nil
           - set(attributes["pod"], resource.attributes["pod"]) where resource.attributes["pod"] != nil
           - set(attributes["namespace"], resource.attributes["namespace"]) where resource.attributes["namespace"] != nil
+      # Drop the resource-level raw copies; the datapoint block above already copied
+      # them down. Must run after it — statement groups execute in declaration order.
+      - context: resource
+        statements:
+          - delete_key(attributes, "container") where attributes["container"] != nil
+          - delete_key(attributes, "pod") where attributes["pod"] != nil
+          - delete_key(attributes, "namespace") where attributes["namespace"] != nil
 
   {{- if .Values.dcgmExporter.enabled }}
   groupbyattrs/cw_k8s_ci_v0_dcgm:
@@ -763,6 +781,13 @@ processors:
           # Clean up leftover datapoint attributes not needed downstream.
           - delete_key(attributes, "Hostname") where attributes["Hostname"] != nil
           - delete_key(attributes, "pci_bus_id") where attributes["pci_bus_id"] != nil
+      # Drop the resource-level raw copies; the datapoint block above already copied
+      # them down. Must run after it — statement groups execute in declaration order.
+      - context: resource
+        statements:
+          - delete_key(attributes, "pod") where attributes["pod"] != nil
+          - delete_key(attributes, "namespace") where attributes["namespace"] != nil
+          - delete_key(attributes, "container") where attributes["container"] != nil
   {{- end }}
 
   {{- if .Values.neuronMonitor.enabled }}
@@ -1019,6 +1044,7 @@ service:
       receivers: [prometheus/cw_k8s_ci_v0_node_exporter]
       processors:
         - filter/cw_k8s_ci_v0_scrape_metadata
+        - transform/cw_k8s_ci_v0_drop_deprecated_semconv
         - transform/cw_k8s_ci_v0_set_unit
         - metricstarttime/cw_k8s_ci_v0
         - transform/cw_k8s_ci_v0_set_cluster_name
@@ -1040,6 +1066,7 @@ service:
       receivers: [prometheus/cw_k8s_ci_v0_cadvisor]
       processors:
         - filter/cw_k8s_ci_v0_scrape_metadata
+        - transform/cw_k8s_ci_v0_drop_deprecated_semconv
         - transform/cw_k8s_ci_v0_set_unit
         - metricstarttime/cw_k8s_ci_v0
         - transform/cw_k8s_ci_v0_set_cluster_name
@@ -1065,7 +1092,7 @@ service:
     {{- if .Values.dcgmExporter.enabled }}
     metrics/cw_k8s_ci_v0_dcgm:
       receivers: [prometheus/cw_k8s_ci_v0_dcgm]
-      processors: [filter/cw_k8s_ci_v0_scrape_metadata, transform/cw_k8s_ci_v0_set_unit, metricstarttime/cw_k8s_ci_v0, transform/cw_k8s_ci_v0_set_cluster_name, groupbyattrs/cw_k8s_ci_v0_dcgm, transform/cw_k8s_ci_v0_dcgm_promote, k8sattributes/cw_k8s_ci_v0_pod, transform/cw_k8s_ci_v0_set_node_name, transform/cw_k8s_ci_v0_promote_node_name, k8sattributes/cw_k8s_ci_v0_node, resourcedetection/cw_k8s_ci_v0, transform/cw_k8s_ci_v0_set_scope_dcgm, transform/cw_k8s_ci_v0_clear_schema_url, transform/cw_k8s_ci_v0_set_cloud_resource_id, transform/cw_k8s_ci_v0_set_workload, awsattributelimit/cw_k8s_ci_v0, batch/cw_k8s_ci_v0_metrics_dest]
+      processors: [filter/cw_k8s_ci_v0_scrape_metadata, transform/cw_k8s_ci_v0_drop_deprecated_semconv, transform/cw_k8s_ci_v0_set_unit, metricstarttime/cw_k8s_ci_v0, transform/cw_k8s_ci_v0_set_cluster_name, groupbyattrs/cw_k8s_ci_v0_dcgm, transform/cw_k8s_ci_v0_dcgm_promote, k8sattributes/cw_k8s_ci_v0_pod, transform/cw_k8s_ci_v0_set_node_name, transform/cw_k8s_ci_v0_promote_node_name, k8sattributes/cw_k8s_ci_v0_node, resourcedetection/cw_k8s_ci_v0, transform/cw_k8s_ci_v0_set_scope_dcgm, transform/cw_k8s_ci_v0_clear_schema_url, transform/cw_k8s_ci_v0_set_cloud_resource_id, transform/cw_k8s_ci_v0_set_workload, awsattributelimit/cw_k8s_ci_v0, batch/cw_k8s_ci_v0_metrics_dest]
       exporters:
         - otlphttp/cw_k8s_ci_v0_metrics_dest
     {{- end }}
@@ -1075,6 +1102,7 @@ service:
       receivers: [prometheus/cw_k8s_ci_v0_neuron]
       processors:
         - filter/cw_k8s_ci_v0_scrape_metadata
+        - transform/cw_k8s_ci_v0_drop_deprecated_semconv
         - metricstarttime/cw_k8s_ci_v0
         - transform/cw_k8s_ci_v0_set_cluster_name
         - filter/cw_k8s_ci_v0_neuron
@@ -1125,6 +1153,7 @@ service:
       receivers: [prometheus/cw_k8s_ci_v0_ebs_csi_node]
       processors:
         - filter/cw_k8s_ci_v0_scrape_metadata
+        - transform/cw_k8s_ci_v0_drop_deprecated_semconv
         - transform/cw_k8s_ci_v0_set_unit
         - metricstarttime/cw_k8s_ci_v0
         - transform/cw_k8s_ci_v0_set_cluster_name
@@ -1172,6 +1201,7 @@ service:
       receivers: [prometheus/cw_k8s_ci_v0_lis_csi_node]
       processors:
         - filter/cw_k8s_ci_v0_scrape_metadata
+        - transform/cw_k8s_ci_v0_drop_deprecated_semconv
         - transform/cw_k8s_ci_v0_set_unit
         - metricstarttime/cw_k8s_ci_v0
         - transform/cw_k8s_ci_v0_set_cluster_name
