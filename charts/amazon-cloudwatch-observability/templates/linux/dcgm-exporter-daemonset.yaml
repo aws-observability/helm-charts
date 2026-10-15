@@ -1,4 +1,8 @@
 {{- if .Values.dcgmExporter.enabled }}
+{{- $dcgmAffinity := .Values.dcgmExporter.affinity -}}
+{{- if eq .Values.k8sMode "AKS" -}}
+{{- $dcgmAffinity = .Values.dcgmExporter.affinityAKS -}}
+{{- end }}
 apiVersion: cloudwatch.aws.amazon.com/v1alpha1
 kind: DcgmExporter
 metadata:
@@ -13,7 +17,7 @@ spec:
   nodeSelector: {{- toYaml . | nindent 4 }}
   {{- end }}
   serviceAccount: {{ template "dcgm-exporter.serviceAccountName" . }}
-  {{- with .Values.dcgmExporter.affinity }}
+  {{- with $dcgmAffinity }}
   affinity: {{- toYaml . | nindent 4 }}
   {{- end }}
   {{- with .Values.dcgmExporter.resources }}
