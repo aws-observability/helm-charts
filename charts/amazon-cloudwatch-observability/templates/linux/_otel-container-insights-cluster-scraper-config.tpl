@@ -733,6 +733,20 @@ processors:
       - sources:
           - from: resource_attribute
             name: k8s.node.name
+
+  # Only nodemetadataenricher sets host.id here, so an AZ without it is the scraper's (GKE keeps it for
+  # cloud.resource_id). Except on AKS, a pod's topology zone label (copied from its node) is its AZ.
+  transform/cw_k8s_ci_v0_ksm_zone:
+    error_mode: ignore
+    metric_statements:
+      - context: resource
+        statements:
+          {{- if ne .Values.k8sMode "GKE" }}
+          - delete_key(attributes, "cloud.availability_zone") where attributes["host.id"] == nil
+          {{- end }}
+          {{- if ne .Values.k8sMode "AKS" }}
+          - set(attributes["cloud.availability_zone"], attributes["k8s.pod.label.topology.kubernetes.io/zone"]) where attributes["k8s.pod.label.topology.kubernetes.io/zone"] != nil
+          {{- end }}
 {{- end }}
 
   k8sattributes/cw_k8s_ci_v0_pod:
@@ -958,6 +972,7 @@ service:
         - nodemetadataenricher/cw_k8s_ci_v0
         - transform/cw_k8s_ci_v0_clear_schema_url
         - transform/cw_k8s_ci_v0_set_cloud_resource_id
+        - transform/cw_k8s_ci_v0_ksm_zone
         - awsattributelimit/cw_k8s_ci_v0
         - batch/cw_k8s_ci_v0_cwotel
       exporters:
