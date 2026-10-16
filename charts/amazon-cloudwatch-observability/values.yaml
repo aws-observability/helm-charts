@@ -819,6 +819,7 @@ agent:
         enabled: false
 dcgmExporter:
   enabled: true
+  enableDRACorrelation: true
   name:
   image:
     repository: dcgm-exporter
@@ -1189,6 +1190,14 @@ applicationSignals:
 ##
 otelContainerInsights:
   enabled: false
+  ## Correlate DRA-allocated devices to pods on the OTEL metrics path: EFA (dra.net)
+  ## and Neuron (neuron.aws.com), via the agent's awsdevicepodcorrelation processor.
+  ## Requires Kubernetes 1.34+ (the GA resource.k8s.io/v1 DRA API). When false, the
+  ## agent config omits dra_device_types and the agent attempts no ResourceSlice/
+  ## ResourceClaim access — set it false on clusters older than 1.34 or not using DRA.
+  ## GPU DRA correlation is separate and controlled by dcgmExporter.enableDRACorrelation.
+  ## Only takes effect when otelContainerInsights.enabled is true.
+  enableDRACorrelation: true
   ## OTEL-native CI log pipelines (application, host).
   ## Only takes effect when otelContainerInsights.enabled is true.
   logs:

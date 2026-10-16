@@ -1,0 +1,15 @@
+{{- if and .Values.dcgmExporter.enabled .Values.dcgmExporter.enableDRACorrelation }}
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ template "dcgm-exporter.name" . }}-dra-cluster-role
+  labels:
+    {{- include "amazon-cloudwatch-observability.labels" . | nindent 4}}
+rules:
+- apiGroups: [ "resource.k8s.io" ]
+  resources: [ "resourceslices" ]
+  verbs: [ "get", "list", "watch" ]
+- apiGroups: [ "" ]
+  resources: [ "pods" ]
+  verbs: [ "get", "list", "watch" ]
+{{- end }}
