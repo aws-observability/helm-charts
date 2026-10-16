@@ -436,9 +436,7 @@ processors:
       metadata:
         - k8s.node.name
       labels:
-        - tag_name: "k8s.node.label.$$$1"
-          key_regex: "(.*)"
-          from: node
+        {{- include "otel-container-insights.k8sattributesLabels" (dict "Values" .Values "from" "node") | trim | nindent 8 }}
     pod_association:
       - sources:
           - from: resource_attribute
@@ -460,9 +458,7 @@ processors:
         - k8s.job.name
         - k8s.cronjob.name
       labels:
-        - tag_name: "k8s.pod.label.$$$1"
-          key_regex: "(.*)"
-          from: pod
+        {{- include "otel-container-insights.k8sattributesLabels" (dict "Values" .Values "from" "pod") | trim | nindent 8 }}
     pod_association:
       - sources:
           - from: resource_attribute
@@ -472,25 +468,19 @@ processors:
 
   awsattributelimit/cw_k8s_ci_v0:
     max_total_attributes: 150
+    {{- $labelRemovals := include "otel-container-insights.labelRemovals" (dict "Values" .Values "signal" "metrics") | fromJson }}
+    {{- with $labelRemovals.prefixes }}
     unconditional_removal_prefixes:
-      - "k8s.node.label.feature.node.kubernetes.io/"
-      - "k8s.node.label.beta.kubernetes.io/"
-      - "k8s.node.label.failure-domain.beta.kubernetes.io/"
-      - "k8s.node.label.alpha.eksctl.io/"
+      {{- range . }}
+      - {{ . | quote }}
+      {{- end }}
+    {{- end }}
+    {{- with $labelRemovals.keys }}
     unconditional_removal_keys:
-      - "k8s.node.label.topology.kubernetes.io/region"
-      - "k8s.node.label.topology.kubernetes.io/zone"
-      - "k8s.node.label.topology.ebs.csi.aws.com/zone"
-      - "k8s.node.label.node.kubernetes.io/instance-type"
-      - "k8s.node.label.kubernetes.io/hostname"
-      - "k8s.node.label.helm.sh/chart"
-      - "k8s.node.label.release"
-      - "k8s.node.label.eks.amazonaws.com/nodegroup-image"
-      - "k8s.node.label.k8s.io/cloud-provider-aws"
-      - "k8s.node.label.eks.amazonaws.com/sourceLaunchTemplateId"
-      - "k8s.node.label.eks.amazonaws.com/sourceLaunchTemplateVersion"
-      - "k8s.pod.label.pod-template-hash"
-      - "k8s.pod.label.controller-revision-hash"
+      {{- range . }}
+      - {{ . | quote }}
+      {{- end }}
+    {{- end }}
 
   transform/cw_k8s_ci_v0_set_cloud_resource_id:
     error_mode: ignore
@@ -802,6 +792,11 @@ processors:
     send_batch_max_size: 500
     timeout: 5s
 
+  {{- if include "otel-container-insights.logsLabelFilterEnabled" . }}
+
+  {{- include "otel-container-insights.logsLabelFilter" . | nindent 2 }}
+  {{- end }}
+
   {{- if include "otel-container-insights.logsNamespaceFilterEnabled" . }}
 
   {{- include "otel-container-insights.namespaceFilter" (dict "Values" .Values "signal" "logs") | nindent 2 }}
@@ -1062,6 +1057,9 @@ service:
         - transform/cw_k8s_ci_v0_logs_set_scope_app
         - transform/cw_k8s_ci_v0_logs_clear_schema_url
         - transform/cw_k8s_ci_v0_logs_set_workload
+        {{- if include "otel-container-insights.logsLabelFilterEnabled" . }}
+        - transform/cw_k8s_ci_v0_logs_labels
+        {{- end }}
         - batch/cw_k8s_ci_v0_logs_dest
       exporters:
         - otlphttp/cw_k8s_ci_v0_app_logs_dest
@@ -1071,6 +1069,7 @@ service:
     # (/var/log/messages, /var/log/dmesg, /var/log/secure) come from the node OS
     # and have no pod/workload context to enrich from. k8sattributes/node adds
     # node-level labels; cluster + cloud attributes apply as with other pipelines.
+    # Logs node label exclusions (filters.logs.nodeLabels) apply here too.
     # service.name is intentionally not set — host logs are node-level, not
     # service-level. Customers query host logs by k8s.node.name + log group.
     logs/cw_k8s_ci_v0_node:
@@ -1082,6 +1081,9 @@ service:
         - k8sattributes/cw_k8s_ci_v0_node
         - transform/cw_k8s_ci_v0_logs_set_scope_host
         - transform/cw_k8s_ci_v0_logs_clear_schema_url
+        {{- if include "otel-container-insights.logsLabelFilterEnabled" . }}
+        - transform/cw_k8s_ci_v0_logs_labels
+        {{- end }}
         - batch/cw_k8s_ci_v0_logs_dest
       exporters:
         - otlphttp/cw_k8s_ci_v0_node_logs_dest
