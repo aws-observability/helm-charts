@@ -167,5 +167,18 @@ else
     pass_count=$((pass_count + 1))
 fi
 
+# The agent certificate lists one dnsNames entry per agent. Whitespace trimming in the
+# template must keep each entry on its own line, otherwise the YAML is invalid.
+echo '{"agent": {"certManager": {"enabled": true}}}' >"${TMP_DIR}/agent-cert.json"
+if render "${TMP_DIR}/agent-cert.json" "${TMP_DIR}/agent-cert.yaml" "${TMP_DIR}/agent-cert.err" &&
+    grep -Eq '^    - "cloudwatch-agent-target-allocator-service"$' "${TMP_DIR}/agent-cert.yaml"; then
+    echo "PASS agent-cert-dnsnames: one entry per line"
+    pass_count=$((pass_count + 1))
+else
+    echo "FAIL agent-cert-dnsnames: agent certificate did not render valid dnsNames"
+    cat "${TMP_DIR}/agent-cert.err"
+    fail_count=$((fail_count + 1))
+fi
+
 echo "Security render tests: ${pass_count} passed, ${fail_count} failed"
 test "${fail_count}" -eq 0
