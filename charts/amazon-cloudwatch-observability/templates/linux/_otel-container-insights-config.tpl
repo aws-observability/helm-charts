@@ -705,6 +705,17 @@ processors:
           - from: resource_attribute
             name: k8s.namespace.name
 
+  # A pod's topology labels (copied from its node) are its region and zone. The zone replaces a detected one,
+  # which on the cluster scraper is the scraper's own.
+  transform/cw_k8s_ci_v0_pod_topology:
+    error_mode: ignore
+    metric_statements:
+      - context: resource
+        statements:
+          - set(resource.attributes["cloud.region"], resource.attributes["k8s.pod.label.topology.kubernetes.io/region"]) where resource.attributes["cloud.region"] == nil and resource.attributes["k8s.pod.label.topology.kubernetes.io/region"] != nil
+          # Skip digit-only values: on AKS nodes outside availability zones, the zone label holds the fault domain (0, 1, ...), not a zone.
+          - set(resource.attributes["cloud.availability_zone"], resource.attributes["k8s.pod.label.topology.kubernetes.io/zone"]) where resource.attributes["k8s.pod.label.topology.kubernetes.io/zone"] != nil and not IsMatch(resource.attributes["k8s.pod.label.topology.kubernetes.io/zone"], "^[0-9]+$")
+
   awsattributelimit/cw_k8s_ci_v0:
     max_total_attributes: 150
     unconditional_removal_prefixes:
@@ -1185,6 +1196,7 @@ service:
         - transform/cw_k8s_ci_v0_set_scope_cadvisor
         - transform/cw_k8s_ci_v0_clear_schema_url
         - transform/cw_k8s_ci_v0_set_workload
+        - transform/cw_k8s_ci_v0_pod_topology
         - awsattributelimit/cw_k8s_ci_v0
         - batch/cw_k8s_ci_v0_metrics_dest
       exporters:
@@ -1193,7 +1205,7 @@ service:
     {{- if .Values.dcgmExporter.enabled }}
     metrics/cw_k8s_ci_v0_dcgm:
       receivers: [prometheus/cw_k8s_ci_v0_dcgm]
-      processors: [filter/cw_k8s_ci_v0_scrape_metadata, transform/cw_k8s_ci_v0_drop_deprecated_semconv, transform/cw_k8s_ci_v0_set_unit, metricstarttime/cw_k8s_ci_v0, transform/cw_k8s_ci_v0_set_cluster_name, groupbyattrs/cw_k8s_ci_v0_dcgm, transform/cw_k8s_ci_v0_dcgm_promote, k8sattributes/cw_k8s_ci_v0_pod, transform/cw_k8s_ci_v0_set_node_name, transform/cw_k8s_ci_v0_promote_node_name, k8sattributes/cw_k8s_ci_v0_node, resourcedetection/cw_k8s_ci_v0, transform/cw_k8s_ci_v0_set_scope_dcgm, transform/cw_k8s_ci_v0_clear_schema_url, transform/cw_k8s_ci_v0_set_cloud_resource_id, transform/cw_k8s_ci_v0_set_workload, awsattributelimit/cw_k8s_ci_v0, batch/cw_k8s_ci_v0_metrics_dest]
+      processors: [filter/cw_k8s_ci_v0_scrape_metadata, transform/cw_k8s_ci_v0_drop_deprecated_semconv, transform/cw_k8s_ci_v0_set_unit, metricstarttime/cw_k8s_ci_v0, transform/cw_k8s_ci_v0_set_cluster_name, groupbyattrs/cw_k8s_ci_v0_dcgm, transform/cw_k8s_ci_v0_dcgm_promote, k8sattributes/cw_k8s_ci_v0_pod, transform/cw_k8s_ci_v0_set_node_name, transform/cw_k8s_ci_v0_promote_node_name, k8sattributes/cw_k8s_ci_v0_node, resourcedetection/cw_k8s_ci_v0, transform/cw_k8s_ci_v0_set_scope_dcgm, transform/cw_k8s_ci_v0_clear_schema_url, transform/cw_k8s_ci_v0_set_cloud_resource_id, transform/cw_k8s_ci_v0_set_workload, transform/cw_k8s_ci_v0_pod_topology, awsattributelimit/cw_k8s_ci_v0, batch/cw_k8s_ci_v0_metrics_dest]
       exporters:
         - otlphttp/cw_k8s_ci_v0_metrics_dest
     {{- end }}
@@ -1222,6 +1234,7 @@ service:
         - transform/cw_k8s_ci_v0_set_scope_neuron_monitor
         - transform/cw_k8s_ci_v0_clear_schema_url
         - transform/cw_k8s_ci_v0_set_workload
+        - transform/cw_k8s_ci_v0_pod_topology
         - awsattributelimit/cw_k8s_ci_v0
         - batch/cw_k8s_ci_v0_metrics_dest
       exporters:
@@ -1245,6 +1258,7 @@ service:
         - transform/cw_k8s_ci_v0_clear_schema_url
         - transform/cw_k8s_ci_v0_set_cloud_resource_id
         - transform/cw_k8s_ci_v0_set_workload
+        - transform/cw_k8s_ci_v0_pod_topology
         - awsattributelimit/cw_k8s_ci_v0
         - batch/cw_k8s_ci_v0_metrics_dest
       exporters:
@@ -1293,6 +1307,7 @@ service:
         - transform/cw_k8s_ci_v0_clear_schema_url
         - transform/cw_k8s_ci_v0_set_workload
         - transform/cw_k8s_ci_v0_vllm_service_name
+        - transform/cw_k8s_ci_v0_pod_topology
         - awsattributelimit/cw_k8s_ci_v0
         - batch/cw_k8s_ci_v0_metrics_dest
       exporters:
@@ -1342,6 +1357,7 @@ service:
         - transform/cw_k8s_ci_v0_clear_schema_url
         - transform/cw_k8s_ci_v0_set_workload
         - transform/cw_k8s_ci_v0_knative_dataplane_service_type
+        - transform/cw_k8s_ci_v0_pod_topology
         - awsattributelimit/cw_k8s_ci_v0
         - batch/cw_k8s_ci_v0_metrics_dest
       exporters:
@@ -1360,6 +1376,7 @@ service:
         - k8sattributes/cw_k8s_ci_v0_node
         - transform/cw_k8s_ci_v0_clear_schema_url
         - transform/cw_k8s_ci_v0_set_workload
+        - transform/cw_k8s_ci_v0_pod_topology
         - awsattributelimit/cw_k8s_ci_v0
         - batch/cw_k8s_ci_v0_metrics_dest
       exporters:

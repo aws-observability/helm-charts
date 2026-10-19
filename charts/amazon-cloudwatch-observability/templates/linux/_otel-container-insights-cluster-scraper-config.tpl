@@ -776,6 +776,17 @@ processors:
       - sources:
           - from: resource_attribute
             name: k8s.node.name
+
+  # Only nodemetadataenricher sets host.id here, so an AZ without it is the scraper's: take the node's zone label
+  # instead. This runs after set_cloud_resource_id, so GKE's resource ID still gets the detected zone.
+  transform/cw_k8s_ci_v0_ksm_zone:
+    error_mode: ignore
+    metric_statements:
+      - context: resource
+        statements:
+          - delete_key(attributes, "cloud.availability_zone") where attributes["host.id"] == nil
+          # Skip digit-only values: on AKS nodes outside availability zones, the zone label holds the fault domain (0, 1, ...), not a zone.
+          - set(attributes["cloud.availability_zone"], attributes["k8s.node.label.topology.kubernetes.io/zone"]) where attributes["host.id"] == nil and attributes["k8s.node.label.topology.kubernetes.io/zone"] != nil and not IsMatch(attributes["k8s.node.label.topology.kubernetes.io/zone"], "^[0-9]+$")
 {{- end }}
 
   k8sattributes/cw_k8s_ci_v0_pod:
@@ -890,6 +901,17 @@ processors:
       - context: resource
         statements:
           - set(resource.schema_url, "")
+
+  # A pod's topology labels (copied from its node) are its region and zone. The zone replaces a detected one,
+  # which on the cluster scraper is the scraper's own.
+  transform/cw_k8s_ci_v0_pod_topology:
+    error_mode: ignore
+    metric_statements:
+      - context: resource
+        statements:
+          - set(resource.attributes["cloud.region"], resource.attributes["k8s.pod.label.topology.kubernetes.io/region"]) where resource.attributes["cloud.region"] == nil and resource.attributes["k8s.pod.label.topology.kubernetes.io/region"] != nil
+          # Skip digit-only values: on AKS nodes outside availability zones, the zone label holds the fault domain (0, 1, ...), not a zone.
+          - set(resource.attributes["cloud.availability_zone"], resource.attributes["k8s.pod.label.topology.kubernetes.io/zone"]) where resource.attributes["k8s.pod.label.topology.kubernetes.io/zone"] != nil and not IsMatch(resource.attributes["k8s.pod.label.topology.kubernetes.io/zone"], "^[0-9]+$")
 
   awsattributelimit/cw_k8s_ci_v0:
     max_total_attributes: 150
@@ -1025,6 +1047,8 @@ service:
         - nodemetadataenricher/cw_k8s_ci_v0
         - transform/cw_k8s_ci_v0_clear_schema_url
         - transform/cw_k8s_ci_v0_set_cloud_resource_id
+        - transform/cw_k8s_ci_v0_ksm_zone
+        - transform/cw_k8s_ci_v0_pod_topology
         - awsattributelimit/cw_k8s_ci_v0
         - batch/cw_k8s_ci_v0_cwotel
       exporters:
@@ -1049,6 +1073,7 @@ service:
         - resourcedetection/cw_k8s_ci_v0_knative_controlplane
         - transform/cw_k8s_ci_v0_clear_schema_url
         - transform/cw_k8s_ci_v0_set_cloud_resource_id
+        - transform/cw_k8s_ci_v0_pod_topology
         - awsattributelimit/cw_k8s_ci_v0
         - batch/cw_k8s_ci_v0_cwotel
       exporters:
@@ -1072,6 +1097,7 @@ service:
         - resourcedetection/cw_k8s_ci_v0_karpenter
         - transform/cw_k8s_ci_v0_clear_schema_url
         - transform/cw_k8s_ci_v0_set_cloud_resource_id
+        - transform/cw_k8s_ci_v0_pod_topology
         - awsattributelimit/cw_k8s_ci_v0
         - batch/cw_k8s_ci_v0_cwotel
       exporters:
@@ -1095,6 +1121,7 @@ service:
         - resourcedetection/cw_k8s_ci_v0_keda
         - transform/cw_k8s_ci_v0_clear_schema_url
         - transform/cw_k8s_ci_v0_set_cloud_resource_id
+        - transform/cw_k8s_ci_v0_pod_topology
         - awsattributelimit/cw_k8s_ci_v0
         - batch/cw_k8s_ci_v0_cwotel
       exporters:
@@ -1119,6 +1146,7 @@ service:
         - resourcedetection/cw_k8s_ci_v0_kserve_controlplane
         - transform/cw_k8s_ci_v0_clear_schema_url
         - transform/cw_k8s_ci_v0_set_cloud_resource_id
+        - transform/cw_k8s_ci_v0_pod_topology
         - awsattributelimit/cw_k8s_ci_v0
         - batch/cw_k8s_ci_v0_cwotel
       exporters:
