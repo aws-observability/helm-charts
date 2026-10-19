@@ -701,6 +701,11 @@ processors:
       - "k8s.node.label.beta.kubernetes.io/"
       - "k8s.node.label.failure-domain.beta.kubernetes.io/"
       - "k8s.node.label.alpha.eksctl.io/"
+      # Not the whole karpenter.k8s.aws/instance- prefix: instance-tenancy is a launch property, so it is kept.
+      - "k8s.node.label.karpenter.k8s.aws/instance-cpu"
+      - "k8s.node.label.karpenter.k8s.aws/instance-gpu-"
+      - "k8s.node.label.karpenter.k8s.aws/instance-accelerator-"
+      - "k8s.node.label.eks.amazonaws.com/instance-"
     unconditional_removal_keys:
       - "k8s.node.label.topology.kubernetes.io/region"
       - "k8s.node.label.topology.kubernetes.io/zone"
@@ -715,6 +720,23 @@ processors:
       - "k8s.node.label.eks.amazonaws.com/sourceLaunchTemplateVersion"
       - "k8s.pod.label.pod-template-hash"
       - "k8s.pod.label.controller-revision-hash"
+      - "k8s.pod.label.pod-template-generation"
+      - "k8s.pod.label.topology.kubernetes.io/region"
+      - "k8s.pod.label.topology.kubernetes.io/zone"
+      - "k8s.node.label.karpenter.sh/do-not-sync-taints"
+      - "k8s.node.label.karpenter.sh/initialized"
+      - "k8s.node.label.karpenter.sh/registered"
+      - "k8s.node.label.karpenter.k8s.aws/instance-category"
+      - "k8s.node.label.karpenter.k8s.aws/instance-family"
+      - "k8s.node.label.karpenter.k8s.aws/instance-generation"
+      - "k8s.node.label.karpenter.k8s.aws/instance-size"
+      - "k8s.node.label.karpenter.k8s.aws/instance-memory"
+      - "k8s.node.label.karpenter.k8s.aws/instance-hypervisor"
+      - "k8s.node.label.karpenter.k8s.aws/instance-local-nvme"
+      - "k8s.node.label.karpenter.k8s.aws/instance-ebs-bandwidth"
+      - "k8s.node.label.karpenter.k8s.aws/instance-network-bandwidth"
+      - "k8s.node.label.karpenter.k8s.aws/instance-encryption-in-transit-supported"
+      - "k8s.node.label.karpenter.k8s.aws/instance-capability-flex"
 
   transform/cw_k8s_ci_v0_set_cloud_resource_id:
     error_mode: ignore
