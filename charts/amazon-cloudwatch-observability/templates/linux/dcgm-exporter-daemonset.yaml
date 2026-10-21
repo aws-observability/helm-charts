@@ -1,4 +1,56 @@
 {{- if .Values.dcgmExporter.enabled }}
+{{- $metricsConfig := `DCGM_FI_DEV_GPU_UTIL,      gauge, GPU utilization (in %).
+DCGM_FI_DEV_MEM_COPY_UTIL, gauge, Memory utilization (in %).
+DCGM_FI_DEV_FB_FREE, gauge, Framebuffer memory free (in MiB).
+DCGM_FI_DEV_FB_USED, gauge, Framebuffer memory used (in MiB).
+DCGM_FI_DEV_FB_TOTAL, gauge, Framebuffer memory used (in MiB).
+DCGM_FI_DEV_FB_USED_PERCENT, gauge, Percentage used of Frame Buffer: Used/(Total - Reserved).
+DCGM_FI_DEV_MEMORY_TEMP, gauge, Memory temperature (in C).
+DCGM_FI_DEV_GPU_TEMP,    gauge, GPU temperature (in C).
+DCGM_FI_DEV_POWER_USAGE,              gauge, Power draw (in W).
+DCGM_FI_DEV_TOTAL_ENERGY_CONSUMPTION, counter, Total energy consumption since boot (in mJ).
+DCGM_FI_DEV_SM_CLOCK, gauge, SM clock frequency (in MHz).
+DCGM_FI_DEV_MEM_CLOCK, gauge, Memory clock frequency (in MHz).
+DCGM_FI_PROF_PIPE_TENSOR_ACTIVE, gauge, Tensor Core utilization (in %).
+DCGM_FI_PROF_SM_UTIL_RATIO, gauge, Ratio of cycles an SM has at least one warp assigned.
+DCGM_FI_PROF_SM_OCCUPANCY_RATIO, gauge, Ratio of warps resident on an SM to the maximum.
+DCGM_FI_PROF_DRAM_UTIL_RATIO, gauge, Ratio of cycles the device memory interface is active.
+DCGM_FI_PROF_PCIE_TX_BYTES, gauge, PCIe transmit rate in bytes per second.
+DCGM_FI_PROF_PCIE_RX_BYTES, gauge, PCIe receive rate in bytes per second.
+DCGM_FI_PROF_NVLINK_TX_BYTES, gauge, NVLink transmit rate in bytes per second.
+DCGM_FI_PROF_NVLINK_RX_BYTES, gauge, NVLink receive rate in bytes per second.
+DCGM_EXP_XID_ERRORS_COUNT, gauge, XID errors observed during the exporter's count window.
+DCGM_EXP_CLOCK_EVENTS_COUNT, gauge, Clock throttle events observed during the exporter's count window.
+DCGM_EXP_GPU_HEALTH_STATUS, gauge, Aggregate DCGM health-check status for the GPU.
+DCGM_FI_DEV_CLOCKS_EVENT_REASONS, gauge, Bitmask of why the clocks are currently throttled.
+DCGM_FI_DEV_CLOCKS_EVENT_REASON_HW_THERM_SLOWDOWN_NS, counter, Time the clocks were slowed by hardware thermal slowdown (in ns).
+DCGM_FI_DEV_CLOCKS_EVENT_REASON_SW_THERM_SLOWDOWN_NS, counter, Time the clocks were slowed by software thermal slowdown (in ns).
+DCGM_FI_DEV_CLOCKS_EVENT_REASON_HW_POWER_BRAKE_SLOWDOWN_NS, counter, Time the clocks were slowed by the hardware power brake (in ns).
+DCGM_FI_DEV_XID_ERROR, gauge, Value of the last XID error encountered.
+DCGM_FI_DEV_ECC_SBE_VOL_TOTAL, counter, Single-bit (correctable) ECC errors since the last driver reload.
+DCGM_FI_DEV_ECC_DBE_VOL_TOTAL, counter, Double-bit (uncorrectable) ECC errors since the last driver reload.
+DCGM_FI_DEV_PAGE_RETIRED_SBE_TOTAL, counter, Framebuffer pages retired after single-bit errors.
+DCGM_FI_DEV_PAGE_RETIRED_DBE_TOTAL, counter, Framebuffer pages retired after double-bit errors.
+DCGM_FI_DEV_PAGE_RETIRED_PENDING, gauge, Pages pending retirement; non-zero means the GPU needs a reset.
+DCGM_FI_DEV_ROW_REMAP_CORRECTABLE_TOTAL, counter, Rows remapped after correctable errors (Ampere and later).
+DCGM_FI_DEV_ROW_REMAP_UNCORRECTABLE_TOTAL, counter, Rows remapped after uncorrectable errors (Ampere and later).
+DCGM_FI_DEV_ROW_REMAP_FAILED, gauge, Row remapping failed; the GPU must be replaced.
+DCGM_FI_DEV_PCIE_REPLAY_TOTAL, counter, PCIe replays (link-level errors).
+DCGM_FI_DEV_GPU_TEMP_SLOWDOWN_CELSIUS, gauge, GPU temperature at which the clocks slow down (in C).
+DCGM_FI_DEV_GPU_TEMP_SHUTDOWN_CELSIUS, gauge, GPU temperature at which the GPU shuts down (in C).
+DCGM_FI_DEV_BOARD_POWER_LIMIT_REQUESTED_WATTS, gauge, Current power limit of the board (in W).
+DCGM_FI_DEV_BOARD_POWER_LIMIT_ENFORCED_WATTS, gauge, Power limit that the driver enforces after all limiters (in W).
+DCGM_FI_DEV_PCIE_LINK_GEN, gauge, Current PCIe link generation.
+DCGM_FI_DEV_PCIE_LINK_WIDTH, gauge, Current PCIe link width in lanes.
+DCGM_FI_DEV_PCIE_MAX_LINK_GEN, gauge, Maximum PCIe link generation.
+DCGM_FI_DEV_PCIE_MAX_LINK_WIDTH, gauge, Maximum PCIe link width in lanes.
+DCGM_FI_DEV_NVLINK_REPLAY_ERROR_TOTAL, counter, NVLink replay errors for all links.
+DCGM_FI_DEV_NVLINK_RECOVERY_ERROR_TOTAL, counter, NVLink recovery errors for all links.
+DCGM_FI_DEV_NVLINK_CRC_FLIT_ERROR_TOTAL, counter, NVLink flow-control CRC errors for all links.
+DCGM_FI_DEV_NVLINK_CRC_DATA_ERROR_TOTAL, counter, NVLink data CRC errors for all links.
+DCGM_FI_DEV_NVLINK_RECOVERY_FAILED_TOTAL, counter, NVLink link recoveries that failed and took the link down (NVLink 5 and later).
+DCGM_FI_DEV_NVLINK_ECC_ERROR_TOTAL, counter, NVLink ECC data errors for all links.
+DCGM_FI_DRIVER_VERSION, label, Driver Version.` }}
 apiVersion: cloudwatch.aws.amazon.com/v1alpha1
 kind: DcgmExporter
 metadata:
@@ -31,6 +83,9 @@ spec:
     valueFrom:
       fieldRef:
         fieldPath: spec.nodeName
+  {{- /* Rolls the DaemonSet when the field list changes; dcgm-exporter reads it only at startup. */}}
+  - name: CW_DCGM_METRICS_CONFIG_SHA256
+    value: {{ $metricsConfig | sha256sum | trunc 16 | quote }}
   {{- include "dcgm-exporter.env" . | nindent 2 }}
   ports:
   - name: "metrics"
@@ -55,17 +110,7 @@ spec:
     hostPath:
       path: /var/lib/kubelet/pod-resources
   metricsConfig: |
-    DCGM_FI_DEV_GPU_UTIL,      gauge, GPU utilization (in %).
-    DCGM_FI_DEV_MEM_COPY_UTIL, gauge, Memory utilization (in %).
-    DCGM_FI_DEV_FB_FREE, gauge, Framebuffer memory free (in MiB).
-    DCGM_FI_DEV_FB_USED, gauge, Framebuffer memory used (in MiB).
-    DCGM_FI_DEV_FB_TOTAL, gauge, Framebuffer memory used (in MiB).
-    DCGM_FI_DEV_FB_USED_PERCENT, gauge, Percentage used of Frame Buffer: Used/(Total - Reserved).
-    DCGM_FI_DEV_MEMORY_TEMP, gauge, Memory temperature (in C).
-    DCGM_FI_DEV_GPU_TEMP,    gauge, GPU temperature (in C).
-    DCGM_FI_DEV_POWER_USAGE,              gauge, Power draw (in W).
-    DCGM_FI_PROF_PIPE_TENSOR_ACTIVE, gauge, Tensor Core utilization (in %).
-    DCGM_FI_DRIVER_VERSION, label, Driver Version.
+    {{- $metricsConfig | nindent 4 }}
   tlsConfig: |
     tls_server_config:
       cert_file: /etc/amazon-cloudwatch-observability-dcgm-cert/server.crt
