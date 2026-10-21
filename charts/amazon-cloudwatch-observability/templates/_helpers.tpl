@@ -5,6 +5,29 @@ Expand the name of the chart.
 {{- default .Chart.Name .Values.nameOverride | trunc 63 | trimSuffix "-" }}
 {{- end }}
 
+{{/*
+Whether to bundle the community ServiceMonitor/PodMonitor CRDs. Honours
+.Values.otelContainerInsights.prometheusScrape.crds.install:
+  "always" => true; "never" => empty;
+  "auto" (default) => true only when otelContainerInsights.enabled AND
+  otelContainerInsights.prometheusScrape.enabled are both true.
+Returns the string "true" when CRDs should be rendered, empty otherwise.
+*/}}
+{{- define "amazon-cloudwatch-observability.prometheusCRDsEnabled" -}}
+{{- $install := (dig "prometheusScrape" "crds" "install" "auto" .Values.otelContainerInsights) -}}
+{{- $scrapeEnabled := (dig "prometheusScrape" "enabled" false .Values.otelContainerInsights) -}}
+{{- if eq $install "always" -}}
+true
+{{- else if eq $install "never" -}}
+{{- else if eq $install "auto" -}}
+{{- if and .Values.otelContainerInsights.enabled $scrapeEnabled -}}
+true
+{{- end -}}
+{{- else -}}
+{{- fail (printf "otelContainerInsights.prometheusScrape.crds.install must be one of \"auto\", \"always\", or \"never\", got: %s" $install) -}}
+{{- end -}}
+{{- end -}}
+
 {{- define "amazon-cloudwatch-observability.common.tolerations" -}}
 {{- $tolerations := .context.Values.tolerations }}
 {{- if .component }}
@@ -349,6 +372,53 @@ Logic:
 {{- include "otel-container-insights-cluster-scraper.config" $ctx -}}
 {{- else -}}
 {}
+{{- end -}}
+{{- end -}}
+
+{{/*
+Returns "true" when otelContainerInsights-driven ServiceMonitor/PodMonitor scraping
+applies to the given agent. True when otelContainerInsights is enabled,
+otelContainerInsights.prometheusScrape.enabled is true (the single opt-out switch),
+and the agent is either the configured targetAgent (per-node scraping of unrouted
+monitors) or the clusterScraperAgent (central scraping of monitors explicitly routed
+with cloudwatch.aws.amazon.com/scraper: cluster-scraper). Individual monitor types are NOT
+considered here — use cloudwatch-agent.serviceMonitorEnabled /
+cloudwatch-agent.podMonitorEnabled for those.
+Accepts a dict with "agentName" (string) and "context" (root context $).
+*/}}
+{{- define "cloudwatch-agent.otelCIScrapeEnabled" -}}
+{{- $ctx := .context -}}
+{{- $agentName := .agentName -}}
+{{- if and $ctx.Values.otelContainerInsights.enabled (dig "prometheusScrape" "enabled" false $ctx.Values.otelContainerInsights) (or (eq $agentName $ctx.Values.otelContainerInsights.targetAgent) (eq $agentName $ctx.Values.otelContainerInsights.clusterScraperAgent)) -}}
+true
+{{- end -}}
+{{- end -}}
+
+{{/*
+Whether ServiceMonitor / PodMonitor discovery is enabled, from
+otelContainerInsights.prometheusScrape.<monitor>.enabled (default true). Return "true" when enabled, empty otherwise.
+*/}}
+{{- define "cloudwatch-agent.serviceMonitorEnabled" -}}
+{{- $v := dig "prometheusScrape" "serviceMonitor" "enabled" true .Values.otelContainerInsights -}}
+{{- if $v -}}true{{- end -}}
+{{- end -}}
+
+{{- define "cloudwatch-agent.podMonitorEnabled" -}}
+{{- $v := dig "prometheusScrape" "podMonitor" "enabled" true .Values.otelContainerInsights -}}
+{{- if $v -}}true{{- end -}}
+{{- end -}}
+
+{{/*
+Reject a contradictory scraping config. prometheusScrape.enabled=true with BOTH
+ServiceMonitor and PodMonitor discovery disabled would render an idle Target Allocator
+(and bundle CRDs) that discovers nothing. Fail loudly rather than ship a no-op path.
+Invoked from an always-rendered template so it runs regardless of which agents render.
+*/}}
+{{- define "cloudwatch-agent.validatePrometheusScrape" -}}
+{{- if and .Values.otelContainerInsights.enabled (dig "prometheusScrape" "enabled" false .Values.otelContainerInsights) -}}
+{{- if and (ne (include "cloudwatch-agent.serviceMonitorEnabled" .) "true") (ne (include "cloudwatch-agent.podMonitorEnabled" .) "true") -}}
+{{- fail "otelContainerInsights.prometheusScrape.enabled=true requires at least one of prometheusScrape.serviceMonitor.enabled or prometheusScrape.podMonitor.enabled to be true; enable one, or set prometheusScrape.enabled=false" -}}
+{{- end -}}
 {{- end -}}
 {{- end -}}
 
