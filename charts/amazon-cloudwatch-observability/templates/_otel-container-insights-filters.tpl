@@ -73,13 +73,13 @@ any entry reaches a template.
 {{- end }}
 {{- end }}
 {{- end }}
+{{- end }}
 {{- if eq $signal "metrics" }}
 {{- include "otel-container-insights.validate-include-exclude" (dict
       "value" (index ($settings | default dict) "metricNames")
       "path" "otelContainerInsights.filters.metrics.metricNames"
       "what" "a metric name"
       "regex" "^([A-Za-z0-9_:.]+\\*?|\\*)$") }}
-{{- end }}
 {{- end }}
 {{- end }}
 {{- /* Metrics and logs share one k8sattributes processor per label kind. With OTel logs off, the logs lists are unused. */}}

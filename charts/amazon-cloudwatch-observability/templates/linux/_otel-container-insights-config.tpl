@@ -1324,6 +1324,9 @@ service:
         - transform/cw_k8s_ci_v0_vllm_service_name
         - transform/cw_k8s_ci_v0_pod_topology
         - awsattributelimit/cw_k8s_ci_v0
+        {{- if include "otel-container-insights.metricNamesFilterEnabled" . }}
+        - filter/cw_k8s_ci_v0_metric_names
+        {{- end }}
         - batch/cw_k8s_ci_v0_metrics_dest
       exporters:
         - otlphttp/cw_k8s_ci_v0_metrics_dest
@@ -1380,6 +1383,9 @@ service:
         - transform/cw_k8s_ci_v0_knative_dataplane_service_type
         - transform/cw_k8s_ci_v0_pod_topology
         - awsattributelimit/cw_k8s_ci_v0
+        {{- if include "otel-container-insights.metricNamesFilterEnabled" . }}
+        - filter/cw_k8s_ci_v0_metric_names
+        {{- end }}
         - batch/cw_k8s_ci_v0_metrics_dest
       exporters:
         - otlphttp/cw_k8s_ci_v0_metrics_dest

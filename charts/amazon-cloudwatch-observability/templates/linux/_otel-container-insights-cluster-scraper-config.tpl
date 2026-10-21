@@ -1062,6 +1062,9 @@ service:
         - transform/cw_k8s_ci_v0_set_cloud_resource_id
         - transform/cw_k8s_ci_v0_pod_topology
         - awsattributelimit/cw_k8s_ci_v0
+        {{- if include "otel-container-insights.metricNamesFilterEnabled" . }}
+        - filter/cw_k8s_ci_v0_metric_names
+        {{- end }}
         - batch/cw_k8s_ci_v0_cwotel
       exporters:
         - otlphttp/cw_k8s_ci_v0_cwotel
@@ -1141,6 +1144,9 @@ service:
         - transform/cw_k8s_ci_v0_set_cloud_resource_id
         - transform/cw_k8s_ci_v0_pod_topology
         - awsattributelimit/cw_k8s_ci_v0
+        {{- if include "otel-container-insights.metricNamesFilterEnabled" . }}
+        - filter/cw_k8s_ci_v0_metric_names
+        {{- end }}
         - batch/cw_k8s_ci_v0_cwotel
       exporters:
         - otlphttp/cw_k8s_ci_v0_cwotel

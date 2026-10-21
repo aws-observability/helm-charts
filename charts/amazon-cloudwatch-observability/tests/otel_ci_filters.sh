@@ -808,6 +808,16 @@ for name in ('metrics/cw_k8s_ci_v0_dcgm', 'metrics/cw_k8s_ci_v0_neuron', 'metric
     assert procs[-2:] == ['$METRIC_NAMES', 'batch/cw_k8s_ci_v0_metrics_dest'], (name, procs)" \
     "--set dcgmExporter.enabled=true --set neuronMonitor.enabled=true"
 
+check_case "Metric names with the vLLM, KServe and Knative solutions enabled — in their pipelines too" \
+    '{"metrics":{"metricNames":{"exclude":["x"]}}}' "$NAME_BLOCKS
+for agent, name, batch in (('$NODE', 'metrics/cw_k8s_ci_v0_vllm', 'batch/cw_k8s_ci_v0_metrics_dest'),
+                           ('$NODE', 'metrics/cw_k8s_ci_v0_knative_dataplane', 'batch/cw_k8s_ci_v0_metrics_dest'),
+                           ('$SCRAPER', 'metrics/cw_k8s_ci_v0_kserve_controlplane', 'batch/cw_k8s_ci_v0_cwotel'),
+                           ('$SCRAPER', 'metrics/cw_k8s_ci_v0_knative_controlplane', 'batch/cw_k8s_ci_v0_cwotel')):
+    procs = pipeline(agent, name)
+    assert procs[-2:] == ['$METRIC_NAMES', batch], (name, procs)" \
+    "--set otelContainerInsights.solutions.vllm.enabled=true --set otelContainerInsights.solutions.kserve.controlPlane.enabled=true --set otelContainerInsights.solutions.knative.dataPlane.enabled=true --set otelContainerInsights.solutions.knative.controlPlane.enabled=true"
+
 # ── All filters together ────────────────────────────────────────────────
 
 ALL_FILTERS='{"metrics":{"namespaces":{"include":["*"],"exclude":["kube-*"]},"nodeLabels":{"include":["*"],"exclude":["team-x"]},"podLabels":{"include":["app*"],"exclude":["app-secret"]},"metricNames":{"include":["container_*","kube_*"],"exclude":["kube_replicaset_*"]}},"logs":{"namespaces":{"include":["prod-*"],"exclude":["prod-secret"]},"nodeLabels":{"include":["*"]},"podLabels":{"include":["app*"],"exclude":["app-secret"]}}}'
@@ -823,10 +833,10 @@ assert processor('$NODE', '$LOGS_NS') == logs_ns(
     NS + ' != nil and not (IsMatch(' + NS + ', \"^prod-\"))',
     NS + ' != nil and (' + NS + ' == \"prod-secret\")')
 assert_labels('node', all_labels('node'))
-assert_labels('pod', [{'tag_name': 'k8s.pod.label.\$\$\$1', 'key_regex': '(app.*)', 'from': 'pod'}])
+assert_labels('pod', [{'tag_name': 'k8s.pod.label.\$\$\$1', 'key_regex': '(app.*)', 'from': 'pod'}] + chart_rules('pod'))
 assert_attribute_limit(RECOMMENDED_PREFIXES,
-    RECOMMENDED_NODE_KEYS + ['k8s.node.label.team-x'] + RECOMMENDED_POD_KEYS + ['k8s.pod.label.app-secret'])
-assert processor('$NODE', '$LOGS_LABELS') == logs_labels(delete_key('k8s.pod.label.app-secret'))
+    merged(RECOMMENDED_NODE_KEYS, ['k8s.node.label.team-x'], RECOMMENDED_POD_KEYS, ['k8s.pod.label.app-secret'], CHART_POD_KEYS))
+assert processor('$NODE', '$LOGS_LABELS') == logs_labels(delete_key('k8s.pod.label.app-secret'), *[delete_key(k) for k in CHART_POD_KEYS])
 assert_metric_names(
     'not (IsMatch(name, \"^container_\") or IsMatch(name, \"^kube_\"))',
     '(IsMatch(name, \"^kube_replicaset_\"))')"
