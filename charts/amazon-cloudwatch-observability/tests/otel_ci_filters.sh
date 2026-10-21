@@ -333,7 +333,9 @@ RECOMMENDED_PREFIXES = [
     'k8s.node.label.beta.kubernetes.io/',
     'k8s.node.label.failure-domain.beta.kubernetes.io/',
     'k8s.node.label.alpha.eksctl.io/',
-    'k8s.node.label.karpenter.k8s.aws/instance-',
+    'k8s.node.label.karpenter.k8s.aws/instance-cpu',
+    'k8s.node.label.karpenter.k8s.aws/instance-gpu-',
+    'k8s.node.label.karpenter.k8s.aws/instance-accelerator-',
     'k8s.node.label.eks.amazonaws.com/instance-',
 ]
 RECOMMENDED_NODE_KEYS = [
@@ -351,6 +353,17 @@ RECOMMENDED_NODE_KEYS = [
     'k8s.node.label.karpenter.sh/do-not-sync-taints',
     'k8s.node.label.karpenter.sh/initialized',
     'k8s.node.label.karpenter.sh/registered',
+    'k8s.node.label.karpenter.k8s.aws/instance-category',
+    'k8s.node.label.karpenter.k8s.aws/instance-family',
+    'k8s.node.label.karpenter.k8s.aws/instance-generation',
+    'k8s.node.label.karpenter.k8s.aws/instance-size',
+    'k8s.node.label.karpenter.k8s.aws/instance-memory',
+    'k8s.node.label.karpenter.k8s.aws/instance-hypervisor',
+    'k8s.node.label.karpenter.k8s.aws/instance-local-nvme',
+    'k8s.node.label.karpenter.k8s.aws/instance-ebs-bandwidth',
+    'k8s.node.label.karpenter.k8s.aws/instance-network-bandwidth',
+    'k8s.node.label.karpenter.k8s.aws/instance-encryption-in-transit-supported',
+    'k8s.node.label.karpenter.k8s.aws/instance-capability-flex',
 ]
 RECOMMENDED_POD_KEYS = [
     'k8s.pod.label.pod-template-hash',
@@ -360,6 +373,24 @@ RECOMMENDED_POD_KEYS = [
     'k8s.pod.label.topology.kubernetes.io/zone',
 ]
 RECOMMENDED_KEYS = RECOMMENDED_NODE_KEYS + RECOMMENDED_POD_KEYS
+# Labels that the chart's own processors read: extracted even when an include
+# list leaves them out, then removed again.
+CHART_LABELS = {'node': ['topology.kubernetes.io/zone'],
+                'pod': ['topology.kubernetes.io/region', 'topology.kubernetes.io/zone',
+                        'serving.kserve.io/inferenceservice', 'component']}
+CHART_NODE_KEYS = ['k8s.node.label.' + k for k in CHART_LABELS['node']]
+CHART_POD_KEYS = ['k8s.pod.label.' + k for k in CHART_LABELS['pod']]
+
+def chart_rules(source):
+    return [{'tag_name': 'k8s.' + source + '.label.' + k, 'key': k, 'from': source} for k in CHART_LABELS[source]]
+
+def merged(*lists):
+    # The removal lists are de-duplicated, keeping the first occurrence.
+    out = []
+    for k in (k for l in lists for k in l):
+        if k not in out:
+            out.append(k)
+    return out
 
 def attribute_limit(prefixes, keys):
     block = {'max_total_attributes': 150}
@@ -416,15 +447,15 @@ for source in node pod; do
 
     check_case "$kind include exact" \
         "{\"metrics\":{\"$kind\":{\"include\":[\"app\"]}},\"logs\":{\"$kind\":{\"include\":[\"app\"]}}}" "$LABEL_BLOCKS
-assert_labels('$source', [{'tag_name': 'k8s.$source.label.app', 'key': 'app', 'from': '$source'}])"
+assert_labels('$source', [{'tag_name': 'k8s.$source.label.app', 'key': 'app', 'from': '$source'}] + chart_rules('$source'))"
 
     check_case "$kind include prefix" \
         "{\"metrics\":{\"$kind\":{\"include\":[\"team*\"]}},\"logs\":{\"$kind\":{\"include\":[\"team*\"]}}}" "$LABEL_BLOCKS
-assert_labels('$source', [{'tag_name': 'k8s.$source.label.\$\$\$1', 'key_regex': '(team.*)', 'from': '$source'}])"
+assert_labels('$source', [{'tag_name': 'k8s.$source.label.\$\$\$1', 'key_regex': '(team.*)', 'from': '$source'}] + chart_rules('$source'))"
 
     check_case "$kind include prefix with dots and a slash is escaped" \
         "{\"metrics\":{\"$kind\":{\"include\":[\"app.kubernetes.io/*\"]}},\"logs\":{\"$kind\":{\"include\":[\"app.kubernetes.io/*\"]}}}" "$LABEL_BLOCKS
-assert_labels('$source', [{'tag_name': 'k8s.$source.label.\$\$\$1', 'key_regex': '(app\\\\.kubernetes\\\\.io/.*)', 'from': '$source'}])"
+assert_labels('$source', [{'tag_name': 'k8s.$source.label.\$\$\$1', 'key_regex': '(app\\\\.kubernetes\\\\.io/.*)', 'from': '$source'}] + chart_rules('$source'))"
 
     check_case "$kind include *" \
         "{\"metrics\":{\"$kind\":{\"include\":[\"*\"]}},\"logs\":{\"$kind\":{\"include\":[\"*\"]}}}" "$LABEL_BLOCKS
@@ -434,7 +465,7 @@ assert_labels('$source', all_labels('$source'))"
         "{\"metrics\":{\"$kind\":{\"include\":[\"app\",\"team*\",\"app\"]}},\"logs\":{\"$kind\":{\"include\":[\"team*\",\"app\"]}}}" "$LABEL_BLOCKS
 exact = {'tag_name': 'k8s.$source.label.app', 'key': 'app', 'from': '$source'}
 prefix = {'tag_name': 'k8s.$source.label.\$\$\$1', 'key_regex': '(team.*)', 'from': '$source'}
-assert_labels('$source', [exact, prefix])"
+assert_labels('$source', [exact, prefix] + chart_rules('$source'))"
 
     check_case "$kind include * among other entries extracts all labels once" \
         "{\"metrics\":{\"$kind\":{\"include\":[\"app\",\"*\"]}},\"logs\":{\"$kind\":{\"include\":[\"*\"]}}}" "$LABEL_BLOCKS
@@ -447,13 +478,26 @@ assert_labels('$source', all_labels('$source'))"
     check_case "$kind include keys with uppercase, underscore and hyphen" \
         "{\"metrics\":{\"$kind\":{\"include\":[\"Team_X\",\"my-label*\"]}},\"logs\":{\"$kind\":{\"include\":[\"Team_X\",\"my-label*\"]}}}" "$LABEL_BLOCKS
 assert_labels('$source', [{'tag_name': 'k8s.$source.label.Team_X', 'key': 'Team_X', 'from': '$source'},
-                          {'tag_name': 'k8s.$source.label.\$\$\$1', 'key_regex': '(my-label.*)', 'from': '$source'}])"
+                          {'tag_name': 'k8s.$source.label.\$\$\$1', 'key_regex': '(my-label.*)', 'from': '$source'}] + chart_rules('$source'))"
 done
+
+# Label keys are an optional DNS subdomain prefix (at most 253 characters) and
+# "/", then a name (at most 63 characters).
+LABEL_NAME_63="$(printf 'n%.0s' {1..63})"
+LABEL_NAME_64="${LABEL_NAME_63}n"
+LABEL_PREFIX_253="$(printf 'a%.0s' {1..61}).$(printf 'b%.0s' {1..63}).$(printf 'c%.0s' {1..63}).$(printf 'd%.0s' {1..63})"
+
+check_case "Label include keys with a DNS prefix, the longest name and the longest prefix" \
+    "{\"metrics\":{\"nodeLabels\":{\"include\":[\"example.com/team\",\"$LABEL_NAME_63\",\"$LABEL_PREFIX_253/a\",\"app-*\"]}},\"logs\":{\"nodeLabels\":{\"include\":[\"example.com/team\",\"$LABEL_NAME_63\",\"$LABEL_PREFIX_253/a\",\"app-*\"]}}}" "$LABEL_BLOCKS
+assert_labels('node', [{'tag_name': 'k8s.node.label.example.com/team', 'key': 'example.com/team', 'from': 'node'},
+                       {'tag_name': 'k8s.node.label.$LABEL_NAME_63', 'key': '$LABEL_NAME_63', 'from': 'node'},
+                       {'tag_name': 'k8s.node.label.$LABEL_PREFIX_253/a', 'key': '$LABEL_PREFIX_253/a', 'from': 'node'},
+                       {'tag_name': 'k8s.node.label.\$\$\$1', 'key_regex': '(app-.*)', 'from': 'node'}] + chart_rules('node'))"
 
 check_case "Node and pod label include are independent" \
     '{"metrics":{"nodeLabels":{"include":["a"]},"podLabels":{"include":["b"]}},"logs":{"nodeLabels":{"include":["a"]},"podLabels":{"include":["b"]}}}' "$LABEL_BLOCKS
-assert_labels('node', [{'tag_name': 'k8s.node.label.a', 'key': 'a', 'from': 'node'}])
-assert_labels('pod', [{'tag_name': 'k8s.pod.label.b', 'key': 'b', 'from': 'pod'}])"
+assert_labels('node', [{'tag_name': 'k8s.node.label.a', 'key': 'a', 'from': 'node'}] + chart_rules('node'))
+assert_labels('pod', [{'tag_name': 'k8s.pod.label.b', 'key': 'b', 'from': 'pod'}] + chart_rules('pod'))"
 
 check_case "Metrics label exclude exact and prefix are added to the recommended exclusions" \
     '{"metrics":{"nodeLabels":{"exclude":["team-x","example.com/*"]},"podLabels":{"exclude":["app","tier*"]}}}' "$LABEL_BLOCKS
@@ -565,20 +609,67 @@ assert processor('$NODE', '$LOGS_LABELS') == logs_labels(
 check_case "Labels include prefix with exclude exact and prefix inside it — metrics and logs" \
     '{"metrics":{"podLabels":{"include":["app*"],"exclude":["app-secret","app.k8s/*"]}},"logs":{"podLabels":{"include":["app*"],"exclude":["app-secret","app.k8s/*"]}}}' "$LABEL_BLOCKS
 assert_labels('node', all_labels('node'))
-assert_labels('pod', [{'tag_name': 'k8s.pod.label.\$\$\$1', 'key_regex': '(app.*)', 'from': 'pod'}])
+assert_labels('pod', [{'tag_name': 'k8s.pod.label.\$\$\$1', 'key_regex': '(app.*)', 'from': 'pod'}] + chart_rules('pod'))
 assert_attribute_limit(
     RECOMMENDED_PREFIXES + ['k8s.pod.label.app.k8s/'],
-    RECOMMENDED_KEYS + ['k8s.pod.label.app-secret'])
+    merged(RECOMMENDED_KEYS, ['k8s.pod.label.app-secret'], CHART_POD_KEYS))
 assert processor('$NODE', '$LOGS_LABELS') == logs_labels(
     delete_prefix('k8s.pod.label.app.k8s/'),
-    delete_key('k8s.pod.label.app-secret'))"
+    delete_key('k8s.pod.label.app-secret'),
+    *[delete_key(k) for k in CHART_POD_KEYS])"
 
 check_case "Labels include exact with exclude and recommended exclusions off — metrics" \
     '{"metrics":{"nodeLabels":{"include":["team","zone"],"exclude":["zone"],"recommendedExclusions":false},"podLabels":{"recommendedExclusions":false}},"logs":{"nodeLabels":{"include":["zone","team"]}}}' "$LABEL_BLOCKS
 assert_labels('node', [{'tag_name': 'k8s.node.label.team', 'key': 'team', 'from': 'node'},
-                       {'tag_name': 'k8s.node.label.zone', 'key': 'zone', 'from': 'node'}])
-assert_attribute_limit([], ['k8s.node.label.zone'])
+                       {'tag_name': 'k8s.node.label.zone', 'key': 'zone', 'from': 'node'}] + chart_rules('node'))
+assert_attribute_limit([], ['k8s.node.label.zone'] + CHART_NODE_KEYS)
+assert processor('$NODE', '$LOGS_LABELS') == logs_labels(*[delete_key(k) for k in CHART_NODE_KEYS])"
+
+# The chart reads some pod labels itself (vLLM service.name, Knative service
+# type). A pod include list that leaves them out must not break those.
+check_case "Pod labels include without the chart's labels — still extracted, then removed from metrics and logs" \
+    '{"metrics":{"podLabels":{"include":["app"]}},"logs":{"podLabels":{"include":["app"]}}}' "$LABEL_BLOCKS
+assert_labels('node', all_labels('node'))
+assert_labels('pod', [{'tag_name': 'k8s.pod.label.app', 'key': 'app', 'from': 'pod'}] + chart_rules('pod'))
+assert_attribute_limit(RECOMMENDED_PREFIXES, merged(RECOMMENDED_KEYS, CHART_POD_KEYS))
+assert processor('$NODE', '$LOGS_LABELS') == logs_labels(*[delete_key(k) for k in CHART_POD_KEYS])
+assert pipelines_with('$NODE', '$LOGS_LABELS') == ['logs/cw_k8s_ci_v0_app', 'logs/cw_k8s_ci_v0_node']"
+
+check_case "Pod labels include covering the chart's labels, by prefix and exactly — extracted once and kept" \
+    '{"metrics":{"podLabels":{"include":["serving.kserve.io/*","component","topology.kubernetes.io/*"]}},"logs":{"podLabels":{"include":["component","topology.kubernetes.io/*","serving.kserve.io/*"]}}}' "$LABEL_BLOCKS
+assert_labels('pod', [{'tag_name': 'k8s.pod.label.\$\$\$1', 'key_regex': '(serving\\\\.kserve\\\\.io/.*)', 'from': 'pod'},
+                      {'tag_name': 'k8s.pod.label.component', 'key': 'component', 'from': 'pod'},
+                      {'tag_name': 'k8s.pod.label.\$\$\$1', 'key_regex': '(topology\\\\.kubernetes\\\\.io/.*)', 'from': 'pod'}])
+assert_attribute_limit(RECOMMENDED_PREFIXES, RECOMMENDED_KEYS)
 no_logs_labels()"
+
+check_case "Pod labels exclude of a chart label — still extracted, read, then removed" \
+    '{"metrics":{"podLabels":{"include":["app"],"exclude":["component"]}},"logs":{"podLabels":{"include":["app"]}}}' "$LABEL_BLOCKS
+assert_labels('pod', [{'tag_name': 'k8s.pod.label.app', 'key': 'app', 'from': 'pod'}] + chart_rules('pod'))
+assert_attribute_limit(RECOMMENDED_PREFIXES, merged(RECOMMENDED_KEYS, ['k8s.pod.label.component'], CHART_POD_KEYS))"
+
+check_case "The chart's labels are exactly the labels its processors read, after pod enrichment and before awsattributelimit" \
+    '{"metrics":{"podLabels":{"include":["app"]}},"logs":{"podLabels":{"include":["app"]}}}' "$LABEL_BLOCKS
+import re
+read = set()
+for agent in cfg:
+    for name in cfg[agent]['service']['pipelines']:
+        procs = pipeline(agent, name)
+        for p in procs:
+            if p.startswith(('k8sattributes/', 'awsattributelimit/')) or p == '$LOGS_LABELS':
+                continue
+            found = set(re.findall(r'attributes\\[\"(k8s\\.(?:node|pod)\\.label\\.[^\"]+)\"\\]', yaml.safe_dump(processor(agent, p), width=10000)))
+            if found:
+                enrich = [i for i, q in enumerate(procs) if q.startswith('k8sattributes/')]
+                assert enrich and max(enrich) < procs.index(p) < procs.index('awsattributelimit/cw_k8s_ci_v0'), (agent, name, p)
+            read |= found
+assert read == set(CHART_NODE_KEYS + CHART_POD_KEYS), sorted(read)" "--set dcgmExporter.enabled=true --set neuronMonitor.enabled=true --set otelContainerInsights.solutions.vllm.enabled=true --set otelContainerInsights.solutions.kserve.controlPlane.enabled=true --set otelContainerInsights.solutions.knative.dataPlane.enabled=true --set otelContainerInsights.solutions.knative.controlPlane.enabled=true"
+
+check_case "Labels include for metrics only, with OTEL logs disabled — the logs lists are not compared" \
+    '{"metrics":{"nodeLabels":{"include":["team"]},"podLabels":{"include":["app"]}}}' "$LABEL_BLOCKS
+assert_labels('node', [{'tag_name': 'k8s.node.label.team', 'key': 'team', 'from': 'node'}] + chart_rules('node'))
+assert_labels('pod', [{'tag_name': 'k8s.pod.label.app', 'key': 'app', 'from': 'pod'}] + chart_rules('pod'))
+no_logs_labels()" "--set otelContainerInsights.logs.enabled=false"
 
 for kind in nodeLabels podLabels; do
     check_fails "Invalid — metrics $kind include without the logs list" \
@@ -595,10 +686,16 @@ for kind in nodeLabels podLabels; do
             "{\"$signal\":{\"$kind\":{\"recommendedExclusions\":\"yes\"}}}" \
             "otelContainerInsights.filters.$signal.$kind.recommendedExclusions must be a boolean"
         message="otelContainerInsights.filters.$signal.$kind entries must be"
-        for entry in '"a b"' '"a*b"' '"-a"' '"a\"b"' '""' 'true'; do
+        for entry in '"a b"' '"a*b"' '"-a"' '"a\"b"' '""' 'true' '"app-"' '"app."' '"a/b/c"' '"x//"' '"/x"' '"Example.com/x"'; do
             check_fails "Invalid $signal.$kind.exclude entry $entry" \
                 "{\"$signal\":{\"$kind\":{\"exclude\":[$entry]}}}" "$message"
         done
+        check_fails "Invalid $signal.$kind.exclude entry — a 64-character name" \
+            "{\"$signal\":{\"$kind\":{\"exclude\":[\"example.com/$LABEL_NAME_64\"]}}}" \
+            "otelContainerInsights.filters.$signal.$kind entries must have a name of at most 63 characters"
+        check_fails "Invalid $signal.$kind.exclude entry — a 254-character prefix" \
+            "{\"$signal\":{\"$kind\":{\"exclude\":[\"${LABEL_PREFIX_253}x/a*\"]}}}" \
+            "otelContainerInsights.filters.$signal.$kind entries must have a name of at most 63 characters and a prefix of at most 253"
         check_fails "Invalid $signal.$kind.include entry \"a b\"" \
             "{\"$signal\":{\"$kind\":{\"include\":[\"a b\"]}}}" "$message"
         check_fails "Invalid — $signal.$kind.recommendedExclusions is a number" \

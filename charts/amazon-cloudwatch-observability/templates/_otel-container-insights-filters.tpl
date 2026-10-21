@@ -77,20 +77,30 @@ any entry reaches a template.
 {{- if not (or (kindIs "invalid" $entries) (kindIs "slice" $entries)) }}
 {{- fail (printf "otelContainerInsights.filters.%s.%s.%s must be a list" $signal $kind $list) }}
 {{- end }}
+{{- /* A label key is an optional DNS subdomain prefix and "/", then a name; a "*" entry may stop anywhere in it. */}}
+{{- $domain := "[a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*" }}
+{{- $exact := printf "^(%s/)?[A-Za-z0-9]([-A-Za-z0-9_.]*[A-Za-z0-9])?$" $domain }}
+{{- $prefix := printf "^((%s/)?[A-Za-z0-9][-A-Za-z0-9_.]*|%s/)\\*$" $domain $domain }}
 {{- range $entries }}
-{{- if not (and (kindIs "string" .) (regexMatch "^([A-Za-z0-9][-A-Za-z0-9_./]*\\*?|\\*)$" .)) }}
+{{- if not (and (kindIs "string" .) (or (eq . "*") (regexMatch $exact .) (regexMatch $prefix .))) }}
 {{- fail (printf "otelContainerInsights.filters.%s.%s entries must be a label key, a prefix ending in *, or *, got: %v" $signal $kind .) }}
 {{- end }}
+{{- $parts := splitList "/" (trimSuffix "*" .) }}
+{{- if or (gt (len (last $parts)) 63) (and (eq (len $parts) 2) (gt (len (first $parts)) 253)) }}
+{{- fail (printf "otelContainerInsights.filters.%s.%s entries must have a name of at most 63 characters and a prefix of at most 253, got: %s" $signal $kind .) }}
 {{- end }}
 {{- end }}
 {{- end }}
 {{- end }}
-{{- /* Metrics and logs share one k8sattributes processor per label kind. */}}
+{{- end }}
+{{- /* Metrics and logs share one k8sattributes processor per label kind. With OTel logs off, the logs lists are unused. */}}
+{{- if .Values.otelContainerInsights.logs.enabled }}
 {{- range $kind := list "nodeLabels" "podLabels" }}
 {{- $metricsInclude := (include "otel-container-insights.labelSettings" (dict "Values" $.Values "signal" "metrics" "kind" $kind) | fromJson).include | sortAlpha }}
 {{- $logsInclude := (include "otel-container-insights.labelSettings" (dict "Values" $.Values "signal" "logs" "kind" $kind) | fromJson).include | sortAlpha }}
 {{- if ne (toJson $metricsInclude) (toJson $logsInclude) }}
 {{- fail (printf "otelContainerInsights.filters.metrics.%s.include and otelContainerInsights.filters.logs.%s.include must contain the same labels, got %s and %s" $kind $kind (toJson $metricsInclude) (toJson $logsInclude)) }}
+{{- end }}
 {{- end }}
 {{- end }}
 {{- end -}}
@@ -194,6 +204,27 @@ The node or pod (.kind: "nodeLabels" or "podLabels") label settings of .signal
 {{- end -}}
 
 {{/*
+Labels that the chart's own processors read, as JSON {"node": [...], "pod": [...]}:
+the topology labels set cloud.region and cloud.availability_zone, and the KServe
+InferenceService and component pod labels set the vLLM service.name and the
+Knative ai_inference service type. An include list that leaves one out still
+extracts it, and it is removed after those processors run.
+*/}}
+{{- define "otel-container-insights.chartLabels" -}}
+{{- dict "node" (list "topology.kubernetes.io/zone") "pod" (list "topology.kubernetes.io/region" "topology.kubernetes.io/zone" "serving.kserve.io/inferenceservice" "component") | toJson }}
+{{- end -}}
+
+{{/*
+Non-empty when the include list .include, as returned by labelSettings,
+covers the label key .key.
+*/}}
+{{- define "otel-container-insights.labelIncluded" -}}
+{{- range .include }}
+{{- if or (eq . "*") (eq . $.key) (and (hasSuffix "*" .) (hasPrefix (trimSuffix "*" .) $.key)) }}true{{ end }}
+{{- end }}
+{{- end -}}
+
+{{/*
 k8sattributes label extraction rules for the node or pod (.from) labels. The
 metrics include list is used: validation requires the logs list to match.
 "*" extracts all labels; the $$$1 in tag_name is copied unchanged from the
@@ -212,12 +243,20 @@ extract-all rule this helper replaced, and renders as the literal text $$$1.
   from: {{ $.from }}
 {{- end }}
 {{- end }}
+{{- range index (include "otel-container-insights.chartLabels" . | fromJson) .from }}
+{{- if not (include "otel-container-insights.labelIncluded" (dict "include" $labels.include "key" .)) }}
+- tag_name: "k8s.{{ $.from }}.label.{{ . }}"
+  key: {{ . | quote }}
+  from: {{ $.from }}
+{{- end }}
+{{- end }}
 {{- end -}}
 
 {{/*
 Label attributes removed for .signal ("metrics" or "logs"), as JSON
 {"prefixes": [...], "keys": [...]}: the recommended exclusions when
-recommendedExclusions is true, plus the exclude entries.
+recommendedExclusions is true, the exclude entries, and the chart's labels
+that the include list leaves out.
 */}}
 {{- define "otel-container-insights.labelRemovals" -}}
 {{- $node := include "otel-container-insights.labelSettings" (dict "Values" .Values "signal" .signal "kind" "nodeLabels") | fromJson }}
@@ -225,12 +264,15 @@ recommendedExclusions is true, plus the exclude entries.
 {{- $prefixes := list }}
 {{- $keys := list }}
 {{- if $node.recommendedExclusions }}
+{{- /* Not the whole karpenter.k8s.aws/instance- prefix: instance-tenancy is a launch property, so it is kept. */}}
 {{- $prefixes = concat $prefixes (list
   "k8s.node.label.feature.node.kubernetes.io/"
   "k8s.node.label.beta.kubernetes.io/"
   "k8s.node.label.failure-domain.beta.kubernetes.io/"
   "k8s.node.label.alpha.eksctl.io/"
-  "k8s.node.label.karpenter.k8s.aws/instance-"
+  "k8s.node.label.karpenter.k8s.aws/instance-cpu"
+  "k8s.node.label.karpenter.k8s.aws/instance-gpu-"
+  "k8s.node.label.karpenter.k8s.aws/instance-accelerator-"
   "k8s.node.label.eks.amazonaws.com/instance-") }}
 {{- $keys = concat $keys (list
   "k8s.node.label.topology.kubernetes.io/region"
@@ -246,7 +288,18 @@ recommendedExclusions is true, plus the exclude entries.
   "k8s.node.label.eks.amazonaws.com/sourceLaunchTemplateVersion"
   "k8s.node.label.karpenter.sh/do-not-sync-taints"
   "k8s.node.label.karpenter.sh/initialized"
-  "k8s.node.label.karpenter.sh/registered") }}
+  "k8s.node.label.karpenter.sh/registered"
+  "k8s.node.label.karpenter.k8s.aws/instance-category"
+  "k8s.node.label.karpenter.k8s.aws/instance-family"
+  "k8s.node.label.karpenter.k8s.aws/instance-generation"
+  "k8s.node.label.karpenter.k8s.aws/instance-size"
+  "k8s.node.label.karpenter.k8s.aws/instance-memory"
+  "k8s.node.label.karpenter.k8s.aws/instance-hypervisor"
+  "k8s.node.label.karpenter.k8s.aws/instance-local-nvme"
+  "k8s.node.label.karpenter.k8s.aws/instance-ebs-bandwidth"
+  "k8s.node.label.karpenter.k8s.aws/instance-network-bandwidth"
+  "k8s.node.label.karpenter.k8s.aws/instance-encryption-in-transit-supported"
+  "k8s.node.label.karpenter.k8s.aws/instance-capability-flex") }}
 {{- end }}
 {{- range $node.exclude }}
 {{- if hasSuffix "*" . }}
@@ -268,6 +321,14 @@ recommendedExclusions is true, plus the exclude entries.
 {{- $prefixes = append $prefixes (printf "k8s.pod.label.%s" (trimSuffix "*" .)) }}
 {{- else }}
 {{- $keys = append $keys (printf "k8s.pod.label.%s" .) }}
+{{- end }}
+{{- end }}
+{{- $chartLabels := include "otel-container-insights.chartLabels" . | fromJson }}
+{{- range $kind, $settings := dict "node" $node "pod" $pod }}
+{{- range index $chartLabels $kind }}
+{{- if not (include "otel-container-insights.labelIncluded" (dict "include" $settings.include "key" .)) }}
+{{- $keys = append $keys (printf "k8s.%s.label.%s" $kind .) }}
+{{- end }}
 {{- end }}
 {{- end }}
 {{- dict "prefixes" (uniq $prefixes) "keys" (uniq $keys) | toJson }}
