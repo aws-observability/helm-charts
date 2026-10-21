@@ -1006,6 +1006,20 @@ dcgmExporter:
                 operator: NotIn
                 values:
                   - fargate
+  ## Affinity used instead of the above when k8sMode is GKE.
+  affinityGKE:
+    nodeAffinity:
+      requiredDuringSchedulingIgnoredDuringExecution:
+        nodeSelectorTerms:
+          - matchExpressions:
+              # GKE sets this on every node with an attached accelerator, regardless
+              # of GPU model (L4, T4, A100, ...) -- unlike AKS, there's no per-node
+              # label marking "GKE's own managed DCGM already runs here" to exclude
+              # (GKE's managed DCGM monitoring is a cluster-level setting, not a
+              # per-node-pool opt-in). That conflict is instead avoided by dropping
+              # DCGM_FI_PROF_PIPE_TENSOR_ACTIVE from metricsConfig below.
+              - key: cloud.google.com/gke-accelerator
+                operator: Exists
   nodeSelector:
     kubernetes.io/os: linux
 neuronMonitor:

@@ -16,21 +16,14 @@ spec:
   nodeSelector: {{- toYaml . | nindent 4 }}
   {{- end }}
   serviceAccount: {{ template "dcgm-exporter.serviceAccountName" . }}
-  {{- if eq .Values.k8sMode "GKE" }}
-  {{- /* The default affinity below matches AWS GPU instance-type families and never
-     matches GKE nodes. On GKE, schedule onto any node carrying the standard GKE GPU
-     node-pool label instead, regardless of accelerator model. */}}
-  affinity:
-    nodeAffinity:
-      requiredDuringSchedulingIgnoredDuringExecution:
-        nodeSelectorTerms:
-          - matchExpressions:
-              - key: cloud.google.com/gke-accelerator
-                operator: Exists
-  {{- else }}
-  {{- with .Values.dcgmExporter.affinity }}
-  affinity: {{- toYaml . | nindent 4 }}
+  {{- /* The default affinity matches AWS GPU instance-type families and never matches
+     GKE nodes, so it's swapped out below for one matching GKE's own GPU node label. */}}
+  {{- $dcgmAffinity := .Values.dcgmExporter.affinity -}}
+  {{- if eq .Values.k8sMode "GKE" -}}
+  {{- $dcgmAffinity = .Values.dcgmExporter.affinityGKE -}}
   {{- end }}
+  {{- with $dcgmAffinity }}
+  affinity: {{- toYaml . | nindent 4 }}
   {{- end }}
   {{- with .Values.dcgmExporter.resources }}
   resources: {{- toYaml . | nindent 4}}
