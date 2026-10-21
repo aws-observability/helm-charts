@@ -1204,14 +1204,14 @@ otelContainerInsights:
   # Override the CloudWatch Logs OTLP endpoint. If empty, defaults to logs.<region>.amazonaws.com.
   cloudwatchLogsEndpoint: ""
   ## Agent state kept on the node, so that it survives an agent restart. One
-  ## file_storage extension holds it. Only takes effect on the targetAgent DaemonSet,
-  ## and only with otelContainerInsights.logs.enabled true. With logs off, no component
-  ## uses the storage, so the chart renders none.
+  ## file_storage extension holds it. Only takes effect on the targetAgent DaemonSet.
   ## enabled: true keeps the application-log receiver's file checkpoints there, so a
-  ## restarted agent continues each log file where it stopped.
-  ## solutions.vllm.configInfo.enabled turns the storage on by itself, for the facts
-  ## of the vLLM config Info metric, but not the application-log checkpoints: it does
-  ## not change log shipping.
+  ## restarted agent continues each log file where it stopped. This takes effect only
+  ## with otelContainerInsights.logs.enabled true.
+  ## solutions.vllm.configInfo.enabled turns the storage on by itself, with logs on or
+  ## off, for the facts of the vLLM config Info metric. It does not turn on the
+  ## application-log checkpoints, so it does not change log shipping. With logs off and
+  ## configInfo off, no component uses the storage, so the chart renders none.
   ## The storage files are locked by one agent pod at a time, so the agent's
   ## updateStrategy.rollingUpdate.maxSurge must stay 0 (the DaemonSet default). The
   ## chart fails to render otherwise.
@@ -1251,19 +1251,28 @@ otelContainerInsights:
       ## Engine configuration Info metric: vllm_engine_config_info, value always 1, one
       ## series per vLLM container, with the engine's startup configuration as attributes
       ## (vLLM version, model, engine, dtype, parallelism, quantization, ...). The agent's
-      ## signal_to_info_metric connector parses it from the engine startup log line
-      ## inside the existing application-log and vLLM pipelines. It adds no pipeline
-      ## of its own.
-      ## Requires otelContainerInsights.logs.enabled true. With logs off, the chart
-      ## renders nothing for this metric.
-      ## Requires an agent image with the signal_to_info_metric connector: an older
-      ## image fails to start when this is on. Turns on the otelContainerInsights.stateStorage
-      ## extension and hostPath for its facts, but not the application-log checkpoints.
+      ## signal_to_info_metric connector parses it from the engine startup log line.
+      ## With otelContainerInsights.logs.enabled true, it works inside the existing
+      ## application-log and vLLM pipelines, and adds no pipeline of its own.
+      ## It also works with logs off. The agent then reads only the logs of the vLLM
+      ## containers on its node (the containers that the vLLM scrape finds), and it
+      ## ships no logs. This mode adds one pod watch per node agent.
+      ## Requires an agent image with the signal_to_info_metric connector. With logs
+      ## off, the image also needs the receiver_creator receiver and the k8s_observer
+      ## extension. An older image fails to start when this is on. Turns on the
+      ## otelContainerInsights.stateStorage extension and hostPath for its facts, but
+      ## not the application-log checkpoints.
       configInfo:
         enabled: false
         ## How often each series is re-sent. Empty = otelContainerInsights.metricResolution.
         ## "<N>s", "<N>m" or "<N>h", between 1s and 24h.
         emitInterval: ""
+        ## How often the agent checks the log file of each vLLM container. Only applies
+        ## with otelContainerInsights.logs.enabled false. Empty = 2s, or 1s when the
+        ## effective emit interval (emitInterval, or metricResolution when that is empty)
+        ## is 1s. "<N>s", "<N>m" or "<N>h", between 1s and 24h. A value above 2s can miss
+        ## the startup line of a container whose log rotates within seconds of its start.
+        pollInterval: ""
         ## Maximum number of vLLM containers tracked per agent (1-100000).
         maxEntities: 500
         ## Maximum size of the stored facts per agent, in bytes (65536-67108864).

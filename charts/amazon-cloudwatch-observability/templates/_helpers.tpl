@@ -448,12 +448,13 @@ Validates metricResolution is in "<N>s" format.
 "true" when the vLLM engine config Info metric (otelContainerInsights.solutions.vllm.configInfo)
 is rendered, empty otherwise. This is the one switch for everything that the metric adds. The
 metric rides on the vLLM metrics pipeline, so it needs that solution and OTEL Container Insights
-itself. The agent reads the engine startup line in the application-log pipeline, so it also
-needs otelContainerInsights.logs.enabled. With logs off, the chart renders nothing for it.
+itself. With otelContainerInsights.logs.enabled, the agent reads the engine startup line in the
+application-log pipeline. With logs off, it reads only the logs of vLLM containers, in a pipeline
+of its own (logs-off mode in otel-container-insights.config).
 */}}
 {{- define "otel-container-insights.configInfoEnabled" -}}
 {{- $ci := .Values.otelContainerInsights -}}
-{{- if and $ci.enabled $ci.logs.enabled $ci.solutions.enabled $ci.solutions.vllm.enabled $ci.solutions.vllm.configInfo.enabled -}}
+{{- if and $ci.enabled $ci.solutions.enabled $ci.solutions.vllm.enabled $ci.solutions.vllm.configInfo.enabled -}}
 true
 {{- end -}}
 {{- end -}}
@@ -461,14 +462,14 @@ true
 {{/*
 "true" when the node agent gets the shared state storage (file_storage/cw_k8s_ci_v0_state and
 its hostPath mount), empty otherwise. The vLLM config Info metric keeps its facts there, so it
-turns the storage on by itself. It does not turn on the app-log receiver's checkpoints: those
-need stateStorage.enabled ($appLogCheckpoints in otel-container-insights.config). Both users of
-the storage, the app-log receiver and the Info metric connector, need logs.enabled, so with logs
-off the storage is not rendered, even with stateStorage.enabled.
+turns the storage on by itself, with logs on or off. It does not turn on the app-log receiver's
+checkpoints: those need stateStorage.enabled ($appLogCheckpoints in otel-container-insights.config).
+The app-log receiver needs logs.enabled, so stateStorage.enabled alone takes effect only with logs
+on. With logs off and configInfo off, no component uses the storage, so it is not rendered.
 */}}
 {{- define "otel-container-insights.stateStorageEnabled" -}}
 {{- $ci := .Values.otelContainerInsights -}}
-{{- if and $ci.enabled $ci.logs.enabled (or $ci.stateStorage.enabled (include "otel-container-insights.configInfoEnabled" .)) -}}
+{{- if and $ci.enabled (or (include "otel-container-insights.configInfoEnabled" .) (and $ci.logs.enabled $ci.stateStorage.enabled)) -}}
 true
 {{- end -}}
 {{- end -}}
@@ -514,6 +515,44 @@ The number of seconds in a "<N>s", "<N>m" or "<N>h" duration string, 0 for any o
   {{- $seconds = mul (trimSuffix $unit . | int64) (get (dict "s" 1 "m" 60 "h" 3600) $unit) -}}
 {{- end -}}
 {{- $seconds -}}
+{{- end -}}
+
+{{/*
+solutions.vllm.configInfo.pollInterval checked by otel-container-insights.vllmInfoDuration, or
+empty when it is not set. otel-container-insights.config checks it whenever configInfo is on,
+so a bad value fails at once even with logs on, where it has no effect.
+*/}}
+{{- define "otel-container-insights.vllmInfoPollInterval" -}}
+{{- /* A null value (for example --set ...pollInterval=null) counts as empty. */ -}}
+{{- $value := .Values.otelContainerInsights.solutions.vllm.configInfo.pollInterval -}}
+{{- $configured := ternary "" ($value | toString) (kindIs "invalid" $value) -}}
+{{- if ne $configured "" -}}
+  {{- include "otel-container-insights.vllmInfoDuration" (dict "name" "otelContainerInsights.solutions.vllm.configInfo.pollInterval" "value" $configured) -}}
+{{- end -}}
+{{- end -}}
+
+{{/*
+poll_interval of the filelog receivers that receiver_creator/cw_k8s_ci_v0_vllm_logs starts in
+logs-off mode (configInfo on, logs.enabled off): solutions.vllm.configInfo.pollInterval
+(otel-container-insights.vllmInfoPollInterval), used as is. When it is empty: 2s, or the emit
+interval of the vLLM config Info metric (otel-container-insights.vllmInfoEmitInterval) when that
+is shorter. The connector emits a new series as soon as it reads the startup line, so the first
+series comes within one poll interval after the line is written. Polling less often than the
+receiver default of 200ms cuts the file checks. A longer interval can miss the startup line of a
+container whose log rotates within seconds of its start.
+*/}}
+{{- define "otel-container-insights.vllmInfoLogsOffPollInterval" -}}
+{{- $configured := include "otel-container-insights.vllmInfoPollInterval" . -}}
+{{- if ne $configured "" -}}
+  {{- $configured -}}
+{{- else -}}
+  {{- $emit := include "otel-container-insights.vllmInfoEmitInterval" . -}}
+  {{- if lt (include "otel-container-insights.durationSeconds" $emit | int64) 2 -}}
+    {{- $emit -}}
+  {{- else -}}
+    2s
+  {{- end -}}
+{{- end -}}
 {{- end -}}
 
 {{/*
