@@ -72,6 +72,7 @@ data:
 {{- range .Values.agents }}
 {{- $agent := mergeOverwrite (deepCopy $.Values.agent) . }}
 {{- $agentName := include "cloudwatch-agent.validatedName" ($agent.name | default (include "cloudwatch-agent.name" $)) -}}
+{{- include "otel-container-insights.validateStateStorageRollout" (dict "agent" $agent "agentName" $agentName "context" $) -}}
 {{/* Skip cluster-scraper agent when otelContainerInsights is disabled */}}
 {{- if or $.Values.otelContainerInsights.enabled (ne $agentName $.Values.otelContainerInsights.clusterScraperAgent) }}
 apiVersion: cloudwatch.aws.amazon.com/v1alpha1
@@ -182,6 +183,12 @@ spec:
     name: varlog
     readOnly: true
   {{- end }}
+  {{- if and $.Values.otelContainerInsights.enabled (include "otel-container-insights.stateStorageEnabled" $) (eq $agentName $.Values.otelContainerInsights.targetAgent) }}
+  # Writable: file_storage/cw_k8s_ci_v0_state keeps the OTEL pipelines' state here
+  # (app-log checkpoints, vLLM config Info metric facts) across agent restarts.
+  - mountPath: {{ include "otel-container-insights.stateStorageHostPath" $ | quote }}
+    name: otelstate
+  {{- end }}
   - mountPath: /var/lib/docker
     name: varlibdocker
     readOnly: true
@@ -245,6 +252,12 @@ spec:
   - hostPath:
       path: /var/log
     name: varlog
+  {{- end }}
+  {{- if and $.Values.otelContainerInsights.enabled (include "otel-container-insights.stateStorageEnabled" $) (eq $agentName $.Values.otelContainerInsights.targetAgent) }}
+  - hostPath:
+      path: {{ include "otel-container-insights.stateStorageHostPath" $ | quote }}
+      type: DirectoryOrCreate
+    name: otelstate
   {{- end }}
   - hostPath:
       path: /sys
