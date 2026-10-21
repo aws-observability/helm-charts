@@ -444,6 +444,124 @@ Validates metricResolution is in "<N>s" format.
 {{- end -}}
 {{- end -}}
 
+{{/*
+"true" when the vLLM engine config Info metric (otelContainerInsights.solutions.vllm.configInfo)
+is rendered, empty otherwise. This is the one switch for everything that the metric adds. The
+metric rides on the vLLM metrics pipeline, so it needs that solution and OTEL Container Insights
+itself. The agent reads the engine startup line in the application-log pipeline, so it also
+needs otelContainerInsights.logs.enabled. With logs off, the chart renders nothing for it.
+*/}}
+{{- define "otel-container-insights.configInfoEnabled" -}}
+{{- $ci := .Values.otelContainerInsights -}}
+{{- if and $ci.enabled $ci.logs.enabled $ci.solutions.enabled $ci.solutions.vllm.enabled $ci.solutions.vllm.configInfo.enabled -}}
+true
+{{- end -}}
+{{- end -}}
+
+{{/*
+"true" when the node agent gets the shared state storage (file_storage/cw_k8s_ci_v0_state and
+its hostPath mount), empty otherwise. The vLLM config Info metric keeps its facts there, so it
+turns the storage on by itself. It does not turn on the app-log receiver's checkpoints: those
+need stateStorage.enabled ($appLogCheckpoints in otel-container-insights.config). Both users of
+the storage, the app-log receiver and the Info metric connector, need logs.enabled, so with logs
+off the storage is not rendered, even with stateStorage.enabled.
+*/}}
+{{- define "otel-container-insights.stateStorageEnabled" -}}
+{{- $ci := .Values.otelContainerInsights -}}
+{{- if and $ci.enabled $ci.logs.enabled (or $ci.stateStorage.enabled (include "otel-container-insights.configInfoEnabled" .)) -}}
+true
+{{- end -}}
+{{- end -}}
+
+{{/*
+emit_interval of the vLLM config Info metric: solutions.vllm.configInfo.emitInterval, or
+otelContainerInsights.metricResolution when that is empty. Checked by
+otel-container-insights.vllmInfoDuration.
+*/}}
+{{- define "otel-container-insights.vllmInfoEmitInterval" -}}
+{{- /* A null value (for example --set ...emitInterval=null) counts as empty. */ -}}
+{{- $value := .Values.otelContainerInsights.solutions.vllm.configInfo.emitInterval -}}
+{{- $configured := ternary "" ($value | toString) (kindIs "invalid" $value) -}}
+{{- $source := "otelContainerInsights.solutions.vllm.configInfo.emitInterval" -}}
+{{- $raw := $configured -}}
+{{- if eq $configured "" -}}
+  {{- $source = "otelContainerInsights.metricResolution (used because solutions.vllm.configInfo.emitInterval is empty)" -}}
+  {{- $raw = .Values.otelContainerInsights.metricResolution | toString -}}
+{{- end -}}
+{{- include "otel-container-insights.vllmInfoDuration" (dict "name" $source "value" $raw) -}}
+{{- end -}}
+
+{{/*
+A duration setting of the vLLM config Info metric, returned as is. Must be "<N>s", "<N>m" or
+"<N>h" within the connector's 1s..24h bounds, so a bad value fails here rather than at agent
+start. Takes a dict with "name" (the setting, as named in the message) and "value" (a string).
+*/}}
+{{- define "otel-container-insights.vllmInfoDuration" -}}
+{{- $seconds := include "otel-container-insights.durationSeconds" .value | int64 -}}
+{{- if or (lt $seconds 1) (gt $seconds 86400) -}}
+  {{- fail (printf "%s must be a duration in \"<N>s\", \"<N>m\" or \"<N>h\" format between 1s and 24h (e.g. \"60s\", \"5m\", \"1h\"), got: %s" .name .value) -}}
+{{- end -}}
+{{- .value -}}
+{{- end -}}
+
+{{/*
+The number of seconds in a "<N>s", "<N>m" or "<N>h" duration string, 0 for any other string.
+*/}}
+{{- define "otel-container-insights.durationSeconds" -}}
+{{- $seconds := 0 -}}
+{{- if regexMatch "^[0-9]+[smh]$" . -}}
+  {{- $unit := regexFind "[smh]$" . -}}
+  {{- $seconds = mul (trimSuffix $unit . | int64) (get (dict "s" 1 "m" 60 "h" 3600) $unit) -}}
+{{- end -}}
+{{- $seconds -}}
+{{- end -}}
+
+{{/*
+An integer setting of the vLLM config Info metric, checked against the connector's bounds so that
+a bad value fails here rather than at agent start. Takes a dict with "name", "value", "min", "max".
+A non-numeric value converts to 0, which is below every minimum.
+*/}}
+{{- define "otel-container-insights.vllmInfoInt" -}}
+{{- $n := .value | int64 -}}
+{{- if or (lt $n (.min | int64)) (gt $n (.max | int64)) -}}
+  {{- fail (printf "otelContainerInsights.solutions.vllm.configInfo.%s must be an integer between %d and %d, got: %v" .name (.min | int64) (.max | int64) .value) -}}
+{{- end -}}
+{{- $n -}}
+{{- end -}}
+
+{{/*
+hostPath of the shared state storage. Must be an absolute path: it is both the node directory
+and the mount path inside the agent container. A "." or ".." segment is rejected, so the path
+cannot resolve to / or leave the given directory.
+*/}}
+{{- define "otel-container-insights.stateStorageHostPath" -}}
+{{- $path := .Values.otelContainerInsights.stateStorage.hostPath | toString -}}
+{{- if or (not (regexMatch "^/[A-Za-z0-9._/-]*[A-Za-z0-9._-]$" $path)) (regexMatch "(^|/)[.][.]?(/|$)" $path) -}}
+  {{- fail (printf "otelContainerInsights.stateStorage.hostPath must be an absolute directory path other than / (letters, digits, '.', '_', '-', '/', no '.' or '..' segment), got: %s" $path) -}}
+{{- end -}}
+{{- $path -}}
+{{- end -}}
+
+{{/*
+Fail when two agent pods on one node could share the state storage. file_storage holds an
+exclusive bbolt file lock on each of its database files, so during a rolling update with
+maxSurge above 0 the new pod starts while the old one still holds the locks, and its storage
+clients time out. Takes a dict with "agent" (the merged agent entry), "agentName" and "context";
+only the targetAgent is checked. Evaluates maxSurge the way the custom resource renders it.
+*/}}
+{{- define "otel-container-insights.validateStateStorageRollout" -}}
+{{- $ctx := .context -}}
+{{- if and (include "otel-container-insights.stateStorageEnabled" $ctx) (eq .agentName $ctx.Values.otelContainerInsights.targetAgent) -}}
+{{- $strategy := .agent.updateStrategy | default dict -}}
+{{- if eq ($strategy.type | toString) "RollingUpdate" -}}
+{{- $maxSurge := dig "rollingUpdate" "maxSurge" "" $strategy | default (include "cloudwatch-agent.rolloutStrategyMaxSurge" (dict "mode" .agent.mode)) | toString -}}
+{{- if not (regexMatch "^0+%?$" $maxSurge) -}}
+  {{- fail (printf "agent %s: otelContainerInsights.stateStorage (also turned on by solutions.vllm.configInfo.enabled) requires updateStrategy.rollingUpdate.maxSurge 0, got: %s. The file_storage extension's bbolt files are locked by one agent pod at a time, so a surge pod on the same node cannot open them." .agentName $maxSurge) -}}
+{{- end -}}
+{{- end -}}
+{{- end -}}
+{{- end -}}
+
 {{- define "cloudwatch-agent.rolloutStrategyMaxUnavailable" -}}
 {{- if eq .mode "daemonset" -}}
 1
