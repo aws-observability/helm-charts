@@ -339,6 +339,17 @@ processors:
       metric:
         - IsMatch(name, "^(up|scrape_duration_seconds|scrape_samples_scraped|scrape_samples_post_metric_relabeling|scrape_series_added|node_scrape_collector_duration_seconds|node_scrape_collector_success)$")
 
+  # Drop receiver-injected deprecated semconv attributes; their current-spelling
+  # twins (server.address, server.port, url.scheme) carry the same values and stay.
+  transform/cw_k8s_ci_v0_drop_deprecated_semconv:
+    error_mode: ignore
+    metric_statements:
+      - context: resource
+        statements:
+          - delete_key(attributes, "net.host.name") where attributes["net.host.name"] != nil
+          - delete_key(attributes, "net.host.port") where attributes["net.host.port"] != nil
+          - delete_key(attributes, "http.scheme") where attributes["http.scheme"] != nil
+
   transform/cw_k8s_ci_v0_set_unit:
     error_mode: ignore
     metric_statements:
@@ -694,6 +705,17 @@ processors:
           - from: resource_attribute
             name: k8s.namespace.name
 
+  # A pod's topology labels (copied from its node) are its region and zone. The zone replaces a detected one,
+  # which on the cluster scraper is the scraper's own.
+  transform/cw_k8s_ci_v0_pod_topology:
+    error_mode: ignore
+    metric_statements:
+      - context: resource
+        statements:
+          - set(resource.attributes["cloud.region"], resource.attributes["k8s.pod.label.topology.kubernetes.io/region"]) where resource.attributes["cloud.region"] == nil and resource.attributes["k8s.pod.label.topology.kubernetes.io/region"] != nil
+          # Skip digit-only values: on AKS nodes outside availability zones, the zone label holds the fault domain (0, 1, ...), not a zone.
+          - set(resource.attributes["cloud.availability_zone"], resource.attributes["k8s.pod.label.topology.kubernetes.io/zone"]) where resource.attributes["k8s.pod.label.topology.kubernetes.io/zone"] != nil and not IsMatch(resource.attributes["k8s.pod.label.topology.kubernetes.io/zone"], "^[0-9]+$")
+
   awsattributelimit/cw_k8s_ci_v0:
     max_total_attributes: 150
     unconditional_removal_prefixes:
@@ -701,6 +723,11 @@ processors:
       - "k8s.node.label.beta.kubernetes.io/"
       - "k8s.node.label.failure-domain.beta.kubernetes.io/"
       - "k8s.node.label.alpha.eksctl.io/"
+      # Not the whole karpenter.k8s.aws/instance- prefix: instance-tenancy is a launch property, so it is kept.
+      - "k8s.node.label.karpenter.k8s.aws/instance-cpu"
+      - "k8s.node.label.karpenter.k8s.aws/instance-gpu-"
+      - "k8s.node.label.karpenter.k8s.aws/instance-accelerator-"
+      - "k8s.node.label.eks.amazonaws.com/instance-"
     unconditional_removal_keys:
       - "k8s.node.label.topology.kubernetes.io/region"
       - "k8s.node.label.topology.kubernetes.io/zone"
@@ -715,6 +742,23 @@ processors:
       - "k8s.node.label.eks.amazonaws.com/sourceLaunchTemplateVersion"
       - "k8s.pod.label.pod-template-hash"
       - "k8s.pod.label.controller-revision-hash"
+      - "k8s.pod.label.pod-template-generation"
+      - "k8s.pod.label.topology.kubernetes.io/region"
+      - "k8s.pod.label.topology.kubernetes.io/zone"
+      - "k8s.node.label.karpenter.sh/do-not-sync-taints"
+      - "k8s.node.label.karpenter.sh/initialized"
+      - "k8s.node.label.karpenter.sh/registered"
+      - "k8s.node.label.karpenter.k8s.aws/instance-category"
+      - "k8s.node.label.karpenter.k8s.aws/instance-family"
+      - "k8s.node.label.karpenter.k8s.aws/instance-generation"
+      - "k8s.node.label.karpenter.k8s.aws/instance-size"
+      - "k8s.node.label.karpenter.k8s.aws/instance-memory"
+      - "k8s.node.label.karpenter.k8s.aws/instance-hypervisor"
+      - "k8s.node.label.karpenter.k8s.aws/instance-local-nvme"
+      - "k8s.node.label.karpenter.k8s.aws/instance-ebs-bandwidth"
+      - "k8s.node.label.karpenter.k8s.aws/instance-network-bandwidth"
+      - "k8s.node.label.karpenter.k8s.aws/instance-encryption-in-transit-supported"
+      - "k8s.node.label.karpenter.k8s.aws/instance-capability-flex"
 
   transform/cw_k8s_ci_v0_set_cloud_resource_id:
     error_mode: ignore
@@ -816,6 +860,13 @@ processors:
           - set(attributes["container"], resource.attributes["container"]) where resource.attributes["container"] != nil
           - set(attributes["pod"], resource.attributes["pod"]) where resource.attributes["pod"] != nil
           - set(attributes["namespace"], resource.attributes["namespace"]) where resource.attributes["namespace"] != nil
+      # Drop the resource-level raw copies; the datapoint block above already copied
+      # them down. Must run after it — statement groups execute in declaration order.
+      - context: resource
+        statements:
+          - delete_key(attributes, "container") where attributes["container"] != nil
+          - delete_key(attributes, "pod") where attributes["pod"] != nil
+          - delete_key(attributes, "namespace") where attributes["namespace"] != nil
 
   {{- if .Values.dcgmExporter.enabled }}
   groupbyattrs/cw_k8s_ci_v0_dcgm:
@@ -835,13 +886,20 @@ processors:
       - context: datapoint
         statements:
           # Restore raw Prometheus names to datapoint scope (groupbyattrs removed them).
-          # Raw labels are still at resource scope (not deleted), so copy them back down.
+          # The resource-scope copies are deleted after this copy-back.
           - set(attributes["pod"], resource.attributes["pod"]) where resource.attributes["pod"] != nil
           - set(attributes["namespace"], resource.attributes["namespace"]) where resource.attributes["namespace"] != nil
           - set(attributes["container"], resource.attributes["container"]) where resource.attributes["container"] != nil
           # Clean up leftover datapoint attributes not needed downstream.
           - delete_key(attributes, "Hostname") where attributes["Hostname"] != nil
           - delete_key(attributes, "pci_bus_id") where attributes["pci_bus_id"] != nil
+      # Drop the resource-level raw copies; the datapoint block above already copied
+      # them down. Must run after it — statement groups execute in declaration order.
+      - context: resource
+        statements:
+          - delete_key(attributes, "pod") where attributes["pod"] != nil
+          - delete_key(attributes, "namespace") where attributes["namespace"] != nil
+          - delete_key(attributes, "container") where attributes["container"] != nil
   {{- end }}
 
   {{- if .Values.neuronMonitor.enabled }}
@@ -1108,6 +1166,7 @@ service:
       receivers: [prometheus/cw_k8s_ci_v0_node_exporter]
       processors:
         - filter/cw_k8s_ci_v0_scrape_metadata
+        - transform/cw_k8s_ci_v0_drop_deprecated_semconv
         - transform/cw_k8s_ci_v0_set_unit
         - metricstarttime/cw_k8s_ci_v0
         - transform/cw_k8s_ci_v0_set_cluster_name
@@ -1129,6 +1188,7 @@ service:
       receivers: [prometheus/cw_k8s_ci_v0_cadvisor]
       processors:
         - filter/cw_k8s_ci_v0_scrape_metadata
+        - transform/cw_k8s_ci_v0_drop_deprecated_semconv
         - transform/cw_k8s_ci_v0_set_unit
         - metricstarttime/cw_k8s_ci_v0
         - transform/cw_k8s_ci_v0_set_cluster_name
@@ -1149,6 +1209,7 @@ service:
         - transform/cw_k8s_ci_v0_set_scope_cadvisor
         - transform/cw_k8s_ci_v0_clear_schema_url
         - transform/cw_k8s_ci_v0_set_workload
+        - transform/cw_k8s_ci_v0_pod_topology
         - awsattributelimit/cw_k8s_ci_v0
         - batch/cw_k8s_ci_v0_metrics_dest
       exporters:
@@ -1157,7 +1218,7 @@ service:
     {{- if .Values.dcgmExporter.enabled }}
     metrics/cw_k8s_ci_v0_dcgm:
       receivers: [prometheus/cw_k8s_ci_v0_dcgm]
-      processors: [filter/cw_k8s_ci_v0_scrape_metadata, transform/cw_k8s_ci_v0_set_unit, metricstarttime/cw_k8s_ci_v0, transform/cw_k8s_ci_v0_set_cluster_name, groupbyattrs/cw_k8s_ci_v0_dcgm, transform/cw_k8s_ci_v0_dcgm_promote, {{ if include "otel-container-insights.metricsNamespaceFilterEnabled" . }}filter/cw_k8s_ci_v0_metrics_namespaces, {{ end }}k8sattributes/cw_k8s_ci_v0_pod, transform/cw_k8s_ci_v0_set_node_name, transform/cw_k8s_ci_v0_promote_node_name, k8sattributes/cw_k8s_ci_v0_node, resourcedetection/cw_k8s_ci_v0, transform/cw_k8s_ci_v0_set_scope_dcgm, transform/cw_k8s_ci_v0_clear_schema_url, transform/cw_k8s_ci_v0_set_cloud_resource_id, transform/cw_k8s_ci_v0_set_workload, awsattributelimit/cw_k8s_ci_v0, batch/cw_k8s_ci_v0_metrics_dest]
+      processors: [filter/cw_k8s_ci_v0_scrape_metadata, transform/cw_k8s_ci_v0_drop_deprecated_semconv, transform/cw_k8s_ci_v0_set_unit, metricstarttime/cw_k8s_ci_v0, transform/cw_k8s_ci_v0_set_cluster_name, groupbyattrs/cw_k8s_ci_v0_dcgm, transform/cw_k8s_ci_v0_dcgm_promote, {{ if include "otel-container-insights.metricsNamespaceFilterEnabled" . }}filter/cw_k8s_ci_v0_metrics_namespaces, {{ end }}k8sattributes/cw_k8s_ci_v0_pod, transform/cw_k8s_ci_v0_set_node_name, transform/cw_k8s_ci_v0_promote_node_name, k8sattributes/cw_k8s_ci_v0_node, resourcedetection/cw_k8s_ci_v0, transform/cw_k8s_ci_v0_set_scope_dcgm, transform/cw_k8s_ci_v0_clear_schema_url, transform/cw_k8s_ci_v0_set_cloud_resource_id, transform/cw_k8s_ci_v0_set_workload, transform/cw_k8s_ci_v0_pod_topology, awsattributelimit/cw_k8s_ci_v0, batch/cw_k8s_ci_v0_metrics_dest]
       exporters:
         - otlphttp/cw_k8s_ci_v0_metrics_dest
     {{- end }}
@@ -1167,6 +1228,7 @@ service:
       receivers: [prometheus/cw_k8s_ci_v0_neuron]
       processors:
         - filter/cw_k8s_ci_v0_scrape_metadata
+        - transform/cw_k8s_ci_v0_drop_deprecated_semconv
         - metricstarttime/cw_k8s_ci_v0
         - transform/cw_k8s_ci_v0_set_cluster_name
         - filter/cw_k8s_ci_v0_neuron
@@ -1188,6 +1250,7 @@ service:
         - transform/cw_k8s_ci_v0_set_scope_neuron_monitor
         - transform/cw_k8s_ci_v0_clear_schema_url
         - transform/cw_k8s_ci_v0_set_workload
+        - transform/cw_k8s_ci_v0_pod_topology
         - awsattributelimit/cw_k8s_ci_v0
         - batch/cw_k8s_ci_v0_metrics_dest
       exporters:
@@ -1214,6 +1277,7 @@ service:
         - transform/cw_k8s_ci_v0_clear_schema_url
         - transform/cw_k8s_ci_v0_set_cloud_resource_id
         - transform/cw_k8s_ci_v0_set_workload
+        - transform/cw_k8s_ci_v0_pod_topology
         - awsattributelimit/cw_k8s_ci_v0
         - batch/cw_k8s_ci_v0_metrics_dest
       exporters:
@@ -1223,6 +1287,7 @@ service:
       receivers: [prometheus/cw_k8s_ci_v0_ebs_csi_node]
       processors:
         - filter/cw_k8s_ci_v0_scrape_metadata
+        - transform/cw_k8s_ci_v0_drop_deprecated_semconv
         - transform/cw_k8s_ci_v0_set_unit
         - metricstarttime/cw_k8s_ci_v0
         - transform/cw_k8s_ci_v0_set_cluster_name
@@ -1246,6 +1311,7 @@ service:
       processors:
         - filter/cw_k8s_ci_v0_scrape_metadata
         - filter/cw_k8s_ci_v0_vllm_keep
+        - transform/cw_k8s_ci_v0_drop_deprecated_semconv
         - transform/cw_k8s_ci_v0_set_unit
         - metricstarttime/cw_k8s_ci_v0
         - transform/cw_k8s_ci_v0_set_cluster_name
@@ -1263,6 +1329,7 @@ service:
         - transform/cw_k8s_ci_v0_clear_schema_url
         - transform/cw_k8s_ci_v0_set_workload
         - transform/cw_k8s_ci_v0_vllm_service_name
+        - transform/cw_k8s_ci_v0_pod_topology
         - awsattributelimit/cw_k8s_ci_v0
         - batch/cw_k8s_ci_v0_metrics_dest
       exporters:
@@ -1273,6 +1340,7 @@ service:
       receivers: [prometheus/cw_k8s_ci_v0_lis_csi_node]
       processors:
         - filter/cw_k8s_ci_v0_scrape_metadata
+        - transform/cw_k8s_ci_v0_drop_deprecated_semconv
         - transform/cw_k8s_ci_v0_set_unit
         - metricstarttime/cw_k8s_ci_v0
         - transform/cw_k8s_ci_v0_set_cluster_name
@@ -1296,6 +1364,7 @@ service:
       processors:
         - filter/cw_k8s_ci_v0_scrape_metadata
         - filter/cw_k8s_ci_v0_knative_dataplane_keep
+        - transform/cw_k8s_ci_v0_drop_deprecated_semconv
         - transform/cw_k8s_ci_v0_set_unit
         - metricstarttime/cw_k8s_ci_v0
         - transform/cw_k8s_ci_v0_set_cluster_name
@@ -1313,6 +1382,7 @@ service:
         - transform/cw_k8s_ci_v0_clear_schema_url
         - transform/cw_k8s_ci_v0_set_workload
         - transform/cw_k8s_ci_v0_knative_dataplane_service_type
+        - transform/cw_k8s_ci_v0_pod_topology
         - awsattributelimit/cw_k8s_ci_v0
         - batch/cw_k8s_ci_v0_metrics_dest
       exporters:
@@ -1334,6 +1404,7 @@ service:
         - k8sattributes/cw_k8s_ci_v0_node
         - transform/cw_k8s_ci_v0_clear_schema_url
         - transform/cw_k8s_ci_v0_set_workload
+        - transform/cw_k8s_ci_v0_pod_topology
         - awsattributelimit/cw_k8s_ci_v0
         - batch/cw_k8s_ci_v0_metrics_dest
       exporters:
