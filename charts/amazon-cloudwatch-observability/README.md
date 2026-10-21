@@ -151,6 +151,12 @@ spec:
 Port-level settings only take effect with a workload selector. The Knative control plane in
 `knative-serving` is not sidecar-injected by default.
 
+## DCGM metrics
+
+The NVIDIA DCGM exporter runs on every NVIDIA GPU node when `dcgmExporter.enabled` is true,
+the default. It collects 51 DCGM fields and the driver version label. The list is
+`$metricsConfig` in `templates/linux/dcgm-exporter-daemonset.yaml`.
+
 ## Windows Support
 CloudWatch DaemonSet on Windows is officially supported only for containerd runtime.
 
