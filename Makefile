@@ -7,9 +7,9 @@ HELM=helm
 GOIMPORTS = $(TOOLS_BIN_DIR)/goimports
 LINTER = $(TOOLS_BIN_DIR)/golangci-lint
 
-.PHONY: all deps tidy helm-lint helm-flag-matrix helm-yaml-injection helm-neuron-shape helm-otel-ci-filters check_secrets fmt lint install-goimports install-golangci-lint
+.PHONY: all deps tidy helm-lint helm-flag-matrix helm-yaml-injection helm-neuron-shape helm-kserve-shape helm-vllm-shape helm-knative-shape helm-otel-ci-filters helm-availability-zone check_secrets fmt lint install-goimports install-golangci-lint
 
-all: deps tidy check_secrets fmt lint helm-lint helm-flag-matrix helm-yaml-injection helm-neuron-shape helm-otel-ci-filters
+all: deps tidy check_secrets fmt lint helm-lint helm-flag-matrix helm-yaml-injection helm-neuron-shape helm-kserve-shape helm-vllm-shape helm-knative-shape helm-otel-ci-filters helm-availability-zone
 
 install-goimports:
 	GOBIN=$(TOOLS_BIN_DIR) go install golang.org/x/tools/cmd/goimports@latest
@@ -47,5 +47,17 @@ helm-yaml-injection:
 helm-neuron-shape:
 	bash charts/amazon-cloudwatch-observability/tests/neuron_pipeline_shape.sh
 
+helm-kserve-shape:
+	bash charts/amazon-cloudwatch-observability/tests/kserve_pipeline_shape.sh
+
+helm-vllm-shape:
+	bash charts/amazon-cloudwatch-observability/tests/vllm_pipeline_shape.sh
+
+helm-knative-shape:
+	bash charts/amazon-cloudwatch-observability/tests/knative_pipeline_shape.sh
+
 helm-otel-ci-filters:
 	bash charts/amazon-cloudwatch-observability/tests/otel_ci_filters.sh
+
+helm-availability-zone:
+	bash charts/amazon-cloudwatch-observability/tests/availability_zone.sh

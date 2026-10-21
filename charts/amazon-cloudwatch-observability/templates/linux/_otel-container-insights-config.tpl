@@ -98,6 +98,42 @@ receivers:
               regex: metrics
               action: keep
 
+  {{- if and .Values.otelContainerInsights.solutions.enabled .Values.otelContainerInsights.solutions.knative.dataPlane.enabled }}
+  # Knative request metrics from the queue-proxy's user-metric port. Keyed on the
+  # revision label, so plain Knative Services are covered too. The port serves
+  # nothing until request-metrics-protocol is set on Serving >= 1.19.
+  prometheus/cw_k8s_ci_v0_knative_dataplane:
+    config:
+      scrape_configs:
+        - job_name: knative-dataplane
+          scrape_interval: {{ .Values.otelContainerInsights.metricResolution }}
+          scrape_timeout: {{ include "otel-container-insights.scrapeTimeout" . }}
+          metrics_path: /metrics
+          # Watch only this node's revision pods; both filters run in the API server,
+          # so no agent holds pods from other nodes or non-Knative pods.
+          kubernetes_sd_configs:
+            - role: pod
+              {{- if .Values.otelContainerInsights.solutions.knative.dataPlane.namespace }}
+              namespaces:
+                names:
+                  - {{ .Values.otelContainerInsights.solutions.knative.dataPlane.namespace }}
+              {{- end }}
+              selectors:
+                - role: pod
+                  field: spec.nodeName=${env:K8S_NODE_NAME}
+                  label: serving.knative.dev/revision
+          relabel_configs:
+            - source_labels: [__meta_kubernetes_pod_container_port_name]
+              regex: http-usermetric
+              action: keep
+            - source_labels: [__meta_kubernetes_pod_name]
+              target_label: pod
+              action: replace
+            - source_labels: [__meta_kubernetes_namespace]
+              target_label: namespace
+              action: replace
+  {{- end }}
+
   prometheus/cw_k8s_ci_v0_lis_csi_node:
     config:
       scrape_configs:
@@ -119,6 +155,91 @@ receivers:
             - source_labels: [__meta_kubernetes_pod_container_port_name]
               regex: metrics
               action: keep
+
+  {{- if and .Values.otelContainerInsights.solutions.enabled .Values.otelContainerInsights.solutions.vllm.enabled }}
+  # vLLM model-server metrics, scraped per node like the ebs-csi-node job.
+  prometheus/cw_k8s_ci_v0_vllm:
+    config:
+      scrape_configs:
+        - job_name: vllm
+          scrape_interval: {{ .Values.otelContainerInsights.metricResolution }}
+          scrape_timeout: {{ include "otel-container-insights.scrapeTimeout" . }}
+          metrics_path: /metrics
+          # Watch only this node's pods: the vLLM match below is on the image, which
+          # the API server cannot filter on, so an unscoped watch would hold every
+          # pod in the cluster on every agent.
+          kubernetes_sd_configs:
+            - role: pod
+              selectors:
+                - role: pod
+                  field: spec.nodeName=${env:K8S_NODE_NAME}
+          relabel_configs:
+            # Found without configuration: the model container of a KServe predictor,
+            # or any container running a vLLM image. KServe names the container of
+            # every InferenceService component kserve-container, so the predictor is
+            # picked by its component label; transformers and explainers are not model
+            # servers. Keyed on the container name rather than the port name: the port
+            # is unnamed in RawDeployment mode, where Knative never renames it.
+            - source_labels: [__meta_kubernetes_pod_label_serving_kserve_io_inferenceservice, __meta_kubernetes_pod_label_component, __meta_kubernetes_pod_container_name, __meta_kubernetes_pod_container_image]
+              separator: ";"
+              regex: '.+;predictor;kserve-container;.*|(?i)[^;]*;[^;]*;[^;]*;.*vllm.*'
+              target_label: __tmp_vllm_detected
+              replacement: "true"
+              action: replace
+            # Only those: the chart reads no scrape labels or annotations of its own
+            # from customer pods.
+            - source_labels: [__tmp_vllm_detected]
+              regex: "true"
+              action: keep
+            - source_labels: [__meta_kubernetes_pod_container_init]
+              regex: "true"
+              action: drop
+            - source_labels: [__meta_kubernetes_pod_phase]
+              regex: Running
+              action: keep
+            # role: pod gives a declared port's target its address already. A container
+            # declaring none gets the server's default: 8080 for KServe, else
+            # vllm serve's 8000. Joined via `separator` rather than a `$1` in
+            # `replacement`, which would have to survive the collector's $$-unescaping.
+            - source_labels: [__meta_kubernetes_pod_container_port_number, __meta_kubernetes_pod_label_serving_kserve_io_inferenceservice]
+              separator: ";"
+              regex: ";.+"
+              target_label: __tmp_port
+              replacement: "8080"
+              action: replace
+            - source_labels: [__meta_kubernetes_pod_container_port_number, __meta_kubernetes_pod_label_serving_kserve_io_inferenceservice]
+              separator: ";"
+              regex: ";"
+              target_label: __tmp_port
+              replacement: "8000"
+              action: replace
+            # A KServe serving runtime can state its metrics port and path in its
+            # prometheus.kserve.io/* annotations, which KServe copies onto the pod.
+            # They win over the defaults and collapse a multi-port container to one
+            # target. These rules use the default replacement ($1), which is not part
+            # of the rendered config.
+            - source_labels: [__meta_kubernetes_pod_annotation_prometheus_kserve_io_port]
+              regex: "([0-9]+)"
+              target_label: __tmp_port
+              action: replace
+            - source_labels: [__meta_kubernetes_pod_annotation_prometheus_kserve_io_path]
+              regex: "(/.*)"
+              target_label: __metrics_path__
+              action: replace
+            - source_labels: [__meta_kubernetes_pod_ip, __tmp_port]
+              separator: ":"
+              regex: "(.+:[0-9]+)"
+              target_label: __address__
+              action: replace
+            # Promoted to resource scope downstream, so k8sattributes can resolve the
+            # owning Deployment rather than the ReplicaSet.
+            - source_labels: [__meta_kubernetes_pod_name]
+              target_label: pod
+              action: replace
+            - source_labels: [__meta_kubernetes_namespace]
+              target_label: namespace
+              action: replace
+  {{- end }}
 
   kubeletstats/cw_k8s_ci_v0:
     auth_type: serviceAccount
@@ -210,11 +331,24 @@ receivers:
 {{- end }}
 
 processors:
+  # node-exporter's own per-collector scrape timing/status, same category as the five
+  # scrape_* names. node_textfile_scrape_error stays: kubernetes-mixin alerts on it.
   filter/cw_k8s_ci_v0_scrape_metadata:
     error_mode: ignore
     metrics:
       metric:
-        - IsMatch(name, "^(up|scrape_duration_seconds|scrape_samples_scraped|scrape_samples_post_metric_relabeling|scrape_series_added)$")
+        - IsMatch(name, "^(up|scrape_duration_seconds|scrape_samples_scraped|scrape_samples_post_metric_relabeling|scrape_series_added|node_scrape_collector_duration_seconds|node_scrape_collector_success)$")
+
+  # Drop receiver-injected deprecated semconv attributes; their current-spelling
+  # twins (server.address, server.port, url.scheme) carry the same values and stay.
+  transform/cw_k8s_ci_v0_drop_deprecated_semconv:
+    error_mode: ignore
+    metric_statements:
+      - context: resource
+        statements:
+          - delete_key(attributes, "net.host.name") where attributes["net.host.name"] != nil
+          - delete_key(attributes, "net.host.port") where attributes["net.host.port"] != nil
+          - delete_key(attributes, "http.scheme") where attributes["http.scheme"] != nil
 
   transform/cw_k8s_ci_v0_set_unit:
     error_mode: ignore
@@ -339,6 +473,64 @@ processors:
           - set(attributes["cloudwatch.solution"], "k8s-otel-container-insights")
           - set(attributes["cloudwatch.pipeline"], "ebs-csi")
 
+  {{- if and .Values.otelContainerInsights.solutions.enabled .Values.otelContainerInsights.solutions.vllm.enabled }}
+  transform/cw_k8s_ci_v0_set_scope_vllm:
+    error_mode: ignore
+    metric_statements:
+      - context: scope
+        statements:
+          - set(scope.name, "github.com/vllm-project/vllm")
+          - set(scope.schema_url, "")
+          - set(attributes["cloudwatch.source"], "cloudwatch-agent")
+          - set(attributes["cloudwatch.solution"], "k8s-otel-container-insights")
+          - set(attributes["cloudwatch.pipeline"], "vllm")
+
+  # Lift the scraped pod identity to resource scope, where k8sattributes'
+  # pod_association looks for it. Same shape as the DCGM promote.
+  transform/cw_k8s_ci_v0_vllm_promote:
+    error_mode: ignore
+    metric_statements:
+      - context: datapoint
+        statements:
+          - set(resource.attributes["k8s.pod.name"], attributes["pod"]) where attributes["pod"] != nil
+          - set(resource.attributes["k8s.namespace.name"], attributes["namespace"]) where attributes["namespace"] != nil
+          # vLLM only ever serves inference, including when it generates rollouts
+          # for a training loop.
+          - set(resource.attributes["aws.service.type"], "ai_inference")
+
+  # transform/cw_k8s_ci_v0_set_workload only assigns service.name on AKS and GKE, so
+  # on EKS it stays the Prometheus receiver's default -- the scrape job name.
+  #
+  # Ordered lowest-precedence first, each overwriting unconditionally: a guard on
+  # `service.name == nil` would never fire, because the receiver always sets it.
+  # Effective precedence is InferenceService, then workload (resolved by
+  # set_workload, which runs earlier), then pod. The InferenceService name is
+  # KServe's own pod label, as extracted by k8sattributes.
+  transform/cw_k8s_ci_v0_vllm_service_name:
+    error_mode: ignore
+    metric_statements:
+      - context: resource
+        statements:
+          - set(attributes["service.name"], attributes["k8s.pod.name"]) where attributes["k8s.pod.name"] != nil
+          - set(attributes["service.name"], attributes["k8s.workload.name"]) where attributes["k8s.workload.name"] != nil
+          - set(attributes["service.name"], attributes["k8s.pod.label.serving.kserve.io/inferenceservice"]) where attributes["k8s.pod.label.serving.kserve.io/inferenceservice"] != nil
+          - set(attributes["service.namespace"], attributes["k8s.namespace.name"]) where attributes["k8s.namespace.name"] != nil
+
+  # Keep the engine's own series and the instrumentator's http_* (the only
+  # HTTP-status telemetry vLLM emits); drop the Python client registry's python_*
+  # and process_*. The *_created creation timestamps are constant per scrape, and
+  # the receiver has already consumed them to set start timestamps. Summaries
+  # (http_request_size_bytes, http_response_size_bytes) are rejected by the
+  # CloudWatch OTLP endpoint, so drop them here rather than per batch there.
+  filter/cw_k8s_ci_v0_vllm_keep:
+    error_mode: ignore
+    metrics:
+      metric:
+        - 'not IsMatch(name, "^(vllm:|http_).*")'
+        - 'IsMatch(name, ".*_created$")'
+        - 'type == METRIC_DATA_TYPE_SUMMARY'
+  {{- end }}
+
   transform/cw_k8s_ci_v0_set_scope_lis_csi:
     error_mode: ignore
     metric_statements:
@@ -348,6 +540,49 @@ processors:
           - set(attributes["cloudwatch.source"], "cloudwatch-agent")
           - set(attributes["cloudwatch.solution"], "k8s-otel-container-insights")
           - set(attributes["cloudwatch.pipeline"], "lis-csi")
+
+  {{- if and .Values.otelContainerInsights.solutions.enabled .Values.otelContainerInsights.solutions.knative.dataPlane.enabled }}
+  transform/cw_k8s_ci_v0_set_scope_knative_dataplane:
+    error_mode: ignore
+    metric_statements:
+      - context: scope
+        statements:
+          - set(scope.name, "knative.dev/serving")
+          - set(scope.schema_url, "")
+          - set(attributes["cloudwatch.source"], "cloudwatch-agent")
+          - set(attributes["cloudwatch.solution"], "k8s-otel-container-insights")
+          - set(attributes["cloudwatch.pipeline"], "knative-dataplane")
+
+  # Lifts the scraped pod identity to resource scope, where k8sattributes'
+  # pod_association looks for it, so the revision's Deployment is resolved.
+  transform/cw_k8s_ci_v0_knative_dataplane_promote:
+    error_mode: ignore
+    metric_statements:
+      - context: datapoint
+        statements:
+          - set(resource.attributes["k8s.pod.name"], attributes["pod"]) where attributes["pod"] != nil
+          - set(resource.attributes["k8s.namespace.name"], attributes["namespace"]) where attributes["namespace"] != nil
+
+  # The predictor revision of a KServe InferenceService runs the model, like the
+  # vLLM pipeline, so it is ai_inference. Transformer and explainer revisions
+  # carry the same InferenceService label but don't run the model, and plain
+  # Knative Services are any workload, so they get no aws.service.type. Reads
+  # KServe's own pod labels, as extracted by k8sattributes.
+  transform/cw_k8s_ci_v0_knative_dataplane_service_type:
+    error_mode: ignore
+    metric_statements:
+      - context: resource
+        statements:
+          - set(attributes["aws.service.type"], "ai_inference") where attributes["k8s.pod.label.serving.kserve.io/inferenceservice"] != nil and attributes["k8s.pod.label.component"] == "predictor"
+
+  # Two name sets, because Serving 1.19 moved observability to the OpenTelemetry
+  # SDK and renamed every metric: revision_* before it, kn_serving_* from it on.
+  filter/cw_k8s_ci_v0_knative_dataplane_keep:
+    error_mode: ignore
+    metrics:
+      metric:
+        - 'not IsMatch(name, "^(revision_.*request.*|kn_serving_.*)")'
+  {{- end }}
 
   transform/cw_k8s_ci_v0_set_scope_kubeletstats:
     error_mode: ignore
@@ -466,6 +701,17 @@ processors:
           - from: resource_attribute
             name: k8s.namespace.name
 
+  # A pod's topology labels (copied from its node) are its region and zone. The zone replaces a detected one,
+  # which on the cluster scraper is the scraper's own.
+  transform/cw_k8s_ci_v0_pod_topology:
+    error_mode: ignore
+    metric_statements:
+      - context: resource
+        statements:
+          - set(resource.attributes["cloud.region"], resource.attributes["k8s.pod.label.topology.kubernetes.io/region"]) where resource.attributes["cloud.region"] == nil and resource.attributes["k8s.pod.label.topology.kubernetes.io/region"] != nil
+          # Skip digit-only values: on AKS nodes outside availability zones, the zone label holds the fault domain (0, 1, ...), not a zone.
+          - set(resource.attributes["cloud.availability_zone"], resource.attributes["k8s.pod.label.topology.kubernetes.io/zone"]) where resource.attributes["k8s.pod.label.topology.kubernetes.io/zone"] != nil and not IsMatch(resource.attributes["k8s.pod.label.topology.kubernetes.io/zone"], "^[0-9]+$")
+
   awsattributelimit/cw_k8s_ci_v0:
     max_total_attributes: 150
     {{- $labelRemovals := include "otel-container-insights.labelRemovals" (dict "Values" .Values "signal" "metrics") | fromJson }}
@@ -557,6 +803,16 @@ processors:
       datapoint:
         - attributes["container"] == "POD"
 
+  # Drop the pod cgroup slice and pause/sandbox duplicates of each container_* family.
+  # container_network_* is sandbox-only so must stay; `container` arrives absent, not "".
+  filter/cw_k8s_ci_v0_cadvisor_rollup:
+    error_mode: ignore
+    metrics:
+      datapoint:
+        - (attributes["container"] == nil or attributes["container"] == "")
+            and attributes["pod"] != nil and attributes["pod"] != ""
+            and IsMatch(metric.name, "^container_network_") != true
+
   groupbyattrs/cw_k8s_ci_v0_cadvisor:
     keys:
       - container
@@ -577,6 +833,13 @@ processors:
           - set(attributes["container"], resource.attributes["container"]) where resource.attributes["container"] != nil
           - set(attributes["pod"], resource.attributes["pod"]) where resource.attributes["pod"] != nil
           - set(attributes["namespace"], resource.attributes["namespace"]) where resource.attributes["namespace"] != nil
+      # Drop the resource-level raw copies; the datapoint block above already copied
+      # them down. Must run after it — statement groups execute in declaration order.
+      - context: resource
+        statements:
+          - delete_key(attributes, "container") where attributes["container"] != nil
+          - delete_key(attributes, "pod") where attributes["pod"] != nil
+          - delete_key(attributes, "namespace") where attributes["namespace"] != nil
 
   {{- if .Values.dcgmExporter.enabled }}
   groupbyattrs/cw_k8s_ci_v0_dcgm:
@@ -596,13 +859,20 @@ processors:
       - context: datapoint
         statements:
           # Restore raw Prometheus names to datapoint scope (groupbyattrs removed them).
-          # Raw labels are still at resource scope (not deleted), so copy them back down.
+          # The resource-scope copies are deleted after this copy-back.
           - set(attributes["pod"], resource.attributes["pod"]) where resource.attributes["pod"] != nil
           - set(attributes["namespace"], resource.attributes["namespace"]) where resource.attributes["namespace"] != nil
           - set(attributes["container"], resource.attributes["container"]) where resource.attributes["container"] != nil
           # Clean up leftover datapoint attributes not needed downstream.
           - delete_key(attributes, "Hostname") where attributes["Hostname"] != nil
           - delete_key(attributes, "pci_bus_id") where attributes["pci_bus_id"] != nil
+      # Drop the resource-level raw copies; the datapoint block above already copied
+      # them down. Must run after it — statement groups execute in declaration order.
+      - context: resource
+        statements:
+          - delete_key(attributes, "pod") where attributes["pod"] != nil
+          - delete_key(attributes, "namespace") where attributes["namespace"] != nil
+          - delete_key(attributes, "container") where attributes["container"] != nil
   {{- end }}
 
   {{- if .Values.neuronMonitor.enabled }}
@@ -874,6 +1144,7 @@ service:
       receivers: [prometheus/cw_k8s_ci_v0_node_exporter]
       processors:
         - filter/cw_k8s_ci_v0_scrape_metadata
+        - transform/cw_k8s_ci_v0_drop_deprecated_semconv
         - transform/cw_k8s_ci_v0_set_unit
         - metricstarttime/cw_k8s_ci_v0
         - transform/cw_k8s_ci_v0_set_cluster_name
@@ -898,11 +1169,13 @@ service:
       receivers: [prometheus/cw_k8s_ci_v0_cadvisor]
       processors:
         - filter/cw_k8s_ci_v0_scrape_metadata
+        - transform/cw_k8s_ci_v0_drop_deprecated_semconv
         - transform/cw_k8s_ci_v0_set_unit
         - metricstarttime/cw_k8s_ci_v0
         - transform/cw_k8s_ci_v0_set_cluster_name
         - filter/cw_k8s_ci_v0_cadvisor_empty
         - filter/cw_k8s_ci_v0_cadvisor_pod
+        - filter/cw_k8s_ci_v0_cadvisor_rollup
         - groupbyattrs/cw_k8s_ci_v0_cadvisor
         - transform/cw_k8s_ci_v0_cadvisor_promote
         - transform/cw_k8s_ci_v0_set_node_name
@@ -917,6 +1190,7 @@ service:
         - transform/cw_k8s_ci_v0_set_scope_cadvisor
         - transform/cw_k8s_ci_v0_clear_schema_url
         - transform/cw_k8s_ci_v0_set_workload
+        - transform/cw_k8s_ci_v0_pod_topology
         - awsattributelimit/cw_k8s_ci_v0
         {{- if include "otel-container-insights.metricNamesFilterEnabled" . }}
         - filter/cw_k8s_ci_v0_metric_names
@@ -928,7 +1202,7 @@ service:
     {{- if .Values.dcgmExporter.enabled }}
     metrics/cw_k8s_ci_v0_dcgm:
       receivers: [prometheus/cw_k8s_ci_v0_dcgm]
-      processors: [filter/cw_k8s_ci_v0_scrape_metadata, transform/cw_k8s_ci_v0_set_unit, metricstarttime/cw_k8s_ci_v0, transform/cw_k8s_ci_v0_set_cluster_name, groupbyattrs/cw_k8s_ci_v0_dcgm, transform/cw_k8s_ci_v0_dcgm_promote, {{ if include "otel-container-insights.metricsNamespaceFilterEnabled" . }}filter/cw_k8s_ci_v0_metrics_namespaces, {{ end }}k8sattributes/cw_k8s_ci_v0_pod, transform/cw_k8s_ci_v0_set_node_name, transform/cw_k8s_ci_v0_promote_node_name, k8sattributes/cw_k8s_ci_v0_node, resourcedetection/cw_k8s_ci_v0, transform/cw_k8s_ci_v0_set_scope_dcgm, transform/cw_k8s_ci_v0_clear_schema_url, transform/cw_k8s_ci_v0_set_cloud_resource_id, transform/cw_k8s_ci_v0_set_workload, awsattributelimit/cw_k8s_ci_v0, {{ if include "otel-container-insights.metricNamesFilterEnabled" . }}filter/cw_k8s_ci_v0_metric_names, {{ end }}batch/cw_k8s_ci_v0_metrics_dest]
+      processors: [filter/cw_k8s_ci_v0_scrape_metadata, transform/cw_k8s_ci_v0_drop_deprecated_semconv, transform/cw_k8s_ci_v0_set_unit, metricstarttime/cw_k8s_ci_v0, transform/cw_k8s_ci_v0_set_cluster_name, groupbyattrs/cw_k8s_ci_v0_dcgm, transform/cw_k8s_ci_v0_dcgm_promote, {{ if include "otel-container-insights.metricsNamespaceFilterEnabled" . }}filter/cw_k8s_ci_v0_metrics_namespaces, {{ end }}k8sattributes/cw_k8s_ci_v0_pod, transform/cw_k8s_ci_v0_set_node_name, transform/cw_k8s_ci_v0_promote_node_name, k8sattributes/cw_k8s_ci_v0_node, resourcedetection/cw_k8s_ci_v0, transform/cw_k8s_ci_v0_set_scope_dcgm, transform/cw_k8s_ci_v0_clear_schema_url, transform/cw_k8s_ci_v0_set_cloud_resource_id, transform/cw_k8s_ci_v0_set_workload, transform/cw_k8s_ci_v0_pod_topology, awsattributelimit/cw_k8s_ci_v0, {{ if include "otel-container-insights.metricNamesFilterEnabled" . }}filter/cw_k8s_ci_v0_metric_names, {{ end }}batch/cw_k8s_ci_v0_metrics_dest]
       exporters:
         - otlphttp/cw_k8s_ci_v0_metrics_dest
     {{- end }}
@@ -938,6 +1212,7 @@ service:
       receivers: [prometheus/cw_k8s_ci_v0_neuron]
       processors:
         - filter/cw_k8s_ci_v0_scrape_metadata
+        - transform/cw_k8s_ci_v0_drop_deprecated_semconv
         - metricstarttime/cw_k8s_ci_v0
         - transform/cw_k8s_ci_v0_set_cluster_name
         - filter/cw_k8s_ci_v0_neuron
@@ -959,6 +1234,7 @@ service:
         - transform/cw_k8s_ci_v0_set_scope_neuron_monitor
         - transform/cw_k8s_ci_v0_clear_schema_url
         - transform/cw_k8s_ci_v0_set_workload
+        - transform/cw_k8s_ci_v0_pod_topology
         - awsattributelimit/cw_k8s_ci_v0
         {{- if include "otel-container-insights.metricNamesFilterEnabled" . }}
         - filter/cw_k8s_ci_v0_metric_names
@@ -988,6 +1264,7 @@ service:
         - transform/cw_k8s_ci_v0_clear_schema_url
         - transform/cw_k8s_ci_v0_set_cloud_resource_id
         - transform/cw_k8s_ci_v0_set_workload
+        - transform/cw_k8s_ci_v0_pod_topology
         - awsattributelimit/cw_k8s_ci_v0
         {{- if include "otel-container-insights.metricNamesFilterEnabled" . }}
         - filter/cw_k8s_ci_v0_metric_names
@@ -1000,6 +1277,7 @@ service:
       receivers: [prometheus/cw_k8s_ci_v0_ebs_csi_node]
       processors:
         - filter/cw_k8s_ci_v0_scrape_metadata
+        - transform/cw_k8s_ci_v0_drop_deprecated_semconv
         - transform/cw_k8s_ci_v0_set_unit
         - metricstarttime/cw_k8s_ci_v0
         - transform/cw_k8s_ci_v0_set_cluster_name
@@ -1020,10 +1298,42 @@ service:
       exporters:
         - otlphttp/cw_k8s_ci_v0_metrics_dest
 
+{{- if and .Values.otelContainerInsights.solutions.enabled .Values.otelContainerInsights.solutions.vllm.enabled }}
+    metrics/cw_k8s_ci_v0_vllm:
+      receivers: [prometheus/cw_k8s_ci_v0_vllm]
+      processors:
+        - filter/cw_k8s_ci_v0_scrape_metadata
+        - filter/cw_k8s_ci_v0_vllm_keep
+        - transform/cw_k8s_ci_v0_drop_deprecated_semconv
+        - transform/cw_k8s_ci_v0_set_unit
+        - metricstarttime/cw_k8s_ci_v0
+        - transform/cw_k8s_ci_v0_set_cluster_name
+        - transform/cw_k8s_ci_v0_vllm_promote
+        {{- if include "otel-container-insights.metricsNamespaceFilterEnabled" . }}
+        - filter/cw_k8s_ci_v0_metrics_namespaces
+        {{- end }}
+        - k8sattributes/cw_k8s_ci_v0_pod
+        - transform/cw_k8s_ci_v0_set_node_name
+        - transform/cw_k8s_ci_v0_promote_node_name
+        - resourcedetection/cw_k8s_ci_v0
+        - transform/cw_k8s_ci_v0_set_cloud_resource_id
+        - k8sattributes/cw_k8s_ci_v0_node
+        - transform/cw_k8s_ci_v0_set_scope_vllm
+        - transform/cw_k8s_ci_v0_clear_schema_url
+        - transform/cw_k8s_ci_v0_set_workload
+        - transform/cw_k8s_ci_v0_vllm_service_name
+        - transform/cw_k8s_ci_v0_pod_topology
+        - awsattributelimit/cw_k8s_ci_v0
+        - batch/cw_k8s_ci_v0_metrics_dest
+      exporters:
+        - otlphttp/cw_k8s_ci_v0_metrics_dest
+{{- end }}
+
     metrics/cw_k8s_ci_v0_lis_csi_node:
       receivers: [prometheus/cw_k8s_ci_v0_lis_csi_node]
       processors:
         - filter/cw_k8s_ci_v0_scrape_metadata
+        - transform/cw_k8s_ci_v0_drop_deprecated_semconv
         - transform/cw_k8s_ci_v0_set_unit
         - metricstarttime/cw_k8s_ci_v0
         - transform/cw_k8s_ci_v0_set_cluster_name
@@ -1044,6 +1354,37 @@ service:
       exporters:
         - otlphttp/cw_k8s_ci_v0_metrics_dest
 
+{{- if and .Values.otelContainerInsights.solutions.enabled .Values.otelContainerInsights.solutions.knative.dataPlane.enabled }}
+    metrics/cw_k8s_ci_v0_knative_dataplane:
+      receivers: [prometheus/cw_k8s_ci_v0_knative_dataplane]
+      processors:
+        - filter/cw_k8s_ci_v0_scrape_metadata
+        - filter/cw_k8s_ci_v0_knative_dataplane_keep
+        - transform/cw_k8s_ci_v0_drop_deprecated_semconv
+        - transform/cw_k8s_ci_v0_set_unit
+        - metricstarttime/cw_k8s_ci_v0
+        - transform/cw_k8s_ci_v0_set_cluster_name
+        - transform/cw_k8s_ci_v0_knative_dataplane_promote
+        {{- if include "otel-container-insights.metricsNamespaceFilterEnabled" . }}
+        - filter/cw_k8s_ci_v0_metrics_namespaces
+        {{- end }}
+        - k8sattributes/cw_k8s_ci_v0_pod
+        - transform/cw_k8s_ci_v0_set_node_name
+        - transform/cw_k8s_ci_v0_promote_node_name
+        - resourcedetection/cw_k8s_ci_v0
+        - transform/cw_k8s_ci_v0_set_cloud_resource_id
+        - k8sattributes/cw_k8s_ci_v0_node
+        - transform/cw_k8s_ci_v0_set_scope_knative_dataplane
+        - transform/cw_k8s_ci_v0_clear_schema_url
+        - transform/cw_k8s_ci_v0_set_workload
+        - transform/cw_k8s_ci_v0_knative_dataplane_service_type
+        - transform/cw_k8s_ci_v0_pod_topology
+        - awsattributelimit/cw_k8s_ci_v0
+        - batch/cw_k8s_ci_v0_metrics_dest
+      exporters:
+        - otlphttp/cw_k8s_ci_v0_metrics_dest
+{{- end }}
+
     metrics/cw_k8s_ci_v0_kubeletstats:
       receivers: [kubeletstats/cw_k8s_ci_v0]
       processors:
@@ -1059,6 +1400,7 @@ service:
         - k8sattributes/cw_k8s_ci_v0_node
         - transform/cw_k8s_ci_v0_clear_schema_url
         - transform/cw_k8s_ci_v0_set_workload
+        - transform/cw_k8s_ci_v0_pod_topology
         - awsattributelimit/cw_k8s_ci_v0
         {{- if include "otel-container-insights.metricNamesFilterEnabled" . }}
         - filter/cw_k8s_ci_v0_metric_names
