@@ -59,6 +59,8 @@ metadata:
   labels:
     k8s-app: {{ include "dcgm-exporter.name" . }}
     version: v1
+  annotations:
+    {{- include "dcgm-exporter.serviceAccountAnnotations" . | nindent 4}}
 spec:
   image: {{ template "dcgm-exporter.image" . }}
   {{- with .Values.dcgmExporter.nodeSelector }}

@@ -7,6 +7,8 @@ metadata:
   labels:
     k8s-app: {{ include "neuron-monitor.name" . }}
     version: v1
+  annotations:
+    {{- include "neuron-monitor.serviceAccountAnnotations" . | nindent 4}}
 spec:
   image: {{ template "neuron-monitor.image" . }}
   serviceAccount: {{ template "neuron-monitor.serviceAccountName" . }}
