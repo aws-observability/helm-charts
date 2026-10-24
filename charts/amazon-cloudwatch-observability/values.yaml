@@ -850,6 +850,7 @@ dcgmExporter:
   kubeletPath: /var/lib/kubelet/pod-resources
   serviceAccount:
     name: # override exporter service account name
+    annotations: {} # optional annotations for the service account
   securityContext:
     capabilities:
       add:
@@ -1037,6 +1038,7 @@ neuronMonitor:
         - SYS_ADMIN
   serviceAccount:
     name: # override exporter service account name
+    annotations: {} # optional annotations for the service account
   affinity:
     nodeAffinity:
       requiredDuringSchedulingIgnoredDuringExecution:
