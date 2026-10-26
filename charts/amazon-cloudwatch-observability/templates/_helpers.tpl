@@ -424,17 +424,26 @@ on the Knative solution only, not on dataPlane: the activator runs in the contro
 {{- end -}}
 
 {{/*
+True when Ray Serve request traces should be collected.
+*/}}
+{{- define "otel-container-insights.rayTracesEnabled" -}}
+{{- $s := .Values.otelContainerInsights.solutions -}}
+{{- if and .Values.otelContainerInsights.enabled $s.enabled (dig "ray" "traces" "enabled" false $s) -}}true{{- end -}}
+{{- end -}}
+
+{{/*
 Model-serving traces are received by the agent's generic OTLP receiver. When vLLM or Knative
 traces are on, enable opentelemetry.collect.otlp on the agent that hosts the OTel Container
 Insights pipelines, listening on the pod network, with the vLLM workload enrichment when vLLM
-traces are on. Existing otlp settings are kept. Accepts a dict with "config" (dict),
+traces are on and the Ray workload enrichment when Ray traces are on. Existing otlp settings are kept. Accepts a dict with "config" (dict),
 "agentName" and "context". Returns JSON.
 */}}
 {{- define "cloudwatch-agent.with-llm-traces" -}}
 {{- $cfg := deepCopy .config -}}
 {{- $ctx := .context -}}
 {{- $vllm := include "otel-container-insights.vllmTracesEnabled" $ctx -}}
-{{- if and (eq .agentName $ctx.Values.otelContainerInsights.targetAgent) (or $vllm (include "otel-container-insights.knativeTracesEnabled" $ctx)) -}}
+{{- $ray := include "otel-container-insights.rayTracesEnabled" $ctx -}}
+{{- if and (eq .agentName $ctx.Values.otelContainerInsights.targetAgent) (or $vllm $ray (include "otel-container-insights.knativeTracesEnabled" $ctx)) -}}
 {{- $otel := $cfg.opentelemetry | default dict -}}
 {{- $collect := $otel.collect | default dict -}}
 {{- $otlp := $collect.otlp | default dict -}}
@@ -442,6 +451,9 @@ traces are on. Existing otlp settings are kept. Accepts a dict with "config" (di
 {{- $_ := set $otlp "http_endpoint" ($otlp.http_endpoint | default "0.0.0.0:4318") -}}
 {{- if $vllm -}}
 {{- $_ := set $otlp "workloads" (append ($otlp.workloads | default list) "vllm" | uniq) -}}
+{{- end -}}
+{{- if $ray -}}
+{{- $_ := set $otlp "workloads" (append ($otlp.workloads | default list) "ray" | uniq) -}}
 {{- end -}}
 {{- $_ := set $collect "otlp" $otlp -}}
 {{- $_ := set $otel "collect" $collect -}}

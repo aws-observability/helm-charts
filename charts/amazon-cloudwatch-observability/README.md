@@ -109,6 +109,62 @@ finished requests are traced, so errors are not visible in its spans. It sets no
 on spans (it is a label on vLLM's own Prometheus metrics), and it creates `llm_request` only when
 `--otlp-traces-endpoint` is passed.
 
+## Ray Serve request traces
+
+`otelContainerInsights.solutions.ray.traces` (default off; needs `otelContainerInsights.enabled`)
+collects Ray Serve request traces (Ray 2.55 and later) on the same agent OTLP endpoint as the
+vLLM and Knative traces above, with the same Transaction Search prerequisite. It adds no port
+of its own. One request becomes one trace: a `proxy_http_request …` (or `proxy_grpc_request …`)
+span on the Serve proxy, `route_to_replica`, then `replica_handle_request …` on the replica. The
+proxy and replica span names end with the deployment name and the method. Spans carry
+Ray Serve's `request_id`, `app`, `deployment` and `replica_id` attributes.
+
+It turns on the agent's `ray` workload enrichment, which needs an agent version that supports
+`opentelemetry.collect.otlp.workloads: ["ray"]`. On spans from Ray pods it:
+
+- adds the KubeRay pod labels as `k8s.pod.label.ray.io/cluster` and `k8s.pod.label.ray.io/node-type`
+- lets a span without a service name fall back to the workload or pod name. Ray Serve sets
+  none of its own, and KubeRay's `app.kubernetes.io/name=kuberay` is not used, because it is
+  the same on every Ray pod
+
+### Pointing Ray Serve at the agent
+
+Ray Serve loads a function, named by `RAY_SERVE_TRACING_EXPORTER_IMPORT_PATH`, that takes no
+arguments and returns the span processors. Put a module like this on the Ray image's
+`PYTHONPATH` (it needs `opentelemetry-exporter-otlp-proto-grpc`):
+
+```python
+# cw_ray_tracing.py
+from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
+from opentelemetry.sdk.trace.export import BatchSpanProcessor
+
+
+def otlp_exporter():
+    return [BatchSpanProcessor(OTLPSpanExporter(
+        endpoint="cloudwatch-agent.amazon-cloudwatch:4317", insecure=True))]
+```
+
+Then set, on the Ray container of the head and worker groups:
+
+```yaml
+env:
+  - name: RAY_SERVE_TRACING_EXPORTER_IMPORT_PATH
+    value: cw_ray_tracing:otlp_exporter
+  - name: RAY_SERVE_TRACING_SAMPLING_RATIO   # Ray's default is 0.01
+    value: "1"
+  - name: OTEL_SERVICE_NAME                   # optional; otherwise the pod name
+    value: my-rayservice
+```
+
+`OTEL_SERVICE_NAME` wins over the derived name, so set it to the RayService name for a name that
+is stable across pod restarts and RayService upgrades.
+
+With `ray.serve.llm`, the vLLM engine also emits its `llm_request` span when
+`engine_kwargs.otlp_traces_endpoint` is set (for example
+`grpc://cloudwatch-agent.amazon-cloudwatch:4317`). Ray Serve does not pass its trace context to
+the engine, so `llm_request` arrives as a trace of its own, not as a child of
+`replica_handle_request`.
+
 ## Windows Support
 CloudWatch DaemonSet on Windows is officially supported only for containerd runtime.
 

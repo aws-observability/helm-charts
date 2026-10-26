@@ -1232,6 +1232,13 @@ otelContainerInsights:
       ## --otlp-traces-endpoint on the engine; see the README.
       traces:
         enabled: false
+    ## Ray (KubeRay).
+    ray:
+      ## Ray Serve request traces (proxy and replica spans, Ray >= 2.55), received
+      ## on the agent's OTLP endpoint (4317/4318). Requires Transaction Search on
+      ## the account and a tracing exporter on the Ray pods; see the README.
+      traces:
+        enabled: false
     ## Knative Serving.
     knative:
       ## Knative request traces (activator and queue-proxy spans), received on the
