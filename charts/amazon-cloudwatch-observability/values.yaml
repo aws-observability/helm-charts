@@ -1231,6 +1231,11 @@ otelContainerInsights:
     ## See the chart README.
     vllm:
       enabled: true
+    ## Ray — Ray core, Ray Serve and ray.serve.llm metrics (ray_* series), from
+    ## every pod KubeRay labels ray.io/is-ray-node, on the port KubeRay names
+    ## metrics. See the chart README.
+    ray:
+      enabled: true
     ## KServe — operator health from the kserve-controller-manager, via its
     ## kube-rbac-proxy on :8443. Scraped by the cluster-scraper.
     kserve:
