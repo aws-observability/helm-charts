@@ -1166,3 +1166,38 @@ winning on key collision.
 {{- end -}}
 {{- $out | toYaml -}}
 {{- end -}}
+
+{{/*
+"true" when the node agent reads the Ray log files (otelContainerInsights.solutions.ray.logs),
+empty otherwise. The Ray logs go to the application log group, so they need
+otelContainerInsights.logs.enabled.
+*/}}
+{{- define "otel-container-insights.rayLogsEnabled" -}}
+{{- $ci := .Values.otelContainerInsights -}}
+{{- if and $ci.enabled $ci.logs.enabled $ci.solutions.enabled (dig "ray" "logs" "enabled" false $ci.solutions) -}}
+true
+{{- end -}}
+{{- end -}}
+
+{{/*
+The settings that the three Ray log receivers of receiver_creator/cw_k8s_ci_v0_ray_logs share.
+Takes a dict with "checkpoints": the file checkpoints follow those of the application-log
+receiver (otelContainerInsights.stateStorage.enabled). With checkpoints, a restarted agent
+continues each file where it stopped, and a file it has not seen is read from the start.
+Without, as for the application logs, a file that exists when the receiver starts is read from
+its end, and a file created later from its start.
+*/}}
+{{- define "otel-container-insights.rayLogsReaderConfig" -}}
+{{- if .checkpoints }}
+storage: file_storage/cw_k8s_ci_v0_state
+start_at: beginning
+{{- else }}
+start_at: end
+{{- end }}
+include_file_path: false
+include_file_name: true
+# Keep the indentation of a line, which tells the recombine operators that the line
+# continues the record before it (a traceback, a stats dump).
+preserve_leading_whitespaces: true
+poll_interval: 1s
+{{- end -}}

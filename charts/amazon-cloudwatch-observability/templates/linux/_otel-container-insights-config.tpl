@@ -17,6 +17,10 @@ whenever configInfo is on. */ -}}
 an explicit stateStorage.enabled, so that configInfo does not change log shipping. The receiver
 renders only with logs on, so the checkpoints do too. */ -}}
 {{- $appLogCheckpoints := and $stateStorage .Values.otelContainerInsights.stateStorage.enabled -}}
+{{- /* Ray logs: k8s_observer/cw_k8s_ci_v0_ray, receiver_creator/cw_k8s_ci_v0_ray_logs and
+logs/cw_k8s_ci_v0_ray. They need logs on, so they never render together with the vLLM logs-off
+mode, and the two pod watches never run at the same time. */ -}}
+{{- $rayLogs := eq (include "otel-container-insights.rayLogsEnabled" .) "true" -}}
 extensions:
   sigv4auth/cw_k8s_ci_v0_metrics_dest:
     region: {{ .Values.region }}
@@ -50,6 +54,18 @@ extensions:
   # so that receiver_creator/cw_k8s_ci_v0_vllm_logs starts a log reader for each vLLM
   # container. The other kinds of objects are not watched.
   k8s_observer/cw_k8s_ci_v0_vllm:
+    auth_type: serviceAccount
+    node: ${env:K8S_NODE_NAME}
+    observe_pods: true
+    observe_nodes: false
+    observe_services: false
+    observe_ingresses: false
+{{- end }}
+{{- if $rayLogs }}
+  # Ray logs: one watch on the pods of this node, so that
+  # receiver_creator/cw_k8s_ci_v0_ray_logs starts the log readers of each Ray pod.
+  # The other kinds of objects are not watched.
+  k8s_observer/cw_k8s_ci_v0_ray:
     auth_type: serviceAccount
     node: ${env:K8S_NODE_NAME}
     observe_pods: true
@@ -434,6 +450,114 @@ receivers:
           operators:
             - id: parse_container_log
               type: container_log_parser
+{{- end }}
+
+{{- if $rayLogs }}
+
+  # ── Ray logs ──
+  # Ray writes its logs to files under /tmp/ray in the pod, not to stdout. When /tmp/ray
+  # is an emptyDir (the KubeRay log-persistence pattern), the files are on the node,
+  # under the pod's volume directory, and the agent reads them through its read-only
+  # /rootfs mount. Files in the container's own filesystem are not read.
+  # The rule is the Ray scrape rule: every pod that KubeRay labels ray.io/is-ray-node=yes.
+  # For each such pod, receiver_creator starts the three receivers below, and it stops
+  # them when the pod stops. It sets k8s.namespace.name, k8s.pod.name and k8s.pod.uid
+  # from the pod watch, so the records need no file name parse.
+  # The pod watch does not report volume names, so the path matches every emptyDir of
+  # the pod. Only a Ray session directory has the files. session_[0-9]* skips
+  # session_latest, a symlink to an absolute path inside the container.
+  # The Ray text timestamps carry no time zone (the Ray images set TZ), so they are
+  # not parsed. As for the host logs, a record's time is the time the agent reads it.
+  receiver_creator/cw_k8s_ci_v0_ray_logs:
+    watch_observers: [k8s_observer/cw_k8s_ci_v0_ray]
+    receivers:
+      # Ray Serve: the controller, proxy and replica logs, text or JSON
+      # (logging_config.encoding: JSON). transform/cw_k8s_ci_v0_ray_logs_parse
+      # reads the JSON fields.
+      filelog/ray_serve:
+        rule: 'type == "pod" && labels["ray.io/is-ray-node"] == "yes"'
+        config:
+          include:
+            - '/rootfs/var/lib/kubelet/pods/`uid`/volumes/kubernetes.io~empty-dir/*/session_[0-9]*/logs/serve/*.log'
+          {{- include "otel-container-insights.rayLogsReaderConfig" (dict "checkpoints" $appLogCheckpoints) | nindent 10 }}
+          operators:
+            # A record starts with a JSON object or with Serve's text format
+            # ("INFO 2026-01-02 03:04:05,678 ..."). Other lines, such as the lines of
+            # a text traceback, belong to the record before them.
+            - type: recombine
+              combine_field: body
+              combine_with: "\n"
+              source_identifier: attributes["log.file.name"]
+              is_first_entry: body matches "^(\\{|(DEBUG|INFO|WARNING|ERROR|CRITICAL) \\d{4}-\\d{2}-\\d{2} )"
+      # The stdout and stderr of each Ray worker process (worker-*.out, worker-*.err,
+      # in old/ after the worker exits) and of each job driver: the application's own
+      # output, prints and tracebacks.
+      filelog/ray_workers:
+        rule: 'type == "pod" && labels["ray.io/is-ray-node"] == "yes"'
+        config:
+          include:
+            - '/rootfs/var/lib/kubelet/pods/`uid`/volumes/kubernetes.io~empty-dir/*/session_[0-9]*/logs/worker-*.out'
+            - '/rootfs/var/lib/kubelet/pods/`uid`/volumes/kubernetes.io~empty-dir/*/session_[0-9]*/logs/worker-*.err'
+            - '/rootfs/var/lib/kubelet/pods/`uid`/volumes/kubernetes.io~empty-dir/*/session_[0-9]*/logs/old/worker-*.out'
+            - '/rootfs/var/lib/kubelet/pods/`uid`/volumes/kubernetes.io~empty-dir/*/session_[0-9]*/logs/old/worker-*.err'
+            - '/rootfs/var/lib/kubelet/pods/`uid`/volumes/kubernetes.io~empty-dir/*/session_[0-9]*/logs/job-driver-*.log'
+          {{- include "otel-container-insights.rayLogsReaderConfig" (dict "checkpoints" $appLogCheckpoints) | nindent 10 }}
+          operators:
+            # A Python traceback joins the record before it: its indented lines, its
+            # "Traceback" and chaining lines, and its final exception line. Also after
+            # the "(EngineCore pid=7165) " prefix that vLLM puts on the output of its
+            # subprocesses, and after vLLM's log header ("ERROR 01-02 03:04:05 [x.py:1] "),
+            # which vLLM writes on every line of a traceback it logs.
+            - type: recombine
+              combine_field: body
+              combine_with: "\n"
+              source_identifier: attributes["log.file.name"]
+              is_first_entry: not (body matches "^(\\([\\w.-]+ pid=\\d+\\) )?((DEBUG|INFO|WARNING|ERROR|CRITICAL) \\d{2}-\\d{2} \\d{2}:\\d{2}:\\d{2} \\[[^\\]]+\\] )?(\\s|Traceback \\(most recent call last\\):|During handling of the above exception|The above exception was the direct cause|[A-Za-z_][\\w.]*(Error|Exception|Exit|Interrupt|Warning)(:|$))")
+            # Three kinds of copies are dropped, so that each line is sent once:
+            # - Ray Serve writes each of its records to its serve/ file and, by default
+            #   (RAY_SERVE_LOG_TO_STDERR=1), again to the stderr of the actor, in Serve's
+            #   text format. filelog/ray_serve reads the serve/ copy, so the stderr copy
+            #   is dropped here, with its traceback.
+            # - Ray copies the output of each worker to the drivers of its job, with the
+            #   colored "(RayWorkerProc pid=7303) " prefix. A process inside a Ray
+            #   worker can be a driver too (vLLM's engine with the Ray executor), so the
+            #   copies land in that worker's stderr. The worker's own file has the line.
+            # - Ray's :job_id:, :task_name: and :actor_name: marker lines: Ray's log
+            #   monitor reads them, and they carry no message.
+            # A line in any other format is kept.
+            - type: filter
+              expr: body matches "^(DEBUG|INFO|WARNING|ERROR|CRITICAL) \\d{4}-\\d{2}-\\d{2} \\d{2}:\\d{2}:\\d{2},\\d{3} \\S+ \\S+ " or body matches "\\x1b\\[[0-9;]*m\\([^()]* pid=\\d+(, ip=[0-9.]+)?\\)\\x1b\\[0?m" or body matches "^:(job_id|task_name|actor_name):"
+      # Ray's own processes: the raylet on every Ray pod, the GCS server, autoscaler
+      # monitor and runtime environment agent, and the exit record of each Ray process.
+      # The Python core logs of each worker (python-core-worker-*.log), the dashboard
+      # logs, the event files and the profiler output are not read.
+      filelog/ray_system:
+        rule: 'type == "pod" && labels["ray.io/is-ray-node"] == "yes"'
+        config:
+          include:
+            - '/rootfs/var/lib/kubelet/pods/`uid`/volumes/kubernetes.io~empty-dir/*/session_[0-9]*/logs/raylet.out'
+            - '/rootfs/var/lib/kubelet/pods/`uid`/volumes/kubernetes.io~empty-dir/*/session_[0-9]*/logs/raylet.err'
+            - '/rootfs/var/lib/kubelet/pods/`uid`/volumes/kubernetes.io~empty-dir/*/session_[0-9]*/logs/gcs_server.out'
+            - '/rootfs/var/lib/kubelet/pods/`uid`/volumes/kubernetes.io~empty-dir/*/session_[0-9]*/logs/gcs_server.err'
+            - '/rootfs/var/lib/kubelet/pods/`uid`/volumes/kubernetes.io~empty-dir/*/session_[0-9]*/logs/monitor.log'
+            - '/rootfs/var/lib/kubelet/pods/`uid`/volumes/kubernetes.io~empty-dir/*/session_[0-9]*/logs/runtime_env_agent.log'
+            - '/rootfs/var/lib/kubelet/pods/`uid`/volumes/kubernetes.io~empty-dir/*/session_[0-9]*/logs/ray_process_exit.log'
+          {{- include "otel-container-insights.rayLogsReaderConfig" (dict "checkpoints" $appLogCheckpoints) | nindent 10 }}
+          operators:
+            # A record starts with a timestamp: "[2026-01-02 03:04:05,678 I ...]" from
+            # the C++ processes, "2026-01-02 03:04:05,678<TAB>INFO ..." from the Python
+            # ones. Other lines, such as a periodic stats dump, belong to the record
+            # before them.
+            - type: recombine
+              combine_field: body
+              combine_with: "\n"
+              source_identifier: attributes["log.file.name"]
+              is_first_entry: body matches "^\\[?\\d{4}-\\d{2}-\\d{2} "
+            # The raylet and the GCS server write a stats dump every few seconds, at
+            # INFO. From these two, only WARNING and above is kept: worker and node
+            # failures, out-of-memory kills.
+            - type: filter
+              expr: attributes["log.file.name"] in ["raylet.out", "gcs_server.out"] and body matches "^\\[\\d{4}-\\d{2}-\\d{2} [0-9:,.]+ [DI] "
 {{- end }}
 
 processors:
@@ -1226,6 +1350,64 @@ processors:
           - set(attributes["cloudwatch.solution"], "k8s-otel-container-insights")
           - set(attributes["cloudwatch.pipeline"], "host-logs")
 
+{{- if $rayLogs }}
+
+  # Ray logs: the fields of a Ray Serve JSON record (logging_config.encoding: JSON)
+  # become attributes, so that a record joins its trace through request_id. The body
+  # stays the line as written. The level of a text record is read from its prefix in
+  # the Serve, Python and C++ formats of Ray and in vLLM's format, also after vLLM's
+  # "(EngineCore pid=7165) " subprocess prefix.
+  transform/cw_k8s_ci_v0_ray_logs_parse:
+    error_mode: ignore
+    log_statements:
+      - context: log
+        statements:
+          - merge_maps(cache, ParseJSON(body), "upsert") where IsString(body) and IsMatch(body, "^\\{")
+          - set(attributes["request_id"], cache["request_id"]) where IsString(cache["request_id"])
+          - set(attributes["application"], cache["application"]) where IsString(cache["application"])
+          - set(attributes["deployment"], cache["deployment"]) where IsString(cache["deployment"])
+          - set(attributes["replica"], cache["replica"]) where IsString(cache["replica"])
+          - set(attributes["route"], cache["route"]) where IsString(cache["route"])
+          - set(severity_text, cache["levelname"]) where IsString(cache["levelname"])
+          - merge_maps(cache, ExtractPatterns(body, "^(?P<level>DEBUG|INFO|WARNING|ERROR|CRITICAL) \\d{4}-\\d{2}-\\d{2} "), "upsert") where cache["levelname"] == nil and IsString(body)
+          - merge_maps(cache, ExtractPatterns(body, "^(?:\\([\\w.-]+ pid=\\d+\\) )*\\d{4}-\\d{2}-\\d{2} [0-9:,.]+\\t(?P<level>DEBUG|INFO|WARNING|ERROR|CRITICAL) "), "upsert") where cache["levelname"] == nil and cache["level"] == nil and IsString(body)
+          - merge_maps(cache, ExtractPatterns(body, "^(?:\\([\\w.-]+ pid=\\d+\\) )*(?P<level>DEBUG|INFO|WARNING|ERROR|CRITICAL) \\d{2}-\\d{2} \\d{2}:\\d{2}:\\d{2} \\["), "upsert") where cache["levelname"] == nil and cache["level"] == nil and IsString(body)
+          - merge_maps(cache, ExtractPatterns(body, "^\\[\\d{4}-\\d{2}-\\d{2} [0-9:,.]+ (?P<level>[DIWEF]) "), "upsert") where cache["levelname"] == nil and cache["level"] == nil and IsString(body)
+          - set(severity_text, cache["level"]) where IsString(cache["level"]) and Len(cache["level"]) > 1
+          - set(severity_text, "DEBUG") where cache["level"] == "D"
+          - set(severity_text, "INFO") where cache["level"] == "I"
+          - set(severity_text, "WARNING") where cache["level"] == "W"
+          - set(severity_text, "ERROR") where cache["level"] == "E"
+          - set(severity_text, "FATAL") where cache["level"] == "F"
+          - set(severity_number, SEVERITY_NUMBER_DEBUG) where severity_text == "DEBUG"
+          - set(severity_number, SEVERITY_NUMBER_INFO) where severity_text == "INFO"
+          - set(severity_number, SEVERITY_NUMBER_WARN) where severity_text == "WARNING"
+          - set(severity_number, SEVERITY_NUMBER_ERROR) where severity_text == "ERROR"
+          - set(severity_number, SEVERITY_NUMBER_FATAL) where severity_text == "CRITICAL" or severity_text == "FATAL"
+
+  # Same rule as transform/cw_k8s_ci_v0_ray_service_name of the Ray metrics:
+  # service.name is the workload name, else the pod name. KubeRay pods are owned by a
+  # RayCluster, which is not a workload kind, so it is the pod name. The
+  # app.kubernetes.io/name label is not used: KubeRay sets it to "kuberay" on every
+  # Ray pod.
+  transform/cw_k8s_ci_v0_ray_logs_service_name:
+    error_mode: ignore
+    log_statements:
+      - context: resource
+        statements:
+          - set(attributes["service.name"], attributes["k8s.pod.name"]) where attributes["service.name"] == nil and attributes["k8s.pod.name"] != nil
+
+  transform/cw_k8s_ci_v0_logs_set_scope_ray:
+    error_mode: ignore
+    log_statements:
+      - context: scope
+        statements:
+          - set(scope.schema_url, "")
+          - set(attributes["cloudwatch.source"], "cloudwatch-agent")
+          - set(attributes["cloudwatch.solution"], "k8s-otel-container-insights")
+          - set(attributes["cloudwatch.pipeline"], "ray-logs")
+{{- end }}
+
   batch/cw_k8s_ci_v0_logs_dest:
     send_batch_size: 500
     send_batch_max_size: 500
@@ -1403,6 +1585,9 @@ service:
 {{- end }}
 {{- if $infoLogsOff }}
     - k8s_observer/cw_k8s_ci_v0_vllm
+{{- end }}
+{{- if $rayLogs }}
+    - k8s_observer/cw_k8s_ci_v0_ray
 {{- end }}
   pipelines:
 {{- if .Values.nodeExporter.enabled }}
@@ -1687,6 +1872,29 @@ service:
         - batch/cw_k8s_ci_v0_logs_dest
       exporters:
         - otlphttp/cw_k8s_ci_v0_node_logs_dest
+{{- end }}
+
+{{- if $rayLogs }}
+
+    # ── Ray logs ──
+    # The Ray log files of the Ray pods of this node, into the application log group,
+    # with the pod and workload attributes of the application logs.
+    logs/cw_k8s_ci_v0_ray:
+      receivers: [receiver_creator/cw_k8s_ci_v0_ray_logs]
+      processors:
+        - transform/cw_k8s_ci_v0_logs_set_cluster_and_node
+        - resourcedetection/cw_k8s_ci_v0
+        - transform/cw_k8s_ci_v0_logs_set_cloud_resource_id
+        - k8sattributes/cw_k8s_ci_v0_node
+        - k8sattributes/cw_k8s_ci_v0_pod
+        - transform/cw_k8s_ci_v0_ray_logs_parse
+        - transform/cw_k8s_ci_v0_logs_set_scope_ray
+        - transform/cw_k8s_ci_v0_logs_clear_schema_url
+        - transform/cw_k8s_ci_v0_logs_set_workload
+        - transform/cw_k8s_ci_v0_ray_logs_service_name
+        - batch/cw_k8s_ci_v0_logs_dest
+      exporters:
+        - otlphttp/cw_k8s_ci_v0_app_logs_dest
 {{- end }}
 
 {{- if $infoLogsOff }}

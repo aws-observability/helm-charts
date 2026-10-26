@@ -1206,8 +1206,12 @@ for name, want, desc in ((LO, "2s", "pollInterval empty, emitInterval 30s (the d
     check(f"logs off, {desc}: {TEMPLATE} poll_interval {want}", poll(name) == want)
 check("logs on: pollInterval 10s has no effect (the render is the configInfo-on, logs-on one)",
       rc("poll_set_10s_logs_on") == 0 and redacted("poll_set_10s_logs_on") == redacted("info_logs_on"))
+def without_ray_logs(cfg):
+    """The config without the Ray log receivers, which have a fixed poll interval of their own."""
+    (cfg.get("receivers") or {}).pop("receiver_creator/cw_k8s_ci_v0_ray_logs", None)
+    return cfg
 check("logs on: emitInterval 5s does not add a poll interval anywhere",
-      rc("poll_emit_5s_logs_on") == 0 and "poll_interval" not in json.dumps(otel_config("poll_emit_5s_logs_on")))
+      rc("poll_emit_5s_logs_on") == 0 and "poll_interval" not in json.dumps(without_ray_logs(otel_config("poll_emit_5s_logs_on"))))
 check("logs on: emitInterval null renders as emitInterval empty", same_render("emit_null", "info_logs_on"))
 check("logs off: emitInterval null renders as emitInterval empty", same_render("lo_emit_null", LO))
 check("logs off: pollInterval null renders as pollInterval empty", same_render("poll_null", LO))

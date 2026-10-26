@@ -210,6 +210,92 @@ UID. The join then fails, because PromQL finds two series on the Info side for o
 such a pod, select one container on the Info side, for example
 `{"vllm_engine_config_info", "@resource.k8s.container.name"="vllm"}`.
 
+## Ray logs
+
+Set under `otelContainerInsights.solutions.ray.logs`, on by default. Needs
+`otelContainerInsights.logs.enabled`. The agent on each node reads the log files of the Ray
+pods on that node (head and workers of a `RayCluster`, `RayService` or `RayJob`: every pod
+that KubeRay labels `ray.io/is-ray-node=yes`) and sends them to the application log group,
+`/aws/otel/containerinsights/<cluster>/application`, with `cloudwatch.pipeline=ray-logs`.
+Requires an agent image with the `receiver_creator` receiver and the `k8s_observer`
+extension. An older agent fails to start with it on.
+
+### Why files, and what the Ray pods need
+
+Ray writes its logs to files under `/tmp/ray/session_*/logs/` in the pod. Only the
+`ray start` output reaches stdout, and with it the application log pipeline. The agent reads
+the files from the node, so `/tmp/ray` must be an `emptyDir` volume, as in KubeRay's log
+persistence guide:
+
+```yaml
+containers:
+  - name: ray-head            # and every worker container
+    volumeMounts:
+      - name: ray-logs
+        mountPath: /tmp/ray
+volumes:
+  - name: ray-logs
+    emptyDir: {}
+```
+
+Nothing else has to be configured, and the chart reads no labels or annotations of its own
+from customer pods. The agent reads the files through its existing read-only mount of the
+node's root file system; it opens no port.
+
+Limits:
+
+- Without the `emptyDir`, the files are in the container's own file system and are not read.
+- An `emptyDir` is deleted with its pod, so lines not yet read when the pod stops are lost.
+- `RAY_LOG_TO_STDERR=1` is not needed and not recommended: Ray then stops writing the log
+  files, and features that read them break.
+
+### Which files are read
+
+| Files | What | Kept |
+|---|---|---|
+| `serve/*.log` | Ray Serve controller, proxy and replica logs | All |
+| `worker-*.out`, `worker-*.err` (also in `old/`), `job-driver-*.log` | stdout and stderr of each Ray worker process and job driver: the application's prints and tracebacks | All but the Serve copies (below) |
+| `raylet.*`, `gcs_server.*` | Ray's node and cluster processes | `.err` all; `.out` WARNING and above |
+| `monitor.log`, `runtime_env_agent.log`, `ray_process_exit.log` | Autoscaler, runtime environment setup, Ray process exits | All |
+
+Not read: the Python core logs of each worker (`python-core-worker-*.log`), the dashboard
+logs, the event files and the profiler output. They are verbose and rarely actionable.
+
+Ray Serve writes each record to its `serve/` file and, by default, again to the stderr of
+the actor (`RAY_SERVE_LOG_TO_STDERR=1`). The agent drops the stderr copy: lines in Serve's
+text format (`INFO 2026-01-02 03:04:05,678 <component> <id> ...`) and their tracebacks. Lines
+in any other format are kept. Setting `RAY_SERVE_LOG_TO_STDERR=0` on the Ray containers
+removes the copy at the source.
+
+### Records
+
+- A multi-line record (a traceback) is one log event.
+- `log.file.name` is the Ray file name, for example `replica_<app>_<deployment>_<id>.log` or
+  `raylet.out`. The severity is read from Ray's level prefix.
+- Ray writes local time with no time zone, so record times are the times the agent reads the
+  lines, as for the host logs.
+- For Ray Serve JSON logs, the record has `request_id`, `application`, `deployment`,
+  `replica` and `route` attributes, so a log event joins its trace through `request_id`.
+  Turn JSON on per application in the `RayService` Serve config; the
+  `RAY_SERVE_LOG_ENCODING` environment variable has no effect in recent Ray releases:
+
+  ```yaml
+  serveConfigV2: |
+    applications:
+      - name: my-app
+        import_path: my_module:app
+        logging_config:
+          encoding: JSON
+  ```
+
+- `service.name` is the workload name, else the pod name, as for the Ray metrics. The KubeRay
+  labels are on every event as `k8s.pod.label.ray.io/*` resource attributes.
+- File checkpoints follow `otelContainerInsights.stateStorage.enabled`, as for the
+  application logs. Without it, a restarted agent continues each file from its end.
+
+If a sidecar already ships the Ray log files (for example the Fluent Bit sidecar of KubeRay's
+log persistence guide), the same lines are ingested twice; disable one of them.
+
 ## KServe control-plane metrics
 
 Set under `otelContainerInsights.solutions.kserve.controlPlane`, on by default. The

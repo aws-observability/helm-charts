@@ -1279,6 +1279,16 @@ otelContainerInsights:
         maxStateBytes: 1048576
         ## Maximum length of each attribute value (1-1024).
         maxValueLength: 256
+    ## Ray — KubeRay RayCluster, RayService and RayJob pods (pods that KubeRay labels
+    ## ray.io/is-ray-node=yes). See the chart README.
+    ray:
+      ## The Ray log files (Ray Serve, worker stdout and stderr, Ray system processes),
+      ## into the application log group. Needs otelContainerInsights.logs.enabled and an
+      ## emptyDir at /tmp/ray in the Ray pods. Requires an agent image with the
+      ## receiver_creator receiver and the k8s_observer extension. An older image fails
+      ## to start when this is on.
+      logs:
+        enabled: true
     ## KServe — operator health from the kserve-controller-manager, via its
     ## kube-rbac-proxy on :8443. Scraped by the cluster-scraper.
     kserve:
