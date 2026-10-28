@@ -45,8 +45,10 @@ on:
 
 permissions:
   contents: read
-  # No id-token: write - managed identity does not use GitHub OIDC. Restore it
-  # if auth ever moves back to a federated app registration.
+  # Required by the Partner Center jobs, which federate an app registration
+  # into Entra ID over OIDC. build-bundle does not use it - it authenticates
+  # with the runner VM's managed identity.
+  id-token: write
 
 # Two releases must never race each other into the same plan.
 concurrency:
@@ -350,13 +352,19 @@ jobs:
     env:
       VERSION: ${{ needs.build-bundle.outputs.version }}
     steps:
-      - name: Azure login (VM managed identity)
+      - name: Azure login (Partner Center app registration)
         uses: azure/login@a457da9ea143d694b1b9c7c869ebb04ebe844ef5 # v2.3.0
         with:
-          # Reads the runner VM's system-assigned identity from Azure IMDS.
-          auth-type: IDENTITY
+          # Partner Center's user management only accepts app registrations -
+          # a managed identity cannot be added there - so the Partner Center
+          # jobs authenticate as an app registration over GitHub OIDC.
+          # Still no stored secret: the federated credential is matched on
+          # repo + environment.
+          client-id: ${{ vars.PARTNER_CENTER_CLIENT_ID }}
           tenant-id: ${{ vars.AZURE_TENANT_ID }}
-          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+          # This app holds no Azure RBAC - only Partner Center access - so it
+          # may not be able to enumerate any subscription.
+          allow-no-subscriptions: true
 
       - name: Install partnercenter CLI extension
         run: |
@@ -405,14 +413,25 @@ jobs:
     if: ${{ !(inputs.dry_run || false) }}
     runs-on: [self-hosted, linux, x64, azure-marketplace]
     timeout-minutes: 30
+    # Same environment as update-package: the OIDC `sub` claim becomes
+    # repo:<owner>/<repo>:environment:azure-marketplace, which is stable across
+    # releases. Without it the subject would be the tag ref and would need a new
+    # federated credential for every single release.
+    environment: azure-marketplace
     steps:
-      - name: Azure login (VM managed identity)
+      - name: Azure login (Partner Center app registration)
         uses: azure/login@a457da9ea143d694b1b9c7c869ebb04ebe844ef5 # v2.3.0
         with:
-          # Reads the runner VM's system-assigned identity from Azure IMDS.
-          auth-type: IDENTITY
+          # Partner Center's user management only accepts app registrations -
+          # a managed identity cannot be added there - so the Partner Center
+          # jobs authenticate as an app registration over GitHub OIDC.
+          # Still no stored secret: the federated credential is matched on
+          # repo + environment.
+          client-id: ${{ vars.PARTNER_CENTER_CLIENT_ID }}
           tenant-id: ${{ vars.AZURE_TENANT_ID }}
-          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+          # This app holds no Azure RBAC - only Partner Center access - so it
+          # may not be able to enumerate any subscription.
+          allow-no-subscriptions: true
 
       - name: Install partnercenter CLI extension
         run: |
