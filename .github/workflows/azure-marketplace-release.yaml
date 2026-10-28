@@ -99,6 +99,27 @@ jobs:
       version: ${{ steps.meta.outputs.version }}
       digest: ${{ steps.digest.outputs.digest }}
     steps:
+      # CPA runs as root inside its container with the workspace bind-mounted,
+      # so it leaves root-owned files behind (azure/.cnab). On a self-hosted
+      # runner the workspace survives between jobs, and actions/checkout - which
+      # runs as the runner user - then fails its clean step with
+      # "EACCES: permission denied, scandir .../azure/.cnab".
+      # Hosted runners never hit this because the whole VM is discarded.
+      - name: Reclaim workspace from the previous run
+        run: |
+          set -uo pipefail
+          WS="${GITHUB_WORKSPACE:-}"
+          if [[ -z "$WS" || ! -d "$WS" ]]; then
+            echo "no workspace to reclaim"
+            exit 0
+          fi
+          if command -v sudo >/dev/null 2>&1; then
+            sudo chown -R "$(id -u):$(id -g)" "$WS" 2>/dev/null || true
+            echo "reclaimed $WS for $(id -un)"
+          else
+            echo "sudo unavailable - skipping (expected on hosted runners)"
+          fi
+
       - name: Checkout
         uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
         with:
