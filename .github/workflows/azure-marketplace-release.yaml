@@ -171,6 +171,99 @@ jobs:
             echo "| destination | \`${DEST}\` |"
             echo "| version | \`${VERSION}\` |"
           } >> "$GITHUB_STEP_SUMMARY"
+      # The published chart is an AKS artifact: images must resolve to the
+      # Marketplace registry (global.azure.enabled) and the AWS-specific values
+      # become placeholders that mainTemplate.json fills in at install time.
+      # Every edit asserts it matched exactly once - a silent miss here would
+      # ship a bundle pointing at the wrong registry or the wrong cluster.
+      - name: Patch staged chart for Marketplace
+        run: |
+          set -euo pipefail
+          DEST="${AZURE_DIR}/${CHART_NAME}"
+          python3 - "${DEST}/values.yaml" <<'PY'
+          import re, sys, pathlib
+
+          p = pathlib.Path(sys.argv[1])
+          src = p.read_text()
+          changes = []
+
+          def fail(msg):
+              print(f"::error::patch failed: {msg}")
+              sys.exit(1)
+
+          # --- global.azure.enabled -> true -------------------------------
+          # Anchored to the global: > azure: block. A bare '^    enabled:'
+          # match would hit unrelated keys elsewhere in values.yaml.
+          lines = src.splitlines()
+          gi = next((i for i, l in enumerate(lines) if l == "global:"), None)
+          if gi is None:
+              fail("no top-level 'global:' key")
+          ai = None
+          for i in range(gi + 1, len(lines)):
+              if lines[i] and not lines[i][0].isspace():
+                  break
+              if lines[i] == "  azure:":
+                  ai = i
+                  break
+          if ai is None:
+              fail("no 'global.azure:' key")
+          ei = None
+          for i in range(ai + 1, len(lines)):
+              if lines[i] and not lines[i].startswith("    "):
+                  break
+              if re.match(r"^    enabled: (true|false)\s*$", lines[i]):
+                  ei = i
+                  break
+          if ei is None:
+              fail("no 'global.azure.enabled' key")
+          changes.append(("global.azure.enabled", lines[ei].strip(), "enabled: true"))
+          lines[ei] = "    enabled: true"
+          src = "\n".join(lines) + ("\n" if src.endswith("\n") else "")
+
+          # --- top-level scalars ------------------------------------------
+          for key, replacement in [
+              ("clusterName", 'clusterName: "REPLACE_WITH_CLUSTER_NAME"'),
+              ("region",      'region: "REPLACE_WITH_AWS_REGION"'),
+              ("k8sMode",     "k8sMode: AKS"),
+              ("roleArn",     'roleArn: "arn:aws:iam::000000000000:role/REPLACE_WITH_ROLE"'),
+          ]:
+              pat = re.compile(rf"^{key}:.*$", re.M)
+              hits = pat.findall(src)
+              if len(hits) != 1:
+                  fail(f"expected exactly one top-level '{key}:', found {len(hits)}")
+              changes.append((key, hits[0].strip(), replacement))
+              src = pat.sub(lambda _m: replacement, src, count=1)
+
+          p.write_text(src)
+          for k, before, after in changes:
+              print(f"  {k}\n      before: {before}\n      after : {after}")
+          PY
+
+          echo
+          echo "=== patched values (verification) ==="
+          grep -nE '^clusterName:|^region:|^k8sMode:|^roleArn:' "${DEST}/values.yaml"
+          sed -n '/^global:/,/^    images:/p' "${DEST}/values.yaml" | head -4
+
+          # Fail loudly if any placeholder did not land.
+          for expect in 'clusterName: "REPLACE_WITH_CLUSTER_NAME"' \
+                        'region: "REPLACE_WITH_AWS_REGION"' \
+                        'k8sMode: AKS' \
+                        'REPLACE_WITH_ROLE'; do
+            grep -qF "$expect" "${DEST}/values.yaml" || {
+              echo "::error::post-patch check failed, missing: $expect"; exit 1; }
+          done
+          {
+            echo "### Chart patched for Marketplace"
+            echo ""
+            echo "| key | value |"
+            echo "|---|---|"
+            echo "| global.azure.enabled | \`true\` |"
+            echo "| clusterName | \`REPLACE_WITH_CLUSTER_NAME\` |"
+            echo "| region | \`REPLACE_WITH_AWS_REGION\` |"
+            echo "| k8sMode | \`AKS\` |"
+            echo "| roleArn | \`...:role/REPLACE_WITH_ROLE\` |"
+          } >> "$GITHUB_STEP_SUMMARY"
+
       - name: Azure login (VM managed identity)
         uses: azure/login@a457da9ea143d694b1b9c7c869ebb04ebe844ef5 # v2.3.0
         with:
