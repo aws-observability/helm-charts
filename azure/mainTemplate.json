@@ -1,0 +1,226 @@
+{
+    "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+    "contentVersion": "1.0.0.0",
+    "parameters": {
+        "extensionResourceName": {
+            "type": "string",
+            "metadata": {
+                "description": "The name of the extension."
+            }
+        },
+        "clusterResourceName": {
+            "type": "String",
+            "metadata": {
+                "description": "The name of the Managed Cluster resource."
+            }
+        },
+        "createNewCluster": {
+            "type": "Bool",
+            "defaultValue": true,
+            "metadata": {
+                "description": "When set to 'true', creates new AKS cluster. Otherwise, an existing cluster is used."
+            }
+        },
+        "location": {
+            "type": "String",
+            "metadata": {
+                "description": "The location of AKS resource."
+            }
+        },
+        "clusterName": {
+            "type": "String",
+            "metadata": {
+                "description": "The clusterName value passed to the Amazon CloudWatch Observability Helm chart (values.yaml: clusterName)."
+            }
+        },
+        "region": {
+            "type": "String",
+            "metadata": {
+                "description": "The AWS region CloudWatch metrics and logs should be sent to (values.yaml: region)."
+            }
+        },
+        "roleArn": {
+            "type": "securestring",
+            "metadata": {
+                "description": "IAM role ARN for AKS workload-identity federation, used by the CloudWatch agent to authenticate to AWS (values.yaml: roleArn)."
+            }
+        },
+        "vmSize": {
+            "type": "String",
+            "defaultValue": "Standard_DS2_v2",
+            "metadata": {
+                "description": "VM size"
+            }
+        },
+        "vmEnableAutoScale": {
+            "type": "Bool",
+            "defaultValue": true,
+            "metadata": {
+                "description": "enable auto scaling"
+            }
+        },
+        "vmCount": {
+            "type": "Int",
+            "defaultValue": 3,
+            "metadata": {
+                "description": "VM count"
+            }
+        },
+        "dnsPrefix": {
+            "defaultValue": "[concat(parameters('clusterResourceName'),'-dns')]",
+            "type": "String",
+            "metadata": {
+                "description": "Optional DNS prefix to use with hosted Kubernetes API server FQDN."
+            }
+        },
+        "osDiskSizeGB": {
+            "defaultValue": 0,
+            "minValue": 0,
+            "maxValue": 1023,
+            "type": "Int",
+            "metadata": {
+                "description": "Disk size (in GiB) to provision for each of the agent pool nodes. This value ranges from 0 to 1023. Specifying 0 will apply the default disk size for that agentVMSize."
+            }
+        },
+        "kubernetesVersion": {
+            "type": "String",
+            "defaultValue": "1.32.6",
+            "metadata": {
+                "description": "The version of Kubernetes."
+            }
+        },
+        "networkPlugin": {
+            "defaultValue": "azure",
+            "allowedValues": [
+                "azure",
+                "kubenet"
+            ],
+            "type": "String",
+            "metadata": {
+                "description": "Network plugin used for building Kubernetes network."
+            }
+        },
+        "enableRBAC": {
+            "defaultValue": true,
+            "type": "Bool",
+            "metadata": {
+                "description": "Boolean flag to turn on and off of RBAC."
+            }
+        },
+        "enablePrivateCluster": {
+            "defaultValue": false,
+            "type": "Bool",
+            "metadata": {
+                "description": "Enable private network access to the Kubernetes cluster."
+            }
+        },
+        "osSKU": {
+            "type": "string",
+            "defaultValue": "AzureLinux",
+            "allowedValues": [
+                "AzureLinux",
+                "Ubuntu"
+            ],
+            "metadata": {
+                "description": "The Linux SKU to use."
+            }
+        },
+        "enableFIPS": {
+            "type": "Bool",
+            "defaultValue": true,
+            "metadata": {
+                "description": "Enable FIPS. https://learn.microsoft.com/en-us/azure/aks/create-node-pools#fips-enabled-node-pools"
+            }
+        }
+    },
+    "variables": {
+        "plan-name": "DONOTMODIFY",
+        "plan-publisher": "DONOTMODIFY",
+        "plan-offerID": "DONOTMODIFY",
+        "releaseTrain": "DONOTMODIFY",
+        "clusterExtensionTypeName": "DONOTMODIFY"
+    },
+    "resources": [
+        {
+            "type": "Microsoft.ContainerService/managedClusters",
+            "condition": "[parameters('createNewCluster')]",
+            "apiVersion": "2025-05-01",
+            "name": "[parameters('clusterResourceName')]",
+            "location": "[parameters('location')]",
+            "dependsOn": [],
+            "tags": {},
+            "sku": {
+                "name": "Base",
+                "tier": "Free"
+            },
+            "identity": {
+                "type": "SystemAssigned"
+            },
+            "properties": {
+                "kubernetesVersion": "[parameters('kubernetesVersion')]",
+                "enableRBAC": "[parameters('enableRBAC')]",
+                "dnsPrefix": "[parameters('dnsPrefix')]",
+                "autoUpgradeProfile": {
+                    "upgradeChannel": "patch",
+                    "nodeOSUpgradeChannel": "NodeImage"
+                },
+                "agentPoolProfiles": [
+                    {
+                        "name": "agentpool",
+                        "osDiskSizeGB": "[parameters('osDiskSizeGB')]",
+                        "count": "[parameters('vmCount')]",
+                        "enableAutoScaling": "[parameters('vmEnableAutoScale')]",
+                        "enableFIPS": "[parameters('enableFIPS')]",
+                        "minCount": "[if(parameters('vmEnableAutoScale'), 1, json('null'))]",
+                        "maxCount": "[if(parameters('vmEnableAutoScale'), 10, json('null'))]",
+                        "vmSize": "[parameters('vmSize')]",
+                        "osType": "Linux",
+                        "osSKU": "[parameters('osSKU')]",
+                        "type": "VirtualMachineScaleSets",
+                        "mode": "System",
+                        "maxPods": 110,
+                        "availabilityZones": [],
+                        "enableNodePublicIP": false,
+                        "tags": {}
+                    }
+                ],
+                "networkProfile": {
+                    "loadBalancerSku": "standard",
+                    "networkPlugin": "[parameters('networkPlugin')]"
+                },
+                "apiServerAccessProfile": {
+                    "enablePrivateCluster": "[parameters('enablePrivateCluster')]"
+                }
+            }
+        },
+        {
+            "type": "Microsoft.KubernetesConfiguration/extensions",
+            "apiVersion": "2024-11-01",
+            "name": "[parameters('extensionResourceName')]",
+            "properties": {
+                "extensionType": "[variables('clusterExtensionTypeName')]",
+                "autoUpgradeMinorVersion": true,
+                "releaseTrain": "[variables('releaseTrain')]",
+                "configurationSettings": {
+                    "clusterName": "[parameters('clusterName')]",
+                    "region": "[parameters('region')]",
+                    "k8sMode": "AKS"
+                },
+                "configurationProtectedSettings": {
+                    "roleArn": "[parameters('roleArn')]"
+                }
+            },
+            "plan": {
+                "name": "[variables('plan-name')]",
+                "publisher": "[variables('plan-publisher')]",
+                "product": "[variables('plan-offerID')]"
+            },
+            "scope": "[concat('Microsoft.ContainerService/managedClusters/', parameters('clusterResourceName'))]",
+            "dependsOn": [
+                "[resourceId('Microsoft.ContainerService/managedClusters/', parameters('clusterResourceName'))]"
+            ]
+        }
+    ],
+    "outputs": {
+    }
+}
