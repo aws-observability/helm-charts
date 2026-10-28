@@ -1,0 +1,398 @@
+name: Azure Marketplace Release
+
+# Publishes the amazon-cloudwatch-observability chart to Azure Marketplace as a
+# Kubernetes application (CNAB bundle).
+#
+#   1. Build the Marketplace bundle with CPA and push it to ACR
+#   2. Replace the plan's technical-configuration package (delete + add)
+#   3. Verify the digest Partner Center reports matches what we built
+#
+# Final publication stays MANUAL in Partner Center once Azure-side validation
+# passes. This workflow never calls go-live.
+#
+# TRIGGER
+# -------
+# A chart release tag pushed to this repo: amazon-cloudwatch-observability-x.y.z
+# The x.y.z in the tag is the Marketplace plan version, and it must match the
+# version in Chart.yaml at the tagged commit - see "Resolve release version".
+#
+# To re-run a release by hand, open "Run workflow" and pick the release TAG as
+# the ref (not main), otherwise the checkout and the version will not agree.
+#
+# RUNNER
+# ------
+# The three Azure jobs run on a self-hosted runner: an Azure VM whose
+# system-assigned managed identity authenticates to Azure. No client secret and
+# no OIDC federation to configure - the VM is itself the credential.
+# The notification jobs stay on GitHub-hosted runners deliberately, so a release
+# still reports failure when the VM is down.
+
+on:
+  push:
+    tags:
+      - 'amazon-cloudwatch-observability-*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Release tag to publish (defaults to the selected ref)'
+        required: false
+        type: string
+      dry_run:
+        description: 'Build and push to ACR only; do not touch Partner Center'
+        required: false
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+  # No id-token: write - managed identity does not use GitHub OIDC. Restore it
+  # if auth ever moves back to a federated app registration.
+
+# Two releases must never race each other into the same plan.
+concurrency:
+  group: azure-marketplace-release
+  cancel-in-progress: false
+
+env:
+  AZURE_DIR: azure
+  # The chart is NOT committed under azure/. It lives in its normal place in the
+  # repo and is copied into azure/ at build time, so there is one source of
+  # truth for the chart and no risk of the two copies drifting apart.
+  CHART_NAME: amazon-cloudwatch-observability
+  CHART_SRC: charts/amazon-cloudwatch-observability
+  CPA_IMAGE: mcr.microsoft.com/container-package-app:latest
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # Fires immediately so the team knows a release started.
+  # ---------------------------------------------------------------------------
+  notify-start:
+    name: Notify - started
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    # Mapped at job level: the `secrets` context is not available in step `if`.
+    env:
+      SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK_URL_MARKETPLACE }}
+    steps:
+      - name: Slack
+        if: env.SLACK_WEBHOOK != ''
+        uses: slackapi/slack-github-action@91efab103c0de0a537f72a35f6b8cda0ee76bf0a # v2.1.1
+        with:
+          webhook: ${{ secrets.SLACK_WEBHOOK_URL_MARKETPLACE }}
+          webhook-type: incoming-webhook
+          payload: |
+            {
+              "text": ":rocket: Azure Marketplace release started",
+              "tag": "${{ inputs.tag || github.ref_name }}",
+              "dry_run": "${{ inputs.dry_run || false }}",
+              "url": "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+            }
+  # ---------------------------------------------------------------------------
+  # 1. Build the Marketplace bundle and push it to ACR.
+  # ---------------------------------------------------------------------------
+  build-bundle:
+    name: Build bundle and push to ACR
+    # Self-hosted Azure VM: linux/amd64 with Docker, which CPA requires.
+    runs-on: [self-hosted, linux, x64, azure-marketplace]
+    timeout-minutes: 60
+    outputs:
+      version: ${{ steps.meta.outputs.version }}
+      digest: ${{ steps.digest.outputs.digest }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
+        with:
+          fetch-depth: 0
+
+      - name: Resolve release version
+        id: meta
+        env:
+          RAW: ${{ inputs.tag || github.ref_name }}
+        run: |
+          set -euo pipefail
+          if [[ -z "${RAW:-}" ]]; then
+            echo "::error::could not determine a release tag"
+            exit 1
+          fi
+          # amazon-cloudwatch-observability-6.7.0 -> 6.7.0
+          VERSION="${RAW#${CHART_NAME}-}"
+          if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::'${RAW}' is not a chart release tag. Expected ${CHART_NAME}-x.y.z"
+            echo "::error::(running from a branch? pick the release tag as the ref in \"Run workflow\")"
+            exit 1
+          fi
+          # The tag names a chart version, so the tagged tree must agree with it.
+          # A mismatch means the wrong commit was tagged, and shipping it would
+          # put the wrong chart behind that Marketplace version.
+          CHART_VERSION=$(grep -E '^version:' "${CHART_SRC}/Chart.yaml" \
+            | head -1 | awk '{print $2}' | tr -d '"')
+          if [[ "$CHART_VERSION" != "$VERSION" ]]; then
+            echo "::error::tag says ${VERSION} but ${CHART_SRC}/Chart.yaml at this ref says ${CHART_VERSION}"
+            exit 1
+          fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "Publishing chart version ${VERSION} (tag ${RAW})"
+      - name: Verify expected repo layout
+        run: |
+          set -euo pipefail
+          # Static Marketplace files, committed under azure/.
+          for f in "${AZURE_DIR}/manifest.yaml" \
+                   "${AZURE_DIR}/mainTemplate.json" \
+                   "${AZURE_DIR}/createUIDefinition.json" \
+                   "${AZURE_DIR}/README.md"; do
+            [[ -f "$f" ]] || { echo "::error::missing required file: $f"; exit 1; }
+          done
+          # Chart source, copied in by the next step.
+          [[ -f "${CHART_SRC}/Chart.yaml" ]] || {
+            echo "::error::chart source not found at ${CHART_SRC}/Chart.yaml"; exit 1; }
+          echo "Layout OK"
+      - name: Stage chart into azure/
+        env:
+          VERSION: ${{ steps.meta.outputs.version }}
+        run: |
+          set -euo pipefail
+          DEST="${AZURE_DIR}/${CHART_NAME}"
+          # Remove any stale copy so a renamed or deleted chart file cannot
+          # survive into the bundle.
+          rm -rf "$DEST"
+          cp -R "${CHART_SRC}" "$DEST"
+          # Assert the copy actually landed - cp can partially succeed.
+          [[ -f "${DEST}/Chart.yaml" ]]  || { echo "::error::staging failed: ${DEST}/Chart.yaml"; exit 1; }
+          [[ -f "${DEST}/values.yaml" ]] || { echo "::error::staging failed: ${DEST}/values.yaml"; exit 1; }
+          [[ -d "${DEST}/templates" ]]   || { echo "::error::staging failed: ${DEST}/templates"; exit 1; }
+          echo "Staged ${CHART_SRC} -> ${DEST}"
+          {
+            echo "### Chart staged"
+            echo ""
+            echo "| | |"
+            echo "|---|---|"
+            echo "| tag | \`${{ inputs.tag || github.ref_name }}\` |"
+            echo "| source | \`${CHART_SRC}\` |"
+            echo "| destination | \`${DEST}\` |"
+            echo "| version | \`${VERSION}\` |"
+          } >> "$GITHUB_STEP_SUMMARY"
+      - name: Azure login (VM managed identity)
+        uses: azure/login@a457da9ea143d694b1b9c7c869ebb04ebe844ef5 # v2.3.0
+        with:
+          # Reads the runner VM's system-assigned identity from Azure IMDS.
+          auth-type: IDENTITY
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
+      - name: ACR login
+        run: |
+          set -euo pipefail
+          az acr login -n "${{ vars.ACR_NAME }}"
+      - name: Build Marketplace bundle (CPA)
+        run: |
+          set -euo pipefail
+          # NOTE: no -it here. The documented command uses -it, which fails in CI
+          # because the runner has no TTY.
+          docker run --rm \
+            -v /var/run/docker.sock:/var/run/docker.sock \
+            -v "${GITHUB_WORKSPACE}:/data" \
+            -v "${HOME}/.docker:/root/.docker" \
+            -w "/data/${AZURE_DIR}" \
+            --entrypoint /bin/bash \
+            "${CPA_IMAGE}" \
+            -c "cpa buildbundle"
+      - name: Resolve bundle digest from ACR
+        id: digest
+        env:
+          VERSION: ${{ steps.meta.outputs.version }}
+        run: |
+          set -euo pipefail
+          REPO="${{ vars.ACR_REPOSITORY }}"
+          DIGEST=$(az acr manifest show-metadata \
+            --registry "${{ vars.ACR_NAME }}" \
+            --name "${REPO}:${VERSION}" \
+            --query digest -o tsv)
+          # Assert on the value, not just the exit code.
+          if [[ ! "$DIGEST" =~ ^sha256:[0-9a-f]{64}$ ]]; then
+            echo "::error::bundle not found in ACR or digest malformed: '${DIGEST}'"
+            exit 1
+          fi
+          echo "digest=$DIGEST" >> "$GITHUB_OUTPUT"
+          {
+            echo "### Bundle pushed"
+            echo ""
+            echo "| | |"
+            echo "|---|---|"
+            echo "| registry | \`${{ vars.ACR_NAME }}\` |"
+            echo "| repository | \`${REPO}\` |"
+            echo "| tag | \`${VERSION}\` |"
+            echo "| digest | \`${DIGEST}\` |"
+          } >> "$GITHUB_STEP_SUMMARY"
+  # ---------------------------------------------------------------------------
+  # 2. Replace the plan's technical-configuration package.
+  # ---------------------------------------------------------------------------
+  update-package:
+    name: Replace Marketplace package
+    needs: build-bundle
+    if: ${{ !(inputs.dry_run || false) }}
+    runs-on: [self-hosted, linux, x64, azure-marketplace]
+    timeout-minutes: 60
+    environment: azure-marketplace # gate reviewers/secrets here if desired
+    env:
+      VERSION: ${{ needs.build-bundle.outputs.version }}
+    steps:
+      - name: Azure login (VM managed identity)
+        uses: azure/login@a457da9ea143d694b1b9c7c869ebb04ebe844ef5 # v2.3.0
+        with:
+          # Reads the runner VM's system-assigned identity from Azure IMDS.
+          auth-type: IDENTITY
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Install partnercenter CLI extension
+        run: |
+          set -euo pipefail
+          # Preview extension - pin a version here if you need reproducibility
+          # across runs.
+          az extension add --name partnercenter --only-show-errors
+          az extension show --name partnercenter --query version -o tsv
+      - name: Delete existing package
+        run: |
+          set -euo pipefail
+          # A plan with no package yet is not an error; anything else is.
+          if ! OUT=$(az partnercenter marketplace offer plan technical-configuration package delete \
+                --offer-id "${{ vars.MARKETPLACE_OFFER_ID }}" \
+                --plan-id "${{ vars.MARKETPLACE_PLAN_ID }}" \
+                --repository "${{ vars.ACR_REPOSITORY }}" \
+                --tag "${VERSION}" 2>&1); then
+            if grep -qiE "not found|does not exist|no package" <<<"$OUT"; then
+              echo "No existing package to delete - continuing."
+            else
+              echo "::error::package delete failed"
+              echo "$OUT"
+              exit 1
+            fi
+          fi
+      - name: Add new package
+        run: |
+          set -euo pipefail
+          az partnercenter marketplace offer plan technical-configuration package add \
+            --offer-id "${{ vars.MARKETPLACE_OFFER_ID }}" \
+            --plan-id "${{ vars.MARKETPLACE_PLAN_ID }}" \
+            --registry "${{ vars.ACR_NAME }}" \
+            --repository "${{ vars.ACR_REPOSITORY }}" \
+            --tag "${VERSION}" \
+            --digest "${{ needs.build-bundle.outputs.digest }}" \
+            --resource-group "${{ vars.ACR_RESOURCE_GROUP }}" \
+            --subscription-id "${{ vars.AZURE_SUBSCRIPTION_ID }}" \
+            --tenant-id "${{ vars.AZURE_TENANT_ID }}" \
+            --cluster-extension-type "${{ vars.CLUSTER_EXTENSION_TYPE }}"
+  # ---------------------------------------------------------------------------
+  # 3. Verify the digest Partner Center reports matches what we built.
+  # ---------------------------------------------------------------------------
+  verify-sha:
+    name: Verify package SHA
+    needs: [build-bundle, update-package]
+    if: ${{ !(inputs.dry_run || false) }}
+    runs-on: [self-hosted, linux, x64, azure-marketplace]
+    timeout-minutes: 30
+    steps:
+      - name: Azure login (VM managed identity)
+        uses: azure/login@a457da9ea143d694b1b9c7c869ebb04ebe844ef5 # v2.3.0
+        with:
+          # Reads the runner VM's system-assigned identity from Azure IMDS.
+          auth-type: IDENTITY
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Install partnercenter CLI extension
+        run: |
+          set -euo pipefail
+          az extension add --name partnercenter --only-show-errors
+      - name: Compare digests
+        run: |
+          set -euo pipefail
+          EXPECTED="${{ needs.build-bundle.outputs.digest }}"
+          CONFIG=$(az partnercenter marketplace offer plan technical-configuration show \
+            --offer-id "${{ vars.MARKETPLACE_OFFER_ID }}" \
+            --plan-id "${{ vars.MARKETPLACE_PLAN_ID }}" -o json)
+          echo "$CONFIG" > tech-config.json
+          # The digest may sit under different keys across extension versions,
+          # so search the document rather than assuming one path.
+          REPORTED=$(python3 -c "
+          import json,re,sys
+          d=json.load(open('tech-config.json'))
+          found=set()
+          def walk(o):
+              if isinstance(o,dict):
+                  for k,v in o.items(): walk(v)
+              elif isinstance(o,list):
+                  for v in o: walk(v)
+              elif isinstance(o,str) and re.fullmatch(r'sha256:[0-9a-f]{64}',o):
+                  found.add(o)
+          walk(d)
+          print('\n'.join(sorted(found)))
+          ")
+          echo "expected: $EXPECTED"
+          echo "reported: ${REPORTED:-<none>}"
+          if [[ -z "$REPORTED" ]]; then
+            echo "::error::no sha256 digest found in Partner Center technical configuration"
+            exit 1
+          fi
+          if ! grep -Fxq "$EXPECTED" <<<"$REPORTED"; then
+            echo "::error::digest mismatch - Partner Center does not report the bundle we built"
+            exit 1
+          fi
+          echo "SHA verified."
+          {
+            echo "### SHA verified"
+            echo ""
+            echo "\`${EXPECTED}\`"
+            echo ""
+            echo "Azure-side validation runs next. **Publish manually in Partner Center** once it passes."
+          } >> "$GITHUB_STEP_SUMMARY"
+  # ---------------------------------------------------------------------------
+  # Always reports, including on failure, cancellation and timeout.
+  # ---------------------------------------------------------------------------
+  notify-result:
+    name: Notify - result
+    needs: [build-bundle, update-package, verify-sha]
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK_URL_MARKETPLACE }}
+    steps:
+      - name: Compute outcome
+        id: outcome
+        run: |
+          set -euo pipefail
+          # Treat cancelled as failure: an unattended pipeline must never read
+          # "cancelled" as "fine".
+          if [[ "${{ contains(needs.*.result, 'failure') }}" == "true" || \
+                "${{ contains(needs.*.result, 'cancelled') }}" == "true" ]]; then
+            echo "state=failure" >> "$GITHUB_OUTPUT"
+            echo "text=:x: Azure Marketplace release FAILED - pipeline stopped" >> "$GITHUB_OUTPUT"
+          elif [[ "${{ inputs.dry_run || false }}" == "true" ]]; then
+            echo "state=success" >> "$GITHUB_OUTPUT"
+            echo "text=:test_tube: Azure Marketplace DRY RUN complete - bundle in ACR, Partner Center untouched" >> "$GITHUB_OUTPUT"
+          else
+            echo "state=success" >> "$GITHUB_OUTPUT"
+            echo "text=:white_check_mark: Azure Marketplace package staged - publish manually in Partner Center" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Slack
+        if: env.SLACK_WEBHOOK != ''
+        uses: slackapi/slack-github-action@91efab103c0de0a537f72a35f6b8cda0ee76bf0a # v2.1.1
+        with:
+          webhook: ${{ secrets.SLACK_WEBHOOK_URL_MARKETPLACE }}
+          webhook-type: incoming-webhook
+          payload: |
+            {
+              "text": "${{ steps.outcome.outputs.text }}",
+              "tag": "${{ inputs.tag || github.ref_name }}",
+              "version": "${{ needs.build-bundle.outputs.version }}",
+              "build": "${{ needs.build-bundle.result }}",
+              "update": "${{ needs.update-package.result }}",
+              "verify": "${{ needs.verify-sha.result }}",
+              "url": "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+            }
+      - name: Fail the run if any stage failed
+        if: ${{ steps.outcome.outputs.state == 'failure' }}
+        run: |
+          echo "::error::one or more stages failed - see job results above"
+          exit 1

@@ -1,0 +1,11 @@
+applicationName: com.crestdata.amazoncloudwatchobservability
+publisher: "Crestdata"
+description: "Amazon CloudWatch Observability CNAB package for Azure Marketplace Kubernetes app (AKS)."
+version: 1.0.2 #Must be in the format of #.#.#
+helmChart: "./amazon-cloudwatch-observability"
+clusterArmTemplate: "./mainTemplate.json"
+uiDefinition: "./createUIDefinition.json"
+registryServer: "cloudwatch.azurecr.io"
+extensionRegistrationParameters:
+  defaultScope: "cluster" # cluster or namespace
+  namespace: "amazon-cloudwatch" # Specify the namespace the extension will install into. This property is required when defaultScope field value is chosen as 'cluster'
