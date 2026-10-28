@@ -71,7 +71,7 @@ replicaCount: 1
 nameOverride: ""
 ## Provide the ClusterName (this is a required parameter)
 ## Overridden at install time via the Marketplace extension's configurationSettings.
-clusterName: "REPLACE_WITH_CLUSTER_NAME"
+clusterName: 
 # Endpoint overrides for isolated regions (commercial regions defaults to empty) the front will have logs.${REGION}
 adcEndpointOverrides:
   us-iso-east-1: c2s.ic.gov
@@ -82,7 +82,7 @@ adcEndpointOverrides:
   eusc-de-east-1: amazonaws.eu
 ## Provide the Region (this is a required parameter)
 ## Overridden at install time via the Marketplace extension's configurationSettings.
-region: "REPLACE_WITH_AWS_REGION"
+region: 
 k8sMode: EKS # can be EKS | ROSA | K8S | AKS | GKE
 ## IAM role ARN for AKS/GKE workload-identity federation (required when k8sMode is AKS or GKE)
 ## Overridden at install time via the Marketplace extension's configurationProtectedSettings.
