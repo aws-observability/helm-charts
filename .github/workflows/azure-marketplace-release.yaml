@@ -435,6 +435,10 @@ jobs:
             exit 1
           fi
 
+      # These commands exit 0 even when the operation failed - the result is in
+      # the JSON body, as {"errors": [...], "result": "failed"}. Checking the
+      # exit code alone lets a failed publish pass as green, which is exactly
+      # what happened on 6.7.10. Assert on the value, not the exit code.
       - name: Delete existing package
         env:
           PREV_REPO: ${{ steps.current.outputs.repo }}
@@ -442,21 +446,49 @@ jobs:
         run: |
           set -euo pipefail
           if [[ -z "${PREV_TAG:-}" ]]; then
-            echo "No package attached to the plan - nothing to delete."
+            echo "No package attached to the plan - nothing to detach."
             exit 0
           fi
-          echo "Deleting ${PREV_REPO}:${PREV_TAG}"
-          az partnercenter marketplace offer plan technical-configuration package delete \
+          if [[ "$PREV_TAG" == "$VERSION" && "$PREV_REPO" == "${{ vars.ACR_REPOSITORY }}" ]]; then
+            echo "Attached package is the reference we are publishing - leaving it."
+            exit 0
+          fi
+
+          echo "Detaching ${PREV_REPO}:${PREV_TAG}"
+          set +e
+          OUT=$(az partnercenter marketplace offer plan technical-configuration package delete \
             --offer-id "${{ vars.MARKETPLACE_OFFER_ID }}" \
             --plan-id "${{ vars.MARKETPLACE_PLAN_ID }}" \
             --repository "${PREV_REPO}" \
-            --tag "${PREV_TAG}"
-          echo "Deleted ${PREV_REPO}:${PREV_TAG}"
+            --tag "${PREV_TAG}" -o json 2>&1)
+          RC=$?
+          set -e
+          echo "$OUT"
+
+          # A bundle that is already live in the Marketplace is immutable:
+          #   "Previously published bundles cannot be removed."
+          # That is expected and must not fail the release - the new package is
+          # added alongside it. Anything else is a real failure.
+          if grep -qiF "Previously published bundles cannot be removed" <<<"$OUT"; then
+            echo "::warning::${PREV_REPO}:${PREV_TAG} is already published and cannot be detached - it stays on the plan."
+            exit 0
+          fi
+          if [[ $RC -ne 0 ]]; then
+            echo "::error::package delete failed (exit ${RC})"
+            exit 1
+          fi
+          if grep -qE '"(errors|result)"[[:space:]]*:' <<<"$OUT" \
+             && ! grep -qE '"result"[[:space:]]*:[[:space:]]*"succeeded"' <<<"$OUT"; then
+            echo "::error::package delete reported failure in its response body"
+            exit 1
+          fi
+          echo "Detached ${PREV_REPO}:${PREV_TAG}"
 
       - name: Add new package
         run: |
           set -euo pipefail
-          az partnercenter marketplace offer plan technical-configuration package add \
+          set +e
+          OUT=$(az partnercenter marketplace offer plan technical-configuration package add \
             --offer-id "${{ vars.MARKETPLACE_OFFER_ID }}" \
             --plan-id "${{ vars.MARKETPLACE_PLAN_ID }}" \
             --registry "${{ vars.ACR_NAME }}" \
@@ -466,8 +498,25 @@ jobs:
             --resource-group "${{ vars.ACR_RESOURCE_GROUP }}" \
             --subscription-id "${{ vars.AZURE_SUBSCRIPTION_ID }}" \
             --tenant-id "${{ vars.AZURE_TENANT_ID }}" \
-            --cluster-extension-type "${{ vars.CLUSTER_EXTENSION_TYPE }}"
-          echo "Added ${{ vars.ACR_REPOSITORY }}:${VERSION}"
+            --cluster-extension-type "${{ vars.CLUSTER_EXTENSION_TYPE }}" -o json 2>&1)
+          RC=$?
+          set -e
+          echo "$OUT"
+
+          if [[ $RC -ne 0 ]]; then
+            echo "::error::package add failed (exit ${RC})"
+            exit 1
+          fi
+          # Must be an explicit success - no errors, result succeeded.
+          if ! grep -qE '"result"[[:space:]]*:[[:space:]]*"succeeded"' <<<"$OUT"; then
+            echo "::error::package add did not report result=succeeded"
+            exit 1
+          fi
+          if grep -qE '"errors"[[:space:]]*:[[:space:]]*\[[[:space:]]*[^][:space:]]' <<<"$OUT"; then
+            echo "::error::package add returned errors in its response body"
+            exit 1
+          fi
+          echo "Attached ${{ vars.ACR_REPOSITORY }}:${VERSION}"
 
   # ---------------------------------------------------------------------------
   # 3. Verify the digest Partner Center reports matches what we built.
@@ -478,6 +527,8 @@ jobs:
     if: ${{ !(inputs.dry_run || false) }}
     runs-on: [self-hosted, linux, x64, azure-marketplace]
     timeout-minutes: 30
+    env:
+      VERSION: ${{ needs.build-bundle.outputs.version }}
     # Same environment as update-package: the OIDC `sub` claim becomes
     # repo:<owner>/<repo>:environment:azure-marketplace, which is stable across
     # releases. Without it the subject would be the tag ref and would need a new
@@ -507,29 +558,42 @@ jobs:
           set -euo pipefail
           EXPECTED="${{ needs.build-bundle.outputs.digest }}"
 
-          # The digests live at cnabReferences[].digest - read them directly
-          # rather than searching the document.
-          REPORTED=$(az partnercenter marketplace offer plan technical-configuration show \
+          # Report the whole plan, not just whether our digest is somewhere in
+          # it. A plan can hold several packages - a bundle that is already
+          # published cannot be detached - so "found" alone does not mean the
+          # plan is in the state this release intended.
+          ATTACHED=$(az partnercenter marketplace offer plan technical-configuration show \
             --offer-id "${{ vars.MARKETPLACE_OFFER_ID }}" \
             --plan-id "${{ vars.MARKETPLACE_PLAN_ID }}" \
-            --query "cnabReferences[].digest" -o tsv)
+            --query "cnabReferences[].join(':', [repositoryName, tag, digest])" -o tsv)
 
-          echo "expected: $EXPECTED"
-          echo "reported: ${REPORTED:-<none>}"
-
-          if [[ -z "$REPORTED" ]]; then
-            echo "::error::no package digest reported by Partner Center"
+          if [[ -z "$ATTACHED" ]]; then
+            echo "::error::Partner Center reports no packages attached to the plan"
             exit 1
           fi
-          if ! grep -Fxq "$EXPECTED" <<<"$REPORTED"; then
-            echo "::error::digest mismatch - Partner Center does not report the bundle we built"
+
+          echo "attached to the plan:"
+          printf '  %s\n' $ATTACHED
+          echo "expected digest: $EXPECTED"
+
+          if ! grep -qF "$EXPECTED" <<<"$ATTACHED"; then
+            echo "::error::digest mismatch - the plan does not reference the bundle we built"
             exit 1
+          fi
+
+          COUNT=$(grep -c . <<<"$ATTACHED")
+          if [[ "$COUNT" -gt 1 ]]; then
+            echo "::warning::plan holds ${COUNT} packages; older published bundles cannot be detached."
           fi
           echo "SHA verified."
           {
             echo "### SHA verified"
             echo ""
-            echo "\`${EXPECTED}\`"
+            echo "Published \`${VERSION:-this release}\` with digest \`${EXPECTED}\`"
+            echo ""
+            echo "Packages attached to the plan (\`${COUNT}\`):"
+            echo ""
+            printf '%s\n' $ATTACHED | sed 's/^/- `/; s/$/`/'
             echo ""
             echo "Azure-side validation runs next. **Publish manually in Partner Center** once it passes."
           } >> "$GITHUB_STEP_SUMMARY"
