@@ -63,17 +63,6 @@ env:
   CHART_NAME: amazon-cloudwatch-observability
   CHART_SRC: charts/amazon-cloudwatch-observability
   CPA_IMAGE: mcr.microsoft.com/container-package-app:latest
-  # The `partnercenter` extension in the official az index (0.2.4) sends the
-  # retired schema host product-ingestion.azureedge.net, which the Product
-  # Ingestion API now rejects on EVERY write:
-  #   badRequest: Invalid $schema ... Expected a schema under
-  #   https://schema.mp.microsoft.com/schema/configure/
-  # Reads are unaffected, so `show` works while `package add`/`delete` 400.
-  # The GitHub releases carry newer builds than the index (the extension's own
-  # README says so); 0.2.7 uses schema.mp.microsoft.com. Pinned to an exact
-  # version deliberately - this is a preview extension that has already changed
-  # under us once.
-  PARTNERCENTER_EXT_URL: https://github.com/Azure/partnercenter-cli-extension/releases/download/v0.2.7-alpha/partnercenter-0.2.7-py3-none-any.whl
 
 jobs:
   # ---------------------------------------------------------------------------
@@ -108,6 +97,10 @@ jobs:
     # Self-hosted Azure VM: linux/amd64 with Docker, which CPA requires.
     runs-on: [self-hosted, linux, x64, azure-marketplace]
     timeout-minutes: 60
+    # Every Azure job shares this environment so they all present the same OIDC
+    # subject, and one federated credential covers the whole workflow. Note that
+    # adding required reviewers here would gate the build, not just the publish.
+    environment: azure-marketplace
     outputs:
       version: ${{ steps.meta.outputs.version }}
       digest: ${{ steps.digest.outputs.digest }}
@@ -298,11 +291,12 @@ jobs:
             echo "| roleArn | \`...:role/REPLACE_WITH_ROLE\` |"
           } >> "$GITHUB_STEP_SUMMARY"
 
-      - name: Azure login (VM managed identity)
+      - name: Azure login (OIDC)
         uses: azure/login@a457da9ea143d694b1b9c7c869ebb04ebe844ef5 # v2.3.0
         with:
-          # Reads the runner VM's system-assigned identity from Azure IMDS.
-          auth-type: IDENTITY
+          # One identity for the whole workflow. This job needs the
+          # subscription, because it pushes to and reads back from ACR.
+          client-id: ${{ vars.PARTNER_CENTER_CLIENT_ID }}
           tenant-id: ${{ vars.AZURE_TENANT_ID }}
           subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
 
@@ -363,14 +357,13 @@ jobs:
     env:
       VERSION: ${{ needs.build-bundle.outputs.version }}
     steps:
-      - name: Azure login (Partner Center app registration)
+      - name: Azure login (OIDC)
         uses: azure/login@a457da9ea143d694b1b9c7c869ebb04ebe844ef5 # v2.3.0
         with:
-          # Partner Center's user management only accepts app registrations -
-          # a managed identity cannot be added there - so the Partner Center
-          # jobs authenticate as an app registration over GitHub OIDC.
-          # Still no stored secret: the federated credential is matched on
-          # repo + environment.
+          # Same app registration as build-bundle. Partner Center's user
+          # management only accepts app registrations - a managed identity
+          # cannot be added there - which is why this identity, not the
+          # runner VM's, authenticates the whole workflow.
           client-id: ${{ vars.PARTNER_CENTER_CLIENT_ID }}
           tenant-id: ${{ vars.AZURE_TENANT_ID }}
           # This app holds no Azure RBAC - only Partner Center access - so it
@@ -380,14 +373,22 @@ jobs:
       - name: Install partnercenter CLI extension
         run: |
           set -euo pipefail
-          # --upgrade so a runner that already cached the broken index build
-          # (0.2.4) is replaced rather than reused. Self-hosted runners persist
-          # ~/.azure between jobs, so this is not hypothetical.
-          az extension add --yes --upgrade --source "${PARTNERCENTER_EXT_URL}" --only-show-errors
+          az extension add --name partnercenter --only-show-errors
           INSTALLED=$(az extension show --name partnercenter --query version -o tsv)
           echo "partnercenter extension: ${INSTALLED}"
+          # 0.2.4 is the only version in the az index, and it sends the retired
+          # schema host product-ingestion.azureedge.net. The Product Ingestion
+          # API rejects that on EVERY write:
+          #   badRequest: Invalid $schema ... Expected a schema under
+          #   https://schema.mp.microsoft.com/schema/configure/
+          # Reads carry no $schema, so `show` works while add/delete both 400.
+          # Fixed upstream in 0.2.7, which is published only as a GitHub release
+          # and will not install here: it pins pydantic ~=2.5.3, whose native
+          # core has no wheels for the CLI's bundled Python 3.14.
+          # Fail here with the reason rather than at an opaque 400 later.
           if [[ "$INSTALLED" == "0.2.4" ]]; then
-            echo "::error::extension 0.2.4 cannot perform writes - it sends the retired schema host."
+            echo "::error::partnercenter 0.2.4 cannot perform writes (retired \$schema host)."
+            echo "::error::See https://github.com/Azure/partnercenter-cli-extension/releases"
             exit 1
           fi
       # "Replace" means: detach whatever package is attached now, then attach
@@ -483,14 +484,13 @@ jobs:
     # federated credential for every single release.
     environment: azure-marketplace
     steps:
-      - name: Azure login (Partner Center app registration)
+      - name: Azure login (OIDC)
         uses: azure/login@a457da9ea143d694b1b9c7c869ebb04ebe844ef5 # v2.3.0
         with:
-          # Partner Center's user management only accepts app registrations -
-          # a managed identity cannot be added there - so the Partner Center
-          # jobs authenticate as an app registration over GitHub OIDC.
-          # Still no stored secret: the federated credential is matched on
-          # repo + environment.
+          # Same app registration as build-bundle. Partner Center's user
+          # management only accepts app registrations - a managed identity
+          # cannot be added there - which is why this identity, not the
+          # runner VM's, authenticates the whole workflow.
           client-id: ${{ vars.PARTNER_CENTER_CLIENT_ID }}
           tenant-id: ${{ vars.AZURE_TENANT_ID }}
           # This app holds no Azure RBAC - only Partner Center access - so it
@@ -500,7 +500,7 @@ jobs:
       - name: Install partnercenter CLI extension
         run: |
           set -euo pipefail
-          az extension add --yes --upgrade --source "${PARTNERCENTER_EXT_URL}" --only-show-errors
+          az extension add --name partnercenter --only-show-errors
           echo "partnercenter extension: $(az extension show --name partnercenter --query version -o tsv)"
       - name: Compare digests
         run: |
