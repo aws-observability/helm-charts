@@ -378,43 +378,47 @@ jobs:
       # not the version being published now - so read it rather than assume it.
       # Deleting a tag that is not attached returns 400 Bad Request, not a
       # recognisable "not found", so guessing here fails the release.
-      - name: Delete existing package
+      # ORDER MATTERS: attach the new package BEFORE detaching the old one.
+      #
+      # `package delete` is not a delete - it fetches the whole technical
+      # configuration, drops one cnabReference, and PUTs the rest back. On a
+      # plan holding a single package that PUT carries an empty cnabReferences
+      # list, which the ingestion API rejects with 400 Bad Request. `package
+      # add` appends rather than replaces, so adding first means the plan is
+      # never momentarily empty.
+      - name: Read the currently attached package
+        id: current
         run: |
           set -euo pipefail
-          az partnercenter marketplace offer plan technical-configuration show \
+          # One call, three fields, pure JMESPath. `|| ''` coalesces nulls so an
+          # empty plan still yields a well-formed "||" string.
+          TRIPLE=$(az partnercenter marketplace offer plan technical-configuration show \
             --offer-id "${{ vars.MARKETPLACE_OFFER_ID }}" \
             --plan-id "${{ vars.MARKETPLACE_PLAN_ID }}" \
-            -o json > current-config.json 2>/dev/null || echo '{}' > current-config.json
+            --query "join('|', [cnabReferences[0].repositoryName || '', cnabReferences[0].tag || '', clusterExtensionType || ''])" \
+            -o tsv 2>/dev/null || echo "||")
 
-          PAIR=$(python3 -c "
-          import json
-          try:
-              d = json.load(open('current-config.json'))
-          except Exception:
-              d = {}
-          refs = d.get('cnabReferences') or []
-          r = refs[0] if refs else {}
-          print(f\"{r.get('repositoryName','')}|{r.get('tag','')}\")
-          ")
-          CUR_REPO="${PAIR%%|*}"
-          CUR_TAG="${PAIR##*|}"
+          CUR_REPO="${TRIPLE%%|*}"
+          REST="${TRIPLE#*|}"
+          CUR_TAG="${REST%%|*}"
+          REGISTERED="${REST#*|}"
 
-          if [[ -z "$CUR_TAG" ]]; then
-            echo "No package attached to the plan - nothing to delete."
-            exit 0
+          echo "repo=${CUR_REPO}" >> "$GITHUB_OUTPUT"
+          echo "tag=${CUR_TAG}"   >> "$GITHUB_OUTPUT"
+          echo "Currently attached: ${CUR_REPO:-<none>}:${CUR_TAG:-<none>}"
+          echo "Registered extension type: ${REGISTERED:-<none>}"
+
+          # `package add` refuses outright if the extension type we pass differs
+          # from the one registered on the plan, so check it here with a clear
+          # message instead of letting the CLI fail obscurely.
+          WANTED="${{ vars.CLUSTER_EXTENSION_TYPE }}"
+          if [[ -n "$REGISTERED" && "$REGISTERED" != "$WANTED" ]]; then
+            echo "::error::CLUSTER_EXTENSION_TYPE is '${WANTED}' but the plan has '${REGISTERED}' registered."
+            echo "::error::'package add' rejects a mismatch. Set the variable to the registered value,"
+            echo "::error::or change the extension type in Partner Center first."
+            exit 1
           fi
 
-          echo "Currently attached: ${CUR_REPO}:${CUR_TAG}"
-          if [[ "$CUR_TAG" == "$VERSION" && "$CUR_REPO" == "${{ vars.ACR_REPOSITORY }}" ]]; then
-            echo "(this is the same reference we are about to publish - replacing it)"
-          fi
-
-          az partnercenter marketplace offer plan technical-configuration package delete \
-            --offer-id "${{ vars.MARKETPLACE_OFFER_ID }}" \
-            --plan-id "${{ vars.MARKETPLACE_PLAN_ID }}" \
-            --repository "${CUR_REPO}" \
-            --tag "${CUR_TAG}"
-          echo "Detached ${CUR_REPO}:${CUR_TAG}"
       - name: Add new package
         run: |
           set -euo pipefail
@@ -429,6 +433,28 @@ jobs:
             --subscription-id "${{ vars.AZURE_SUBSCRIPTION_ID }}" \
             --tenant-id "${{ vars.AZURE_TENANT_ID }}" \
             --cluster-extension-type "${{ vars.CLUSTER_EXTENSION_TYPE }}"
+          echo "Attached ${{ vars.ACR_REPOSITORY }}:${VERSION}"
+
+      - name: Detach the previous package
+        env:
+          PREV_REPO: ${{ steps.current.outputs.repo }}
+          PREV_TAG: ${{ steps.current.outputs.tag }}
+        run: |
+          set -euo pipefail
+          if [[ -z "${PREV_TAG:-}" ]]; then
+            echo "Nothing was attached before - nothing to detach."
+            exit 0
+          fi
+          if [[ "$PREV_TAG" == "$VERSION" && "$PREV_REPO" == "${{ vars.ACR_REPOSITORY }}" ]]; then
+            echo "Previous package is the same reference just published - leaving it."
+            exit 0
+          fi
+          az partnercenter marketplace offer plan technical-configuration package delete \
+            --offer-id "${{ vars.MARKETPLACE_OFFER_ID }}" \
+            --plan-id "${{ vars.MARKETPLACE_PLAN_ID }}" \
+            --repository "${PREV_REPO}" \
+            --tag "${PREV_TAG}"
+          echo "Detached ${PREV_REPO}:${PREV_TAG}"
   # ---------------------------------------------------------------------------
   # 3. Verify the digest Partner Center reports matches what we built.
   # ---------------------------------------------------------------------------
@@ -466,30 +492,19 @@ jobs:
         run: |
           set -euo pipefail
           EXPECTED="${{ needs.build-bundle.outputs.digest }}"
-          CONFIG=$(az partnercenter marketplace offer plan technical-configuration show \
+
+          # The digests live at cnabReferences[].digest - read them directly
+          # rather than searching the document.
+          REPORTED=$(az partnercenter marketplace offer plan technical-configuration show \
             --offer-id "${{ vars.MARKETPLACE_OFFER_ID }}" \
-            --plan-id "${{ vars.MARKETPLACE_PLAN_ID }}" -o json)
-          echo "$CONFIG" > tech-config.json
-          # The digest may sit under different keys across extension versions,
-          # so search the document rather than assuming one path.
-          REPORTED=$(python3 -c "
-          import json,re,sys
-          d=json.load(open('tech-config.json'))
-          found=set()
-          def walk(o):
-              if isinstance(o,dict):
-                  for k,v in o.items(): walk(v)
-              elif isinstance(o,list):
-                  for v in o: walk(v)
-              elif isinstance(o,str) and re.fullmatch(r'sha256:[0-9a-f]{64}',o):
-                  found.add(o)
-          walk(d)
-          print('\n'.join(sorted(found)))
-          ")
+            --plan-id "${{ vars.MARKETPLACE_PLAN_ID }}" \
+            --query "cnabReferences[].digest" -o tsv)
+
           echo "expected: $EXPECTED"
           echo "reported: ${REPORTED:-<none>}"
+
           if [[ -z "$REPORTED" ]]; then
-            echo "::error::no sha256 digest found in Partner Center technical configuration"
+            echo "::error::no package digest reported by Partner Center"
             exit 1
           fi
           if ! grep -Fxq "$EXPECTED" <<<"$REPORTED"; then
