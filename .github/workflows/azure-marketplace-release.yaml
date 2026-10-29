@@ -619,31 +619,69 @@ jobs:
           OUT=$(curl -sS -X POST "${AUTH[@]}" -H 'Content-Type: application/json' \
             --data @submit.json "${PI_API}/configure?\$version=2022-03-01-preview2")
 
-          JOB=$(jq -r '.jobId // empty' <<<"$OUT"); STATE=$(jq -r '.jobStatus // empty' <<<"$OUT"); N=0
-          while [[ -n "$JOB" && "$STATE" != "completed" && $N -lt 60 ]]; do
-            sleep 3; N=$((N + 1))
-            OUT=$(curl -sS "${AUTH[@]}" -H 'Accept: application/json' \
-              "${PI_API}/configure/${JOB}/status?\$version=2022-03-01-preview2")
-            STATE=$(jq -r '.jobStatus // empty' <<<"$OUT")
-          done
-
-          if [[ "$(jq -r '.jobResult // empty' <<<"$OUT")" != "succeeded" ]]; then
-            echo "::error::publish to '${TARGET}' was not accepted"
+          JOB=$(jq -r '.jobId // empty' <<<"$OUT")
+          if [[ -z "$JOB" ]]; then
+            echo "::error::publish to '${TARGET}' was rejected outright"
             jq . <<<"$OUT" || echo "$OUT"
             exit 1
           fi
 
+          # Microsoft's validation runs INSIDE this job and takes minutes to
+          # hours. Waiting for it would hold the runner for no benefit and make
+          # the release look failed whenever validation is simply slow. So poll
+          # briefly - just long enough to catch an outright rejection - then
+          # hand off and report where to watch it.
+          STATE=$(jq -r '.jobStatus // empty' <<<"$OUT"); N=0
+          while [[ "$STATE" != "completed" && $N -lt 5 ]]; do
+            sleep 3; N=$((N + 1))
+            OUT=$(curl -sS "${AUTH[@]}" -H 'Accept: application/json' \
+              "${PI_API}/configure/${JOB}/status?\$version=2022-03-01-preview2")
+            STATE=$(jq -r '.jobStatus // empty' <<<"$OUT")
+            jq -e '(.errors // []) | length > 0' >/dev/null <<<"$OUT" && break
+          done
+
+          RESULT=$(jq -r '.jobResult // empty' <<<"$OUT")
+          if jq -e '(.errors // []) | length > 0' >/dev/null <<<"$OUT" || [[ "$RESULT" == "failed" ]]; then
+            echo "::error::publish to '${TARGET}' failed"
+            jq . <<<"$OUT" || echo "$OUT"
+            exit 1
+          fi
+
+          OFFER_URL="https://partner.microsoft.com/dashboard/commercial-marketplace/offers/${{ vars.MARKETPLACE_OFFER_ID }}/overview"
+          STATUS_URL="${PI_API}/configure/${JOB}/status?\$version=2022-03-01-preview2"
+
           echo "submission accepted for '${TARGET}'"
+          echo "  job          : ${JOB}"
+          echo "  state        : ${STATE:-running} / ${RESULT:-pending}"
+          echo "  track here   : ${OFFER_URL}"
+          echo "::notice::Publish to '${TARGET}' is IN PROGRESS - this workflow does not wait for it. Track: ${OFFER_URL}"
+
           {
-            echo "### Submitted to ${TARGET}"
+            echo "### Submitted to \`${TARGET}\` - validation in progress"
             echo ""
-            echo "\`${{ vars.ACR_REPOSITORY }}:${VERSION}\` was attached, verified and submitted."
+            echo "| | |"
+            echo "|---|---|"
+            echo "| package | \`${{ vars.ACR_REPOSITORY }}:${VERSION}\` |"
+            echo "| target | \`${TARGET}\` |"
+            echo "| submission job | \`${JOB}\` |"
+            echo "| state at hand-off | \`${STATE:-running}\` / \`${RESULT:-pending}\` |"
             echo ""
+            echo "**Microsoft validation runs asynchronously and can take hours. This workflow does not wait for it** - a green run means the submission was accepted, not that it passed."
+            echo ""
+            echo "- Track progress: [Partner Center offer overview](${OFFER_URL})"
             if [[ "$TARGET" == "preview" ]]; then
-              echo "Microsoft validation runs next (it can take hours). Once it passes, **go live manually in Partner Center**."
+              echo "- Once validation passes, **go live manually** in Partner Center."
             else
-              echo "Microsoft validation runs next (it can take hours). On success this goes **live to all customers**."
+              echo "- Once validation passes, the offer goes **live to all customers** automatically."
             fi
+            echo ""
+            echo "Check the submission job from a shell:"
+            echo ""
+            echo '```bash'
+            echo "TOKEN=\$(az account get-access-token --resource https://graph.microsoft.com --query accessToken -o tsv)"
+            echo "curl -s -H \"Authorization: Bearer \$TOKEN\" \\"
+            echo "  '${STATUS_URL}' | jq '{jobStatus, jobResult, errors}'"
+            echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
 
   # ---------------------------------------------------------------------------
@@ -673,7 +711,7 @@ jobs:
             echo "text=:test_tube: Azure Marketplace DRY RUN complete - bundle in ACR, Partner Center untouched" >> "$GITHUB_OUTPUT"
           else
             echo "state=success" >> "$GITHUB_OUTPUT"
-            echo "text=:white_check_mark: Azure Marketplace package staged - publish manually in Partner Center" >> "$GITHUB_OUTPUT"
+            echo "text=:white_check_mark: Azure Marketplace release submitted - validation in progress, watch Partner Center" >> "$GITHUB_OUTPUT"
           fi
       - name: Slack
         if: env.SLACK_WEBHOOK != ''
