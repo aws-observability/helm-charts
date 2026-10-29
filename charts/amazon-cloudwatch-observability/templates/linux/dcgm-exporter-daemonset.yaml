@@ -1,7 +1,4 @@
-{{- /* On GKE, only run dcgm-exporter behind the OTel Container Insights pipeline:
-   the legacy containerInsights path doesn't give usable GPU metrics on GKE, and
-   running both at once leads to confusing, partially-duplicated collection. */}}
-{{- if and .Values.dcgmExporter.enabled (or (ne .Values.k8sMode "GKE") (and .Values.otelContainerInsights.enabled (not .Values.containerInsights.enabled))) }}
+{{- if .Values.dcgmExporter.enabled }}
 apiVersion: cloudwatch.aws.amazon.com/v1alpha1
 kind: DcgmExporter
 metadata:
@@ -44,8 +41,10 @@ spec:
   {{- if eq .Values.k8sMode "GKE" }}
   {{- /* GKE's stock NVIDIA device-plugin model mounts the host driver's userspace
      libraries at /usr/local/nvidia/lib64, which the distroless image's own
-     LD_LIBRARY_PATH doesn't include. Without this, dcgm-exporter stays "Running"
-     and serves empty (zero-byte) metric responses instead of failing visibly. */}}
+     LD_LIBRARY_PATH doesn't include. Without this, NVML init fails outright
+     ("Cannot init NVML library; err: ERROR_LIBRARY_NOT_FOUND") -- confirmed still
+     needed even on the bumped 4.6.1-4.8.4-distroless tag, which only fixed a
+     separate libdcgm.so.4 self-init bug, not this NVML lookup. */}}
   - name: LD_LIBRARY_PATH
     value: /usr/local/nvidia/lib64:/lib/distroless
   {{- end }}
@@ -81,13 +80,6 @@ spec:
     DCGM_FI_DEV_MEMORY_TEMP, gauge, Memory temperature (in C).
     DCGM_FI_DEV_GPU_TEMP,    gauge, GPU temperature (in C).
     DCGM_FI_DEV_POWER_USAGE,              gauge, Power draw (in W).
-    {{- /* TEMPORARY: re-enabled unconditionally (including on GKE) to re-investigate
-       the profiling-module lock conflict with GKE's cluster-managed dcgm-exporter
-       (namespace gke-managed-system) now that both exporters have run side by side.
-       Previously dropped on GKE because watching this field here failed the whole
-       field group, exiting the exporter before it served any metric at all (see
-       NVIDIA/dcgm-exporter#537). Re-gate behind `ne .Values.k8sMode "GKE"` once the
-       investigation concludes, unless it turns out to no longer be necessary. */}}
     DCGM_FI_PROF_PIPE_TENSOR_ACTIVE, gauge, Tensor Core utilization (in %).
     DCGM_FI_DRIVER_VERSION, label, Driver Version.
   tlsConfig: |

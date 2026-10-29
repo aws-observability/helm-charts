@@ -58,6 +58,35 @@ receivers:
                 - dcgm-exporter-service:9400
   {{- end }}
 
+  {{- if and .Values.dcgmExporter.enabled (eq .Values.k8sMode "GKE") }}
+  {{- /* On nodes using gpu-driver-version=default/latest, GKE runs its own managed
+     dcgm-exporter (namespace gke-managed-system) instead of the chart's own --
+     see affinityGKE above. It has no Service in front of it (plain pod IP) and
+     serves over HTTP, not the chart's TLS-fronted exporter, so it needs its own
+     scrape path via pod discovery rather than the static target above. */}}
+  prometheus/cw_k8s_ci_v0_dcgm_gke_managed:
+    config:
+      scrape_configs:
+        - job_name: dcgm-exporter-gke-managed
+          scrape_interval: {{ .Values.otelContainerInsights.metricResolution }}
+          scrape_timeout: {{ include "otel-container-insights.scrapeTimeout" . }}
+          kubernetes_sd_configs:
+            - role: pod
+              namespaces:
+                names:
+                  - gke-managed-system
+          relabel_configs:
+            - source_labels: [__meta_kubernetes_pod_label_app_kubernetes_io_name]
+              regex: gke-managed-dcgm-exporter
+              action: keep
+            - source_labels: [__meta_kubernetes_pod_node_name]
+              regex: ${env:K8S_NODE_NAME}
+              action: keep
+            - source_labels: [__meta_kubernetes_pod_container_port_name]
+              regex: metrics
+              action: keep
+  {{- end }}
+
   {{- if .Values.neuronMonitor.enabled }}
   prometheus/cw_k8s_ci_v0_neuron:
     config:
@@ -908,7 +937,7 @@ service:
 
     {{- if .Values.dcgmExporter.enabled }}
     metrics/cw_k8s_ci_v0_dcgm:
-      receivers: [prometheus/cw_k8s_ci_v0_dcgm]
+      receivers: [prometheus/cw_k8s_ci_v0_dcgm{{ if eq .Values.k8sMode "GKE" }}, prometheus/cw_k8s_ci_v0_dcgm_gke_managed{{ end }}]
       processors: [filter/cw_k8s_ci_v0_scrape_metadata, transform/cw_k8s_ci_v0_set_unit, metricstarttime/cw_k8s_ci_v0, transform/cw_k8s_ci_v0_set_cluster_name, groupbyattrs/cw_k8s_ci_v0_dcgm, transform/cw_k8s_ci_v0_dcgm_promote, k8sattributes/cw_k8s_ci_v0_pod, transform/cw_k8s_ci_v0_set_node_name, transform/cw_k8s_ci_v0_promote_node_name, k8sattributes/cw_k8s_ci_v0_node, resourcedetection/cw_k8s_ci_v0, transform/cw_k8s_ci_v0_set_scope_dcgm, transform/cw_k8s_ci_v0_clear_schema_url, transform/cw_k8s_ci_v0_set_cloud_resource_id, transform/cw_k8s_ci_v0_set_workload, awsattributelimit/cw_k8s_ci_v0, batch/cw_k8s_ci_v0_metrics_dest]
       exporters:
         - otlphttp/cw_k8s_ci_v0_metrics_dest
