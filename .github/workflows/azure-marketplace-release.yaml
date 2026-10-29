@@ -63,6 +63,17 @@ env:
   CHART_NAME: amazon-cloudwatch-observability
   CHART_SRC: charts/amazon-cloudwatch-observability
   CPA_IMAGE: mcr.microsoft.com/container-package-app:latest
+  # The `partnercenter` extension in the official az index (0.2.4) sends the
+  # retired schema host product-ingestion.azureedge.net, which the Product
+  # Ingestion API now rejects on EVERY write:
+  #   badRequest: Invalid $schema ... Expected a schema under
+  #   https://schema.mp.microsoft.com/schema/configure/
+  # Reads are unaffected, so `show` works while `package add`/`delete` 400.
+  # The GitHub releases carry newer builds than the index (the extension's own
+  # README says so); 0.2.7 uses schema.mp.microsoft.com. Pinned to an exact
+  # version deliberately - this is a preview extension that has already changed
+  # under us once.
+  PARTNERCENTER_EXT_URL: https://github.com/Azure/partnercenter-cli-extension/releases/download/v0.2.7-alpha/partnercenter-0.2.7-py3-none-any.whl
 
 jobs:
   # ---------------------------------------------------------------------------
@@ -369,23 +380,27 @@ jobs:
       - name: Install partnercenter CLI extension
         run: |
           set -euo pipefail
-          # Preview extension - pin a version here if you need reproducibility
-          # across runs.
-          az extension add --name partnercenter --only-show-errors
-          az extension show --name partnercenter --query version -o tsv
+          # --upgrade so a runner that already cached the broken index build
+          # (0.2.4) is replaced rather than reused. Self-hosted runners persist
+          # ~/.azure between jobs, so this is not hypothetical.
+          az extension add --yes --upgrade --source "${PARTNERCENTER_EXT_URL}" --only-show-errors
+          INSTALLED=$(az extension show --name partnercenter --query version -o tsv)
+          echo "partnercenter extension: ${INSTALLED}"
+          if [[ "$INSTALLED" == "0.2.4" ]]; then
+            echo "::error::extension 0.2.4 cannot perform writes - it sends the retired schema host."
+            exit 1
+          fi
       # "Replace" means: detach whatever package is attached now, then attach
       # the new one. The attached tag is whatever was published LAST, which is
       # not the version being published now - so read it rather than assume it.
       # Deleting a tag that is not attached returns 400 Bad Request, not a
       # recognisable "not found", so guessing here fails the release.
-      # ORDER MATTERS: attach the new package BEFORE detaching the old one.
+      # Replace the plan's package: delete the one currently attached, then add
+      # the new one.
       #
-      # `package delete` is not a delete - it fetches the whole technical
-      # configuration, drops one cnabReference, and PUTs the rest back. On a
-      # plan holding a single package that PUT carries an empty cnabReferences
-      # list, which the ingestion API rejects with 400 Bad Request. `package
-      # add` appends rather than replaces, so adding first means the plan is
-      # never momentarily empty.
+      # The attached tag is whatever was published LAST, not the version being
+      # published now - so read it rather than assume it. Deleting a tag that is
+      # not attached returns 400 Bad Request, not a recognisable "not found".
       - name: Read the currently attached package
         id: current
         run: |
@@ -419,6 +434,24 @@ jobs:
             exit 1
           fi
 
+      - name: Delete existing package
+        env:
+          PREV_REPO: ${{ steps.current.outputs.repo }}
+          PREV_TAG: ${{ steps.current.outputs.tag }}
+        run: |
+          set -euo pipefail
+          if [[ -z "${PREV_TAG:-}" ]]; then
+            echo "No package attached to the plan - nothing to delete."
+            exit 0
+          fi
+          echo "Deleting ${PREV_REPO}:${PREV_TAG}"
+          az partnercenter marketplace offer plan technical-configuration package delete \
+            --offer-id "${{ vars.MARKETPLACE_OFFER_ID }}" \
+            --plan-id "${{ vars.MARKETPLACE_PLAN_ID }}" \
+            --repository "${PREV_REPO}" \
+            --tag "${PREV_TAG}"
+          echo "Deleted ${PREV_REPO}:${PREV_TAG}"
+
       - name: Add new package
         run: |
           set -euo pipefail
@@ -433,28 +466,8 @@ jobs:
             --subscription-id "${{ vars.AZURE_SUBSCRIPTION_ID }}" \
             --tenant-id "${{ vars.AZURE_TENANT_ID }}" \
             --cluster-extension-type "${{ vars.CLUSTER_EXTENSION_TYPE }}"
-          echo "Attached ${{ vars.ACR_REPOSITORY }}:${VERSION}"
+          echo "Added ${{ vars.ACR_REPOSITORY }}:${VERSION}"
 
-      - name: Detach the previous package
-        env:
-          PREV_REPO: ${{ steps.current.outputs.repo }}
-          PREV_TAG: ${{ steps.current.outputs.tag }}
-        run: |
-          set -euo pipefail
-          if [[ -z "${PREV_TAG:-}" ]]; then
-            echo "Nothing was attached before - nothing to detach."
-            exit 0
-          fi
-          if [[ "$PREV_TAG" == "$VERSION" && "$PREV_REPO" == "${{ vars.ACR_REPOSITORY }}" ]]; then
-            echo "Previous package is the same reference just published - leaving it."
-            exit 0
-          fi
-          az partnercenter marketplace offer plan technical-configuration package delete \
-            --offer-id "${{ vars.MARKETPLACE_OFFER_ID }}" \
-            --plan-id "${{ vars.MARKETPLACE_PLAN_ID }}" \
-            --repository "${PREV_REPO}" \
-            --tag "${PREV_TAG}"
-          echo "Detached ${PREV_REPO}:${PREV_TAG}"
   # ---------------------------------------------------------------------------
   # 3. Verify the digest Partner Center reports matches what we built.
   # ---------------------------------------------------------------------------
@@ -487,7 +500,8 @@ jobs:
       - name: Install partnercenter CLI extension
         run: |
           set -euo pipefail
-          az extension add --name partnercenter --only-show-errors
+          az extension add --yes --upgrade --source "${PARTNERCENTER_EXT_URL}" --only-show-errors
+          echo "partnercenter extension: $(az extension show --name partnercenter --query version -o tsv)"
       - name: Compare digests
         run: |
           set -euo pipefail
