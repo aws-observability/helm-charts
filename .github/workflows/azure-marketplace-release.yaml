@@ -402,87 +402,89 @@ jobs:
       # The attached tag is whatever was published LAST, not the version being
       # published now - so read it rather than assume it. Deleting a tag that is
       # not attached returns 400 Bad Request, not a recognisable "not found".
-      - name: Read the currently attached package
+      # Partner Center enforces two rules that together dictate this sequence:
+      #   - "Previously published bundles cannot be removed"  (published = immutable)
+      #   - "Only one draft / preview CNAB bundle is allowed per publish"
+      # So the plan accumulates published bundles and holds at most ONE draft,
+      # and that draft must be detached before a new one can be attached.
+      # Nothing in the response marks which reference is the draft, so we try to
+      # detach every one: published bundles refuse (expected), the draft goes.
+      - name: Read the attached packages
         id: current
         run: |
           set -euo pipefail
-          # One call, three fields, pure JMESPath. `|| ''` coalesces nulls so an
-          # empty plan still yields a well-formed "||" string.
-          TRIPLE=$(az partnercenter marketplace offer plan technical-configuration show \
+          LIST=$(az partnercenter marketplace offer plan technical-configuration show \
             --offer-id "${{ vars.MARKETPLACE_OFFER_ID }}" \
             --plan-id "${{ vars.MARKETPLACE_PLAN_ID }}" \
-            --query "join('|', [cnabReferences[0].repositoryName || '', cnabReferences[0].tag || '', clusterExtensionType || ''])" \
-            -o tsv 2>/dev/null || echo "||")
+            --query "cnabReferences[].join(':', [repositoryName, tag])" -o tsv 2>/dev/null \
+            | tr '\n' ' ' | sed 's/ *$//')
+          echo "list=${LIST}" >> "$GITHUB_OUTPUT"
+          echo "attached: ${LIST:-<none>}"
 
-          CUR_REPO="${TRIPLE%%|*}"
-          REST="${TRIPLE#*|}"
-          CUR_TAG="${REST%%|*}"
-          REGISTERED="${REST#*|}"
-
-          echo "repo=${CUR_REPO}" >> "$GITHUB_OUTPUT"
-          echo "tag=${CUR_TAG}"   >> "$GITHUB_OUTPUT"
-          echo "Currently attached: ${CUR_REPO:-<none>}:${CUR_TAG:-<none>}"
-          echo "Registered extension type: ${REGISTERED:-<none>}"
+          REGISTERED=$(az partnercenter marketplace offer plan technical-configuration show \
+            --offer-id "${{ vars.MARKETPLACE_OFFER_ID }}" \
+            --plan-id "${{ vars.MARKETPLACE_PLAN_ID }}" \
+            --query "clusterExtensionType" -o tsv 2>/dev/null || true)
+          echo "registered extension type: ${REGISTERED:-<none>}"
 
           # `package add` refuses outright if the extension type we pass differs
-          # from the one registered on the plan, so check it here with a clear
-          # message instead of letting the CLI fail obscurely.
+          # from the one registered, so fail here with a clear message.
           WANTED="${{ vars.CLUSTER_EXTENSION_TYPE }}"
           if [[ -n "$REGISTERED" && "$REGISTERED" != "$WANTED" ]]; then
             echo "::error::CLUSTER_EXTENSION_TYPE is '${WANTED}' but the plan has '${REGISTERED}' registered."
-            echo "::error::'package add' rejects a mismatch. Set the variable to the registered value,"
-            echo "::error::or change the extension type in Partner Center first."
+            echo "::error::Set the variable to the registered value, or change it in Partner Center first."
             exit 1
           fi
 
-      # These commands exit 0 even when the operation failed - the result is in
-      # the JSON body, as {"errors": [...], "result": "failed"}. Checking the
-      # exit code alone lets a failed publish pass as green, which is exactly
-      # what happened on 6.7.10. Assert on the value, not the exit code.
       - name: Delete existing package
         env:
-          PREV_REPO: ${{ steps.current.outputs.repo }}
-          PREV_TAG: ${{ steps.current.outputs.tag }}
+          ATTACHED: ${{ steps.current.outputs.list }}
         run: |
           set -euo pipefail
-          if [[ -z "${PREV_TAG:-}" ]]; then
-            echo "No package attached to the plan - nothing to detach."
-            exit 0
-          fi
-          if [[ "$PREV_TAG" == "$VERSION" && "$PREV_REPO" == "${{ vars.ACR_REPOSITORY }}" ]]; then
-            echo "Attached package is the reference we are publishing - leaving it."
+          if [[ -z "${ATTACHED:-}" ]]; then
+            echo "Nothing attached to the plan - nothing to detach."
             exit 0
           fi
 
-          echo "Detaching ${PREV_REPO}:${PREV_TAG}"
-          set +e
-          OUT=$(az partnercenter marketplace offer plan technical-configuration package delete \
-            --offer-id "${{ vars.MARKETPLACE_OFFER_ID }}" \
-            --plan-id "${{ vars.MARKETPLACE_PLAN_ID }}" \
-            --repository "${PREV_REPO}" \
-            --tag "${PREV_TAG}" -o json 2>&1)
-          RC=$?
-          set -e
-          echo "$OUT"
+          KEPT=0
+          for ENTRY in $ATTACHED; do
+            REPO="${ENTRY%%:*}"
+            TAG="${ENTRY##*:}"
 
-          # A bundle that is already live in the Marketplace is immutable:
-          #   "Previously published bundles cannot be removed."
-          # That is expected and must not fail the release - the new package is
-          # added alongside it. Anything else is a real failure.
-          if grep -qiF "Previously published bundles cannot be removed" <<<"$OUT"; then
-            echo "::warning::${PREV_REPO}:${PREV_TAG} is already published and cannot be detached - it stays on the plan."
-            exit 0
-          fi
-          if [[ $RC -ne 0 ]]; then
-            echo "::error::package delete failed (exit ${RC})"
-            exit 1
-          fi
-          if grep -qE '"(errors|result)"[[:space:]]*:' <<<"$OUT" \
-             && ! grep -qE '"result"[[:space:]]*:[[:space:]]*"succeeded"' <<<"$OUT"; then
-            echo "::error::package delete reported failure in its response body"
-            exit 1
-          fi
-          echo "Detached ${PREV_REPO}:${PREV_TAG}"
+            if [[ "$TAG" == "$VERSION" && "$REPO" == "${{ vars.ACR_REPOSITORY }}" ]]; then
+              echo "${REPO}:${TAG} is the reference we are publishing - leaving it."
+              continue
+            fi
+
+            echo "--- detaching ${REPO}:${TAG}"
+            set +e
+            OUT=$(az partnercenter marketplace offer plan technical-configuration package delete \
+              --offer-id "${{ vars.MARKETPLACE_OFFER_ID }}" \
+              --plan-id "${{ vars.MARKETPLACE_PLAN_ID }}" \
+              --repository "${REPO}" \
+              --tag "${TAG}" -o json 2>&1)
+            RC=$?
+            set -e
+            echo "$OUT"
+
+            # A bundle already live in the Marketplace is immutable. Expected,
+            # and it stays on the plan alongside the new draft.
+            if grep -qiF "Previously published bundles cannot be removed" <<<"$OUT"; then
+              echo "::warning::${REPO}:${TAG} is already published and stays on the plan."
+              KEPT=$((KEPT + 1))
+              continue
+            fi
+            if [[ $RC -ne 0 ]]; then
+              echo "::error::package delete failed for ${REPO}:${TAG} (exit ${RC})"
+              exit 1
+            fi
+            if ! grep -qE '"result"[[:space:]]*:[[:space:]]*"succeeded"' <<<"$OUT"; then
+              echo "::error::package delete for ${REPO}:${TAG} did not report result=succeeded"
+              exit 1
+            fi
+            echo "Detached ${REPO}:${TAG}"
+          done
+          echo "Published bundles left in place: ${KEPT}"
 
       - name: Add new package
         run: |
