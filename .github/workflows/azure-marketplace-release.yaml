@@ -42,6 +42,12 @@ on:
         required: false
         type: boolean
         default: true
+      publish_target:
+        description: 'Where to publish after the digest is verified'
+        required: false
+        type: choice
+        options: [preview, live, none]
+        default: preview
 
 permissions:
   contents: read
@@ -345,7 +351,17 @@ jobs:
             echo "| digest | \`${DIGEST}\` |"
           } >> "$GITHUB_STEP_SUMMARY"
   # ---------------------------------------------------------------------------
-  # 2. Replace the plan's technical-configuration package.
+  # 2. Attach the bundle to the Marketplace plan.
+  #
+  # Called against the Product Ingestion API directly rather than through the
+  # `partnercenter` az extension. The extension in the official az index (0.2.4)
+  # sends a retired schema host and fails EVERY write with 400; the fix exists
+  # only as a GitHub pre-release that will not install against a current az.
+  # See Azure/partnercenter-cli-extension issues #235 and #245.
+  #
+  # Two hosts are involved and their tokens are NOT interchangeable:
+  #   PC_API  metadata  (products, plans)   aud api.partner.microsoft.com
+  #   PI_API  config    (read + configure)  aud graph.microsoft.com
   # ---------------------------------------------------------------------------
   update-package:
     name: Replace Marketplace package
@@ -353,181 +369,125 @@ jobs:
     if: ${{ !(inputs.dry_run || false) }}
     runs-on: [self-hosted, linux, x64, azure-marketplace]
     timeout-minutes: 60
-    environment: azure-marketplace # gate reviewers/secrets here if desired
+    environment: azure-marketplace
+    outputs:
+      product: ${{ steps.ids.outputs.product }}
+      variant: ${{ steps.ids.outputs.variant }}
     env:
       VERSION: ${{ needs.build-bundle.outputs.version }}
+      PC_API: https://api.partner.microsoft.com/v1.0/ingestion
+      PI_API: https://graph.microsoft.com/rp/product-ingestion
     steps:
       - name: Azure login (OIDC)
         uses: azure/login@a457da9ea143d694b1b9c7c869ebb04ebe844ef5 # v2.3.0
         with:
-          # Same app registration as build-bundle. Partner Center's user
-          # management only accepts app registrations - a managed identity
-          # cannot be added there - which is why this identity, not the
-          # runner VM's, authenticates the whole workflow.
           client-id: ${{ vars.PARTNER_CENTER_CLIENT_ID }}
           tenant-id: ${{ vars.AZURE_TENANT_ID }}
-          # This app holds no Azure RBAC - only Partner Center access - so it
-          # may not be able to enumerate any subscription.
           allow-no-subscriptions: true
 
-      - name: Install partnercenter CLI extension
+      - name: Resolve Partner Center identifiers
+        id: ids
         run: |
           set -euo pipefail
-          az extension add --name partnercenter --only-show-errors
-          INSTALLED=$(az extension show --name partnercenter --query version -o tsv)
-          echo "partnercenter extension: ${INSTALLED}"
-          # 0.2.4 is the only version in the az index, and it sends the retired
-          # schema host product-ingestion.azureedge.net. The Product Ingestion
-          # API rejects that on EVERY write:
-          #   badRequest: Invalid $schema ... Expected a schema under
-          #   https://schema.mp.microsoft.com/schema/configure/
-          # Reads carry no $schema, so `show` works while add/delete both 400.
-          # Fixed upstream in 0.2.7, which is published only as a GitHub release
-          # and will not install here: it pins pydantic ~=2.5.3, whose native
-          # core has no wheels for the CLI's bundled Python 3.14.
-          # Fail here with the reason rather than at an opaque 400 later.
-          if [[ "$INSTALLED" == "0.2.4" ]]; then
-            echo "::error::partnercenter 0.2.4 cannot perform writes (retired \$schema host)."
-            echo "::error::See https://github.com/Azure/partnercenter-cli-extension/releases"
-            exit 1
-          fi
-      # "Replace" means: detach whatever package is attached now, then attach
-      # the new one. The attached tag is whatever was published LAST, which is
-      # not the version being published now - so read it rather than assume it.
-      # Deleting a tag that is not attached returns 400 Bad Request, not a
-      # recognisable "not found", so guessing here fails the release.
-      # Replace the plan's package: delete the one currently attached, then add
-      # the new one.
-      #
-      # The attached tag is whatever was published LAST, not the version being
-      # published now - so read it rather than assume it. Deleting a tag that is
-      # not attached returns 400 Bad Request, not a recognisable "not found".
-      # A published CNAB bundle is immutable - customers may have it installed -
-      # so there is no "update a package" operation, only add and delete. Each
-      # release is a NEW version, and the plan's lifecycle is:
-      #
-      #   add 6.7.12              -> becomes the plan's single DRAFT
-      #   publish in Partner Center -> 6.7.12 is PUBLISHED, now immutable
-      #   add 6.7.13              -> new DRAFT; 6.7.12 stays on the plan
-      #
-      # Partner Center enforces that with two errors:
-      #   "Previously published bundles cannot be removed"
-      #   "Only one draft / preview CNAB bundle is allowed per publish"
-      #
-      # So the delete below is NOT "replace the package" - it is "clear the
-      # existing draft so the new one can take its place". Nothing in the API
-      # response marks which reference is the draft, so we attempt the detach on
-      # every one: published bundles refuse, which is expected, and the draft goes.
-      - name: Read the plan's attached packages
-        id: current
-        run: |
-          set -euo pipefail
-          LIST=$(az partnercenter marketplace offer plan technical-configuration show \
-            --offer-id "${{ vars.MARKETPLACE_OFFER_ID }}" \
-            --plan-id "${{ vars.MARKETPLACE_PLAN_ID }}" \
-            --query "cnabReferences[].join(':', [repositoryName, tag])" -o tsv 2>/dev/null \
-            | tr '\n' ' ' | sed 's/ *$//')
-          echo "list=${LIST}" >> "$GITHUB_OUTPUT"
-          echo "attached: ${LIST:-<none>}"
+          TOKEN=$(az account get-access-token --resource https://api.partner.microsoft.com --query accessToken -o tsv)
+          echo "::add-mask::${TOKEN}"
 
-          REGISTERED=$(az partnercenter marketplace offer plan technical-configuration show \
-            --offer-id "${{ vars.MARKETPLACE_OFFER_ID }}" \
-            --plan-id "${{ vars.MARKETPLACE_PLAN_ID }}" \
-            --query "clusterExtensionType" -o tsv 2>/dev/null || true)
-          echo "registered extension type: ${REGISTERED:-<none>}"
-
-          # `package add` refuses outright if the extension type we pass differs
-          # from the one registered, so fail here with a clear message.
-          WANTED="${{ vars.CLUSTER_EXTENSION_TYPE }}"
-          if [[ -n "$REGISTERED" && "$REGISTERED" != "$WANTED" ]]; then
-            echo "::error::CLUSTER_EXTENSION_TYPE is '${WANTED}' but the plan has '${REGISTERED}' registered."
-            echo "::error::Set the variable to the registered value, or change it in Partner Center first."
+          # The unfiltered product list is paged, so always filter. Matching on
+          # type as well as value - a bare value match returns nothing.
+          PRODUCT=$(curl -fsSL -G \
+            -H "Authorization: Bearer ${TOKEN}" -H 'Accept: application/json' \
+            --data-urlencode "\$filter=externalIDs/Any(i:i/type eq 'AzureOfferId' and i/value eq '${{ vars.MARKETPLACE_OFFER_ID }}')" \
+            "${PC_API}/products" | jq -r '.value[0].id // empty')
+          if [[ -z "$PRODUCT" ]]; then
+            echo "::error::offer '${{ vars.MARKETPLACE_OFFER_ID }}' not found in this Partner Center account"
             exit 1
           fi
 
-      - name: Clear the existing draft
-        env:
-          ATTACHED: ${{ steps.current.outputs.list }}
-        run: |
-          set -euo pipefail
-          if [[ -z "${ATTACHED:-}" ]]; then
-            echo "Nothing attached to the plan - no draft to clear."
-            exit 0
+          VARIANT=$(curl -fsSL \
+            -H "Authorization: Bearer ${TOKEN}" -H 'Accept: application/json' \
+            "${PC_API}/products/${PRODUCT}/variants" \
+            | jq -r --arg p "${{ vars.MARKETPLACE_PLAN_ID }}" '.value[] | select(.externalID == $p) | .id' | head -1)
+          if [[ -z "$VARIANT" ]]; then
+            echo "::error::plan '${{ vars.MARKETPLACE_PLAN_ID }}' not found in offer '${{ vars.MARKETPLACE_OFFER_ID }}'"
+            exit 1
           fi
 
-          KEPT=0
-          for ENTRY in $ATTACHED; do
-            REPO="${ENTRY%%:*}"
-            TAG="${ENTRY##*:}"
+          echo "product=${PRODUCT}" >> "$GITHUB_OUTPUT"
+          echo "variant=${VARIANT}" >> "$GITHUB_OUTPUT"
+          echo "offer ${{ vars.MARKETPLACE_OFFER_ID }} -> product ${PRODUCT}"
+          echo "plan  ${{ vars.MARKETPLACE_PLAN_ID }} -> variant ${VARIANT}"
 
-            if [[ "$TAG" == "$VERSION" && "$REPO" == "${{ vars.ACR_REPOSITORY }}" ]]; then
-              echo "${REPO}:${TAG} is the version we are publishing - leaving it."
-              continue
-            fi
-
-            echo "--- detaching ${REPO}:${TAG}"
-            set +e
-            OUT=$(az partnercenter marketplace offer plan technical-configuration package delete \
-              --offer-id "${{ vars.MARKETPLACE_OFFER_ID }}" \
-              --plan-id "${{ vars.MARKETPLACE_PLAN_ID }}" \
-              --repository "${REPO}" \
-              --tag "${TAG}" -o json 2>&1)
-            RC=$?
-            set -e
-            echo "$OUT"
-
-            # Already live in the Marketplace, so immutable. Expected: it stays
-            # on the plan alongside the new draft.
-            if grep -qiF "Previously published bundles cannot be removed" <<<"$OUT"; then
-              echo "::warning::${REPO}:${TAG} is published and immutable - it stays on the plan."
-              KEPT=$((KEPT + 1))
-              continue
-            fi
-            if [[ $RC -ne 0 ]]; then
-              echo "::error::package delete failed for ${REPO}:${TAG} (exit ${RC})"
-              exit 1
-            fi
-            if ! grep -qE '"result"[[:space:]]*:[[:space:]]*"succeeded"' <<<"$OUT"; then
-              echo "::error::package delete for ${REPO}:${TAG} did not report result=succeeded"
-              exit 1
-            fi
-            echo "Cleared draft ${REPO}:${TAG}"
-          done
-          echo "Published bundles left in place: ${KEPT}"
-
+      # Each release attaches a NEW version as the plan's draft. A plan may hold
+      # only ONE draft, and the publish job below consumes it - so the slot is
+      # free again by the next release. If a publish is ever skipped or fails
+      # validation, the next run will stop here with
+      # "Only one draft / preview CNAB bundle is allowed per publish";
+      # clear the stale draft in Partner Center before retrying.
       - name: Attach the new version as the draft
+        env:
+          PRODUCT: ${{ steps.ids.outputs.product }}
+          VARIANT: ${{ steps.ids.outputs.variant }}
+          DIGEST: ${{ needs.build-bundle.outputs.digest }}
         run: |
           set -euo pipefail
-          set +e
-          OUT=$(az partnercenter marketplace offer plan technical-configuration package add \
-            --offer-id "${{ vars.MARKETPLACE_OFFER_ID }}" \
-            --plan-id "${{ vars.MARKETPLACE_PLAN_ID }}" \
-            --registry "${{ vars.ACR_NAME }}" \
-            --repository "${{ vars.ACR_REPOSITORY }}" \
-            --tag "${VERSION}" \
-            --digest "${{ needs.build-bundle.outputs.digest }}" \
-            --resource-group "${{ vars.ACR_RESOURCE_GROUP }}" \
-            --subscription-id "${{ vars.AZURE_SUBSCRIPTION_ID }}" \
-            --tenant-id "${{ vars.AZURE_TENANT_ID }}" \
-            --cluster-extension-type "${{ vars.CLUSTER_EXTENSION_TYPE }}" -o json 2>&1)
-          RC=$?
-          set -e
-          echo "$OUT"
+          TOKEN=$(az account get-access-token --resource https://graph.microsoft.com --query accessToken -o tsv)
+          echo "::add-mask::${TOKEN}"
 
-          if [[ $RC -ne 0 ]]; then
-            echo "::error::package add failed (exit ${RC})"
+          RES="container-plan-technical-configuration/${PRODUCT}/${VARIANT}"
+          AUTH=(-H "Authorization: Bearer ${TOKEN}")
+
+          curl -fsSL "${AUTH[@]}" -H 'Accept: application/json' \
+            "${PI_API}/${RES}?\$version=2022-03-01-preview3" > current.json
+          EXT_TYPE=$(jq -r '.clusterExtensionType // empty' current.json)
+          echo "registered extension type: ${EXT_TYPE:-<none>}"
+          jq -r '.cnabReferences[]? | "  already attached: \(.repositoryName):\(.tag)"' current.json
+
+          WANTED="${{ vars.CLUSTER_EXTENSION_TYPE }}"
+          if [[ -n "$EXT_TYPE" && "$EXT_TYPE" != "$WANTED" ]]; then
+            echo "::error::CLUSTER_EXTENSION_TYPE is '${WANTED}' but the plan has '${EXT_TYPE}' registered."
             exit 1
           fi
-          # Must be an explicit success - no errors, result succeeded.
-          if ! grep -qE '"result"[[:space:]]*:[[:space:]]*"succeeded"' <<<"$OUT"; then
-            echo "::error::package add did not report result=succeeded"
+          [[ -n "$EXT_TYPE" ]] || EXT_TYPE="$WANTED"
+
+          # Keep every reference already on the plan and append the new one.
+          # Published bundles are immutable and must stay; a re-run of the same
+          # version replaces its own entry rather than duplicating it.
+          REFS=$(jq -c --arg repo "${{ vars.ACR_REPOSITORY }}" --arg tag "$VERSION" \
+                   --arg t "${{ vars.AZURE_TENANT_ID }}" --arg s "${{ vars.AZURE_SUBSCRIPTION_ID }}" \
+                   --arg g "${{ vars.ACR_RESOURCE_GROUP }}" --arg r "${{ vars.ACR_NAME }}" \
+                   --arg d "$DIGEST" '
+            [ .cnabReferences[]? | select((.repositoryName != $repo) or (.tag != $tag)) ]
+            + [ {tenantId:$t, subscriptionId:$s, resourceGroupName:$g, registryName:$r,
+                 repositoryName:$repo, tag:$tag, digest:$d} ]' current.json)
+
+          jq -n --arg id "$RES" --arg prod "product/${PRODUCT}" \
+                --arg plan "plan/${PRODUCT}/${VARIANT}" --arg ext "$EXT_TYPE" \
+                --argjson refs "$REFS" '{
+            "$schema": "https://schema.mp.microsoft.com/schema/configure/2022-03-01-preview2",
+            resources: [{
+              "$schema": "https://schema.mp.microsoft.com/schema/container-plan-technical-configuration/2022-03-01-preview3",
+              id: $id, product: $prod, plan: $plan,
+              payloadType: "cnab", clusterExtensionType: $ext, cnabReferences: $refs
+            }]
+          }' > payload.json
+
+          OUT=$(curl -sS -X POST "${AUTH[@]}" -H 'Content-Type: application/json' \
+            --data @payload.json "${PI_API}/configure?\$version=2022-03-01-preview2")
+
+          JOB=$(jq -r '.jobId // empty' <<<"$OUT"); STATE=$(jq -r '.jobStatus // empty' <<<"$OUT"); N=0
+          while [[ -n "$JOB" && "$STATE" != "completed" && $N -lt 45 ]]; do
+            sleep 2; N=$((N + 1))
+            OUT=$(curl -sS "${AUTH[@]}" -H 'Accept: application/json' \
+              "${PI_API}/configure/${JOB}/status?\$version=2022-03-01-preview2")
+            STATE=$(jq -r '.jobStatus // empty' <<<"$OUT")
+          done
+
+          if [[ "$(jq -r '.jobResult // empty' <<<"$OUT")" != "succeeded" ]]; then
+            echo "::error::failed to attach ${{ vars.ACR_REPOSITORY }}:${VERSION}"
+            jq . <<<"$OUT" || echo "$OUT"
             exit 1
           fi
-          if grep -qE '"errors"[[:space:]]*:[[:space:]]*\[[[:space:]]*[^][:space:]]' <<<"$OUT"; then
-            echo "::error::package add returned errors in its response body"
-            exit 1
-          fi
-          echo "Attached ${{ vars.ACR_REPOSITORY }}:${VERSION} as the plan's draft"
+          echo "attached ${{ vars.ACR_REPOSITORY }}:${VERSION} as the plan's draft"
 
   # ---------------------------------------------------------------------------
   # 3. Verify the digest Partner Center reports matches what we built.
@@ -538,82 +498,160 @@ jobs:
     if: ${{ !(inputs.dry_run || false) }}
     runs-on: [self-hosted, linux, x64, azure-marketplace]
     timeout-minutes: 30
+    environment: azure-marketplace
     env:
       VERSION: ${{ needs.build-bundle.outputs.version }}
-    # Same environment as update-package: the OIDC `sub` claim becomes
-    # repo:<owner>/<repo>:environment:azure-marketplace, which is stable across
-    # releases. Without it the subject would be the tag ref and would need a new
-    # federated credential for every single release.
-    environment: azure-marketplace
+      PI_API: https://graph.microsoft.com/rp/product-ingestion
     steps:
       - name: Azure login (OIDC)
         uses: azure/login@a457da9ea143d694b1b9c7c869ebb04ebe844ef5 # v2.3.0
         with:
-          # Same app registration as build-bundle. Partner Center's user
-          # management only accepts app registrations - a managed identity
-          # cannot be added there - which is why this identity, not the
-          # runner VM's, authenticates the whole workflow.
           client-id: ${{ vars.PARTNER_CENTER_CLIENT_ID }}
           tenant-id: ${{ vars.AZURE_TENANT_ID }}
-          # This app holds no Azure RBAC - only Partner Center access - so it
-          # may not be able to enumerate any subscription.
           allow-no-subscriptions: true
 
-      - name: Install partnercenter CLI extension
-        run: |
-          set -euo pipefail
-          az extension add --name partnercenter --only-show-errors
-          echo "partnercenter extension: $(az extension show --name partnercenter --query version -o tsv)"
       - name: Compare digests
+        env:
+          PRODUCT: ${{ needs.update-package.outputs.product }}
+          VARIANT: ${{ needs.update-package.outputs.variant }}
+          EXPECTED: ${{ needs.build-bundle.outputs.digest }}
         run: |
           set -euo pipefail
-          EXPECTED="${{ needs.build-bundle.outputs.digest }}"
+          TOKEN=$(az account get-access-token --resource https://graph.microsoft.com --query accessToken -o tsv)
+          echo "::add-mask::${TOKEN}"
 
-          # Report the whole plan, not just whether our digest is somewhere in
-          # it. A plan can hold several packages - a bundle that is already
-          # published cannot be detached - so "found" alone does not mean the
-          # plan is in the state this release intended.
-          ATTACHED=$(az partnercenter marketplace offer plan technical-configuration show \
-            --offer-id "${{ vars.MARKETPLACE_OFFER_ID }}" \
-            --plan-id "${{ vars.MARKETPLACE_PLAN_ID }}" \
-            --query "cnabReferences[].join(':', [repositoryName, tag, digest])" -o tsv)
+          curl -fsSL -H "Authorization: Bearer ${TOKEN}" -H 'Accept: application/json' \
+            "${PI_API}/container-plan-technical-configuration/${PRODUCT}/${VARIANT}?\$version=2022-03-01-preview3" \
+            > attached.json
 
-          if [[ -z "$ATTACHED" ]]; then
+          COUNT=$(jq '[.cnabReferences[]?] | length' attached.json)
+          echo "expected digest: ${EXPECTED}"
+          echo "attached to the plan (${COUNT}):"
+          jq -r '.cnabReferences[]? | "  \(.repositoryName):\(.tag)  \(.digest)"' attached.json
+
+          if [[ "$COUNT" -eq 0 ]]; then
             echo "::error::Partner Center reports no packages attached to the plan"
             exit 1
           fi
-
-          echo "attached to the plan:"
-          printf '  %s\n' $ATTACHED
-          echo "expected digest: $EXPECTED"
-
-          if ! grep -qF "$EXPECTED" <<<"$ATTACHED"; then
+          if ! jq -e --arg d "$EXPECTED" 'any(.cnabReferences[]?; .digest == $d)' attached.json >/dev/null; then
             echo "::error::digest mismatch - the plan does not reference the bundle we built"
             exit 1
           fi
-
-          COUNT=$(grep -c . <<<"$ATTACHED")
           if [[ "$COUNT" -gt 1 ]]; then
-            echo "::warning::plan holds ${COUNT} packages; older published bundles cannot be detached."
+            echo "::warning::plan holds ${COUNT} packages; published bundles cannot be detached."
           fi
           echo "SHA verified."
           {
             echo "### SHA verified"
             echo ""
-            echo "Published \`${VERSION:-this release}\` with digest \`${EXPECTED}\`"
+            echo "Published \`${VERSION}\` with digest \`${EXPECTED}\`"
             echo ""
             echo "Packages attached to the plan (\`${COUNT}\`):"
             echo ""
-            printf '%s\n' $ATTACHED | sed 's/^/- `/; s/$/`/'
+            jq -r '.cnabReferences[]? | "- `\(.repositoryName):\(.tag)`"' attached.json
             echo ""
             echo "Azure-side validation runs next. **Publish manually in Partner Center** once it passes."
           } >> "$GITHUB_STEP_SUMMARY"
+
+  # ---------------------------------------------------------------------------
+  # 4. Publish the draft.
+  #
+  # Publishing goes through the SAME /configure endpoint as the package change -
+  # it is just a different resource type. Omitting `id` publishes ALL draft
+  # changes on the product, which is what we want: the only draft change is the
+  # package we just attached and verified.
+  #
+  # target=preview  submits for validation and lands in front of the preview
+  #                 audience; a human still clicks go-live.
+  # target=live     ships to all customers.
+  # target=none     skip (attach and verify only).
+  #
+  # Microsoft's validation runs asynchronously after this returns, and can take
+  # hours. A successful job here means the submission was ACCEPTED, not that it
+  # passed validation - watch Partner Center for that.
+  # ---------------------------------------------------------------------------
+  publish-submission:
+    name: Publish submission
+    needs: [build-bundle, update-package, verify-sha]
+    if: >-
+      ${{ !(inputs.dry_run || false)
+          && (inputs.publish_target || vars.MARKETPLACE_PUBLISH_TARGET || 'preview') != 'none' }}
+    runs-on: [self-hosted, linux, x64, azure-marketplace]
+    timeout-minutes: 30
+    environment: azure-marketplace
+    env:
+      VERSION: ${{ needs.build-bundle.outputs.version }}
+      PI_API: https://graph.microsoft.com/rp/product-ingestion
+      TARGET: ${{ inputs.publish_target || vars.MARKETPLACE_PUBLISH_TARGET || 'preview' }}
+    steps:
+      - name: Azure login (OIDC)
+        uses: azure/login@a457da9ea143d694b1b9c7c869ebb04ebe844ef5 # v2.3.0
+        with:
+          client-id: ${{ vars.PARTNER_CENTER_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          allow-no-subscriptions: true
+
+      - name: Publish draft changes
+        env:
+          PRODUCT: ${{ needs.update-package.outputs.product }}
+        run: |
+          set -euo pipefail
+          case "$TARGET" in
+            preview|live) ;;
+            *) echo "::error::publish target must be preview, live or none - got '${TARGET}'"; exit 1 ;;
+          esac
+
+          TOKEN=$(az account get-access-token --resource https://graph.microsoft.com --query accessToken -o tsv)
+          echo "::add-mask::${TOKEN}"
+          AUTH=(-H "Authorization: Bearer ${TOKEN}")
+
+          echo "publishing all draft changes on product/${PRODUCT} to '${TARGET}'"
+          # No `id`: publishes every draft resource on the product.
+          jq -n --arg prod "product/${PRODUCT}" --arg target "$TARGET" '{
+            "$schema": "https://schema.mp.microsoft.com/schema/configure/2022-03-01-preview2",
+            resources: [{
+              "$schema": "https://schema.mp.microsoft.com/schema/submission/2022-03-01-preview2",
+              product: $prod,
+              target: { targetType: $target }
+            }]
+          }' > submit.json
+
+          OUT=$(curl -sS -X POST "${AUTH[@]}" -H 'Content-Type: application/json' \
+            --data @submit.json "${PI_API}/configure?\$version=2022-03-01-preview2")
+
+          JOB=$(jq -r '.jobId // empty' <<<"$OUT"); STATE=$(jq -r '.jobStatus // empty' <<<"$OUT"); N=0
+          while [[ -n "$JOB" && "$STATE" != "completed" && $N -lt 60 ]]; do
+            sleep 3; N=$((N + 1))
+            OUT=$(curl -sS "${AUTH[@]}" -H 'Accept: application/json' \
+              "${PI_API}/configure/${JOB}/status?\$version=2022-03-01-preview2")
+            STATE=$(jq -r '.jobStatus // empty' <<<"$OUT")
+          done
+
+          if [[ "$(jq -r '.jobResult // empty' <<<"$OUT")" != "succeeded" ]]; then
+            echo "::error::publish to '${TARGET}' was not accepted"
+            jq . <<<"$OUT" || echo "$OUT"
+            exit 1
+          fi
+
+          echo "submission accepted for '${TARGET}'"
+          {
+            echo "### Submitted to ${TARGET}"
+            echo ""
+            echo "\`${{ vars.ACR_REPOSITORY }}:${VERSION}\` was attached, verified and submitted."
+            echo ""
+            if [[ "$TARGET" == "preview" ]]; then
+              echo "Microsoft validation runs next (it can take hours). Once it passes, **go live manually in Partner Center**."
+            else
+              echo "Microsoft validation runs next (it can take hours). On success this goes **live to all customers**."
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
   # ---------------------------------------------------------------------------
   # Always reports, including on failure, cancellation and timeout.
   # ---------------------------------------------------------------------------
   notify-result:
     name: Notify - result
-    needs: [build-bundle, update-package, verify-sha]
+    needs: [build-bundle, update-package, verify-sha, publish-submission]
     if: always()
     runs-on: ubuntu-latest
     timeout-minutes: 5
