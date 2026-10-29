@@ -402,14 +402,23 @@ jobs:
       # The attached tag is whatever was published LAST, not the version being
       # published now - so read it rather than assume it. Deleting a tag that is
       # not attached returns 400 Bad Request, not a recognisable "not found".
-      # Partner Center enforces two rules that together dictate this sequence:
-      #   - "Previously published bundles cannot be removed"  (published = immutable)
-      #   - "Only one draft / preview CNAB bundle is allowed per publish"
-      # So the plan accumulates published bundles and holds at most ONE draft,
-      # and that draft must be detached before a new one can be attached.
-      # Nothing in the response marks which reference is the draft, so we try to
-      # detach every one: published bundles refuse (expected), the draft goes.
-      - name: Read the attached packages
+      # A published CNAB bundle is immutable - customers may have it installed -
+      # so there is no "update a package" operation, only add and delete. Each
+      # release is a NEW version, and the plan's lifecycle is:
+      #
+      #   add 6.7.12              -> becomes the plan's single DRAFT
+      #   publish in Partner Center -> 6.7.12 is PUBLISHED, now immutable
+      #   add 6.7.13              -> new DRAFT; 6.7.12 stays on the plan
+      #
+      # Partner Center enforces that with two errors:
+      #   "Previously published bundles cannot be removed"
+      #   "Only one draft / preview CNAB bundle is allowed per publish"
+      #
+      # So the delete below is NOT "replace the package" - it is "clear the
+      # existing draft so the new one can take its place". Nothing in the API
+      # response marks which reference is the draft, so we attempt the detach on
+      # every one: published bundles refuse, which is expected, and the draft goes.
+      - name: Read the plan's attached packages
         id: current
         run: |
           set -euo pipefail
@@ -436,13 +445,13 @@ jobs:
             exit 1
           fi
 
-      - name: Delete existing package
+      - name: Clear the existing draft
         env:
           ATTACHED: ${{ steps.current.outputs.list }}
         run: |
           set -euo pipefail
           if [[ -z "${ATTACHED:-}" ]]; then
-            echo "Nothing attached to the plan - nothing to detach."
+            echo "Nothing attached to the plan - no draft to clear."
             exit 0
           fi
 
@@ -452,7 +461,7 @@ jobs:
             TAG="${ENTRY##*:}"
 
             if [[ "$TAG" == "$VERSION" && "$REPO" == "${{ vars.ACR_REPOSITORY }}" ]]; then
-              echo "${REPO}:${TAG} is the reference we are publishing - leaving it."
+              echo "${REPO}:${TAG} is the version we are publishing - leaving it."
               continue
             fi
 
@@ -467,10 +476,10 @@ jobs:
             set -e
             echo "$OUT"
 
-            # A bundle already live in the Marketplace is immutable. Expected,
-            # and it stays on the plan alongside the new draft.
+            # Already live in the Marketplace, so immutable. Expected: it stays
+            # on the plan alongside the new draft.
             if grep -qiF "Previously published bundles cannot be removed" <<<"$OUT"; then
-              echo "::warning::${REPO}:${TAG} is already published and stays on the plan."
+              echo "::warning::${REPO}:${TAG} is published and immutable - it stays on the plan."
               KEPT=$((KEPT + 1))
               continue
             fi
@@ -482,11 +491,11 @@ jobs:
               echo "::error::package delete for ${REPO}:${TAG} did not report result=succeeded"
               exit 1
             fi
-            echo "Detached ${REPO}:${TAG}"
+            echo "Cleared draft ${REPO}:${TAG}"
           done
           echo "Published bundles left in place: ${KEPT}"
 
-      - name: Add new package
+      - name: Attach the new version as the draft
         run: |
           set -euo pipefail
           set +e
@@ -518,7 +527,7 @@ jobs:
             echo "::error::package add returned errors in its response body"
             exit 1
           fi
-          echo "Attached ${{ vars.ACR_REPOSITORY }}:${VERSION}"
+          echo "Attached ${{ vars.ACR_REPOSITORY }}:${VERSION} as the plan's draft"
 
   # ---------------------------------------------------------------------------
   # 3. Verify the digest Partner Center reports matches what we built.
