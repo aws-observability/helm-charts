@@ -43,7 +43,7 @@ global:
       cloudwatchAgent:
         registry: public.ecr.aws/cloudwatch-agent
         image: cloudwatch-agent
-        tag: 1.300074.0
+        tag: 1.300074.0b1920
       targetAllocator:
         registry: public.ecr.aws/cloudwatch-agent
         image: cloudwatch-agent-target-allocator
@@ -824,7 +824,11 @@ agent:
   replicas: 1 # The total number non-terminated pods targeted by this AmazonCloudWatchAgent's deployment or statefulSet.
   image:
     repository: cloudwatch-agent
+<<<<<<< HEAD
     tag: 1.300075.0b2061
+=======
+    tag: 1.300074.0b1920
+>>>>>>> ce287d2 (Fix the agent image tag and bump to 6.7.17)
     repositoryDomainMap:
       public: public.ecr.aws/cloudwatch-agent
       cn-north-1: 934860584483.dkr.ecr.cn-north-1.amazonaws.com.cn
