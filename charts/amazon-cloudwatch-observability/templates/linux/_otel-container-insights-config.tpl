@@ -10,6 +10,17 @@ extensions:
   awscloudwatchlogsprovisioner/cw_k8s_ci_v0_logs:
     region: {{ .Values.region }}
     additional_auth: sigv4auth/cw_k8s_ci_v0_logs_dest
+  {{- if and .Values.otelContainerInsights.solutions.enabled .Values.otelContainerInsights.solutions.vllm.enabled }}
+  # Keeps the vLLM startup lines of log_replay/cw_k8s_ci_v0_vllm across agent restarts.
+  file_storage/cw_k8s_ci_v0_state:
+    directory: /var/lib/amazon-cloudwatch-agent/otel-state
+    create_directory: true
+    compaction:
+      on_start: true
+      on_rebound: true
+      directory: /var/lib/amazon-cloudwatch-agent/otel-state
+    recreate: true
+  {{- end }}
 {{- end }}
 
 receivers:
@@ -1177,6 +1188,24 @@ exporters:
 
 {{- end }}
 
+{{- if and .Values.otelContainerInsights.logs.enabled .Values.otelContainerInsights.solutions.enabled .Values.otelContainerInsights.solutions.vllm.enabled }}
+
+connectors:
+  # Re-sends the vLLM engine startup line of each running vLLM container every hour.
+  # Same rule as connector/logreplayconnector/testdata/vllm_rule.yaml in the agent repository.
+  log_replay/cw_k8s_ci_v0_vllm:
+    storage: file_storage/cw_k8s_ci_v0_state
+    interval: 1h
+    source_file_attribute: log.file.path
+    rules:
+      - name: vllm_engine_config
+        body_contains:
+          - "Initializing an LLM engine (v"
+          - "Initializing a V0 LLM engine (v"
+          - "Initializing a V1 LLM engine (v"
+        identity: [k8s.namespace.name, k8s.pod.name, k8s.container.name]
+{{- end }}
+
 service:
   # Pin internal self-telemetry off. Without this the collector falls back to its
   # built-in default (metrics level Normal + a Prometheus reader on localhost:8888),
@@ -1189,6 +1218,9 @@ service:
 {{- if .Values.otelContainerInsights.logs.enabled }}
     - sigv4auth/cw_k8s_ci_v0_logs_dest
     - awscloudwatchlogsprovisioner/cw_k8s_ci_v0_logs
+    {{- if and .Values.otelContainerInsights.solutions.enabled .Values.otelContainerInsights.solutions.vllm.enabled }}
+    - file_storage/cw_k8s_ci_v0_state
+    {{- end }}
 {{- end }}
   pipelines:
 {{- if .Values.nodeExporter.enabled }}
@@ -1438,6 +1470,18 @@ service:
         - batch/cw_k8s_ci_v0_logs_dest
       exporters:
         - otlphttp/cw_k8s_ci_v0_app_logs_dest
+        {{- if and .Values.otelContainerInsights.solutions.enabled .Values.otelContainerInsights.solutions.vllm.enabled }}
+        - log_replay/cw_k8s_ci_v0_vllm
+        {{- end }}
+    {{- if and .Values.otelContainerInsights.solutions.enabled .Values.otelContainerInsights.solutions.vllm.enabled }}
+
+    logs/cw_k8s_ci_v0_vllm_replay:
+      receivers: [log_replay/cw_k8s_ci_v0_vllm]
+      processors:
+        - batch/cw_k8s_ci_v0_logs_dest
+      exporters:
+        - otlphttp/cw_k8s_ci_v0_app_logs_dest
+    {{- end }}
 
     # ── CI Logs: Host pipeline ──
     # Intentionally omits k8sattributes/pod and set_workload — host logs

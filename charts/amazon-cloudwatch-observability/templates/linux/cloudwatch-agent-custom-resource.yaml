@@ -72,6 +72,7 @@ data:
 {{- range .Values.agents }}
 {{- $agent := mergeOverwrite (deepCopy $.Values.agent) . }}
 {{- $agentName := include "cloudwatch-agent.validatedName" ($agent.name | default (include "cloudwatch-agent.name" $)) -}}
+{{- include "otel-container-insights.validateStateStorageRollout" (dict "agent" $agent "agentName" $agentName "context" $) -}}
 {{/* Skip cluster-scraper agent when otelContainerInsights is disabled */}}
 {{- if or $.Values.otelContainerInsights.enabled (ne $agentName $.Values.otelContainerInsights.clusterScraperAgent) }}
 apiVersion: cloudwatch.aws.amazon.com/v1alpha1
@@ -181,6 +182,10 @@ spec:
   - mountPath: /var/log
     name: varlog
     readOnly: true
+  {{- if and $.Values.otelContainerInsights.solutions.enabled $.Values.otelContainerInsights.solutions.vllm.enabled }}
+  - mountPath: /var/lib/amazon-cloudwatch-agent/otel-state
+    name: otelstate
+  {{- end }}
   {{- end }}
   - mountPath: /var/lib/docker
     name: varlibdocker
@@ -245,6 +250,12 @@ spec:
   - hostPath:
       path: /var/log
     name: varlog
+  {{- if and $.Values.otelContainerInsights.solutions.enabled $.Values.otelContainerInsights.solutions.vllm.enabled }}
+  - hostPath:
+      path: /var/lib/amazon-cloudwatch-agent/otel-state
+      type: DirectoryOrCreate
+    name: otelstate
+  {{- end }}
   {{- end }}
   - hostPath:
       path: /sys

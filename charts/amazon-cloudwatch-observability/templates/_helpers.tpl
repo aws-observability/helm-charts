@@ -444,6 +444,23 @@ Validates metricResolution is in "<N>s" format.
 {{- end -}}
 {{- end -}}
 
+{{/*
+Fails the render when the node agent keeps state in file_storage/cw_k8s_ci_v0_state (logs and the vLLM
+solution on) and maxSurge is above 0: two agent pods on one node cannot share the storage files.
+*/}}
+{{- define "otel-container-insights.validateStateStorageRollout" -}}
+{{- $ci := .context.Values.otelContainerInsights -}}
+{{- if and $ci.enabled $ci.logs.enabled $ci.solutions.enabled $ci.solutions.vllm.enabled (eq .agentName $ci.targetAgent) -}}
+{{- $strategy := .agent.updateStrategy | default dict -}}
+{{- if eq ($strategy.type | toString) "RollingUpdate" -}}
+{{- $maxSurge := dig "rollingUpdate" "maxSurge" "" $strategy | default (include "cloudwatch-agent.rolloutStrategyMaxSurge" (dict "mode" .agent.mode)) | toString -}}
+{{- if not (regexMatch "^0+%?$" $maxSurge) -}}
+  {{- fail (printf "agent %s: with otelContainerInsights.logs.enabled and the vLLM solution, the agent keeps state in file_storage/cw_k8s_ci_v0_state, which requires updateStrategy.rollingUpdate.maxSurge 0, got: %s" .agentName $maxSurge) -}}
+{{- end -}}
+{{- end -}}
+{{- end -}}
+{{- end -}}
+
 {{- define "cloudwatch-agent.rolloutStrategyMaxUnavailable" -}}
 {{- if eq .mode "daemonset" -}}
 1
