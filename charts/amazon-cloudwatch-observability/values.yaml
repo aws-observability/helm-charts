@@ -15,7 +15,7 @@ global:
       fluentBit:
         registry: public.ecr.aws/aws-observability
         image: aws-for-fluent-bit
-        tag: 3.4.16
+        tag: 3.5.4
       fluentBitWindows:
         registry: public.ecr.aws/aws-observability
         image: aws-for-fluent-bit
@@ -23,11 +23,11 @@ global:
       cloudwatchAgentOperator:
         registry: public.ecr.aws/cloudwatch-agent
         image: cloudwatch-agent-operator
-        tag: 3.7.0
+        tag: 3.8.0
       autoInstrumentationJava:
         registry: public.ecr.aws/aws-observability
         image: adot-autoinstrumentation-java
-        tag: v2.30.0
+        tag: v2.31.0
       autoInstrumentationPython:
         registry: public.ecr.aws/aws-observability
         image: adot-autoinstrumentation-python
@@ -43,7 +43,7 @@ global:
       cloudwatchAgent:
         registry: public.ecr.aws/cloudwatch-agent
         image: cloudwatch-agent
-        tag: 1.300073.0b1828
+        tag: 1.300074.0
       targetAllocator:
         registry: public.ecr.aws/cloudwatch-agent
         image: cloudwatch-agent-target-allocator
@@ -51,7 +51,7 @@ global:
       dcgmExporter:
         registry: nvcr.io/nvidia/k8s
         image: dcgm-exporter
-        tag: 4.6.0-4.8.3-distroless
+        tag: 4.6.1-4.8.4-distroless
       neuronMonitor:
         registry: public.ecr.aws/neuron
         image: neuron-monitor
@@ -117,7 +117,7 @@ containerLogs:
   fluentBit:
     image:
       repository: aws-for-fluent-bit
-      tag: 3.4.16
+      tag: 3.5.4
       tagWindows: 2.31.12-windowsservercore
       repositoryDomainMap:
         public: public.ecr.aws/aws-observability
@@ -561,7 +561,7 @@ manager:
   name:
   image:
     repository: cloudwatch-agent-operator
-    tag: 3.7.0
+    tag: 3.8.0
     repositoryDomainMap:
       public: public.ecr.aws/cloudwatch-agent
       cn-north-1: 934860584483.dkr.ecr.cn-north-1.amazonaws.com.cn
@@ -572,7 +572,7 @@ manager:
     java:
       repositoryDomain: public.ecr.aws/aws-observability
       repository: adot-autoinstrumentation-java
-      tag: v2.30.0
+      tag: v2.31.0
     python:
       repositoryDomain: public.ecr.aws/aws-observability
       repository: adot-autoinstrumentation-python
@@ -819,7 +819,7 @@ agent:
   replicas: 1 # The total number non-terminated pods targeted by this AmazonCloudWatchAgent's deployment or statefulSet.
   image:
     repository: cloudwatch-agent
-    tag: 1.300073.0b1828
+    tag: 1.300074.0
     repositoryDomainMap:
       public: public.ecr.aws/cloudwatch-agent
       cn-north-1: 934860584483.dkr.ecr.cn-north-1.amazonaws.com.cn
@@ -897,7 +897,7 @@ dcgmExporter:
   name:
   image:
     repository: dcgm-exporter
-    tag: 4.6.0-4.8.3-distroless
+    tag: 4.6.1-4.8.4-distroless
     repositoryDomainMap:
       public: nvcr.io/nvidia/k8s
       cn-north-1: 934860584483.dkr.ecr.cn-north-1.amazonaws.com.cn
