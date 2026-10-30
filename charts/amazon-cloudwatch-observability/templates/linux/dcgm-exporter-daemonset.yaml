@@ -65,7 +65,13 @@ spec:
   nodeSelector: {{- toYaml . | nindent 4 }}
   {{- end }}
   serviceAccount: {{ template "dcgm-exporter.serviceAccountName" . }}
-  {{- with .Values.dcgmExporter.affinity }}
+  {{- /* The default affinity matches AWS GPU instance-type families and never matches
+     GKE nodes, so it's swapped out below for one matching GKE's own GPU node label. */}}
+  {{- $dcgmAffinity := .Values.dcgmExporter.affinity -}}
+  {{- if eq .Values.k8sMode "GKE" -}}
+  {{- $dcgmAffinity = .Values.dcgmExporter.affinityGKE -}}
+  {{- end }}
+  {{- with $dcgmAffinity }}
   affinity: {{- toYaml . | nindent 4 }}
   {{- end }}
   {{- with .Values.dcgmExporter.resources }}
@@ -84,6 +90,16 @@ spec:
       fieldRef:
         fieldPath: spec.nodeName
   {{- include "dcgm-exporter.env" . | nindent 2 }}
+  {{- if eq .Values.k8sMode "GKE" }}
+  {{- /* GKE's stock NVIDIA device-plugin model mounts the host driver's userspace
+     libraries at /usr/local/nvidia/lib64, which the distroless image's own
+     LD_LIBRARY_PATH doesn't include. Without this, NVML init fails outright
+     ("Cannot init NVML library; err: ERROR_LIBRARY_NOT_FOUND") -- confirmed still
+     needed even on the bumped 4.6.1-4.8.4-distroless tag, which only fixed a
+     separate libdcgm.so.4 self-init bug, not this NVML lookup. */}}
+  - name: LD_LIBRARY_PATH
+    value: /usr/local/nvidia/lib64:/lib/distroless
+  {{- end }}
   ports:
   - name: "metrics"
     port: {{ .Values.dcgmExporter.service.port }}

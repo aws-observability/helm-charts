@@ -822,7 +822,10 @@ dcgmExporter:
   name:
   image:
     repository: dcgm-exporter
-    tag: 4.6.0-4.8.3-distroless
+    ## 4.6.0-4.8.3-distroless never regenerates /etc/ld.so.cache for its own bundled
+    ## libdcgm.so.4, so dcgm-exporter fails its own library lookup and exits immediately
+    ## (NVIDIA/dcgm-exporter PR #724, fixed in DCGM >= 4.8.4).
+    tag: 4.6.1-4.8.4-distroless
     repositoryDomainMap:
       public: nvcr.io/nvidia/k8s
       cn-north-1: 934860584483.dkr.ecr.cn-north-1.amazonaws.com.cn
@@ -1003,6 +1006,26 @@ dcgmExporter:
                 operator: NotIn
                 values:
                   - fargate
+  ## Affinity used instead of the above when k8sMode is GKE.
+  # Replaces the chart's default AWS-instance-type affinity (doesn't apply on GKE).
+  # 1. Matches any GKE GPU node regardless of accelerator model (T4, L4, A100, H100, ...) —
+  #    cloud.google.com/gke-accelerator is set to the accelerator type on every GPU node pool,
+  #    so checking only that it Exists avoids hardcoding a specific GPU type.
+  # 2. Excludes nodes where GKE already runs its own managed DCGM exporter (gke-managed-system
+  #    namespace) to avoid two exporters fighting over the same GPU's DCGM profiling lock.
+  #    cloud.google.com/gke-gpu-driver-version is only set when the node pool uses
+  #    gpu-driver-version=default/latest (the managed-exporter path); it's absent entirely
+  #    under gpu-driver-version=disabled, which is exactly when the chart's own exporter
+  #    should take over.
+  affinityGKE:
+    nodeAffinity:
+      requiredDuringSchedulingIgnoredDuringExecution:
+        nodeSelectorTerms:
+          - matchExpressions:
+              - key: cloud.google.com/gke-accelerator
+                operator: Exists
+              - key: cloud.google.com/gke-gpu-driver-version
+                operator: DoesNotExist
   nodeSelector:
     kubernetes.io/os: linux
 neuronMonitor:
