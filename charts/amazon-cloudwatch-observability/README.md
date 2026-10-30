@@ -68,6 +68,57 @@ runs `k8sattributes` pod association, so `k8s.workload.name` resolves to the own
 Deployment rather than to the ReplicaSet — whose pod-template hash likewise changes on
 every redeploy.
 
+## Ray metrics
+
+Set under `otelContainerInsights.solutions.ray`, on by default. The agent on each node
+scrapes the Ray pods on that node; the cluster-scraper is not involved. One job covers Ray
+core (`ray_node_*`, `ray_tasks`, `ray_actors`, `ray_object_store_*`, …), Ray Serve
+(`ray_serve_*`) and the vLLM engine metrics of `ray.serve.llm` (`ray_vllm_*`): each Ray node
+serves all of them on one port.
+
+### Which Ray pods are scraped
+
+Every pod that KubeRay labels `ray.io/is-ray-node=yes` (head and workers of a `RayCluster`,
+`RayService` or `RayJob`), on the container port named `metrics`. KubeRay declares
+`metrics:8080` on the Ray container when the pod template declares no port of that name.
+Nothing has to be configured, and the chart reads no scrape labels or annotations of its own
+from customer pods. Pods are scraped, not Services: a `RayService` puts the head pod behind
+two Services, so a Service scrape would count it twice.
+
+The vLLM job skips Ray pods. Engine metrics of `ray.serve.llm` arrive as `ray_vllm_*` through
+this job; Ray does not serve vLLM's own `vllm:*` endpoint.
+
+If another collector already scrapes Ray (for example through `prometheus.io/scrape`
+annotations or a PodMonitor), the same series are ingested twice; disable one of them.
+
+### The Ray metric service name
+
+`service.name` is the workload name, else the pod name. KubeRay pods are owned by a
+`RayCluster`, which is not a workload kind, so it is the pod name. The KubeRay pod labels stay
+on every series as resource attributes, for grouping:
+
+| Attribute | Value |
+|---|---|
+| `k8s.pod.label.ray.io/cluster` | RayCluster name. For a RayService or RayJob it is the custom resource name plus a generated suffix (`<name>-<suffix>`) |
+| `k8s.pod.label.ray.io/node-type` | `head` or `worker` |
+| `k8s.pod.label.ray.io/group` | worker group name, `headgroup` on the head |
+| `k8s.pod.label.ray.io/serve` | `true` on pods that serve Ray Serve traffic |
+
+KubeRay sets `ray.io/originated-from-cr-name` and `ray.io/originated-from-crd` on the
+`RayCluster` object only, not on its pods, so they do not reach the series.
+
+`app.kubernetes.io/name` is not used: KubeRay sets it to `kuberay` on every Ray pod.
+
+### Reading Ray metrics
+
+- `ray_tasks` and `ray_actors` are reported per process, and partial values can be
+  negative. Read them with `sum()`.
+- Series carry Ray's `SessionName`, `NodeAddress`, `Component` and `Version` labels. Ray Serve
+  and `ray_vllm_*` series also carry `WorkerId` (and `ReplicaId`), which change when a replica
+  restarts. `RAY_metric_cardinality_level=low` drops task and actor names from core metrics, and
+  `RAY_SERVE_CONTROLLER_METRICS_INCLUDE_HIGH_CARDINALITY_TAGS=0` drops replica-level labels
+  from Serve controller metrics.
+
 ## KServe control-plane metrics
 
 Set under `otelContainerInsights.solutions.kserve.controlPlane`, on by default. The
