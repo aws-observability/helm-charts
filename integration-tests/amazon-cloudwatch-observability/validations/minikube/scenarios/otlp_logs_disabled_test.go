@@ -123,6 +123,10 @@ func assertLogPipelineAbsent(t *testing.T, otelConfig string) {
 		"sigv4auth/cw_k8s_ci_v0_logs_dest",
 		"awscloudwatchlogsprovisioner/cw_k8s_ci_v0_logs",
 		"file_storage/cw_k8s_ci_v0_logs_checkpoint",
+		// The hourly re-send of the vLLM startup line
+		"log_replay/cw_k8s_ci_v0_vllm",
+		"logs/cw_k8s_ci_v0_vllm_replay",
+		"file_storage/cw_k8s_ci_v0_state",
 	}
 	for _, fragment := range logOnlyFragments {
 		assert.False(t, strings.Contains(otelConfig, fragment),
@@ -130,8 +134,8 @@ func assertLogPipelineAbsent(t *testing.T, otelConfig string) {
 	}
 }
 
-// assertNoLogMounts verifies the CWA DaemonSet does not carry the /var/log or
-// journald host mounts, which are only needed when otelContainerInsights.logs.enabled=true.
+// assertNoLogMounts verifies the CWA DaemonSet does not carry the /var/log,
+// journald, or otelstate host mounts, which are only needed when otelContainerInsights.logs.enabled=true.
 func assertNoLogMounts(t *testing.T, k8sClient *util.K8sClient, dsName string) {
 	t.Helper()
 	daemonSets, err := k8sClient.ListDaemonSets(minikube.Namespace)
@@ -152,7 +156,8 @@ func assertNoLogMounts(t *testing.T, k8sClient *util.K8sClient, dsName string) {
 
 	// Check volumes — names come from the helm template.
 	logVolumeNames := map[string]bool{
-		"varlog": true,
+		"varlog":    true,
+		"otelstate": true,
 	}
 	for _, vol := range ds.Spec.Template.Spec.Volumes {
 		if logVolumeNames[vol.Name] {

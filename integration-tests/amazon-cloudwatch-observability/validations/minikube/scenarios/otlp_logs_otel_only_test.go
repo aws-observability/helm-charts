@@ -84,6 +84,10 @@ func TestOTLPLogsOtelOnly(t *testing.T) {
 		"otlphttp/cw_k8s_ci_v0_app_logs_dest",
 		"otlphttp/cw_k8s_ci_v0_node_logs_dest",
 		"sigv4auth/cw_k8s_ci_v0_logs_dest",
+		// The hourly re-send of the vLLM startup line (vLLM solution on by default).
+		"log_replay/cw_k8s_ci_v0_vllm",
+		"logs/cw_k8s_ci_v0_vllm_replay",
+		"file_storage/cw_k8s_ci_v0_state",
 	}
 	for _, fragment := range logFragments {
 		assert.Contains(t, otelConfig, fragment,

@@ -181,6 +181,10 @@ spec:
   - mountPath: /var/log
     name: varlog
     readOnly: true
+  {{- if and $.Values.otelContainerInsights.solutions.enabled $.Values.otelContainerInsights.solutions.vllm.enabled }}
+  - mountPath: /var/lib/amazon-cloudwatch-agent/otel-state
+    name: otelstate
+  {{- end }}
   {{- end }}
   - mountPath: /var/lib/docker
     name: varlibdocker
@@ -245,6 +249,12 @@ spec:
   - hostPath:
       path: /var/log
     name: varlog
+  {{- if and $.Values.otelContainerInsights.solutions.enabled $.Values.otelContainerInsights.solutions.vllm.enabled }}
+  - hostPath:
+      path: /var/lib/amazon-cloudwatch-agent/otel-state
+      type: DirectoryOrCreate
+    name: otelstate
+  {{- end }}
   {{- end }}
   - hostPath:
       path: /sys

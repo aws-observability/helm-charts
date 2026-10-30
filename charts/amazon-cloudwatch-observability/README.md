@@ -68,6 +68,50 @@ runs `k8sattributes` pod association, so `k8s.workload.name` resolves to the own
 Deployment rather than to the ReplicaSet — whose pod-template hash likewise changes on
 every redeploy.
 
+### The vLLM engine startup line
+
+If `otelContainerInsights.enabled` is true, the node agent keeps the latest startup line of each vLLM container.
+This also needs `otelContainerInsights.logs.enabled`, `otelContainerInsights.solutions.enabled`, and
+`otelContainerInsights.solutions.vllm.enabled`, which are true by default. An example of the line is "Initializing a
+V1 LLM engine (v0.31.1) with config: ...". Every hour, the agent sends an exact copy of it to the application log
+group, with the current time. The copies of a container stop within one hour after the kubelet removes the container.
+If any of the four values is false, nothing is sent.
+
+The node agent image must include the `log_replay` connector. An older agent image does not start with this
+configuration.
+
+A query over the last two hours finds the line of each engine that started while the agent ran with this
+configuration. The agent reads only new log lines. Thus, an engine that started before the upgrade, or while the
+agent was down, gets no copies until it restarts.
+
+```
+fields @timestamp, @message
+| filter @message like /LLM engine \(v/
+| sort @timestamp desc
+```
+
+A copy has the same content as the original line. Thus, a metric filter, an alarm, or a subscription filter on the
+line also matches each copy, one time per container and hour. In a copy, the timestamp and the observed timestamp
+are equal. A Logs Insights query can leave out the copies with `| filter timeUnixNano != observedTimeUnixNano`. A
+metric filter or a subscription filter cannot compare two fields.
+
+The agent keeps the lines in one file, `connector_logreplay_cw_k8s_ci_v0_vllm`, in
+`/var/lib/amazon-cloudwatch-agent/otel-state` on the node, so the copies continue after an agent restart. The file
+holds the kept log lines. The directory stays on the node after an uninstall. For some kinds of damage, the agent
+renames the file at start to a `.backup` file with the time in its name. Then it starts a new file. The `.backup`
+files also hold log lines, and they stay on the node.
+
+One agent pod at a time can use this file. If the agent cannot open the file at start, it keeps the lines in memory
+only and does not try again. Three cases cause this:
+
+- The directory is not writable.
+- The file is damaged, and the agent does not rename it. Then the agent logs an Error at each start.
+- A second agent pod starts on the node while the first one still holds the file.
+
+Such a pod sends no copies for engines that started before it, because the agent reads only new log lines, and it
+saves nothing. In the third case, the next agent pod that opens the file restores the lines of the last save. In the
+second case, delete the file on the node to start again with an empty state.
+
 ## KServe control-plane metrics
 
 Set under `otelContainerInsights.solutions.kserve.controlPlane`, on by default. The

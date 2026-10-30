@@ -116,7 +116,7 @@ func TestOTLPLogsDualPublish(t *testing.T) {
 }
 
 // assertHasLogMounts is the inverse of assertNoLogMounts: validates the CWA
-// DaemonSet carries the expected log-related volume mounts when logs=true.
+// DaemonSet carries the expected log-related volumes when logs=true.
 func assertHasLogMounts(t *testing.T, k8sClient *util.K8sClient, dsName string) {
 	t.Helper()
 	daemonSets, err := k8sClient.ListDaemonSets(minikube.Namespace)
@@ -136,7 +136,8 @@ func assertHasLogMounts(t *testing.T, k8sClient *util.K8sClient, dsName string) 
 	}
 
 	requiredVolumes := map[string]bool{
-		"varlog": false,
+		"varlog":    false,
+		"otelstate": false, // the vLLM startup-line state (vLLM solution on by default)
 	}
 	for _, vol := range ds.Spec.Template.Spec.Volumes {
 		if _, ok := requiredVolumes[vol.Name]; ok {

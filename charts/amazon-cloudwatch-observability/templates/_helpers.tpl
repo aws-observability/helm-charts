@@ -943,8 +943,8 @@ Get the kube-state-metrics image for the configured region using repositoryDomai
 {{/*
 Merge two OTEL configs. The generated OTLP CI config (Base) takes precedence over the
 user-supplied otelConfig (User) on name collision. For map sections (extensions, receivers,
-processors, exporters) both sets of entries are combined, with generated entries winning on
-key collision. For service.extensions (a list) both lists are concatenated and deduped.
+processors, exporters, connectors) both sets of entries are combined, with generated entries
+winning on key collision. For service.extensions (a list) both lists are concatenated and deduped.
 For service.pipelines (a map) both pipeline maps are combined, with generated pipelines
 winning on key collision.
 */}}
@@ -963,9 +963,9 @@ winning on key collision.
     {{- fail (printf "Failed to parse user-supplied otelConfig: %s" (index $user "Error")) }}
   {{- end }}
 {{- end }}
-{{/* Merge top-level map sections: extensions, receivers, processors, exporters */}}
+{{/* Merge top-level map sections: extensions, receivers, processors, exporters, connectors */}}
 {{- $merged := deepCopy $base -}}
-{{- range $section := list "extensions" "receivers" "processors" "exporters" -}}
+{{- range $section := list "extensions" "receivers" "processors" "exporters" "connectors" -}}
   {{- if and (hasKey $user $section) (hasKey $merged $section) -}}
     {{- $_ := set $merged $section (mustMergeOverwrite (index $user $section) (index $merged $section)) -}}
   {{- else if hasKey $user $section -}}
