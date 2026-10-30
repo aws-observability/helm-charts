@@ -1227,7 +1227,8 @@ otelContainerInsights:
       namespace: "keda"
     ## vLLM — the model server's own metrics (vllm:* and http_* series).
     ## Scrapes the model container of KServe InferenceService pods and any
-    ## container running a vLLM image.
+    ## container running a vLLM image. With logs on, the node agent also re-sends
+    ## the engine startup line every hour (needs agent maxSurge 0).
     ## See the chart README.
     vllm:
       enabled: true

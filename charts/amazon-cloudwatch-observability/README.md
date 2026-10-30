@@ -68,6 +68,23 @@ runs `k8sattributes` pod association, so `k8s.workload.name` resolves to the own
 Deployment rather than to the ReplicaSet — whose pod-template hash likewise changes on
 every redeploy.
 
+### The vLLM engine startup line
+
+With `otelContainerInsights.logs.enabled` true, the node agent keeps the latest engine startup line of each vLLM
+container ("Initializing a V1 LLM engine (v0.31.1) with config: ..."). Every hour, it sends an exact copy of it to
+the application log group, with the current time. A query over the last two hours finds the line of every running
+engine. The copies of a container stop within one hour after the kubelet removes the container.
+
+```
+fields @timestamp, @message
+| filter @message like /LLM engine \(v/
+| sort @timestamp desc
+```
+
+The agent keeps the lines in `/var/lib/amazon-cloudwatch-agent/otel-state` on the node, so the copies continue after
+an agent restart. One agent pod at a time can use this directory, so the agent's
+`updateStrategy.rollingUpdate.maxSurge` must stay 0, the DaemonSet default. With logs off, nothing is sent.
+
 ## KServe control-plane metrics
 
 Set under `otelContainerInsights.solutions.kserve.controlPlane`, on by default. The
