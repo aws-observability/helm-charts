@@ -768,6 +768,11 @@ processors:
       {{- end }}
     {{- end }}
 
+  {{- if include "otel-container-insights.metricNamesFilterEnabled" . }}
+
+  {{- include "otel-container-insights.metricNamesFilter" . | nindent 2 }}
+  {{- end }}
+
   transform/cw_k8s_ci_v0_set_cloud_resource_id:
     error_mode: ignore
     metric_statements:
@@ -1192,6 +1197,9 @@ service:
         - transform/cw_k8s_ci_v0_clear_schema_url
         - transform/cw_k8s_ci_v0_set_workload
         - awsattributelimit/cw_k8s_ci_v0
+        {{- if include "otel-container-insights.metricNamesFilterEnabled" . }}
+        - filter/cw_k8s_ci_v0_metric_names
+        {{- end }}
         - batch/cw_k8s_ci_v0_metrics_dest
       exporters:
         - otlphttp/cw_k8s_ci_v0_metrics_dest
@@ -1224,6 +1232,9 @@ service:
         - transform/cw_k8s_ci_v0_set_workload
         - transform/cw_k8s_ci_v0_pod_topology
         - awsattributelimit/cw_k8s_ci_v0
+        {{- if include "otel-container-insights.metricNamesFilterEnabled" . }}
+        - filter/cw_k8s_ci_v0_metric_names
+        {{- end }}
         - batch/cw_k8s_ci_v0_metrics_dest
       exporters:
         - otlphttp/cw_k8s_ci_v0_metrics_dest
@@ -1231,7 +1242,7 @@ service:
     {{- if .Values.dcgmExporter.enabled }}
     metrics/cw_k8s_ci_v0_dcgm:
       receivers: [prometheus/cw_k8s_ci_v0_dcgm]
-      processors: [filter/cw_k8s_ci_v0_scrape_metadata, transform/cw_k8s_ci_v0_drop_deprecated_semconv, transform/cw_k8s_ci_v0_set_unit, metricstarttime/cw_k8s_ci_v0, transform/cw_k8s_ci_v0_set_cluster_name, groupbyattrs/cw_k8s_ci_v0_dcgm, transform/cw_k8s_ci_v0_dcgm_promote, {{ if include "otel-container-insights.metricsNamespaceFilterEnabled" . }}filter/cw_k8s_ci_v0_metrics_namespaces, {{ end }}k8sattributes/cw_k8s_ci_v0_pod, transform/cw_k8s_ci_v0_set_node_name, transform/cw_k8s_ci_v0_promote_node_name, k8sattributes/cw_k8s_ci_v0_node, resourcedetection/cw_k8s_ci_v0, transform/cw_k8s_ci_v0_set_scope_dcgm, transform/cw_k8s_ci_v0_clear_schema_url, transform/cw_k8s_ci_v0_set_cloud_resource_id, transform/cw_k8s_ci_v0_set_workload, transform/cw_k8s_ci_v0_pod_topology, awsattributelimit/cw_k8s_ci_v0, batch/cw_k8s_ci_v0_metrics_dest]
+      processors: [filter/cw_k8s_ci_v0_scrape_metadata, transform/cw_k8s_ci_v0_drop_deprecated_semconv, transform/cw_k8s_ci_v0_set_unit, metricstarttime/cw_k8s_ci_v0, transform/cw_k8s_ci_v0_set_cluster_name, groupbyattrs/cw_k8s_ci_v0_dcgm, transform/cw_k8s_ci_v0_dcgm_promote, {{ if include "otel-container-insights.metricsNamespaceFilterEnabled" . }}filter/cw_k8s_ci_v0_metrics_namespaces, {{ end }}k8sattributes/cw_k8s_ci_v0_pod, transform/cw_k8s_ci_v0_set_node_name, transform/cw_k8s_ci_v0_promote_node_name, k8sattributes/cw_k8s_ci_v0_node, resourcedetection/cw_k8s_ci_v0, transform/cw_k8s_ci_v0_set_scope_dcgm, transform/cw_k8s_ci_v0_clear_schema_url, transform/cw_k8s_ci_v0_set_cloud_resource_id, transform/cw_k8s_ci_v0_set_workload, transform/cw_k8s_ci_v0_pod_topology, awsattributelimit/cw_k8s_ci_v0, {{ if include "otel-container-insights.metricNamesFilterEnabled" . }}filter/cw_k8s_ci_v0_metric_names, {{ end }}batch/cw_k8s_ci_v0_metrics_dest]
       exporters:
         - otlphttp/cw_k8s_ci_v0_metrics_dest
     {{- end }}
@@ -1265,6 +1276,9 @@ service:
         - transform/cw_k8s_ci_v0_set_workload
         - transform/cw_k8s_ci_v0_pod_topology
         - awsattributelimit/cw_k8s_ci_v0
+        {{- if include "otel-container-insights.metricNamesFilterEnabled" . }}
+        - filter/cw_k8s_ci_v0_metric_names
+        {{- end }}
         - batch/cw_k8s_ci_v0_metrics_dest
       exporters:
         - otlphttp/cw_k8s_ci_v0_metrics_dest
@@ -1292,6 +1306,9 @@ service:
         - transform/cw_k8s_ci_v0_set_workload
         - transform/cw_k8s_ci_v0_pod_topology
         - awsattributelimit/cw_k8s_ci_v0
+        {{- if include "otel-container-insights.metricNamesFilterEnabled" . }}
+        - filter/cw_k8s_ci_v0_metric_names
+        {{- end }}
         - batch/cw_k8s_ci_v0_metrics_dest
       exporters:
         - otlphttp/cw_k8s_ci_v0_metrics_dest
@@ -1314,6 +1331,9 @@ service:
         - transform/cw_k8s_ci_v0_clear_schema_url
         - transform/cw_k8s_ci_v0_set_workload
         - awsattributelimit/cw_k8s_ci_v0
+        {{- if include "otel-container-insights.metricNamesFilterEnabled" . }}
+        - filter/cw_k8s_ci_v0_metric_names
+        {{- end }}
         - batch/cw_k8s_ci_v0_metrics_dest
       exporters:
         - otlphttp/cw_k8s_ci_v0_metrics_dest
@@ -1344,6 +1364,9 @@ service:
         - transform/cw_k8s_ci_v0_vllm_service_name
         - transform/cw_k8s_ci_v0_pod_topology
         - awsattributelimit/cw_k8s_ci_v0
+        {{- if include "otel-container-insights.metricNamesFilterEnabled" . }}
+        - filter/cw_k8s_ci_v0_metric_names
+        {{- end }}
         - batch/cw_k8s_ci_v0_metrics_dest
       exporters:
         - otlphttp/cw_k8s_ci_v0_metrics_dest
@@ -1367,6 +1390,9 @@ service:
         - transform/cw_k8s_ci_v0_clear_schema_url
         - transform/cw_k8s_ci_v0_set_workload
         - awsattributelimit/cw_k8s_ci_v0
+        {{- if include "otel-container-insights.metricNamesFilterEnabled" . }}
+        - filter/cw_k8s_ci_v0_metric_names
+        {{- end }}
         - batch/cw_k8s_ci_v0_metrics_dest
       exporters:
         - otlphttp/cw_k8s_ci_v0_metrics_dest
@@ -1397,6 +1423,9 @@ service:
         - transform/cw_k8s_ci_v0_knative_dataplane_service_type
         - transform/cw_k8s_ci_v0_pod_topology
         - awsattributelimit/cw_k8s_ci_v0
+        {{- if include "otel-container-insights.metricNamesFilterEnabled" . }}
+        - filter/cw_k8s_ci_v0_metric_names
+        {{- end }}
         - batch/cw_k8s_ci_v0_metrics_dest
       exporters:
         - otlphttp/cw_k8s_ci_v0_metrics_dest
@@ -1419,6 +1448,9 @@ service:
         - transform/cw_k8s_ci_v0_set_workload
         - transform/cw_k8s_ci_v0_pod_topology
         - awsattributelimit/cw_k8s_ci_v0
+        {{- if include "otel-container-insights.metricNamesFilterEnabled" . }}
+        - filter/cw_k8s_ci_v0_metric_names
+        {{- end }}
         - batch/cw_k8s_ci_v0_metrics_dest
       exporters:
         - otlphttp/cw_k8s_ci_v0_metrics_dest
