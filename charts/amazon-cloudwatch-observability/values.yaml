@@ -857,6 +857,41 @@ dcgmExporter:
     nodeAffinity:
       requiredDuringSchedulingIgnoredDuringExecution:
         nodeSelectorTerms:
+          ## Node Feature Discovery (NFD) labels for nodes with an NVIDIA PCI device (vendor id 10de).
+          ## These terms are OR-ed with the instance-type list below: a node schedules the exporter when
+          ## any one term matches. NFD is not installed by this chart; on clusters without NFD these
+          ## labels are absent, the terms never match, and only the instance-type list applies.
+          ## pci-10de.present is emitted when NFD runs with deviceLabelFields [vendor] (the NVIDIA GPU
+          ## Operator configuration). pci-0302_10de (3D controller) and pci-0300_10de (VGA controller)
+          ## are emitted by the NFD default configuration, deviceLabelFields [class, vendor].
+          - matchExpressions:
+              - key: feature.node.kubernetes.io/pci-10de.present
+                operator: In
+                values:
+                  - "true"
+              - key: eks.amazonaws.com/compute-type
+                operator: NotIn
+                values:
+                  - fargate
+          - matchExpressions:
+              - key: feature.node.kubernetes.io/pci-0302_10de.present
+                operator: In
+                values:
+                  - "true"
+              - key: eks.amazonaws.com/compute-type
+                operator: NotIn
+                values:
+                  - fargate
+          - matchExpressions:
+              - key: feature.node.kubernetes.io/pci-0300_10de.present
+                operator: In
+                values:
+                  - "true"
+              - key: eks.amazonaws.com/compute-type
+                operator: NotIn
+                values:
+                  - fargate
+          ## Instance-type allow-list (fallback for clusters without NFD).
           - matchExpressions:
               - key: node.kubernetes.io/instance-type
                 operator: In
