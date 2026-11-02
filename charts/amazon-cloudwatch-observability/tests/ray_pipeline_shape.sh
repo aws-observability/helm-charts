@@ -17,8 +17,9 @@
 #   3. Pod identity reaches resource scope before k8sattributes runs, and
 #      service.name is not taken from the app.kubernetes.io/name label, which
 #      KubeRay sets to "kuberay" on every Ray pod.
-#   4. The vLLM job drops Ray pods, so a Ray image built on a vLLM base is not
-#      scraped on every port the Ray container declares.
+#   4. The vLLM job drops exactly the pods this job selects (ray.io/is-ray-node=yes),
+#      so a Ray image built on a vLLM base is not scraped on every port the Ray
+#      container declares, and a vLLM pod with any other value is still scraped.
 #
 # Assertions run on the parsed otelConfig (PyYAML), not on rendered text.
 # This is a template-level test -- it renders locally and never touches a cluster.
@@ -46,6 +47,7 @@ render true "${TMP_DIR}/enabled.yaml"
 render false "${TMP_DIR}/disabled.yaml"
 
 python3 - "${TMP_DIR}/enabled.yaml" "${TMP_DIR}/disabled.yaml" <<'PY'
+import re
 import sys
 
 import yaml
@@ -170,8 +172,14 @@ check(f"every processor in {PIPELINE} is defined", all(p in processors for p in 
 
 # 4. The vLLM job leaves Ray pods to this job.
 vllm_rules = job_of(cfg, VLLM_RECEIVER).get("relabel_configs") or []
-check("the vLLM job drops pods labelled ray.io/is-ray-node",
-      first(vllm_rules, lambda r: r.get("action") == "drop" and reads(r, RAY_NODE)) >= 0)
+drop = first(vllm_rules, lambda r: r.get("action") == "drop" and reads(r, RAY_NODE))
+check("the vLLM job drops pods labelled ray.io/is-ray-node", drop >= 0)
+if drop >= 0:
+    # Prometheus anchors the regex; an absent label relabels as the empty string.
+    rx = re.compile(vllm_rules[drop].get("regex", "(.*)"))
+    for value, dropped in [("yes", True), ("", False), ("no", False), ("false", False)]:
+        check(f"the vLLM job {'drops' if dropped else 'keeps'} ray.io/is-ray-node={value!r}",
+              bool(rx.fullmatch(value)) == dropped)
 
 scraper = otel_config(sys.argv[1], "cloudwatch-agent-cluster-scraper")
 check("the cluster-scraper does not scrape Ray",

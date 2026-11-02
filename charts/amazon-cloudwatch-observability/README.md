@@ -85,8 +85,12 @@ Nothing has to be configured, and the chart reads no scrape labels or annotation
 from customer pods. Pods are scraped, not Services: a `RayService` puts the head pod behind
 two Services, so a Service scrape would count it twice.
 
-The vLLM job skips Ray pods. Engine metrics of `ray.serve.llm` arrive as `ray_vllm_*` through
-this job; Ray does not serve vLLM's own `vllm:*` endpoint.
+The vLLM job skips these pods (`ray.io/is-ray-node=yes` only; a pod with another value stays
+with the vLLM job). Engine metrics of `ray.serve.llm` arrive as `ray_vllm_*` through this job
+while its `log_engine_metrics` setting is on (the default); `ray.serve.llm` runs vLLM as a
+library and serves no `vllm:*` endpoint. Other ways of running vLLM in a Ray pod, such as
+`vllm serve --distributed-executor-backend ray`, serve `vllm:*` on their own port, which
+neither job scrapes; add a scrape for that port.
 
 If another collector already scrapes Ray (for example through `prometheus.io/scrape`
 annotations or a PodMonitor), the same series are ingested twice; disable one of them.

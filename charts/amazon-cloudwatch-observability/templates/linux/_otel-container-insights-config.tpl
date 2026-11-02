@@ -194,8 +194,10 @@ receivers:
             # Ray pods belong to the ray job, which reads the engine's metrics as ray_vllm_*.
             # A Ray image built on a vLLM base would otherwise be scraped on every port
             # the Ray container declares (GCS, dashboard, client, Serve, metrics).
+            # Matches the ray job's selector exactly (ray.io/is-ray-node=yes, the value
+            # KubeRay writes): a pod with any other value is not a Ray pod and stays here.
             - source_labels: [__meta_kubernetes_pod_label_ray_io_is_ray_node]
-              regex: .+
+              regex: "yes"
               action: drop
             - source_labels: [__meta_kubernetes_pod_container_init]
               regex: "true"
@@ -654,8 +656,9 @@ processors:
   # `service.name == nil` would never fire, because the receiver always sets it.
   # Effective precedence is workload, then pod. KubeRay pods are owned by a
   # RayCluster, which is not a workload kind, so this resolves to the pod name; the
-  # RayCluster and RayService names stay on the series as KubeRay's own pod labels
-  # (k8s.pod.label.ray.io/cluster, k8s.pod.label.ray.io/originated-from-cr-name).
+  # RayCluster name stays on the series as KubeRay's own pod label
+  # (k8s.pod.label.ray.io/cluster). KubeRay puts ray.io/originated-from-cr-name on
+  # the RayCluster object only, not on its pods.
   # The app.kubernetes.io/name label is not used: KubeRay sets it to "kuberay" on
   # every Ray pod.
   transform/cw_k8s_ci_v0_ray_service_name:
