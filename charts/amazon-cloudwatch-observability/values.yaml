@@ -1240,6 +1240,13 @@ otelContainerInsights:
     ## See the chart README.
     vllm:
       enabled: true
+    ## SGLang — the model server's own metrics (sglang:* series). Scrapes the
+    ## model container of KServe InferenceService pods (shared with vLLM) and any
+    ## container running an SGLang image. The server must be started with
+    ## --enable-metrics.
+    ## See the chart README.
+    sglang:
+      enabled: true
     ## KServe — operator health from the kserve-controller-manager, via its
     ## kube-rbac-proxy on :8443. Scraped by the cluster-scraper.
     kserve:
