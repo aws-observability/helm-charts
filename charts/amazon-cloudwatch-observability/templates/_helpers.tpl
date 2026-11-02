@@ -731,6 +731,15 @@ Create the name of the service account to use
 {{- end }}
 
 {{/*
+Set the Annotations for operator ServiceAccount
+*/}}
+{{- define "amazon-cloudwatch-observability.serviceAccountAnnotations" -}}
+{{- if .Values.manager.serviceAccount.annotations }}
+{{- .Values.manager.serviceAccount.annotations | toYaml }}
+{{- end }}
+{{- end }}
+
+{{/*
 Create the name of the service account to use
 */}}
 {{- define "cloudwatch-agent.serviceAccountName" -}}
@@ -742,6 +751,15 @@ Create the name of the service account to use
 {{- end }}
 
 {{/*
+Set the Annotations for cloudwatch-agent ServiceAccount
+*/}}
+{{- define "cloudwatch-agent.serviceAccountAnnotations" -}}
+{{- if .Values.agent.serviceAccount.annotations }}
+{{- .Values.agent.serviceAccount.annotations | toYaml }}
+{{- end }}
+{{- end }}
+
+{{/*
 Create the name of the service account to use for dcgm exporter
 */}}
 {{- define "dcgm-exporter.serviceAccountName" -}}
@@ -749,10 +767,28 @@ Create the name of the service account to use for dcgm exporter
 {{- end }}
 
 {{/*
+Set the Annotations for dcgm exporter ServiceAccount
+*/}}
+{{- define "dcgm-exporter.serviceAccountAnnotations" -}}
+{{- if .Values.dcgmExporter.serviceAccount.annotations }}
+{{- .Values.dcgmExporter.serviceAccount.annotations | toYaml }}
+{{- end }}
+{{- end }}
+
+{{/*
 Create the name of the service account to use for neuron monitor
 */}}
 {{- define "neuron-monitor.serviceAccountName" -}}
 {{- default "neuron-monitor-service-acct" .Values.neuronMonitor.serviceAccount.name }}
+{{- end }}
+
+{{/*
+Set the Annotations for neuron monitor ServiceAccount
+*/}}
+{{- define "neuron-monitor.serviceAccountAnnotations" -}}
+{{- if .Values.neuronMonitor.serviceAccount.annotations }}
+{{- .Values.neuronMonitor.serviceAccount.annotations | toYaml }}
+{{- end }}
 {{- end }}
 
 {{/*
