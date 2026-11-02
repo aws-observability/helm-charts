@@ -26,17 +26,20 @@ scrapes the vLLM servers on that node; the cluster-scraper is not involved.
 
 ### Which vLLM servers are scraped
 
-One scrape job finds both kinds, with nothing to configure:
+Two receivers find them, with nothing to configure:
 
 - **KServe:** the `kserve-container` of an InferenceService's predictor pods (labels
   `serving.kserve.io/inferenceservice` and `component: predictor`), whatever its image.
-  Transformer and explainer pods are not scraped.
+  Transformer and explainer pods are not scraped. KServe does not label which engine a
+  predictor runs, so one shared receiver scrapes each predictor once and feeds every
+  model-server pipeline; this one keeps the vLLM series (`vllm:*`, `http_*`) and the
+  [SGLang pipeline](#sglang-model-server-metrics) keeps `sglang:*`.
 - **Anything else:** any container whose image name contains `vllm`
-  (`vllm/vllm-openai`, or a mirror of it).
+  (`vllm/vllm-openai`, or a mirror of it), outside KServe predictors and KubeRay pods.
 
 The chart reads no scrape labels or annotations of its own from customer pods. A vLLM server
-built from an image without `vllm` in its name is not found automatically; scrape it with a
-PodMonitor or a custom agent configuration.
+outside KServe built from an image without `vllm` in its name is not found automatically;
+scrape it with a PodMonitor or a custom agent configuration.
 
 The port is resolved in this order, highest precedence first:
 
@@ -45,7 +48,9 @@ The port is resolved in this order, highest precedence first:
 3. the server's default: 8080 for KServe, 8000 for `vllm serve`
 
 On KServe pods only the `kserve-container` is scraped, never the queue-proxy, which serves the
-model server's metrics a second time.
+model server's metrics a second time. vLLM's `http_*` series have no engine prefix, so a
+predictor running another engine that also exports unprefixed `http_*` series has those in
+this pipeline too.
 
 Every target carries the resource attribute `aws.service.type = ai_inference`, so a consumer
 can find model-serving telemetry without knowing which metric names belong to it. vLLM only
@@ -53,20 +58,69 @@ serves inference, so the value is fixed.
 
 ### The vLLM metric service name
 
-`service.name` on the engine's metrics is resolved in this order, highest precedence first:
+`service.name` on the engine's metrics is resolved in this order, highest precedence first. The
+SGLang solution uses the same order.
 
-1. the InferenceService name
-2. the workload name — Deployment, else StatefulSet, DaemonSet, Job or ReplicaSet
-3. the pod name
+1. the pod annotation `resource.opentelemetry.io/service.name`
+2. the InferenceService name
+3. the workload name — Deployment, else StatefulSet, DaemonSet, Job or ReplicaSet
+4. the pod name
 
 The InferenceService outranks the Deployment because in KServe Serverless mode the
 Deployment name embeds the Knative revision generation
-(`<isvc>-predictor-00004-deployment`) and so changes on every redeploy.
+(`<isvc>-predictor-00004-deployment`) and so changes on every redeploy. The
+`app.kubernetes.io/instance` and `app.kubernetes.io/name` labels are not used.
 
 The pipeline also promotes the scraped `pod`/`namespace` labels to resource attributes and
 runs `k8sattributes` pod association, so `k8s.workload.name` resolves to the owning
 Deployment rather than to the ReplicaSet — whose pod-template hash likewise changes on
 every redeploy.
+
+### Not found automatically
+
+- Pods that KubeRay labels `ray.io/is-ray-node=yes`, whatever their image. `ray.serve.llm`
+  runs vLLM as a library and serves no `vllm:*` endpoint; its engine metrics arrive as
+  `ray_vllm_*` through Ray's metrics port, which the Ray solution scrapes. Other ways of
+  running vLLM in a Ray pod, such as `vllm serve --distributed-executor-backend ray`, serve
+  `vllm:*` on their own port, which no solution scrapes; add a scrape for that port.
+- A KServe LLMInferenceService running vLLM from the llm-d image (`ghcr.io/llm-d/llm-d-cuda`):
+  its pods carry neither the InferenceService labels nor a `vllm` image name, and serve
+  HTTPS when KServe's TLS is on.
+
+## SGLang model-server metrics
+
+Set under `otelContainerInsights.solutions.sglang`, on by default. The agent on each node
+scrapes the SGLang servers on that node; the cluster-scraper is not involved.
+
+SGLang serves metrics only when started with `--enable-metrics`; add `--enable-mfu-metrics`
+for the `sglang:estimated_*` counters. Without the flag the server is still found, and its
+scrape fails.
+
+### Which SGLang servers are scraped
+
+- **KServe:** the model container of an InferenceService's predictor pods, whatever its
+  image, through the receiver shared with [vLLM](#which-vllm-servers-are-scraped); this
+  pipeline keeps its `sglang:*` series.
+- **Anything else:** any container whose image name contains `sglang` (`lmsysorg/sglang`, or
+  a mirror of it), outside KServe predictors and KubeRay pods, including the model container
+  of a KServe LLMInferenceService.
+
+The chart reads no scrape labels or annotations of its own from customer pods.
+
+The port is resolved in this order, highest precedence first:
+
+1. on KServe pods, the serving runtime's `prometheus.kserve.io/port` (and `prometheus.kserve.io/path`)
+2. the port the container declares
+3. the server's default: 8080 for KServe, 30000 for `sglang.launch_server`
+
+Only `sglang:*` series are kept. Every target carries `aws.service.type = ai_inference`, as
+for vLLM.
+
+### The SGLang metric service name
+
+`service.name` is resolved as for [vLLM](#the-vllm-metric-service-name): the pod annotation
+`resource.opentelemetry.io/service.name`, then the InferenceService name, then the workload,
+then the pod.
 
 ## KServe control-plane metrics
 
