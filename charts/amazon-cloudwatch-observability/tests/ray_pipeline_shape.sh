@@ -16,7 +16,9 @@
 #      scrape labels or annotations of its own from pods.
 #   3. Pod identity reaches resource scope before k8sattributes runs, and
 #      service.name is not taken from the app.kubernetes.io/name label, which
-#      KubeRay sets to "kuberay" on every Ray pod.
+#      KubeRay sets to "kuberay" on every Ray pod. The customer's
+#      resource.opentelemetry.io/service.name pod annotation wins (DR-0001), and the
+#      extracted annotation reaches no other signal.
 #   4. The vLLM job drops exactly the pods this job selects (ray.io/is-ray-node=yes),
 #      so a Ray image built on a vLLM base is not scraped on every port the Ray
 #      container declares, and a vLLM pod with any other value is still scraped.
@@ -40,13 +42,14 @@ render() {
         --set region=us-west-2 \
         --set clusterName=test-cluster \
         --set otelContainerInsights.enabled=true \
-        --set "otelContainerInsights.solutions.ray.enabled=$1" > "$2"
+        --set "otelContainerInsights.solutions.ray.enabled=$1" "${@:3}" > "$2"
 }
 
 render true "${TMP_DIR}/enabled.yaml"
 render false "${TMP_DIR}/disabled.yaml"
+render true "${TMP_DIR}/logs.yaml" --set otelContainerInsights.logs.enabled=true
 
-python3 - "${TMP_DIR}/enabled.yaml" "${TMP_DIR}/disabled.yaml" <<'PY'
+python3 - "${TMP_DIR}/enabled.yaml" "${TMP_DIR}/disabled.yaml" "${TMP_DIR}/logs.yaml" <<'PY'
 import re
 import sys
 
@@ -60,6 +63,7 @@ SERVICE_NAME = "transform/cw_k8s_ci_v0_ray_service_name"
 SCOPE = "transform/cw_k8s_ci_v0_set_scope_ray"
 VLLM_RECEIVER = "prometheus/cw_k8s_ci_v0_vllm"
 RAY_NODE = "__meta_kubernetes_pod_label_ray_io_is_ray_node"
+ANNOTATION = "k8s.pod.annotation.resource.opentelemetry.io/service.name"
 
 GREEN, RED, YELLOW, RESET = "\033[0;32m", "\033[0;31m", "\033[1;33m", "\033[0m"
 passed = failed = 0
@@ -158,6 +162,19 @@ check(f"{SERVICE_NAME} falls back to the pod name, then the workload name",
       and 'attributes["k8s.workload.name"]' in svc_stmts[1])
 check(f"{SERVICE_NAME} does not use app.kubernetes.io/name (\"kuberay\" on every Ray pod)",
       not any("app.kubernetes.io" in st for st in svc_stmts))
+# DR-0001: the customer's resource.opentelemetry.io/service.name annotation wins.
+pod_k8s = processors.get("k8sattributes/cw_k8s_ci_v0_pod") or {}
+check("k8sattributes/cw_k8s_ci_v0_pod extracts the service.name annotation",
+      any(a.get("key") == "resource.opentelemetry.io/service.name" and a.get("tag_name") == ANNOTATION
+          and a.get("from") == "pod" for a in (pod_k8s.get("extract") or {}).get("annotations") or []))
+svc_sets = [st for st in svc_stmts if st.startswith('set(attributes["service.name"]')]
+check(f"{SERVICE_NAME} applies the annotation last, so it wins, and only when non-empty",
+      bool(svc_sets) and f'attributes["{ANNOTATION}"] != ""' in svc_sets[-1])
+check(f"{SERVICE_NAME} removes the extracted annotation",
+      f'delete_key(attributes, "{ANNOTATION}")' in svc_stmts)
+limit = processors.get("awsattributelimit/cw_k8s_ci_v0") or {}
+check("awsattributelimit removes the extracted annotation from every other metrics pipeline",
+      ANNOTATION in (limit.get("unconditional_removal_keys") or []))
 check(f"{SCOPE} sets the Ray scope name",
       'set(scope.name, "github.com/ray-project/ray")' in statements(processors.get(SCOPE), "metric_statements"))
 
@@ -184,6 +201,18 @@ if drop >= 0:
 scraper = otel_config(sys.argv[1], "cloudwatch-agent-cluster-scraper")
 check("the cluster-scraper does not scrape Ray",
       RECEIVER not in (scraper.get("receivers") or {}))
+
+# --- logs.enabled=true: app logs do not carry the extracted annotation -----------
+print(f"\n{YELLOW}[otelContainerInsights.logs.enabled=true]{RESET}")
+logs = otel_config(sys.argv[3], "cloudwatch-agent")
+app_chain = (((logs.get("service") or {}).get("pipelines") or {}).get("logs/cw_k8s_ci_v0_app") or {}).get("processors") or []
+logs_workload = "transform/cw_k8s_ci_v0_logs_set_workload"
+check("the app logs pipeline uses the shared pod k8sattributes, then the logs workload transform",
+      "k8sattributes/cw_k8s_ci_v0_pod" in app_chain and logs_workload in app_chain and
+      app_chain.index("k8sattributes/cw_k8s_ci_v0_pod") < app_chain.index(logs_workload))
+check(f"{logs_workload} removes the extracted annotation",
+      f'delete_key(attributes, "{ANNOTATION}")' in
+      statements((logs.get("processors") or {}).get(logs_workload), "log_statements"))
 
 # --- solutions.ray.enabled=false (negative control) ------------------------------
 print(f"\n{YELLOW}[solutions.ray.enabled=false]{RESET}")

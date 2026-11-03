@@ -654,7 +654,8 @@ processors:
   #
   # Ordered lowest-precedence first, each overwriting unconditionally: a guard on
   # `service.name == nil` would never fire, because the receiver always sets it.
-  # Effective precedence is workload, then pod. KubeRay pods are owned by a
+  # Effective precedence is the pod's resource.opentelemetry.io/service.name annotation
+  # (customer-set, so it wins), then workload, then pod. KubeRay pods are owned by a
   # RayCluster, which is not a workload kind, so this resolves to the pod name; the
   # RayCluster name stays on the series as KubeRay's own pod label
   # (k8s.pod.label.ray.io/cluster). KubeRay puts ray.io/originated-from-cr-name on
@@ -668,6 +669,8 @@ processors:
         statements:
           - set(attributes["service.name"], attributes["k8s.pod.name"]) where attributes["k8s.pod.name"] != nil
           - set(attributes["service.name"], attributes["k8s.workload.name"]) where attributes["k8s.workload.name"] != nil
+          - set(attributes["service.name"], attributes["k8s.pod.annotation.resource.opentelemetry.io/service.name"]) where attributes["k8s.pod.annotation.resource.opentelemetry.io/service.name"] != nil and attributes["k8s.pod.annotation.resource.opentelemetry.io/service.name"] != ""
+          - delete_key(attributes, "k8s.pod.annotation.resource.opentelemetry.io/service.name")
           - set(attributes["service.namespace"], attributes["k8s.namespace.name"]) where attributes["k8s.namespace.name"] != nil
 
   # Keep Ray's own series (ray_*, including Ray Serve and ray_vllm_*). The
@@ -850,6 +853,13 @@ processors:
         - tag_name: "k8s.pod.label.$$$1"
           key_regex: "(.*)"
           from: pod
+      # The customer's service name for the pod, the first step of the OTel semconv
+      # service.name chain. Only the ray pipeline reads it; awsattributelimit and the app
+      # logs pipeline remove it, so no other signal changes.
+      annotations:
+        - tag_name: "k8s.pod.annotation.resource.opentelemetry.io/service.name"
+          key: resource.opentelemetry.io/service.name
+          from: pod
     pod_association:
       - sources:
           - from: resource_attribute
@@ -881,6 +891,8 @@ processors:
       - "k8s.node.label.karpenter.k8s.aws/instance-accelerator-"
       - "k8s.node.label.eks.amazonaws.com/instance-"
     unconditional_removal_keys:
+      # Read by the ray pipeline's service name only (see k8sattributes/cw_k8s_ci_v0_pod).
+      - "k8s.pod.annotation.resource.opentelemetry.io/service.name"
       - "k8s.node.label.topology.kubernetes.io/region"
       - "k8s.node.label.topology.kubernetes.io/zone"
       - "k8s.node.label.topology.ebs.csi.aws.com/zone"
@@ -1164,6 +1176,8 @@ processors:
           # Logs need service.name; metrics use k8s.workload.name directly, except on
           # AKS — see transform/cw_k8s_ci_v0_set_workload.
           - set(attributes["service.name"], attributes["k8s.workload.name"]) where attributes["service.name"] == nil and attributes["k8s.workload.name"] != nil
+          # Extracted for the ray metrics pipeline only (see k8sattributes/cw_k8s_ci_v0_pod).
+          - delete_key(attributes, "k8s.pod.annotation.resource.opentelemetry.io/service.name")
           {{- if or (eq .Values.k8sMode "AKS") (eq .Values.k8sMode "GKE") }}
           - set(attributes["service.namespace"], attributes["k8s.namespace.name"]) where attributes["service.namespace"] == nil and attributes["k8s.namespace.name"] != nil
           - set(attributes["deployment.environment.name"], Concat([attributes["cloud.platform"], Concat([attributes["k8s.cluster.name"], attributes["k8s.namespace.name"]], "/")], ":")) where attributes["deployment.environment.name"] == nil and attributes["cloud.platform"] != nil and attributes["k8s.cluster.name"] != nil and attributes["k8s.namespace.name"] != nil

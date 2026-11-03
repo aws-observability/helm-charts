@@ -97,9 +97,12 @@ annotations or a PodMonitor), the same series are ingested twice; disable one of
 
 ### The Ray metric service name
 
-`service.name` is the workload name, else the pod name. KubeRay pods are owned by a
-`RayCluster`, which is not a workload kind, so it is the pod name. The KubeRay pod labels stay
-on every series as resource attributes, for grouping:
+`service.name` follows the OpenTelemetry Kubernetes order: the pod annotation
+`resource.opentelemetry.io/service.name` when it is set and not empty, else the workload name,
+else the pod name. KubeRay pods are owned by a `RayCluster`, which is not a workload kind, so
+without the annotation it is the pod name. To give a Ray cluster a stable name, set the
+annotation in the head and worker pod templates (`metadata.annotations`). The KubeRay pod
+labels stay on every series as resource attributes, for grouping:
 
 | Attribute | Value |
 |---|---|
@@ -111,7 +114,8 @@ on every series as resource attributes, for grouping:
 KubeRay sets `ray.io/originated-from-cr-name` and `ray.io/originated-from-crd` on the
 `RayCluster` object only, not on its pods, so they do not reach the series.
 
-`app.kubernetes.io/name` is not used: KubeRay sets it to `kuberay` on every Ray pod.
+`app.kubernetes.io/instance` and `app.kubernetes.io/name` are not used: they are opt-in in the
+OpenTelemetry order, and KubeRay sets `app.kubernetes.io/name` to `kuberay` on every Ray pod.
 
 ### Reading Ray metrics
 
