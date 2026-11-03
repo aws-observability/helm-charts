@@ -1,0 +1,564 @@
+name: GCP Marketplace Release
+
+# Publishes the amazon-cloudwatch-observability chart to Google Cloud
+# Marketplace as a Terraform Kubernetes app.
+#
+#   1. Stage the chart into gcp/, patch it for GKE, push it to Artifact Registry
+#   2. Mirror every image the chart uses into Artifact Registry, with the
+#      Marketplace service annotation and the version + minor tags
+#   3. Validate the Terraform module, zip it and upload it to Cloud Storage
+#
+# Selecting the new release and module in Producer Portal stays MANUAL. Google
+# has no public API for it. The job summary prints exactly what to select.
+#
+# TRIGGER
+# -------
+# A chart release tag pushed to this repo: amazon-cloudwatch-observability-x.y.z
+# The x.y.z in the tag must match the version in Chart.yaml at the tagged
+# commit - see "Resolve release version".
+#
+# To re-run a release by hand, open "Run workflow" and pick the release TAG as
+# the ref (not main), otherwise the checkout and the version will not agree.
+#
+# AUTH
+# ----
+# Workload Identity Federation: GitHub's OIDC token is exchanged for the
+# service account in vars.GCP_SERVICE_ACCOUNT. No key file is stored.
+# The service account needs:
+#   roles/artifactregistry.writer  on the Marketplace repository
+#   roles/storage.objectAdmin      on the module bucket
+#
+# REPO VARIABLES
+# --------------
+#   GCP_WIF_PROVIDER     projects/<num>/locations/global/workloadIdentityPools/<pool>/providers/<provider>
+#   GCP_SERVICE_ACCOUNT  release@<project>.iam.gserviceaccount.com
+#   GCP_REGISTRY         us-docker.pkg.dev/crestdata-public/gcloud-marketplace-repo
+#   GCP_SERVICE_NAME     services/<product>.endpoints.<project>.cloud.goog
+#   GCP_MODULE_BUCKET    bucket the Producer Portal reads the module zip from
+
+on:
+  push:
+    tags:
+      - 'amazon-cloudwatch-observability-*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Release tag to publish (defaults to the selected ref)'
+        required: false
+        type: string
+      dry_run:
+        description: 'Stage, patch and validate only; push nothing'
+        required: false
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+  id-token: write
+
+# Two releases must never race each other into the same tags.
+concurrency:
+  group: gcp-marketplace-release
+  cancel-in-progress: false
+
+env:
+  GCP_DIR: gcp
+  # The chart is NOT committed under gcp/. It lives in its normal place in the
+  # repo and is copied into gcp/ at build time, so there is one source of
+  # truth for the chart and no risk of the two copies drifting apart.
+  CHART_NAME: amazon-cloudwatch-observability
+  CHART_SRC: charts/amazon-cloudwatch-observability
+  # Infra Manager runs Terraform 1.5.7; validate with the same version.
+  TERRAFORM_IMAGE: hashicorp/terraform:1.5.7
+  HELM_VERSION: v3.16.4
+  CRANE_VERSION: v0.20.2
+  DRY_RUN: ${{ inputs.dry_run || false }}
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # Fires immediately so the team knows a release started.
+  # ---------------------------------------------------------------------------
+  notify-start:
+    name: Notify - started
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    # Mapped at job level: the `secrets` context is not available in step `if`.
+    env:
+      SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK_URL_MARKETPLACE }}
+    steps:
+      - name: Slack
+        if: env.SLACK_WEBHOOK != ''
+        uses: slackapi/slack-github-action@91efab103c0de0a537f72a35f6b8cda0ee76bf0a # v2.1.1
+        with:
+          webhook: ${{ secrets.SLACK_WEBHOOK_URL_MARKETPLACE }}
+          webhook-type: incoming-webhook
+          payload: |
+            {
+              "text": ":rocket: GCP Marketplace release started",
+              "tag": "${{ inputs.tag || github.ref_name }}",
+              "dry_run": "${{ inputs.dry_run || false }}",
+              "url": "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+            }
+
+  # ---------------------------------------------------------------------------
+  # 1. Stage the chart for GKE and push it to Artifact Registry.
+  # ---------------------------------------------------------------------------
+  publish-chart:
+    name: Stage and push chart
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment: gcp-marketplace
+    outputs:
+      version: ${{ steps.meta.outputs.version }}
+      minor: ${{ steps.meta.outputs.minor }}
+      digest: ${{ steps.push.outputs.digest }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
+
+      - name: Resolve release version
+        id: meta
+        env:
+          RAW: ${{ inputs.tag || github.ref_name }}
+        run: |
+          set -euo pipefail
+          if [[ -z "${RAW:-}" ]]; then
+            echo "::error::could not determine a release tag"
+            exit 1
+          fi
+          # amazon-cloudwatch-observability-6.7.0 -> 6.7.0
+          VERSION="${RAW#${CHART_NAME}-}"
+          if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::'${RAW}' is not a chart release tag. Expected ${CHART_NAME}-x.y.z"
+            echo "::error::(running from a branch? pick the release tag as the ref in \"Run workflow\")"
+            exit 1
+          fi
+          CHART_VERSION=$(grep -E '^version:' "${CHART_SRC}/Chart.yaml" \
+            | head -1 | awk '{print $2}' | tr -d '"')
+          if [[ "$CHART_VERSION" != "$VERSION" ]]; then
+            echo "::error::tag says ${VERSION} but ${CHART_SRC}/Chart.yaml at this ref says ${CHART_VERSION}"
+            exit 1
+          fi
+          # Marketplace releases are tracked by minor version: 6.7.14 -> 6.7
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "minor=${VERSION%.*}" >> "$GITHUB_OUTPUT"
+          echo "Publishing chart version ${VERSION} (tag ${RAW})"
+
+      - name: Verify expected repo layout
+        run: |
+          set -euo pipefail
+          for f in "${GCP_DIR}/terraform/metadata.yaml" \
+                   "${GCP_DIR}/terraform/schema.yaml" \
+                   "${GCP_DIR}/terraform/helm.tf" \
+                   "${GCP_DIR}/terraform/variables.tf"; do
+            [[ -f "$f" ]] || { echo "::error::missing required file: $f"; exit 1; }
+          done
+          [[ -f "${CHART_SRC}/Chart.yaml" ]] || {
+            echo "::error::chart source not found at ${CHART_SRC}/Chart.yaml"; exit 1; }
+          echo "Layout OK"
+
+      - name: Stage chart into gcp/
+        run: |
+          set -euo pipefail
+          DEST="${GCP_DIR}/${CHART_NAME}"
+          # Remove any stale copy so a renamed or deleted chart file cannot
+          # survive into the package.
+          rm -rf "$DEST"
+          cp -R "${CHART_SRC}" "$DEST"
+          [[ -f "${DEST}/Chart.yaml" ]]  || { echo "::error::staging failed: ${DEST}/Chart.yaml"; exit 1; }
+          [[ -f "${DEST}/values.yaml" ]] || { echo "::error::staging failed: ${DEST}/values.yaml"; exit 1; }
+          [[ -d "${DEST}/templates" ]]   || { echo "::error::staging failed: ${DEST}/templates"; exit 1; }
+          echo "Staged ${CHART_SRC} -> ${DEST}"
+
+      # The published chart is a GKE artifact, so only k8sMode changes.
+      # Images are set by the Terraform module from schema.yaml, and
+      # clusterName / region / roleArn come from the module's helm_values_yaml.
+      # The edit asserts it matched exactly once - a silent miss would ship a
+      # chart in the wrong mode.
+      - name: Patch staged chart for GKE
+        run: |
+          set -euo pipefail
+          DEST="${GCP_DIR}/${CHART_NAME}"
+          python3 - "${DEST}/values.yaml" <<'PY'
+          import re, sys, pathlib
+
+          p = pathlib.Path(sys.argv[1])
+          src = p.read_text()
+
+          pat = re.compile(r"^k8sMode:.*$", re.M)
+          hits = pat.findall(src)
+          if len(hits) != 1:
+              print(f"::error::patch failed: expected exactly one top-level 'k8sMode:', found {len(hits)}")
+              sys.exit(1)
+          replacement = "k8sMode: GKE # can be EKS | ROSA | K8S | AKS | GKE"
+          print(f"  k8sMode\n      before: {hits[0].strip()}\n      after : {replacement}")
+          p.write_text(pat.sub(lambda _m: replacement, src, count=1))
+          PY
+
+          grep -qE '^k8sMode: GKE( |$)' "${DEST}/values.yaml" || {
+            echo "::error::post-patch check failed: k8sMode is not GKE"; exit 1; }
+          echo "### Chart patched for GKE: \`k8sMode: GKE\`" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Install Helm
+        uses: azure/setup-helm@v4
+        with:
+          version: ${{ env.HELM_VERSION }}
+
+      - name: Lint and render
+        run: |
+          set -euo pipefail
+          DEST="${GCP_DIR}/${CHART_NAME}"
+          SETS="clusterName=ci,region=us-east-1,roleArn=arn:aws:iam::123456789012:role/ci"
+          helm lint "$DEST" --set "$SETS"
+          helm template ci "$DEST" --set "$SETS" > /dev/null
+          echo "chart renders in GKE mode"
+
+      - name: Package chart
+        id: package
+        run: |
+          set -euo pipefail
+          mkdir -p dist
+          helm package "${GCP_DIR}/${CHART_NAME}" -d dist
+          PKG="dist/${CHART_NAME}-${{ steps.meta.outputs.version }}.tgz"
+          [[ -f "$PKG" ]] || { echo "::error::expected package ${PKG} was not produced"; exit 1; }
+          echo "pkg=$PKG" >> "$GITHUB_OUTPUT"
+
+      - name: Authenticate to Google Cloud
+        if: env.DRY_RUN != 'true'
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ vars.GCP_WIF_PROVIDER }}
+          service_account: ${{ vars.GCP_SERVICE_ACCOUNT }}
+
+      - name: Install gcloud
+        if: env.DRY_RUN != 'true'
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Install crane
+        if: env.DRY_RUN != 'true'
+        uses: imjasonh/setup-crane@v0.4
+        with:
+          version: ${{ env.CRANE_VERSION }}
+
+      - name: Push chart to Artifact Registry
+        id: push
+        if: env.DRY_RUN != 'true'
+        env:
+          REGISTRY: ${{ vars.GCP_REGISTRY }}
+          VERSION: ${{ steps.meta.outputs.version }}
+          MINOR: ${{ steps.meta.outputs.minor }}
+        run: |
+          set -euo pipefail
+          HOST="${REGISTRY%%/*}"
+          gcloud auth print-access-token \
+            | helm registry login -u oauth2accesstoken --password-stdin "https://${HOST}"
+          gcloud auth configure-docker "$HOST" --quiet
+
+          helm push "${{ steps.package.outputs.pkg }}" "oci://${REGISTRY}"
+          REF="${REGISTRY}/${CHART_NAME}"
+          crane tag "${REF}:${VERSION}" "$MINOR"
+
+          DIGEST=$(crane digest "${REF}:${VERSION}")
+          [[ "$DIGEST" =~ ^sha256:[0-9a-f]{64}$ ]] || {
+            echo "::error::chart not found in Artifact Registry or digest malformed: '${DIGEST}'"; exit 1; }
+          [[ "$(crane digest "${REF}:${MINOR}")" == "$DIGEST" ]] || {
+            echo "::error::${REF}:${MINOR} does not point at the chart just pushed"; exit 1; }
+          echo "digest=$DIGEST" >> "$GITHUB_OUTPUT"
+          {
+            echo "### Chart pushed"
+            echo ""
+            echo "| | |"
+            echo "|---|---|"
+            echo "| chart | \`${REF}\` |"
+            echo "| tags | \`${VERSION}\`, \`${MINOR}\` |"
+            echo "| digest | \`${DIGEST}\` |"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  # ---------------------------------------------------------------------------
+  # 2. Mirror the chart's images into Artifact Registry.
+  #
+  # The source list is global.azure.images in values.yaml - the same pinned
+  # upstream images the Azure bundle uses. Each image is copied as linux/amd64,
+  # annotated with the Marketplace service name, and tagged with the version
+  # and the minor.
+  #
+  # An image already present at <name>:<version> is NOT re-mirrored: it was
+  # pushed by a separate rebuild (e.g. a CVE fix built from source), and
+  # overwriting it with upstream would bring the CVEs back. Such images are
+  # only annotated and re-tagged to the minor.
+  # ---------------------------------------------------------------------------
+  publish-images:
+    name: Mirror images
+    needs: publish-chart
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    environment: gcp-marketplace
+    env:
+      VERSION: ${{ needs.publish-chart.outputs.version }}
+      MINOR: ${{ needs.publish-chart.outputs.minor }}
+      REGISTRY: ${{ vars.GCP_REGISTRY }}
+      SERVICE_NAME: ${{ vars.GCP_SERVICE_NAME }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
+
+      # Target repository names are the ones schema.yaml declares, so the
+      # Producer Portal finds every image the module asks for.
+      - name: Build image list
+        run: |
+          set -euo pipefail
+          python3 - "${CHART_SRC}/values.yaml" "${GCP_DIR}/terraform/schema.yaml" > images.tsv <<'PY'
+          import sys, yaml
+
+          values = yaml.safe_load(open(sys.argv[1]))
+          schema = yaml.safe_load(open(sys.argv[2]))
+          src = values["global"]["azure"]["images"]
+
+          # values.yaml key -> schema.yaml image name
+          target = {
+              "fluentBit": "aws-for-fluent-bit",
+              "cloudwatchAgentOperator": "cloudwatch-agent-operator",
+              "autoInstrumentationJava": "adot-autoinstrumentation-java",
+              "autoInstrumentationPython": "adot-autoinstrumentation-python",
+              "autoInstrumentationDotnet": "adot-autoinstrumentation-dotnet",
+              "autoInstrumentationNodejs": "adot-autoinstrumentation-node",
+              "cloudwatchAgent": "cloudwatch-agent",
+              "targetAllocator": "cloudwatch-agent-target-allocator",
+              "dcgmExporter": "dcgm-exporter",
+              "neuronMonitor": "neuron-monitor",
+              "kubeStateMetrics": "kube-state-metrics",
+              "nodeExporter": "node-exporter",
+          }
+          declared = set(schema["images"])
+          missing = declared - set(target.values())
+          if missing:
+              sys.exit(f"::error::schema.yaml declares images with no source mapping: {sorted(missing)}")
+          for key, name in target.items():
+              if name not in declared:
+                  sys.exit(f"::error::{name} is mapped but not declared in schema.yaml")
+              i = src[key]
+              print(f"{name}\t{i['registry']}/{i['image']}:{i['tag']}")
+          PY
+          column -t images.tsv
+
+      - name: Authenticate to Google Cloud
+        if: env.DRY_RUN != 'true'
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ vars.GCP_WIF_PROVIDER }}
+          service_account: ${{ vars.GCP_SERVICE_ACCOUNT }}
+
+      - name: Install gcloud
+        if: env.DRY_RUN != 'true'
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Install crane
+        uses: imjasonh/setup-crane@v0.4
+        with:
+          version: ${{ env.CRANE_VERSION }}
+
+      - name: Mirror, annotate and tag
+        run: |
+          set -euo pipefail
+          if [[ "$DRY_RUN" != "true" ]]; then
+            [[ -n "$SERVICE_NAME" ]] || { echo "::error::vars.GCP_SERVICE_NAME is not set"; exit 1; }
+            gcloud auth configure-docker "${REGISTRY%%/*}" --quiet
+          fi
+          ANNOTATION="com.googleapis.cloudmarketplace.product.service.name=${SERVICE_NAME}"
+
+          {
+            echo "### Images"
+            echo ""
+            echo "| image | source | digest |"
+            echo "|---|---|---|"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          while IFS=$'\t' read -r NAME SRC; do
+            DST="${REGISTRY}/${NAME}"
+            # Fail early on a source that does not exist, dry run or not.
+            crane digest --platform linux/amd64 "$SRC" > /dev/null || {
+              echo "::error::source image not found: ${SRC}"; exit 1; }
+
+            if [[ "$DRY_RUN" == "true" ]]; then
+              echo "would mirror ${SRC} -> ${DST}:${VERSION}, ${MINOR}"
+              echo "| \`${NAME}\` | \`${SRC}\` | dry run |" >> "$GITHUB_STEP_SUMMARY"
+              continue
+            fi
+
+            if crane digest "${DST}:${VERSION}" > /dev/null 2>&1; then
+              ORIGIN="existing ${DST}:${VERSION}"
+            else
+              crane copy --platform linux/amd64 "$SRC" "${DST}:${VERSION}"
+              ORIGIN="$SRC"
+            fi
+            # mutate pushes a new manifest; tag the result explicitly.
+            crane mutate --annotation "$ANNOTATION" -t "${DST}:${VERSION}" "${DST}:${VERSION}" > /dev/null
+            crane tag "${DST}:${VERSION}" "$MINOR"
+
+            DIGEST=$(crane digest "${DST}:${VERSION}")
+            [[ "$(crane digest "${DST}:${MINOR}")" == "$DIGEST" ]] || {
+              echo "::error::${DST}:${MINOR} does not match ${DST}:${VERSION}"; exit 1; }
+            GOT=$(crane manifest "${DST}:${VERSION}" \
+              | jq -r '.annotations["com.googleapis.cloudmarketplace.product.service.name"] // empty')
+            [[ "$GOT" == "$SERVICE_NAME" ]] || {
+              echo "::error::${DST}:${VERSION} annotation is '${GOT}', expected '${SERVICE_NAME}'"; exit 1; }
+
+            echo "${NAME}: ${ORIGIN} -> ${DIGEST}"
+            echo "| \`${NAME}\` | \`${ORIGIN}\` | \`${DIGEST}\` |" >> "$GITHUB_STEP_SUMMARY"
+          done < images.tsv
+
+  # ---------------------------------------------------------------------------
+  # 3. Validate the Terraform module and upload it to Cloud Storage.
+  # ---------------------------------------------------------------------------
+  publish-module:
+    name: Validate and upload Terraform module
+    needs: publish-chart
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment: gcp-marketplace
+    outputs:
+      module_uri: ${{ steps.upload.outputs.uri }}
+    env:
+      VERSION: ${{ needs.publish-chart.outputs.version }}
+      MODULE_DIR: gcp/terraform
+    steps:
+      - name: Checkout
+        uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
+
+      # The module installs the chart by version, so it must point at the
+      # chart this run pushed. Asserted to match exactly once.
+      - name: Pin chart version in the module
+        run: |
+          set -euo pipefail
+          python3 - "${MODULE_DIR}/variables.tf" "$VERSION" <<'PY'
+          import re, sys, pathlib
+
+          p, version = pathlib.Path(sys.argv[1]), sys.argv[2]
+          src = p.read_text()
+          pat = re.compile(r'(variable\s+"helm_chart_version"\s*\{[^}]*?default\s*=\s*")[^"]*(")', re.S)
+          src, n = pat.subn(rf"\g<1>{version}\g<2>", src)
+          if n != 1:
+              print(f"::error::expected one helm_chart_version default in {p}, found {n}")
+              sys.exit(1)
+          p.write_text(src)
+          print(f"helm_chart_version default -> {version}")
+          PY
+
+      - name: Validate with Terraform 1.5.7
+        run: |
+          set -euo pipefail
+          docker run --rm -v "${GITHUB_WORKSPACE}/${MODULE_DIR}:/m" -w /m "$TERRAFORM_IMAGE" init -backend=false -input=false
+          docker run --rm -v "${GITHUB_WORKSPACE}/${MODULE_DIR}:/m" -w /m "$TERRAFORM_IMAGE" validate
+          docker run --rm -v "${GITHUB_WORKSPACE}/${MODULE_DIR}:/m" -w /m "$TERRAFORM_IMAGE" fmt -check -recursive
+
+      - name: Zip module
+        run: |
+          set -euo pipefail
+          mkdir -p dist
+          # Ship sources only - never provider binaries or local state.
+          (cd "$MODULE_DIR" && zip -r "${GITHUB_WORKSPACE}/dist/module-${VERSION}.zip" . \
+            -x '.terraform/*' '.terraform.lock.hcl' '*.tfstate*')
+          unzip -l "dist/module-${VERSION}.zip"
+
+      - name: Authenticate to Google Cloud
+        if: env.DRY_RUN != 'true'
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ vars.GCP_WIF_PROVIDER }}
+          service_account: ${{ vars.GCP_SERVICE_ACCOUNT }}
+
+      - name: Install gcloud
+        if: env.DRY_RUN != 'true'
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Upload to Cloud Storage
+        id: upload
+        if: env.DRY_RUN != 'true'
+        run: |
+          set -euo pipefail
+          URI="gs://${{ vars.GCP_MODULE_BUCKET }}/${CHART_NAME}/${VERSION}/module.zip"
+          # Released modules are immutable: never overwrite one a release
+          # may already be serving from.
+          if gcloud storage objects describe "$URI" > /dev/null 2>&1; then
+            echo "::error::${URI} already exists. Bump the chart version instead of overwriting."
+            exit 1
+          fi
+          gcloud storage cp "dist/module-${VERSION}.zip" "$URI"
+          echo "uri=$URI" >> "$GITHUB_OUTPUT"
+          echo "uploaded ${URI}"
+
+  # ---------------------------------------------------------------------------
+  # What to select in Producer Portal. The only manual step.
+  # ---------------------------------------------------------------------------
+  summary:
+    name: Producer Portal instructions
+    needs: [publish-chart, publish-images, publish-module]
+    if: ${{ !(inputs.dry_run || false) }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Write summary
+        run: |
+          {
+            echo "### Ready for Producer Portal"
+            echo ""
+            echo "Artifacts are published. Finish the release by hand:"
+            echo ""
+            echo "1. Producer Portal -> your product -> **Deployment configuration**"
+            echo "2. Add a release with display tag **\`${{ needs.publish-chart.outputs.minor }}\`**"
+            echo "3. Terraform module location: **\`${{ needs.publish-module.outputs.module_uri }}\`**"
+            echo "4. Save, then **Submit for review**"
+            echo ""
+            echo "Chart \`${{ needs.publish-chart.outputs.version }}\` digest: \`${{ needs.publish-chart.outputs.digest }}\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  # ---------------------------------------------------------------------------
+  # Always reports, including on failure, cancellation and timeout.
+  # ---------------------------------------------------------------------------
+  notify-result:
+    name: Notify - result
+    needs: [publish-chart, publish-images, publish-module]
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK_URL_MARKETPLACE }}
+    steps:
+      - name: Compute outcome
+        id: outcome
+        run: |
+          set -euo pipefail
+          # Treat cancelled as failure: an unattended pipeline must never read
+          # "cancelled" as "fine".
+          if [[ "${{ contains(needs.*.result, 'failure') }}" == "true" || \
+                "${{ contains(needs.*.result, 'cancelled') }}" == "true" ]]; then
+            echo "state=failure" >> "$GITHUB_OUTPUT"
+            echo "text=:x: GCP Marketplace release FAILED - pipeline stopped" >> "$GITHUB_OUTPUT"
+          elif [[ "${{ inputs.dry_run || false }}" == "true" ]]; then
+            echo "state=success" >> "$GITHUB_OUTPUT"
+            echo "text=:test_tube: GCP Marketplace DRY RUN complete - nothing pushed" >> "$GITHUB_OUTPUT"
+          else
+            echo "state=success" >> "$GITHUB_OUTPUT"
+            echo "text=:white_check_mark: GCP Marketplace artifacts published - select the release in Producer Portal" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Slack
+        if: env.SLACK_WEBHOOK != ''
+        uses: slackapi/slack-github-action@91efab103c0de0a537f72a35f6b8cda0ee76bf0a # v2.1.1
+        with:
+          webhook: ${{ secrets.SLACK_WEBHOOK_URL_MARKETPLACE }}
+          webhook-type: incoming-webhook
+          payload: |
+            {
+              "text": "${{ steps.outcome.outputs.text }}",
+              "tag": "${{ inputs.tag || github.ref_name }}",
+              "version": "${{ needs.publish-chart.outputs.version }}",
+              "chart": "${{ needs.publish-chart.result }}",
+              "images": "${{ needs.publish-images.result }}",
+              "module": "${{ needs.publish-module.result }}",
+              "url": "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+            }
+      - name: Fail the run if any stage failed
+        if: ${{ steps.outcome.outputs.state == 'failure' }}
+        run: |
+          echo "::error::one or more stages failed - see job results above"
+          exit 1
