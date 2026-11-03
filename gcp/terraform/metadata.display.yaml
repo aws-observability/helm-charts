@@ -1,0 +1,209 @@
+apiVersion: blueprints.cloud.google.com/v1alpha1
+kind: BlueprintMetadata
+metadata:
+  name: amazon-cloud-watch-observability-display
+  annotations:
+    config.kubernetes.io/local-config: "true"
+spec:
+  info:
+    title: Amazon CloudWatch Observability
+    source: {}
+  ui:
+    input:
+      variables:
+        # --- Customer-facing fields ---
+        project_id:
+          name: project_id
+          title: Project ID
+          tooltip: The GCP project containing the existing GKE cluster to install onto.
+        cluster_name:
+          name: cluster_name
+          title: Cluster Name
+          tooltip: Name of your existing GKE cluster.
+        cluster_location:
+          name: cluster_location
+          title: Cluster Location
+          tooltip: Zone or region of your existing GKE cluster.
+        helm_values_yaml:
+          name: helm_values_yaml
+          title: Configuration values
+          tooltip: JSON or YAML overrides merged over the chart's defaults, the same as the EKS add-on's configuration values. Only the keys you set change. Image and k8sMode settings are managed by Marketplace and always overridden.
+          subtext: Set clusterName, region and roleArn, then add only settings to change (max 9,000 characters). <a href="https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/install-CloudWatch-Observability-EKS-addon.html">Available settings</a>
+          xGoogleProperty:
+            type: ET_MULTI_LINE_STRING
+
+        # --- Internal / validation-only — hidden from the customer-facing form ---
+        goog_cm_deployment_name:
+          name: goog_cm_deployment_name
+          title: Deployment Name
+          invisible: true
+        create_cluster:
+          name: create_cluster
+          title: Create Cluster
+          invisible: true
+        helm_release_name:
+          name: helm_release_name
+          title: Helm Release Name
+          invisible: true
+        namespace:
+          name: namespace
+          title: Namespace
+          invisible: true
+        helm_chart_repo:
+          name: helm_chart_repo
+          title: Helm Chart Repo
+          invisible: true
+        helm_chart_name:
+          name: helm_chart_name
+          title: Helm Chart Name
+          invisible: true
+        helm_chart_version:
+          name: helm_chart_version
+          title: Helm Chart Version
+          invisible: true
+
+        # --- Image overrides — populated automatically by Marketplace, never shown ---
+        auto_instrumentation_dotnet_image_registry:
+          name: auto_instrumentation_dotnet_image_registry
+          title: Auto Instrumentation Dotnet Image Registry
+          invisible: true
+        auto_instrumentation_dotnet_image_repo:
+          name: auto_instrumentation_dotnet_image_repo
+          title: Auto Instrumentation Dotnet Image Repo
+          invisible: true
+        auto_instrumentation_dotnet_image_tag:
+          name: auto_instrumentation_dotnet_image_tag
+          title: Auto Instrumentation Dotnet Image Tag
+          invisible: true
+        auto_instrumentation_java_image_registry:
+          name: auto_instrumentation_java_image_registry
+          title: Auto Instrumentation Java Image Registry
+          invisible: true
+        auto_instrumentation_java_image_repo:
+          name: auto_instrumentation_java_image_repo
+          title: Auto Instrumentation Java Image Repo
+          invisible: true
+        auto_instrumentation_java_image_tag:
+          name: auto_instrumentation_java_image_tag
+          title: Auto Instrumentation Java Image Tag
+          invisible: true
+        auto_instrumentation_nodejs_image_registry:
+          name: auto_instrumentation_nodejs_image_registry
+          title: Auto Instrumentation Nodejs Image Registry
+          invisible: true
+        auto_instrumentation_nodejs_image_repo:
+          name: auto_instrumentation_nodejs_image_repo
+          title: Auto Instrumentation Nodejs Image Repo
+          invisible: true
+        auto_instrumentation_nodejs_image_tag:
+          name: auto_instrumentation_nodejs_image_tag
+          title: Auto Instrumentation Nodejs Image Tag
+          invisible: true
+        auto_instrumentation_python_image_registry:
+          name: auto_instrumentation_python_image_registry
+          title: Auto Instrumentation Python Image Registry
+          invisible: true
+        auto_instrumentation_python_image_repo:
+          name: auto_instrumentation_python_image_repo
+          title: Auto Instrumentation Python Image Repo
+          invisible: true
+        auto_instrumentation_python_image_tag:
+          name: auto_instrumentation_python_image_tag
+          title: Auto Instrumentation Python Image Tag
+          invisible: true
+        cloudwatch_agent_image_registry:
+          name: cloudwatch_agent_image_registry
+          title: Cloudwatch Agent Image Registry
+          invisible: true
+        cloudwatch_agent_image_repo:
+          name: cloudwatch_agent_image_repo
+          title: Cloudwatch Agent Image Repo
+          invisible: true
+        cloudwatch_agent_image_tag:
+          name: cloudwatch_agent_image_tag
+          title: Cloudwatch Agent Image Tag
+          invisible: true
+        cloudwatch_agent_operator_image_registry:
+          name: cloudwatch_agent_operator_image_registry
+          title: Cloudwatch Agent Operator Image Registry
+          invisible: true
+        cloudwatch_agent_operator_image_repo:
+          name: cloudwatch_agent_operator_image_repo
+          title: Cloudwatch Agent Operator Image Repo
+          invisible: true
+        cloudwatch_agent_operator_image_tag:
+          name: cloudwatch_agent_operator_image_tag
+          title: Cloudwatch Agent Operator Image Tag
+          invisible: true
+        dcgm_exporter_image_registry:
+          name: dcgm_exporter_image_registry
+          title: Dcgm Exporter Image Registry
+          invisible: true
+        dcgm_exporter_image_repo:
+          name: dcgm_exporter_image_repo
+          title: Dcgm Exporter Image Repo
+          invisible: true
+        dcgm_exporter_image_tag:
+          name: dcgm_exporter_image_tag
+          title: Dcgm Exporter Image Tag
+          invisible: true
+        fluent_bit_image_registry:
+          name: fluent_bit_image_registry
+          title: Fluent Bit Image Registry
+          invisible: true
+        fluent_bit_image_repo:
+          name: fluent_bit_image_repo
+          title: Fluent Bit Image Repo
+          invisible: true
+        fluent_bit_image_tag:
+          name: fluent_bit_image_tag
+          title: Fluent Bit Image Tag
+          invisible: true
+        kube_state_metrics_image_registry:
+          name: kube_state_metrics_image_registry
+          title: Kube State Metrics Image Registry
+          invisible: true
+        kube_state_metrics_image_repo:
+          name: kube_state_metrics_image_repo
+          title: Kube State Metrics Image Repo
+          invisible: true
+        kube_state_metrics_image_tag:
+          name: kube_state_metrics_image_tag
+          title: Kube State Metrics Image Tag
+          invisible: true
+        neuron_monitor_image_registry:
+          name: neuron_monitor_image_registry
+          title: Neuron Monitor Image Registry
+          invisible: true
+        neuron_monitor_image_repo:
+          name: neuron_monitor_image_repo
+          title: Neuron Monitor Image Repo
+          invisible: true
+        neuron_monitor_image_tag:
+          name: neuron_monitor_image_tag
+          title: Neuron Monitor Image Tag
+          invisible: true
+        node_exporter_image_registry:
+          name: node_exporter_image_registry
+          title: Node Exporter Image Registry
+          invisible: true
+        node_exporter_image_repo:
+          name: node_exporter_image_repo
+          title: Node Exporter Image Repo
+          invisible: true
+        node_exporter_image_tag:
+          name: node_exporter_image_tag
+          title: Node Exporter Image Tag
+          invisible: true
+        target_allocator_image_registry:
+          name: target_allocator_image_registry
+          title: Target Allocator Image Registry
+          invisible: true
+        target_allocator_image_repo:
+          name: target_allocator_image_repo
+          title: Target Allocator Image Repo
+          invisible: true
+        target_allocator_image_tag:
+          name: target_allocator_image_tag
+          title: Target Allocator Image Tag
+          invisible: true

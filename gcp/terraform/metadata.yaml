@@ -1,0 +1,179 @@
+apiVersion: blueprints.cloud.google.com/v1alpha1
+kind: BlueprintMetadata
+metadata:
+  name: amazon-cloud-watch-observability
+  annotations:
+    config.kubernetes.io/local-config: "true"
+spec:
+  info:
+    title: Amazon CloudWatch Observability
+    source: {}
+    actuationTool:
+      flavor: Terraform
+    description: {}
+  content: {}
+  interfaces:
+    variables:
+      - name: project_id
+        description: GCP project id
+        varType: string
+        required: true
+      - name: goog_cm_deployment_name
+        description: The name of the deployment, provided by Cloud Marketplace to avoid resource name collisions across deployments.
+        varType: string
+        required: true
+      - name: helm_release_name
+        varType: string
+        defaultValue: ""
+      - name: namespace
+        description: Kubernetes namespace to install the chart into. Created automatically if it doesn't already exist.
+        varType: string
+        defaultValue: "amazon-cloudwatch"
+      - name: helm_chart_repo
+        varType: string
+        defaultValue: "oci://us-docker.pkg.dev/crestdata-public/gcloud-marketplace-repo"
+      - name: helm_chart_name
+        varType: string
+        defaultValue: "amazon-cloudwatch-observability"
+      - name: helm_chart_version
+        varType: string
+        defaultValue: "6.7.0"
+      - name: cluster_name
+        description: Name of the GKE cluster to install the chart onto (existing cluster by default).
+        varType: string
+        required: true
+      - name: cluster_location
+        description: Location (zone or region) of the GKE cluster.
+        varType: string
+        required: true
+      - name: create_cluster
+        description: Marketplace validation only. Must stay false for real customer deployments, which always target their existing cluster.
+        varType: bool
+        defaultValue: false
+      - name: helm_values_yaml
+        description: Chart value overrides as JSON or YAML, merged over the chart's defaults. Must set clusterName, region and roleArn.
+        varType: string
+        required: true
+        defaultValue: |-
+          {
+            "clusterName": "REPLACE_WITH_CLUSTER_NAME",
+            "region": "us-east-1",
+            "roleArn": "arn:aws:iam::000000000000:role/REPLACE_WITH_ROLE"
+          }
+      - name: fluent_bit_image_registry
+        varType: string
+        defaultValue: "us-docker.pkg.dev/crestdata-public/gcloud-marketplace-repo"
+      - name: fluent_bit_image_repo
+        varType: string
+        defaultValue: "aws-for-fluent-bit"
+      - name: fluent_bit_image_tag
+        varType: string
+        defaultValue: "6.7"
+      - name: cloudwatch_agent_operator_image_registry
+        varType: string
+        defaultValue: "us-docker.pkg.dev/crestdata-public/gcloud-marketplace-repo"
+      - name: cloudwatch_agent_operator_image_repo
+        varType: string
+        defaultValue: "cloudwatch-agent-operator"
+      - name: cloudwatch_agent_operator_image_tag
+        varType: string
+        defaultValue: "6.7"
+      - name: auto_instrumentation_java_image_registry
+        varType: string
+        defaultValue: "us-docker.pkg.dev/crestdata-public/gcloud-marketplace-repo"
+      - name: auto_instrumentation_java_image_repo
+        varType: string
+        defaultValue: "adot-autoinstrumentation-java"
+      - name: auto_instrumentation_java_image_tag
+        varType: string
+        defaultValue: "6.7"
+      - name: auto_instrumentation_python_image_registry
+        varType: string
+        defaultValue: "us-docker.pkg.dev/crestdata-public/gcloud-marketplace-repo"
+      - name: auto_instrumentation_python_image_repo
+        varType: string
+        defaultValue: "adot-autoinstrumentation-python"
+      - name: auto_instrumentation_python_image_tag
+        varType: string
+        defaultValue: "6.7"
+      - name: auto_instrumentation_dotnet_image_registry
+        varType: string
+        defaultValue: "us-docker.pkg.dev/crestdata-public/gcloud-marketplace-repo"
+      - name: auto_instrumentation_dotnet_image_repo
+        varType: string
+        defaultValue: "adot-autoinstrumentation-dotnet"
+      - name: auto_instrumentation_dotnet_image_tag
+        varType: string
+        defaultValue: "6.7"
+      - name: auto_instrumentation_nodejs_image_registry
+        varType: string
+        defaultValue: "us-docker.pkg.dev/crestdata-public/gcloud-marketplace-repo"
+      - name: auto_instrumentation_nodejs_image_repo
+        varType: string
+        defaultValue: "adot-autoinstrumentation-node"
+      - name: auto_instrumentation_nodejs_image_tag
+        varType: string
+        defaultValue: "6.7"
+      - name: cloudwatch_agent_image_registry
+        varType: string
+        defaultValue: "us-docker.pkg.dev/crestdata-public/gcloud-marketplace-repo"
+      - name: cloudwatch_agent_image_repo
+        varType: string
+        defaultValue: "cloudwatch-agent"
+      - name: cloudwatch_agent_image_tag
+        varType: string
+        defaultValue: "6.7"
+      - name: target_allocator_image_registry
+        varType: string
+        defaultValue: "us-docker.pkg.dev/crestdata-public/gcloud-marketplace-repo"
+      - name: target_allocator_image_repo
+        varType: string
+        defaultValue: "cloudwatch-agent-target-allocator"
+      - name: target_allocator_image_tag
+        varType: string
+        defaultValue: "6.7"
+      - name: dcgm_exporter_image_registry
+        varType: string
+        defaultValue: "us-docker.pkg.dev/crestdata-public/gcloud-marketplace-repo"
+      - name: dcgm_exporter_image_repo
+        varType: string
+        defaultValue: "dcgm-exporter"
+      - name: dcgm_exporter_image_tag
+        varType: string
+        defaultValue: "6.7"
+      - name: neuron_monitor_image_registry
+        varType: string
+        defaultValue: "us-docker.pkg.dev/crestdata-public/gcloud-marketplace-repo"
+      - name: neuron_monitor_image_repo
+        varType: string
+        defaultValue: "neuron-monitor"
+      - name: neuron_monitor_image_tag
+        varType: string
+        defaultValue: "6.7"
+      - name: kube_state_metrics_image_registry
+        varType: string
+        defaultValue: "us-docker.pkg.dev/crestdata-public/gcloud-marketplace-repo"
+      - name: kube_state_metrics_image_repo
+        varType: string
+        defaultValue: "kube-state-metrics"
+      - name: kube_state_metrics_image_tag
+        varType: string
+        defaultValue: "6.7"
+      - name: node_exporter_image_registry
+        varType: string
+        defaultValue: "us-docker.pkg.dev/crestdata-public/gcloud-marketplace-repo"
+      - name: node_exporter_image_repo
+        varType: string
+        defaultValue: "node-exporter"
+      - name: node_exporter_image_tag
+        varType: string
+        defaultValue: "6.7"
+    outputs:
+      - name: gke_cluster_location
+        description: GKE cluster location
+      - name: gke_cluster_name
+        description: GKE cluster name
+      - name: helm_release_name
+        description: Name of the deployed amazon-cloudwatch-observability Helm release
+      - name: project_id
+        description: GCP project ID
