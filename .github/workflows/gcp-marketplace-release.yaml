@@ -366,6 +366,30 @@ jobs:
           fi
           ANNOTATION="com.googleapis.cloudmarketplace.product.service.name=${SERVICE_NAME}"
 
+          # Anonymous pulls from public.ecr.aws are limited to about one
+          # request per second per source IP, and GitHub-hosted runners share
+          # IPs. Pace every call that reads a source registry, and back off
+          # and retry when the registry still answers TOOMANYREQUESTS.
+          pull() {
+            local attempt delay=5 out
+            for attempt in 1 2 3 4 5 6; do
+              sleep 2
+              if out=$(crane "$@" 2>&1); then
+                printf '%s\n' "$out"
+                return 0
+              fi
+              if ! grep -qE 'TOOMANYREQUESTS|429' <<<"$out"; then
+                printf '%s\n' "$out" >&2
+                return 1
+              fi
+              echo "rate limited (attempt ${attempt}), retrying in ${delay}s" >&2
+              sleep "$delay"
+              delay=$((delay * 2))
+            done
+            printf '%s\n' "$out" >&2
+            return 1
+          }
+
           {
             echo "### Images"
             echo ""
@@ -376,7 +400,7 @@ jobs:
           while IFS=$'\t' read -r NAME SRC; do
             DST="${REGISTRY}/${NAME}"
             # Fail early on a source that does not exist, dry run or not.
-            crane digest --platform linux/amd64 "$SRC" > /dev/null || {
+            pull digest --platform linux/amd64 "$SRC" > /dev/null || {
               echo "::error::source image not found: ${SRC}"; exit 1; }
 
             if [[ "$DRY_RUN" == "true" ]]; then
@@ -388,7 +412,7 @@ jobs:
             if crane digest "${DST}:${VERSION}" > /dev/null 2>&1; then
               ORIGIN="existing ${DST}:${VERSION}"
             else
-              crane copy --platform linux/amd64 "$SRC" "${DST}:${VERSION}"
+              pull copy --platform linux/amd64 "$SRC" "${DST}:${VERSION}"
               ORIGIN="$SRC"
             fi
             # mutate pushes a new manifest; tag the result explicitly.
