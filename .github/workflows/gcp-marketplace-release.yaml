@@ -545,10 +545,24 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p dist
+          # Python rather than zip(1): the self-hosted runner has no zip.
           # Ship sources only - never provider binaries or local state.
-          (cd "$MODULE_DIR" && zip -r "${GITHUB_WORKSPACE}/dist/${CHART_NAME}-terraform-${VERSION}.zip" . \
-            -x '.terraform/*' '.terraform.lock.hcl' '*.tfstate*')
-          unzip -l "dist/${CHART_NAME}-terraform-${VERSION}.zip"
+          python3 - "$MODULE_DIR" "dist/${CHART_NAME}-terraform-${VERSION}.zip" <<'PY'
+          import fnmatch, os, sys, zipfile
+
+          src, out = sys.argv[1], sys.argv[2]
+          skip = (".terraform/*", ".terraform.lock.hcl", "*.tfstate*")
+          with zipfile.ZipFile(out, "w", zipfile.ZIP_DEFLATED) as z:
+              for root, dirs, files in os.walk(src):
+                  dirs.sort()
+                  for f in sorted(files):
+                      path = os.path.join(root, f)
+                      rel = os.path.relpath(path, src)
+                      if any(fnmatch.fnmatch(rel, p) for p in skip):
+                          continue
+                      z.write(path, rel)
+          PY
+          python3 -m zipfile -l "dist/${CHART_NAME}-terraform-${VERSION}.zip"
 
       - name: Authenticate to Google Cloud
         if: env.DRY_RUN != 'true'
