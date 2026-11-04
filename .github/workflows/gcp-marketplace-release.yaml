@@ -134,6 +134,8 @@ jobs:
 
       - name: Checkout
         uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
+        with:
+          fetch-depth: 0
 
       - name: Resolve release version
         id: meta
@@ -152,6 +154,9 @@ jobs:
             echo "::error::(running from a branch? pick the release tag as the ref in \"Run workflow\")"
             exit 1
           fi
+          # The tag names a chart version, so the tagged tree must agree with it.
+          # A mismatch means the wrong commit was tagged, and shipping it would
+          # put the wrong chart behind that Marketplace version.
           CHART_VERSION=$(grep -E '^version:' "${CHART_SRC}/Chart.yaml" \
             | head -1 | awk '{print $2}' | tr -d '"')
           if [[ "$CHART_VERSION" != "$VERSION" ]]; then
@@ -339,6 +344,8 @@ jobs:
 
       - name: Checkout
         uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
+        with:
+          fetch-depth: 0
 
       # Target repository names are the ones schema.yaml declares, so the
       # Producer Portal finds every image the module asks for.
@@ -505,6 +512,8 @@ jobs:
 
       - name: Checkout
         uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
+        with:
+          fetch-depth: 0
 
       # The module installs the chart by version, so it must point at the
       # chart this run pushed. Asserted to match exactly once.
