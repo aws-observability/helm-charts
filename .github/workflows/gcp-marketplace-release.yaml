@@ -105,7 +105,7 @@ jobs:
   # ---------------------------------------------------------------------------
   publish-chart:
     name: Stage and push chart
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, linux, x64, azure-marketplace]
     timeout-minutes: 30
     environment: gcp-marketplace
     outputs:
@@ -290,7 +290,7 @@ jobs:
   publish-images:
     name: Mirror images
     needs: publish-chart
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, linux, x64, azure-marketplace]
     timeout-minutes: 60
     environment: gcp-marketplace
     env:
@@ -437,7 +437,7 @@ jobs:
   publish-module:
     name: Validate and upload Terraform module
     needs: publish-chart
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, linux, x64, azure-marketplace]
     timeout-minutes: 30
     environment: gcp-marketplace
     outputs:
@@ -480,9 +480,9 @@ jobs:
           set -euo pipefail
           mkdir -p dist
           # Ship sources only - never provider binaries or local state.
-          (cd "$MODULE_DIR" && zip -r "${GITHUB_WORKSPACE}/dist/module-${VERSION}.zip" . \
+          (cd "$MODULE_DIR" && zip -r "${GITHUB_WORKSPACE}/dist/${CHART_NAME}-terraform-${VERSION}.zip" . \
             -x '.terraform/*' '.terraform.lock.hcl' '*.tfstate*')
-          unzip -l "dist/module-${VERSION}.zip"
+          unzip -l "dist/${CHART_NAME}-terraform-${VERSION}.zip"
 
       - name: Authenticate to Google Cloud
         if: env.DRY_RUN != 'true'
@@ -500,14 +500,15 @@ jobs:
         if: env.DRY_RUN != 'true'
         run: |
           set -euo pipefail
-          URI="gs://${{ vars.GCP_MODULE_BUCKET }}/${CHART_NAME}/${VERSION}/module.zip"
+          # Producer Portal only lists zips at the bucket root, not in folders.
+          URI="gs://${{ vars.GCP_MODULE_BUCKET }}/${CHART_NAME}-terraform-${VERSION}.zip"
           # Released modules are immutable: never overwrite one a release
           # may already be serving from.
           if gcloud storage objects describe "$URI" > /dev/null 2>&1; then
             echo "::error::${URI} already exists. Bump the chart version instead of overwriting."
             exit 1
           fi
-          gcloud storage cp "dist/module-${VERSION}.zip" "$URI"
+          gcloud storage cp "dist/${CHART_NAME}-terraform-${VERSION}.zip" "$URI"
           echo "uri=$URI" >> "$GITHUB_OUTPUT"
           echo "uploaded ${URI}"
 
