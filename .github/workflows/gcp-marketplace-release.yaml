@@ -113,6 +113,25 @@ jobs:
       minor: ${{ steps.meta.outputs.minor }}
       digest: ${{ steps.push.outputs.digest }}
     steps:
+      # The self-hosted runner shares its workspace with the Azure release,
+      # whose CPA container leaves root-owned files behind (azure/.cnab), and
+      # Terraform validation here runs as root too. actions/checkout runs as
+      # the runner user and fails its clean step with EACCES on those files.
+      - name: Reclaim workspace from the previous run
+        run: |
+          set -uo pipefail
+          WS="${GITHUB_WORKSPACE:-}"
+          if [[ -z "$WS" || ! -d "$WS" ]]; then
+            echo "no workspace to reclaim"
+            exit 0
+          fi
+          if command -v sudo >/dev/null 2>&1; then
+            sudo chown -R "$(id -u):$(id -g)" "$WS" 2>/dev/null || true
+            echo "reclaimed $WS for $(id -un)"
+          else
+            echo "sudo unavailable - skipping (expected on hosted runners)"
+          fi
+
       - name: Checkout
         uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
 
@@ -299,6 +318,25 @@ jobs:
       REGISTRY: ${{ vars.GCP_REGISTRY }}
       SERVICE_NAME: ${{ vars.GCP_SERVICE_NAME }}
     steps:
+      # The self-hosted runner shares its workspace with the Azure release,
+      # whose CPA container leaves root-owned files behind (azure/.cnab), and
+      # Terraform validation here runs as root too. actions/checkout runs as
+      # the runner user and fails its clean step with EACCES on those files.
+      - name: Reclaim workspace from the previous run
+        run: |
+          set -uo pipefail
+          WS="${GITHUB_WORKSPACE:-}"
+          if [[ -z "$WS" || ! -d "$WS" ]]; then
+            echo "no workspace to reclaim"
+            exit 0
+          fi
+          if command -v sudo >/dev/null 2>&1; then
+            sudo chown -R "$(id -u):$(id -g)" "$WS" 2>/dev/null || true
+            echo "reclaimed $WS for $(id -un)"
+          else
+            echo "sudo unavailable - skipping (expected on hosted runners)"
+          fi
+
       - name: Checkout
         uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
 
@@ -446,6 +484,25 @@ jobs:
       VERSION: ${{ needs.publish-chart.outputs.version }}
       MODULE_DIR: gcp/terraform
     steps:
+      # The self-hosted runner shares its workspace with the Azure release,
+      # whose CPA container leaves root-owned files behind (azure/.cnab), and
+      # Terraform validation here runs as root too. actions/checkout runs as
+      # the runner user and fails its clean step with EACCES on those files.
+      - name: Reclaim workspace from the previous run
+        run: |
+          set -uo pipefail
+          WS="${GITHUB_WORKSPACE:-}"
+          if [[ -z "$WS" || ! -d "$WS" ]]; then
+            echo "no workspace to reclaim"
+            exit 0
+          fi
+          if command -v sudo >/dev/null 2>&1; then
+            sudo chown -R "$(id -u):$(id -g)" "$WS" 2>/dev/null || true
+            echo "reclaimed $WS for $(id -un)"
+          else
+            echo "sudo unavailable - skipping (expected on hosted runners)"
+          fi
+
       - name: Checkout
         uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
 
