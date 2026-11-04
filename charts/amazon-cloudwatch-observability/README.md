@@ -134,6 +134,11 @@ OpenTelemetry order, and KubeRay sets `app.kubernetes.io/name` to `kuberay` on e
   other two labels can be replaced through the engine setting `extra_metric_labels`. `RAY_metric_cardinality_level=low` drops task and actor names from core metrics, and
   `RAY_SERVE_CONTROLLER_METRICS_INCLUDE_HIGH_CARDINALITY_TAGS=0` drops replica-level labels
   from Serve controller metrics.
+- GPU metrics can show the wrong pod for Ray. Ray's `-gpu` images see every GPU on the node, so
+  a Ray pod that requests no GPU (usually the head) can still run GPU work. The GPU metrics then
+  show that load on the pod the GPU was assigned to, or on no pod. To avoid it, set
+  `num-gpus: "0"` in the head's `rayStartParams` and `NVIDIA_VISIBLE_DEVICES=void` on Ray pods
+  that request no GPU.
 
 ## KServe control-plane metrics
 
