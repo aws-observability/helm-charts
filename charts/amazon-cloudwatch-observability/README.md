@@ -73,8 +73,8 @@ every redeploy.
 Set under `otelContainerInsights.solutions.ray`, on by default. The agent on each node
 scrapes the Ray pods on that node; the cluster-scraper is not involved. One job covers Ray
 core (`ray_node_*`, `ray_tasks`, `ray_actors`, `ray_object_store_*`, …), Ray Serve
-(`ray_serve_*`) and the vLLM engine metrics of `ray.serve.llm` (`ray_vllm_*`): each Ray node
-serves all of them on one port.
+(`ray_serve_*`) and the engine metrics of `ray.serve.llm`, for vLLM (`ray_vllm_*`) and SGLang
+(`ray_sglang_*`): each Ray node serves all of them on one port.
 
 ### Which Ray pods are scraped
 
@@ -121,9 +121,17 @@ OpenTelemetry order, and KubeRay sets `app.kubernetes.io/name` to `kuberay` on e
 
 - `ray_tasks` and `ray_actors` are reported per process, and partial values can be
   negative. Read them with `sum()`.
-- Series carry Ray's `SessionName`, `NodeAddress`, `Component` and `Version` labels. Ray Serve
-  and `ray_vllm_*` series also carry `WorkerId` (and `ReplicaId`), which change when a replica
-  restarts. `RAY_metric_cardinality_level=low` drops task and actor names from core metrics, and
+- Engine metrics keep the engine's own names with a `ray_` prefix and `:` replaced by `_`:
+  vLLM's `vllm:num_requests_running` is `ray_vllm_num_requests_running`, and SGLang's
+  `sglang:num_running_reqs` is `ray_sglang_num_running_reqs`. A dashboard that covers both a
+  standalone engine and the same engine in Ray Serve queries both names. Under Ray Serve, the
+  engine's HTTP server metrics (for example SGLang's `http_requests_total`) do not exist: Ray Serve
+  serves the requests, and reports them in `ray_serve_*`.
+- Series carry Ray's `SessionName`, `NodeAddress`, `Component` and `Version` labels. Ray Serve,
+  `ray_vllm_*` and `ray_sglang_*` series also carry `WorkerId` (and `ReplicaId`), and
+  `ray_sglang_*` series carry `application`, `deployment` and `replica`. These change when a
+  replica restarts, so each restart starts a new set of series. For SGLang, `replica` and the
+  other two labels can be replaced through the engine setting `extra_metric_labels`. `RAY_metric_cardinality_level=low` drops task and actor names from core metrics, and
   `RAY_SERVE_CONTROLLER_METRICS_INCLUDE_HIGH_CARDINALITY_TAGS=0` drops replica-level labels
   from Serve controller metrics.
 
