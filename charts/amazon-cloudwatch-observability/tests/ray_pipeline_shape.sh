@@ -13,12 +13,13 @@
 #      without Ray finds nothing.
 #   2. Only the container port named metrics is scraped (KubeRay declares it,
 #      adding metrics:8080 when the pod template has none). The chart reads no
-#      scrape labels or annotations of its own from pods.
+#      scrape labels or annotations of its own from pods; the one annotation read,
+#      resource.opentelemetry.io/service.name, names the series and selects nothing.
 #   3. Pod identity reaches resource scope before k8sattributes runs, and
 #      service.name is not taken from the app.kubernetes.io/name label, which
-#      KubeRay sets to "kuberay" on every Ray pod. The customer's
-#      resource.opentelemetry.io/service.name pod annotation wins (DR-0001), and the
-#      extracted annotation reaches no other signal.
+#      KubeRay sets to "kuberay" on every Ray pod. The service.name annotation wins
+#      when set and not empty; its temporary attributes are deleted, and the shared
+#      processors and other pipelines do not read it.
 #   4. The vLLM job drops exactly the pods this job selects (ray.io/is-ray-node=yes),
 #      so a Ray image built on a vLLM base is not scraped on every port the Ray
 #      container declares, and a vLLM pod with any other value is still scraped.
@@ -50,6 +51,7 @@ render false "${TMP_DIR}/disabled.yaml"
 render true "${TMP_DIR}/logs.yaml" --set otelContainerInsights.logs.enabled=true
 
 python3 - "${TMP_DIR}/enabled.yaml" "${TMP_DIR}/disabled.yaml" "${TMP_DIR}/logs.yaml" <<'PY'
+import json
 import re
 import sys
 
@@ -63,7 +65,15 @@ SERVICE_NAME = "transform/cw_k8s_ci_v0_ray_service_name"
 SCOPE = "transform/cw_k8s_ci_v0_set_scope_ray"
 VLLM_RECEIVER = "prometheus/cw_k8s_ci_v0_vllm"
 RAY_NODE = "__meta_kubernetes_pod_label_ray_io_is_ray_node"
-ANNOTATION = "k8s.pod.annotation.resource.opentelemetry.io/service.name"
+ANNOTATION = "__meta_kubernetes_pod_annotation_"
+SVC_ANNOTATION = ANNOTATION + "resource_opentelemetry_io_service_name"
+SVC_LABEL = "otel_service_name_annotation"
+SVC_TMP = "cw.tmp.service_name_annotation"
+# Every name the service.name annotation goes by in the config.
+SVC_NAMES = ("resource.opentelemetry.io/service.name", "resource_opentelemetry_io_service_name",
+             SVC_LABEL, SVC_TMP)
+SHARED = ("k8sattributes/cw_k8s_ci_v0_pod", "awsattributelimit/cw_k8s_ci_v0",
+          "transform/cw_k8s_ci_v0_logs_set_workload")
 
 GREEN, RED, YELLOW, RESET = "\033[0;32m", "\033[0;31m", "\033[1;33m", "\033[0m"
 passed = failed = 0
@@ -108,6 +118,11 @@ def statements(processor, key):
     return [st for g in (processor or {}).get(key) or [] for st in g.get("statements") or []]
 
 
+def mentions_svc(obj):
+    text = json.dumps(obj)
+    return any(n in text for n in SVC_NAMES)
+
+
 # --- solutions.ray.enabled=true ---------------------------------------------------
 print(f"\n{YELLOW}[solutions.ray.enabled=true]{RESET}")
 cfg = otel_config(sys.argv[1], "cloudwatch-agent")
@@ -135,9 +150,19 @@ port = first(rules, lambda r: r.get("action") == "keep" and
              reads(r, "__meta_kubernetes_pod_container_port_name"))
 check("only the container port named metrics is kept",
       port >= 0 and rules[port].get("regex") == "metrics")
-check("no relabel rule reads a pod annotation",
-      not any("__meta_kubernetes_pod_annotation" in l
+check("no relabel rule reads a pod annotation other than resource.opentelemetry.io/service.name",
+      not any(l.startswith(ANNOTATION) and l != SVC_ANNOTATION
               for r in rules for l in r.get("source_labels") or []))
+svc_rules = [r for r in rules if reads(r, SVC_ANNOTATION)]
+check("the service.name annotation is read by one rule, which makes no scrape decision",
+      len(svc_rules) == 1 and svc_rules[0].get("source_labels") == [SVC_ANNOTATION]
+      and svc_rules[0].get("action") == "replace"
+      and not svc_rules[0].get("target_label", "").startswith("__"))
+# Prometheus drops a label whose value is empty, so with the default regex and
+# replacement an unset or empty annotation leaves no label at all.
+check("the service.name annotation is carried as a target label, dropped when empty",
+      len(svc_rules) == 1 and svc_rules[0].get("target_label") == SVC_LABEL
+      and "regex" not in svc_rules[0] and "replacement" not in svc_rules[0])
 check("no relabel rule reads prometheus.io/* or cloudwatch.aws/* from pods",
       not any(("prometheus_io_" in l or "cloudwatch_aws" in l)
               for r in rules for l in r.get("source_labels") or []))
@@ -154,6 +179,15 @@ promote_stmts = statements(processors.get(PROMOTE), "metric_statements")
 check(f"{PROMOTE} lifts pod and namespace to resource scope",
       any('k8s.pod.name"], attributes["pod"]' in st for st in promote_stmts) and
       any('k8s.namespace.name"], attributes["namespace"]' in st for st in promote_stmts))
+check(f"{PROMOTE} carries the service.name annotation to resource scope",
+      f'set(resource.attributes["{SVC_TMP}"], attributes["{SVC_LABEL}"]) where attributes["{SVC_LABEL}"] != nil'
+      in promote_stmts)
+check(f"{PROMOTE} removes the annotation datapoint attribute",
+      f'delete_key(attributes, "{SVC_LABEL}")' in promote_stmts)
+# Ray serves target_info; the receiver copies its labels, target labels included,
+# to resource attributes.
+check(f"{PROMOTE} removes the annotation label that target_info copies to the resource",
+      f'delete_key(resource.attributes, "{SVC_LABEL}")' in promote_stmts)
 check(f"{PROMOTE} sets no aws.service.type (the type is inferred at query time)",
       not any("aws.service.type" in st for st in promote_stmts))
 svc_stmts = statements(processors.get(SERVICE_NAME), "metric_statements")
@@ -162,19 +196,22 @@ check(f"{SERVICE_NAME} falls back to the pod name, then the workload name",
       and 'attributes["k8s.workload.name"]' in svc_stmts[1])
 check(f"{SERVICE_NAME} does not use app.kubernetes.io/name (\"kuberay\" on every Ray pod)",
       not any("app.kubernetes.io" in st for st in svc_stmts))
-# DR-0001: the customer's resource.opentelemetry.io/service.name annotation wins.
-pod_k8s = processors.get("k8sattributes/cw_k8s_ci_v0_pod") or {}
-check("k8sattributes/cw_k8s_ci_v0_pod extracts the service.name annotation",
-      any(a.get("key") == "resource.opentelemetry.io/service.name" and a.get("tag_name") == ANNOTATION
-          and a.get("from") == "pod" for a in (pod_k8s.get("extract") or {}).get("annotations") or []))
+order = [next((i for i, st in enumerate(svc_stmts) if st.startswith(f'set(attributes["service.name"], attributes["{k}"])')), -1)
+         for k in ("k8s.pod.name", "k8s.workload.name", SVC_TMP)]
+check("service.name is set pod, workload, then the service.name annotation (last write wins)",
+      all(i >= 0 for i in order) and order == sorted(order))
 svc_sets = [st for st in svc_stmts if st.startswith('set(attributes["service.name"]')]
-check(f"{SERVICE_NAME} applies the annotation last, so it wins, and only when non-empty",
-      bool(svc_sets) and f'attributes["{ANNOTATION}"] != ""' in svc_sets[-1])
-check(f"{SERVICE_NAME} removes the extracted annotation",
-      f'delete_key(attributes, "{ANNOTATION}")' in svc_stmts)
-limit = processors.get("awsattributelimit/cw_k8s_ci_v0") or {}
-check("awsattributelimit removes the extracted annotation from every other metrics pipeline",
-      ANNOTATION in (limit.get("unconditional_removal_keys") or []))
+check(f"{SERVICE_NAME} applies the annotation last, and only when it is present (not empty)",
+      bool(svc_sets) and svc_sets[-1] ==
+      f'set(attributes["service.name"], attributes["{SVC_TMP}"]) where attributes["{SVC_TMP}"] != nil')
+delete = f'delete_key(attributes, "{SVC_TMP}")'
+check("the temporary annotation attribute is deleted, after it is applied",
+      delete in svc_stmts and order[-1] >= 0 and svc_stmts.index(delete) > order[-1])
+check(f"in {PIPELINE}, only the promote and service-name transforms read the service.name annotation",
+      {n for n in chain if mentions_svc(processors.get(n))} == {PROMOTE, SERVICE_NAME})
+for name in SHARED[:2]:
+    check(f"{name} does not mention the service.name annotation",
+          name in processors and not mentions_svc(processors[name]))
 check(f"{SCOPE} sets the Ray scope name",
       'set(scope.name, "github.com/ray-project/ray")' in statements(processors.get(SCOPE), "metric_statements"))
 
@@ -202,17 +239,16 @@ scraper = otel_config(sys.argv[1], "cloudwatch-agent-cluster-scraper")
 check("the cluster-scraper does not scrape Ray",
       RECEIVER not in (scraper.get("receivers") or {}))
 
-# --- logs.enabled=true: app logs do not carry the extracted annotation -----------
+# --- logs.enabled=true: no logs processor reads the service.name annotation ------
 print(f"\n{YELLOW}[otelContainerInsights.logs.enabled=true]{RESET}")
 logs = otel_config(sys.argv[3], "cloudwatch-agent")
-app_chain = (((logs.get("service") or {}).get("pipelines") or {}).get("logs/cw_k8s_ci_v0_app") or {}).get("processors") or []
-logs_workload = "transform/cw_k8s_ci_v0_logs_set_workload"
-check("the app logs pipeline uses the shared pod k8sattributes, then the logs workload transform",
-      "k8sattributes/cw_k8s_ci_v0_pod" in app_chain and logs_workload in app_chain and
-      app_chain.index("k8sattributes/cw_k8s_ci_v0_pod") < app_chain.index(logs_workload))
-check(f"{logs_workload} removes the extracted annotation",
-      f'delete_key(attributes, "{ANNOTATION}")' in
-      statements((logs.get("processors") or {}).get(logs_workload), "log_statements"))
+logs_procs = logs.get("processors") or {}
+check(f"{SHARED[2]} renders and does not mention the service.name annotation",
+      SHARED[2] in logs_procs and not mentions_svc(logs_procs[SHARED[2]]))
+logs_chains = [n for k, v in ((logs.get("service") or {}).get("pipelines") or {}).items()
+               if k.startswith("logs/") for n in (v or {}).get("processors") or []]
+check("logs pipelines render, and none of their processors reads the service.name annotation",
+      bool(logs_chains) and not any(mentions_svc(logs_procs.get(n)) for n in logs_chains))
 
 # --- solutions.ray.enabled=false (negative control) ------------------------------
 print(f"\n{YELLOW}[solutions.ray.enabled=false]{RESET}")
