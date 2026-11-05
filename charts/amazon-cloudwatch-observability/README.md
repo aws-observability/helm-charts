@@ -183,6 +183,28 @@ otelFilters:
     exclude: ["kube-system", "test-*"]
 ```
 
+### Metric names
+
+`otelFilters.metricNames` applies to OTEL Container Insights metrics. It does not apply to
+logs.
+
+An entry is an exact metric name, a prefix followed by `*` (for example `container_*`), or
+`*` alone. A name can contain letters, digits, `_`, `:` and `.`. An empty include list, or one
+that contains `*`, includes every metric. Exclude wins over include. An entry cannot be in
+both lists. A non-empty include list drops every other Container Insights metric, in every
+pipeline.
+
+The filter runs last before export in every Container Insights metrics pipeline. So the
+entries match the exported metric names. The match is case-sensitive: the entry
+`dcgm_fi_dev_gpu_util` does not match the metric `DCGM_FI_DEV_GPU_UTIL`.
+
+```yaml
+otelFilters:
+  metricNames:
+    include: ["container_*", "kube_*"]
+    exclude: ["kube_replicaset_*"]
+```
+
 ### Pod and node labels
 
 `otelFilters.podLabels` and `otelFilters.nodeLabels` decide which pod and node labels arrive

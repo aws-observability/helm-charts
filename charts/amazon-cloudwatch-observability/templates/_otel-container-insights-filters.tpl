@@ -16,39 +16,21 @@ invalid value fails the render before any entry reaches a template.
 {{- fail "otelFilters must be a map" }}
 {{- end }}
 {{- range $key, $_ := $filters }}
-{{- if not (has $key (list "namespaces" "nodeLabels" "podLabels")) }}
-{{- fail (printf "otelFilters has an unknown key %q (allowed: namespaces, nodeLabels, podLabels)" $key) }}
+{{- if not (has $key (list "namespaces" "metricNames" "nodeLabels" "podLabels")) }}
+{{- fail (printf "otelFilters has an unknown key %q (allowed: namespaces, metricNames, nodeLabels, podLabels)" $key) }}
 {{- end }}
 {{- end }}
-{{- $namespaces := index ($filters | default dict) "namespaces" }}
-{{- if not (or (kindIs "invalid" $namespaces) (kindIs "map" $namespaces)) }}
-{{- fail "otelFilters.namespaces must be a map with include and exclude lists" }}
-{{- end }}
-{{- range $key, $_ := $namespaces }}
-{{- if not (has $key (list "include" "exclude")) }}
-{{- fail (printf "otelFilters.namespaces has an unknown key %q (allowed: include, exclude)" $key) }}
-{{- end }}
-{{- end }}
-{{- range $list := list "include" "exclude" }}
-{{- $entries := index ($namespaces | default dict) $list }}
-{{- if not (or (kindIs "invalid" $entries) (kindIs "slice" $entries)) }}
-{{- fail (printf "otelFilters.namespaces.%s must be a list" $list) }}
-{{- end }}
-{{- range $entries }}
-{{- if not (and (kindIs "string" .) (regexMatch "^([a-z0-9]([-a-z0-9]*[a-z0-9])?|[a-z0-9][-a-z0-9]*\\*|\\*)$" .)) }}
-{{- fail (printf "otelFilters.namespaces entries must be a namespace name, a prefix ending in *, or *, got: %v" .) }}
-{{- end }}
-{{- if gt (len (trimSuffix "*" .)) 63 }}
-{{- fail (printf "otelFilters.namespaces entries must be at most 63 characters, got: %s" .) }}
-{{- end }}
-{{- end }}
-{{- end }}
-{{- $exclude := index ($namespaces | default dict) "exclude" | default list }}
-{{- range index ($namespaces | default dict) "include" | default list }}
-{{- if has . $exclude }}
-{{- fail (printf "otelFilters.namespaces: %q is in both include and exclude" .) }}
-{{- end }}
-{{- end }}
+{{- include "otel-container-insights.validate-include-exclude" (dict
+      "value" (index ($filters | default dict) "namespaces")
+      "path" "otelFilters.namespaces"
+      "what" "a namespace name"
+      "regex" "^([a-z0-9]([-a-z0-9]*[a-z0-9])?|[a-z0-9][-a-z0-9]*\\*|\\*)$"
+      "maxLength" 63) }}
+{{- include "otel-container-insights.validate-include-exclude" (dict
+      "value" (index ($filters | default dict) "metricNames")
+      "path" "otelFilters.metricNames"
+      "what" "a metric name"
+      "regex" "^([A-Za-z0-9_:.]+\\*?|\\*)$") }}
 {{- range $kind := list "nodeLabels" "podLabels" }}
 {{- $labels := index ($filters | default dict) $kind }}
 {{- if not (or (kindIs "invalid" $labels) (kindIs "map" $labels)) }}
@@ -81,6 +63,44 @@ invalid value fails the render before any entry reaches a template.
 {{- fail (printf "otelFilters.%s entries must have a name of at most 63 characters and a prefix of at most 253, got: %s" $kind .) }}
 {{- end }}
 {{- end }}
+{{- end }}
+{{- end }}
+{{- end -}}
+
+{{/*
+Validates an include/exclude filter at .path: .value must be unset or a map
+with only include and exclude keys, each unset or a list of strings matching
+.regex (described as .what in the error), and no entry in both lists. With
+.maxLength, an entry without its trailing * may be at most that many characters.
+*/}}
+{{- define "otel-container-insights.validate-include-exclude" -}}
+{{- $value := .value }}
+{{- if not (or (kindIs "invalid" $value) (kindIs "map" $value)) }}
+{{- fail (printf "%s must be a map with include and exclude lists" .path) }}
+{{- end }}
+{{- range $key, $_ := $value | default dict }}
+{{- if not (has $key (list "include" "exclude")) }}
+{{- fail (printf "%s has an unknown key %q (allowed: include, exclude)" $.path $key) }}
+{{- end }}
+{{- end }}
+{{- range $list := list "include" "exclude" }}
+{{- $entries := index ($value | default dict) $list }}
+{{- if not (or (kindIs "invalid" $entries) (kindIs "slice" $entries)) }}
+{{- fail (printf "%s.%s must be a list" $.path $list) }}
+{{- end }}
+{{- range $entries }}
+{{- if not (and (kindIs "string" .) (regexMatch $.regex .)) }}
+{{- fail (printf "%s entries must be %s, a prefix ending in *, or *, got: %v" $.path $.what .) }}
+{{- end }}
+{{- if and $.maxLength (gt (len (trimSuffix "*" .)) (int $.maxLength)) }}
+{{- fail (printf "%s entries must be at most %d characters, got: %s" $.path (int $.maxLength) .) }}
+{{- end }}
+{{- end }}
+{{- end }}
+{{- $exclude := index ($value | default dict) "exclude" | default list }}
+{{- range index ($value | default dict) "include" | default list }}
+{{- if has . $exclude }}
+{{- fail (printf "%s: %q is in both include and exclude" $.path .) }}
 {{- end }}
 {{- end }}
 {{- end -}}
@@ -200,6 +220,51 @@ filter is defined and added to pipelines. Both read otelFilters.namespaces.
 */}}
 {{- define "otel-container-insights.metricsNamespaceFilterEnabled" -}}
 {{- if include "otel-container-insights.namespaceConditions" . | fromJsonArray }}true{{ end }}
+{{- end -}}
+
+{{/*
+JSON list of OTTL metric conditions for otelFilters.metricNames, which applies
+to the Container Insights metrics only. A metric matching any condition is
+dropped. An include list containing "*" includes everything, so it adds no
+condition. A duplicate entry renders once.
+*/}}
+{{- define "otel-container-insights.metricNamesConditions" -}}
+{{- $metricNames := index (.Values.otelFilters | default dict) "metricNames" | default dict }}
+{{- $include := index $metricNames "include" | default list | uniq }}
+{{- $exclude := index $metricNames "exclude" | default list | uniq }}
+{{- $conditions := list }}
+{{- if and $include (not (has "*" $include)) }}
+{{- $conditions = append $conditions (printf "not %s" (include "otel-container-insights.filterMatch" (dict "path" "name" "entries" $include))) }}
+{{- end }}
+{{- if $exclude }}
+{{- $conditions = append $conditions (include "otel-container-insights.filterMatch" (dict "path" "name" "entries" $exclude)) }}
+{{- end }}
+{{- toJson $conditions }}
+{{- end -}}
+
+{{/*
+Filter processor that drops metrics by name. Runs last before batch in every
+Container Insights metrics pipeline, so it matches the names that are exported.
+Renders nothing when no condition applies.
+*/}}
+{{- define "otel-container-insights.metricNamesFilter" -}}
+{{- $conditions := include "otel-container-insights.metricNamesConditions" . | fromJsonArray }}
+{{- if $conditions }}
+filter/cw_k8s_ci_v0_metric_names:
+  error_mode: ignore
+  metrics:
+    metric:
+      {{- range $conditions }}
+      - '{{ . }}'
+      {{- end }}
+{{- end }}
+{{- end -}}
+
+{{/*
+"true" when the metric name filter processor is defined and added to pipelines.
+*/}}
+{{- define "otel-container-insights.metricNamesFilterEnabled" -}}
+{{- if include "otel-container-insights.metricNamesConditions" . | fromJsonArray }}true{{ end }}
 {{- end -}}
 
 {{- define "otel-container-insights.logsNamespaceFilterEnabled" -}}

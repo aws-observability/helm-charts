@@ -1277,6 +1277,12 @@ otelFilters:
   namespaces:
     include: []
     exclude: []
+  ## Metric names to keep or drop, with the same rules as namespaces. This
+  ## filter does not apply to logs. Entries are case-sensitive and match the
+  ## exported names, for example DCGM_FI_DEV_GPU_UTIL.
+  metricNames:
+    include: []
+    exclude: []
   ## Pod labels to collect (include) and remove (exclude). An entry is a label
   ## key, a prefix ending in "*", or "*". recommendedExclusions also removes a
   ## built-in list of high-cardinality labels. For each label, the first rule

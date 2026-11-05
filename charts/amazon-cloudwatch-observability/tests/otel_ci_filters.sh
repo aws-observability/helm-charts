@@ -1046,7 +1046,7 @@ for name in ('$NODE', '$SCRAPER'):
     assert len(hashes) == 3, (name, hashes)"
 
 check_fails "Invalid otelFilters — unknown key, with the allowed keys" \
-    '{"labels":{}}' 'otelFilters has an unknown key "labels" (allowed: namespaces, nodeLabels, podLabels)'
+    '{"labels":{}}' 'otelFilters has an unknown key "labels" (allowed: namespaces, metricNames, nodeLabels, podLabels)'
 check_fails "otelContainerInsights.filters with label lists — fails with a pointer to otelFilters" \
     '{}' "$OLD_KEY" --set-json 'otelContainerInsights.filters={"metrics":{"podLabels":{"exclude":["app"]}}}'
 
@@ -1086,6 +1086,211 @@ for kind in nodeLabels podLabels; do
             "otelFilters.$kind.$list must be a list"
     done
 done
+
+# ── Metric names ────────────────────────────────────────────────────────
+# otelFilters.metricNames: one filter processor, last before batch in every
+# Container Insights metrics pipeline of both agents. Logs are not filtered.
+
+METRIC_NAMES="filter/cw_k8s_ci_v0_metric_names"
+
+NAME_BLOCKS="
+def metric_names(*conditions):
+    return {'error_mode': 'ignore', 'metrics': {'metric': list(conditions)}}
+def assert_metric_names(*conditions):
+    for agent in ('$NODE', '$SCRAPER'):
+        got = processor(agent, '$METRIC_NAMES')
+        assert got == metric_names(*conditions), (agent, got)
+def no_metric_names():
+    for agent in cfg:
+        assert processor(agent, '$METRIC_NAMES') is None, agent
+        assert not pipelines_with(agent, '$METRIC_NAMES'), agent
+"
+
+for value in '{}' 'null' '{"metricNames":null}' '{"metricNames":{}}' \
+    '{"metricNames":{"include":[],"exclude":[]}}' \
+    '{"metricNames":{"include":null,"exclude":null}}'; do
+    check_case "No metric name filter processor for $value" "$value" "$NAME_BLOCKS
+no_metric_names()"
+done
+
+check_case "Metric names include exact" \
+    '{"metricNames":{"include":["kube_pod_info"]}}' "$NAME_BLOCKS
+assert_metric_names('not (name == \"kube_pod_info\")')"
+
+check_case "Metric names include prefix" \
+    '{"metricNames":{"include":["container_*"]}}' "$NAME_BLOCKS
+assert_metric_names('not (IsMatch(name, \"^container_\"))')"
+
+check_case "Metric names include * — no metric name filter processor" \
+    '{"metricNames":{"include":["*"]}}' "$NAME_BLOCKS
+no_metric_names()"
+
+check_case "Metric names exclude exact" \
+    '{"metricNames":{"exclude":["kube_pod_status_phase"]}}' "$NAME_BLOCKS
+assert_metric_names('(name == \"kube_pod_status_phase\")')"
+
+check_case "Metric names exclude prefix" \
+    '{"metricNames":{"exclude":["kube_replicaset_*"]}}' "$NAME_BLOCKS
+assert_metric_names('(IsMatch(name, \"^kube_replicaset_\"))')"
+
+check_case "Metric names exclude *" \
+    '{"metricNames":{"exclude":["*"]}}' "$NAME_BLOCKS
+assert_metric_names('(true)')"
+
+check_case "Metric names several entries, include and exclude" \
+    '{"metricNames":{"include":["container_*","kube_*","up"],"exclude":["kube_replicaset_*","kube_pod_status_phase"]}}' "$NAME_BLOCKS
+assert_metric_names(
+    'not (IsMatch(name, \"^container_\") or IsMatch(name, \"^kube_\") or name == \"up\")',
+    '(IsMatch(name, \"^kube_replicaset_\") or name == \"kube_pod_status_phase\")')"
+
+check_case "Metric names — a duplicate exclude entry renders once" \
+    '{"metricNames":{"exclude":["a","a"]}}' "$NAME_BLOCKS
+assert_metric_names('(name == \"a\")')"
+
+check_case "Metric names — a duplicate include entry renders once" \
+    '{"metricNames":{"include":["a","b_*","a","b_*"],"exclude":["c","c"]}}' "$NAME_BLOCKS
+assert_metric_names('not (name == \"a\" or IsMatch(name, \"^b_\"))', '(name == \"c\")')"
+
+check_case "Metric names include * with exclude exact and prefix" \
+    '{"metricNames":{"include":["*"],"exclude":["kube_replicaset_*","up"]}}' "$NAME_BLOCKS
+assert_metric_names('(IsMatch(name, \"^kube_replicaset_\") or name == \"up\")')"
+
+check_case "Metric names prefix with dots is escaped" \
+    '{"metricNames":{"exclude":["k8s.pod.*"]}}' "$NAME_BLOCKS
+assert_metric_names('(IsMatch(name, \"^k8s\\\\\\\\.pod\\\\\\\\.\"))')"
+
+check_case "Metric names exact entry with dots and a colon is not escaped" \
+    '{"metricNames":{"include":["k8s.pod.cpu:total"]}}' "$NAME_BLOCKS
+assert_metric_names('not (name == \"k8s.pod.cpu:total\")')"
+
+# $extra is unquoted on purpose: it holds zero or two helm arguments.
+for extra in "" "--set otelContainerInsights.logs.enabled=false" "--set kubeStateMetrics.enabled=false"; do
+    check_case "Metric names — last before batch in every metrics pipeline${extra:+ ($extra)}" \
+        '{"metricNames":{"exclude":["x"]}}' "$NAME_BLOCKS
+for agent in ('$NODE', '$SCRAPER'):
+    metrics = sorted(p for p in cfg[agent]['service']['pipelines'] if p.startswith('metrics/'))
+    assert metrics, agent
+    assert pipelines_with(agent, '$METRIC_NAMES') == metrics, agent
+    for name in metrics:
+        procs = pipeline(agent, name)
+        assert procs.index('$METRIC_NAMES') == len(procs) - 2, (name, procs)
+        assert procs[-1].startswith('batch/'), (name, procs)
+        assert procs[-3] == 'awsattributelimit/cw_k8s_ci_v0', (name, procs)
+    for name in cfg[agent]['service']['pipelines']:
+        if name.startswith('logs/'):
+            assert '$METRIC_NAMES' not in pipeline(agent, name), name" $extra
+done
+
+check_case "Metric names with DCGM, Neuron and EFA enabled — in their pipelines too" \
+    '{"metricNames":{"exclude":["x"]}}' "$NAME_BLOCKS
+for name in ('metrics/cw_k8s_ci_v0_dcgm', 'metrics/cw_k8s_ci_v0_neuron', 'metrics/cw_k8s_ci_v0_efa'):
+    procs = pipeline('$NODE', name)
+    assert procs[-2:] == ['$METRIC_NAMES', 'batch/cw_k8s_ci_v0_metrics_dest'], (name, procs)" \
+    --set dcgmExporter.enabled=true --set neuronMonitor.enabled=true
+
+check_case "Metric names with the vLLM, KServe and Knative solutions enabled — in their pipelines too" \
+    '{"metricNames":{"exclude":["x"]}}' "$NAME_BLOCKS
+for agent, name, batch in (('$NODE', 'metrics/cw_k8s_ci_v0_vllm', 'batch/cw_k8s_ci_v0_metrics_dest'),
+                           ('$NODE', 'metrics/cw_k8s_ci_v0_knative_dataplane', 'batch/cw_k8s_ci_v0_metrics_dest'),
+                           ('$SCRAPER', 'metrics/cw_k8s_ci_v0_kserve_controlplane', 'batch/cw_k8s_ci_v0_cwotel'),
+                           ('$SCRAPER', 'metrics/cw_k8s_ci_v0_knative_controlplane', 'batch/cw_k8s_ci_v0_cwotel')):
+    procs = pipeline(agent, name)
+    assert procs[-2:] == ['$METRIC_NAMES', batch], (name, procs)" \
+    --set otelContainerInsights.solutions.vllm.enabled=true \
+    --set otelContainerInsights.solutions.kserve.controlPlane.enabled=true \
+    --set otelContainerInsights.solutions.knative.dataPlane.enabled=true \
+    --set otelContainerInsights.solutions.knative.controlPlane.enabled=true
+
+check_renders "Hash — a changed metric name list gives a new hash on both agents" "
+default = render()
+one = render('--set-json', 'otelFilters={\"metricNames\":{\"exclude\":[\"up\"]}}')
+two = render('--set-json', 'otelFilters={\"metricNames\":{\"exclude\":[\"up\",\"kube_replicaset_*\"]}}')
+for name in ('$NODE', '$SCRAPER'):
+    hashes = {default[name]['hash'], one[name]['hash'], two[name]['hash']}
+    assert len(hashes) == 3, (name, hashes)
+    for r in (default, one, two):
+        assert r[name]['hash'] == sha256(r[name]['otelConfig']), name"
+
+# ── All filters together ────────────────────────────────────────────────
+
+ALL_FILTERS='{"namespaces":{"include":["prod-*"],"exclude":["prod-secret"]},"metricNames":{"include":["container_*","kube_*"],"exclude":["kube_replicaset_*"]},"podLabels":{"include":["app*"],"exclude":["app-secret"]},"nodeLabels":{"include":["*"],"exclude":["team-x"]}}'
+
+check_case "All filters together — each processor renders as it does alone" \
+    "$ALL_FILTERS" "$NS_BLOCKS
+$LABEL_BLOCKS
+$NAME_BLOCKS
+ns_filters(NS + ' != nil and not (IsMatch(' + NS + ', \"^prod-\"))',
+           NS + ' != nil and (' + NS + ' == \"prod-secret\")')
+assert_labels('node', all_labels('node'))
+assert_labels('pod', [{'tag_name': 'k8s.pod.label.\$\$\$1', 'key_regex': '(app.*)', 'from': 'pod'}] + chart_rules('pod'))
+assert_removals(RECOMMENDED_PREFIXES,
+    merged(RECOMMENDED_NODE_KEYS, ['k8s.node.label.team-x'], RECOMMENDED_POD_KEYS, ['k8s.pod.label.app-secret'], CHART_POD_KEYS))
+assert_metric_names(
+    'not (IsMatch(name, \"^container_\") or IsMatch(name, \"^kube_\"))',
+    '(IsMatch(name, \"^kube_replicaset_\"))')"
+
+check_case "All filters together — order in the metrics and application logs pipelines" \
+    "$ALL_FILTERS" "
+def order(agent, name, expected):
+    procs = pipeline(agent, name)
+    got = [p for p in procs if p in expected or p.startswith('k8sattributes/') or p.startswith('batch/')]
+    got = [p if not p.startswith('k8sattributes/') else 'k8sattributes' for p in got]
+    got = [g for i, g in enumerate(got) if g != 'k8sattributes' or got[i - 1] != 'k8sattributes']
+    got = [p if not p.startswith('batch/') else 'batch' for p in got]
+    assert got == expected, (agent, name, procs)
+
+metrics = ['$METRICS_NS', 'k8sattributes', 'awsattributelimit/cw_k8s_ci_v0', '$METRIC_NAMES', 'batch']
+order('$SCRAPER', 'metrics/cw_k8s_ci_v0_kube_state_metrics', metrics)
+order('$NODE', 'metrics/cw_k8s_ci_v0_cadvisor', metrics)
+order('$NODE', 'metrics/cw_k8s_ci_v0_kubeletstats', metrics)
+order('$NODE', 'logs/cw_k8s_ci_v0_app', ['$LOGS_NS', 'k8sattributes', '$LOGS_LABELS', 'batch'])"
+
+# The metric name filter and the label exception processor together: every
+# metrics pipeline of both agents ends with the label transform,
+# awsattributelimit, the metric name filter and a batch processor, each once.
+check_case "Metric names with the label exception processor — the tail of every metrics pipeline" \
+    '{"metricNames":{"exclude":["x"]},"nodeLabels":{"include":["*","karpenter.k8s.aws/instance-gpu-name"]}}' "
+tail = ['$METRICS_LABELS', 'awsattributelimit/cw_k8s_ci_v0', '$METRIC_NAMES']
+seen = 0
+for agent in ('$NODE', '$SCRAPER'):
+    for name, p in cfg[agent]['service']['pipelines'].items():
+        if not name.startswith('metrics/'):
+            continue
+        procs = p['processors']
+        assert procs[-4:-1] == tail and procs[-1].startswith('batch/'), (agent, name, procs)
+        assert all(procs.count(x) == 1 for x in tail), (agent, name, procs)
+        seen += 1
+assert seen >= 16, seen" --set dcgmExporter.enabled=true --set neuronMonitor.enabled=true \
+    --set otelContainerInsights.solutions.vllm.enabled=true \
+    --set otelContainerInsights.solutions.kserve.controlPlane.enabled=true \
+    --set otelContainerInsights.solutions.knative.dataPlane.enabled=true \
+    --set otelContainerInsights.solutions.knative.controlPlane.enabled=true \
+    --set otelContainerInsights.solutions.karpenter.enabled=true \
+    --set otelContainerInsights.solutions.keda.enabled=true
+
+message="otelFilters.metricNames entries must be"
+for list in include exclude; do
+    for entry in '"kube pod"' '"kube_*_total"' '"a-b"' '"a\"b"' '"a/b"' '""' '123' 'null'; do
+        check_fails "Invalid metricNames.$list entry $entry" \
+            "{\"metricNames\":{\"$list\":[$entry]}}" "$message"
+    done
+    check_fails "Invalid metricNames.$list — a string, not a list" \
+        "{\"metricNames\":{\"$list\":\"up\"}}" "otelFilters.metricNames.$list must be a list"
+done
+check_fails "Invalid metricNames — exact entry in include and exclude" \
+    '{"metricNames":{"include":["a","b"],"exclude":["b"]}}' 'otelFilters.metricNames: "b" is in both include and exclude'
+check_fails "Invalid metricNames — * in include and exclude" \
+    '{"metricNames":{"include":["*"],"exclude":["*"]}}' 'otelFilters.metricNames: "*" is in both include and exclude'
+check_fails "Invalid metricNames — unknown key" \
+    '{"metricNames":{"excludes":["up"]}}' 'otelFilters.metricNames has an unknown key "excludes"'
+check_fails "Invalid metricNames — not a map" \
+    '{"metricNames":["up"]}' "otelFilters.metricNames must be a map"
+check_fails "Invalid metricNames — a signal key" \
+    '{"metricNames":{"metrics":{"exclude":["up"]}}}' 'otelFilters.metricNames has an unknown key "metrics"'
+check_fails "Invalid metricNames — recommendedExclusions is for labels only" \
+    '{"metricNames":{"recommendedExclusions":true}}' 'otelFilters.metricNames has an unknown key "recommendedExclusions"'
+check_fails "otelContainerInsights.filters with metric names — fails with a pointer to otelFilters" \
+    '{}' "$OLD_KEY" --set-json 'otelContainerInsights.filters={"metrics":{"metricNames":{"exclude":["up"]}}}'
 
 # ──────────────────────────────────────────────────────────────────────────
 # Summary.
