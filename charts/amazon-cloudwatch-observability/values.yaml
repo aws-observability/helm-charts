@@ -806,7 +806,16 @@ agent:
     config:
     targetAllocator:
       enabled: false
+      # For agents that enable the Target Allocator directly (not via
+      # otelContainerInsights, which sources it from prometheusScrape.allocationStrategy).
+      # consistent-hashing = hash targets across all agents; per-node = assign to the
+      # agent on the same node.
+      allocationStrategy: consistent-hashing
       image:
+        ## When the otelContainerInsights scraping path is enabled
+        ## (otelContainerInsights.prometheusScrape.enabled), this Target Allocator image
+        ## MUST support prometheusCR discovery + per-node + the scraper_role config key,
+        ## pinned together with a matching operator image; an older image CrashLoopBackOffs.
         repository: cloudwatch-agent-target-allocator
         tag: 1.0.0
         repositoryDomainMap:
@@ -1202,6 +1211,45 @@ otelContainerInsights:
   ## Only takes effect when otelContainerInsights.enabled is true.
   logs:
     enabled: true
+  ## ServiceMonitor/PodMonitor scraping (monitoring.coreos.com/v1) via the Target
+  ## Allocator's prometheusCR discovery. When otelContainerInsights.enabled is true,
+  ## enabling this gives SM/PM scraping end-to-end (Target Allocator + prometheusCR +
+  ## RBAC + the CRDs, which the operator creates if missing). Only takes effect when
+  ## otelContainerInsights.enabled is true.
+  ##
+  ## ServiceMonitor/PodMonitor CRDs: this chart does not install them. When scraping is
+  ## enabled, the operator runs with --manage-prometheus-crds and creates both CRDs
+  ## (prometheus-operator v0.92.0 schema) only if they do not exist. A copy installed by
+  ## prometheus-operator, kube-prometheus-stack, Argo CD or kubectl is left unchanged.
+  ## The operator never deletes the CRDs and does not set an owner reference, so
+  ## uninstalling this chart or the EKS add-on leaves the CRDs, and every
+  ## ServiceMonitor/PodMonitor, in place. To remove them after uninstalling:
+  ##   kubectl delete crd servicemonitors.monitoring.coreos.com podmonitors.monitoring.coreos.com
+  ## (this also deletes every ServiceMonitor and PodMonitor in the cluster).
+  ##
+  ## IMAGE PREREQUISITE: this path drives the Target Allocator with prometheusCR
+  ## discovery, the per-node allocation strategy, and a scraper_role config key, and
+  ## passes --manage-prometheus-crds to the operator. The pinned Target Allocator image
+  ## (agent.prometheus.targetAllocator.image, default cloudwatch-agent-target-allocator:1.0.0)
+  ## AND the operator image must both be builds that support these -- an older image
+  ## CrashLoopBackOffs on boot rather than degrading. prometheusScrape.enabled defaults
+  ## false until operator and Target Allocator images with this support are released.
+  ## Enable it only together with a compatible operator and Target Allocator image pinned
+  ## in the same release.
+  prometheusScrape:
+    ## Master switch. false = run OTEL CI (metrics/logs) with no SM/PM scraping
+    ## (no prometheusCR discovery, no CRD creation by the operator, no CRD RBAC).
+    enabled: false
+    ## How the Target Allocator distributes targets across agents.
+    ##   per-node           - assign each target to the agent on its node (avoids
+    ##                        cross-AZ scrape traffic); node-less targets fall back to hashing.
+    ##   consistent-hashing - spread targets across all agents by hash.
+    allocationStrategy: per-node
+    ## Advanced: set one to false to discover only the other monitor type.
+    serviceMonitor:
+      enabled: true
+    podMonitor:
+      enabled: true
   ## The agent in the agents array that receives node-level OTEL Container Insights config.
   targetAgent: "cloudwatch-agent"
   ## The agent in the agents array that receives cluster-level OTEL Container Insights config (apiserver, kube-state-metrics scraping).
