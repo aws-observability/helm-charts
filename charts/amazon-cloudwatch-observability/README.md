@@ -68,6 +68,78 @@ runs `k8sattributes` pod association, so `k8s.workload.name` resolves to the own
 Deployment rather than to the ReplicaSet — whose pod-template hash likewise changes on
 every redeploy.
 
+## Ray metrics
+
+Set under `otelContainerInsights.solutions.ray`, on by default. The agent on each node
+scrapes the Ray pods on that node; the cluster-scraper is not involved. One job covers Ray
+core (`ray_node_*`, `ray_tasks`, `ray_actors`, `ray_object_store_*`, …), Ray Serve
+(`ray_serve_*`) and the engine metrics of `ray.serve.llm`, for vLLM (`ray_vllm_*`) and SGLang
+(`ray_sglang_*`): each Ray node serves all of them on one port.
+
+### Which Ray pods are scraped
+
+Every pod that KubeRay labels `ray.io/is-ray-node=yes` (head and workers of a `RayCluster`,
+`RayService` or `RayJob`), on the container port named `metrics`. KubeRay declares
+`metrics:8080` on the Ray container when the pod template declares no port of that name.
+Nothing has to be configured, and the chart reads no scrape labels or annotations of its own
+from customer pods. Pods are scraped, not Services: a `RayService` puts the head pod behind
+two Services, so a Service scrape would count it twice.
+
+The vLLM job skips these pods (`ray.io/is-ray-node=yes` only; a pod with another value stays
+with the vLLM job). Engine metrics of `ray.serve.llm` arrive as `ray_vllm_*` through this job
+while its `log_engine_metrics` setting is on (the default); `ray.serve.llm` runs vLLM as a
+library and serves no `vllm:*` endpoint. Other ways of running vLLM in a Ray pod, such as
+`vllm serve --distributed-executor-backend ray`, serve `vllm:*` on their own port, which
+neither job scrapes; add a scrape for that port.
+
+If another collector already scrapes Ray (for example through `prometheus.io/scrape`
+annotations or a PodMonitor), the same series are ingested twice; disable one of them.
+
+### The Ray metric service name
+
+`service.name` follows the OpenTelemetry Kubernetes order: the pod annotation
+`resource.opentelemetry.io/service.name` when it is set and not empty, else the workload name,
+else the pod name. KubeRay pods are owned by a `RayCluster`, which is not a workload kind, so
+without the annotation it is the pod name. To give a Ray cluster a stable name, set the
+annotation in the head and worker pod templates (`metadata.annotations`). The KubeRay pod
+labels stay on every series as resource attributes, for grouping:
+
+| Attribute | Value |
+|---|---|
+| `k8s.pod.label.ray.io/cluster` | RayCluster name. For a RayService or RayJob it is the custom resource name plus a generated suffix (`<name>-<suffix>`) |
+| `k8s.pod.label.ray.io/node-type` | `head` or `worker` |
+| `k8s.pod.label.ray.io/group` | worker group name, `headgroup` on the head |
+| `k8s.pod.label.ray.io/serve` | `true` on pods that serve Ray Serve traffic |
+
+KubeRay sets `ray.io/originated-from-cr-name` and `ray.io/originated-from-crd` on the
+`RayCluster` object only, not on its pods, so they do not reach the series.
+
+`app.kubernetes.io/instance` and `app.kubernetes.io/name` are not used: they are opt-in in the
+OpenTelemetry order, and KubeRay sets `app.kubernetes.io/name` to `kuberay` on every Ray pod.
+
+### Reading Ray metrics
+
+- `ray_tasks` and `ray_actors` are reported per process, and partial values can be
+  negative. Read them with `sum()`.
+- Engine metrics keep the engine's own names with a `ray_` prefix and `:` replaced by `_`:
+  vLLM's `vllm:num_requests_running` is `ray_vllm_num_requests_running`, and SGLang's
+  `sglang:num_running_reqs` is `ray_sglang_num_running_reqs`. A dashboard that covers both a
+  standalone engine and the same engine in Ray Serve queries both names. Under Ray Serve, the
+  engine's HTTP server metrics (for example SGLang's `http_requests_total`) do not exist: Ray Serve
+  serves the requests, and reports them in `ray_serve_*`.
+- Series carry Ray's `SessionName`, `NodeAddress`, `Component` and `Version` labels. Ray Serve,
+  `ray_vllm_*` and `ray_sglang_*` series also carry `WorkerId` (and `ReplicaId`), and
+  `ray_sglang_*` series carry `application`, `deployment` and `replica`. These change when a
+  replica restarts, so each restart starts a new set of series. For SGLang, `replica` and the
+  other two labels can be replaced through the engine setting `extra_metric_labels`. `RAY_metric_cardinality_level=low` drops task and actor names from core metrics, and
+  `RAY_SERVE_CONTROLLER_METRICS_INCLUDE_HIGH_CARDINALITY_TAGS=0` drops replica-level labels
+  from Serve controller metrics.
+- GPU metrics can show the wrong pod for Ray. Ray's `-gpu` images see every GPU on the node, so
+  a Ray pod that requests no GPU (usually the head) can still run GPU work. The GPU metrics then
+  show that load on the pod the GPU was assigned to, or on no pod. To avoid it, set
+  `num-gpus: "0"` in the head's `rayStartParams` and `NVIDIA_VISIBLE_DEVICES=void` on Ray pods
+  that request no GPU.
+
 ## KServe control-plane metrics
 
 Set under `otelContainerInsights.solutions.kserve.controlPlane`, on by default. The
