@@ -1277,3 +1277,22 @@ otelFilters:
   namespaces:
     include: []
     exclude: []
+  ## Pod labels to collect (include) and remove (exclude). An entry is a label
+  ## key, a prefix ending in "*", or "*". recommendedExclusions also removes a
+  ## built-in list of high-cardinality labels. For each label, the first rule
+  ## that matches decides:
+  ##   1. exclude: removed
+  ##   2. a named include entry (a key or a prefix, not "*"): kept
+  ##   3. the built-in list, when recommendedExclusions is true: removed
+  ##   4. include "*" or an empty include list: kept
+  ## Any other label is not collected. To keep one label from the built-in
+  ## list, name it in include, for example include: ["*", "pod-template-hash"].
+  podLabels:
+    include: []
+    exclude: []
+    recommendedExclusions: true
+  ## Node labels. The podLabels rules apply.
+  nodeLabels:
+    include: []
+    exclude: []
+    recommendedExclusions: true

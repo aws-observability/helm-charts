@@ -183,6 +183,49 @@ otelFilters:
     exclude: ["kube-system", "test-*"]
 ```
 
+### Pod and node labels
+
+`otelFilters.podLabels` and `otelFilters.nodeLabels` decide which pod and node labels arrive
+as `k8s.pod.label.*` and `k8s.node.label.*` attributes. The label rules apply wherever the
+chart attaches pod or node labels. Today that is OTEL Container Insights metrics and logs.
+Metrics and logs share each list.
+
+An entry is a label key, a key prefix followed by `*` (for example `app.kubernetes.io/*`), or
+`*` alone. A label key is an optional DNS subdomain prefix of at most 253 characters and `/`,
+then a name of at most 63 characters. A label can be in both lists, for example include
+`app*` and exclude `app-secret`.
+
+| Key | Effect |
+|-|-|
+| `include` | The labels that the chart collects. An empty list, or one that contains `*`, collects every label. |
+| `exclude` | The labels that the chart removes after it collects them. Exclude wins over include. `exclude: ["*"]` removes every label of that kind. |
+| `recommendedExclusions` | Also removes a built-in list of high-cardinality labels. Examples are the topology, hostname and instance type labels, the Karpenter and EKS Auto Mode instance labels, and controller revision markers. The default is `true`. An unset value also counts as `true`. |
+
+For each label, exclude wins over a named include entry, and a named include entry wins over
+the built-in list. A named entry is a label key or a prefix followed by `*`, but not `*` alone.
+So with `*` or an empty include list, the whole built-in list stays in effect, and every label
+on it is removed. To keep one label from the built-in list, name it in include. To keep every other label too, also add `*`:
+
+```yaml
+otelFilters:
+  nodeLabels:
+    include: ["*", "karpenter.k8s.aws/instance-gpu-name"]
+```
+
+The chart's own processors read five labels: the pod labels `topology.kubernetes.io/region`,
+`topology.kubernetes.io/zone`, `serving.kserve.io/inferenceservice` and `component`, and the
+node label `topology.kubernetes.io/zone`. The chart always collects them. If the include list
+leaves one out, or the exclude list names it, the chart removes it after use.
+
+```yaml
+otelFilters:
+  podLabels:
+    include: ["app*", "team"]
+    exclude: ["app-secret"]
+  nodeLabels:
+    exclude: ["*"]
+```
+
 ### A filter change restarts the agent
 
 The agent reads its configuration only at startup. So the chart adds the annotation
