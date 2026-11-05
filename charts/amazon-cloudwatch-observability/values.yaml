@@ -27,7 +27,7 @@ global:
       autoInstrumentationJava:
         registry: public.ecr.aws/aws-observability
         image: adot-autoinstrumentation-java
-        tag: v2.31.0
+        tag: v2.32.0
       autoInstrumentationPython:
         registry: public.ecr.aws/aws-observability
         image: adot-autoinstrumentation-python
