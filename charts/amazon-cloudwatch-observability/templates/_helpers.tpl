@@ -335,6 +335,9 @@ Logic:
 {{- if not (kindIs "bool" .Values.otelContainerInsights.logs.enabled) }}
 {{- fail "otelContainerInsights.logs.enabled must be a boolean (true/false)" }}
 {{- end }}
+{{- if not (kindIs "bool" .Values.otelContainerInsights.enableDRACorrelation) }}
+{{- fail "otelContainerInsights.enableDRACorrelation must be a boolean (true/false)" }}
+{{- end }}
 {{- end -}}
 
 {{- define "cloudwatch-agent.build-default-otel-config" -}}

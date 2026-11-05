@@ -993,6 +993,28 @@ processors:
         device_id_attribute: aws.efa.device
         resource_names:
           - vpc.amazonaws.com/efa
+    {{- if .Values.otelContainerInsights.enableDRACorrelation }}
+    dra_device_types:
+      - name: efa-dra
+        device_id_attribute: aws.efa.device
+        driver_names:
+          - dra.net
+        dra_device_id_attribute: dra.net/rdmaDevice
+      - name: neuron-dra
+        device_id_attribute: neurondevice
+        driver_names:
+          - neuron.aws.com
+        dra_device_id_attribute: deviceId
+    node_name: ${env:K8S_NODE_NAME}
+    {{- end }}
+
+  {{- if .Values.otelContainerInsights.enableDRACorrelation }}
+  groupbyattrs/cw_k8s_ci_v0_efa:
+    keys:
+      - k8s.pod.name
+      - k8s.namespace.name
+      - k8s.container.name
+  {{- end }}
 
   transform/cw_k8s_ci_v0_efa_promote:
     error_mode: ignore
@@ -1289,6 +1311,9 @@ service:
         - transform/cw_k8s_ci_v0_set_scope_efa
         - transform/cw_k8s_ci_v0_set_cluster_name
         - awsdevicepodcorrelation/cw_k8s_ci_v0
+        {{- if .Values.otelContainerInsights.enableDRACorrelation }}
+        - groupbyattrs/cw_k8s_ci_v0_efa
+        {{- end }}
         - transform/cw_k8s_ci_v0_efa_promote
         - transform/cw_k8s_ci_v0_set_node_name
         - transform/cw_k8s_ci_v0_promote_node_name
