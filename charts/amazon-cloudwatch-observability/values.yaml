@@ -1197,7 +1197,7 @@ otelContainerInsights:
   ## ResourceClaim access — set it false on clusters older than 1.34 or not using DRA.
   ## GPU DRA correlation is separate and controlled by dcgmExporter.enableDRACorrelation.
   ## Only takes effect when otelContainerInsights.enabled is true.
-  enableDRACorrelation: true
+  enableDRACorrelation: false
   ## OTEL-native CI log pipelines (application, host).
   ## Only takes effect when otelContainerInsights.enabled is true.
   logs:
