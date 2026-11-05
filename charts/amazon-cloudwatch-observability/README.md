@@ -151,6 +151,46 @@ spec:
 Port-level settings only take effect with a workload selector. The Knative control plane in
 `knative-serving` is not sidecar-injected by default.
 
+## OTEL filters
+
+The top-level `otelFilters` block holds the filters for the data that the chart's OTEL
+pipelines collect. Each filter applies only to the data that this section names. The chart
+turns the filters into OTEL processors in the agent configuration.
+
+### Namespaces
+
+`otelFilters.namespaces` applies to OTEL Container Insights metrics and logs. One `include`
+list and one `exclude` list cover both.
+
+The filter drops the pod and container metrics of a filtered namespace, from
+kube-state-metrics, cAdvisor, kubelet, vLLM and the Knative data plane. It does not apply to
+node-level metrics, or to the Karpenter, KEDA, KServe control plane and Knative control plane
+metrics. For logs, it applies to application logs and not to host logs.
+
+The filter never drops GPU, Neuron or EFA device metrics, because a device belongs to a pod
+only for a while. When the pod of a device is in a filtered namespace, the chart keeps the
+device metrics and removes the pod, namespace and container attributes. The device then has
+its node attributes only, like a device that no pod uses.
+
+An entry is an exact namespace name, a prefix followed by `*` (for example `prod-*`), or `*`
+alone. A namespace name is a lowercase DNS-1123 label of at most 63 characters. An empty
+include list, or one that contains `*`, includes every namespace. Exclude wins over include.
+An entry cannot be in both lists. Records without a Kubernetes namespace always pass.
+
+```yaml
+otelFilters:
+  namespaces:
+    exclude: ["kube-system", "test-*"]
+```
+
+### A filter change restarts the agent
+
+The agent reads its configuration only at startup. So the chart adds the annotation
+`cloudwatch-agent/otel-config-sha256` to the pods of each agent that has an OTEL
+configuration. The value is the SHA-256 of the agent's final `otelConfig`, after the merge
+with `agents[].otelConfig`. A change to a filter or to `agents[].otelConfig` changes the
+hash, and the operator then rolls the pods of that agent.
+
 ## DCGM metrics
 
 The NVIDIA DCGM exporter runs on every NVIDIA GPU node when `dcgmExporter.enabled` is true,

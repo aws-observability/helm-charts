@@ -777,6 +777,11 @@ processors:
           - from: resource_attribute
             name: k8s.node.name
 
+  {{- if include "otel-container-insights.metricsNamespaceFilterEnabled" . }}
+
+  {{- include "otel-container-insights.namespaceFilter" (dict "Values" .Values "signal" "metrics") | nindent 2 }}
+  {{- end }}
+
   # Only nodemetadataenricher sets host.id here, so an AZ without it is the scraper's: take the node's zone label
   # instead. This runs after set_cloud_resource_id, so GKE's resource ID still gets the detected zone.
   transform/cw_k8s_ci_v0_ksm_zone:
@@ -1040,6 +1045,9 @@ service:
         - transform/cw_k8s_ci_v0_ksm_clean_resource
         - groupbyattrs/cw_k8s_ci_v0_ksm
         - transform/cw_k8s_ci_v0_ksm_promote
+        {{- if include "otel-container-insights.metricsNamespaceFilterEnabled" . }}
+        - filter/cw_k8s_ci_v0_metrics_namespaces
+        {{- end }}
         - k8sattributes/cw_k8s_ci_v0_pod
         - k8sattributes/cw_k8s_ci_v0_node
         - transform/cw_k8s_ci_v0_set_workload
