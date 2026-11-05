@@ -102,10 +102,30 @@ spec:
         - SYS_ADMIN
   {{ end }}
   priorityClassName: {{ include "amazon-cloudwatch-observability.common.priorityClassName" (dict "component" $agent "context" $) | quote }}
-  {{- $agentAnnotations := include "amazon-cloudwatch-observability.common.podAnnotations" (dict "component" $agent "context" $) }}
+  {{- /* The final otelConfig: the generated configuration, merged with agents[].otelConfig when that is set. */}}
+  {{- $generatedOtelConfig := include "cloudwatch-agent.build-default-otel-config" (dict "agentName" $agentName "context" $) -}}
+  {{- $otelConfig := "" }}
+  {{- if $agent.otelConfig }}
+  {{- $otelConfig = include "cloudwatch-agent.modify-otel-config" (merge (dict "OtelConfig" (include "cloudwatch-agent.merge-otel-configs" (dict "Base" $generatedOtelConfig "User" $agent.otelConfig))) $) }}
+  {{- else if ne (trimAll " \n\t" $generatedOtelConfig) "{}" }}
+  {{- $otelConfig = include "cloudwatch-agent.modify-otel-config" (merge (dict "OtelConfig" $generatedOtelConfig) $) }}
+  {{- end }}
+  {{- /* The operator restarts the agent pods only when the pod template changes, and its own hash does not cover otelConfig. */}}
+  {{- /* Check the value that amazon-cloudwatch-observability.common.podAnnotations reads, not the fromYaml result: "Error" is a valid annotation name. */}}
+  {{- $podAnnotations := dig "podAnnotations" nil $agent }}
+  {{- if eq nil $podAnnotations }}
+  {{- $podAnnotations = $.Values.podAnnotations }}
+  {{- end }}
+  {{- if not (or (kindIs "invalid" $podAnnotations) (kindIs "map" $podAnnotations)) }}
+  {{- fail (printf "podAnnotations of agent %s must be a map of annotation names to values, got: %v" $agentName $podAnnotations) }}
+  {{- end }}
+  {{- $agentAnnotations := include "amazon-cloudwatch-observability.common.podAnnotations" (dict "component" $agent "context" $) | fromYaml }}
+  {{- if $otelConfig }}
+  {{- $_ := set $agentAnnotations "cloudwatch-agent/otel-config-sha256" ($otelConfig | sha256sum) }}
+  {{- end }}
   {{- with $agentAnnotations }}
   podAnnotations:
-    {{- . | nindent 4 }}
+    {{- toYaml . | nindent 4 }}
   {{- end }}
   {{- include "amazon-cloudwatch-observability.common.topologySpreadConstraints" (dict "component" $agent "context" $) | nindent 2 }}
   {{- $agentPdb := include "amazon-cloudwatch-observability.common.podDisruptionBudget" (dict "component" $agent "context" $) | fromYaml }}
@@ -128,11 +148,8 @@ spec:
   {{- else }}
   config: {{ include "cloudwatch-agent.modify-config" (merge (dict "Config" (include "cloudwatch-agent.build-default-config" (dict "agentName" $agentName "context" $) | fromJson)) $ ) }}
   {{- end }}
-  {{- $generatedOtelConfig := include "cloudwatch-agent.build-default-otel-config" (dict "agentName" $agentName "context" $) -}}
-  {{- if $agent.otelConfig }}
-  otelConfig: {{ include "cloudwatch-agent.modify-otel-config" (merge (dict "OtelConfig" (include "cloudwatch-agent.merge-otel-configs" (dict "Base" $generatedOtelConfig "User" $agent.otelConfig))) $) }}
-  {{- else if ne (trimAll " \n\t" $generatedOtelConfig) "{}" }}
-  otelConfig: {{ include "cloudwatch-agent.modify-otel-config" (merge (dict "OtelConfig" $generatedOtelConfig) $) }}
+  {{- if $otelConfig }}
+  otelConfig: {{ $otelConfig | quote }}
   {{- end }}
   {{- if $agent.prometheus.config }}
   prometheus:

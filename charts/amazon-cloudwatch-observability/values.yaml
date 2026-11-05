@@ -51,7 +51,7 @@ containerLogs:
   fluentBit:
     image:
       repository: aws-for-fluent-bit
-      tag: 3.4.16
+      tag: 3.5.4
       tagWindows: 2.31.12-windowsservercore
       repositoryDomainMap:
         public: public.ecr.aws/aws-observability
@@ -486,7 +486,7 @@ manager:
   name:
   image:
     repository: cloudwatch-agent-operator
-    tag: 3.7.0
+    tag: 3.8.0
     repositoryDomainMap:
       public: public.ecr.aws/cloudwatch-agent
       cn-north-1: 934860584483.dkr.ecr.cn-north-1.amazonaws.com.cn
@@ -497,11 +497,11 @@ manager:
     java:
       repositoryDomain: public.ecr.aws/aws-observability
       repository: adot-autoinstrumentation-java
-      tag: v2.30.0
+      tag: v2.32.0
     python:
       repositoryDomain: public.ecr.aws/aws-observability
       repository: adot-autoinstrumentation-python
-      tag: v0.19.0
+      tag: v0.21.0
     dotnet:
       repositoryDomain: public.ecr.aws/aws-observability
       repository: adot-autoinstrumentation-dotnet
@@ -509,7 +509,7 @@ manager:
     nodejs:
       repositoryDomain: public.ecr.aws/aws-observability
       repository: adot-autoinstrumentation-node
-      tag: v0.12.0
+      tag: v0.13.0
   applicationSignals:
     autoMonitor:
       # monitorAllServices: true; Defaults to true for regions where AppSignals is supported, false otherwise
@@ -744,7 +744,7 @@ agent:
   replicas: 1 # The total number non-terminated pods targeted by this AmazonCloudWatchAgent's deployment or statefulSet.
   image:
     repository: cloudwatch-agent
-    tag: 1.300073.0b1828
+    tag: 1.300074.0b1920
     repositoryDomainMap:
       public: public.ecr.aws/cloudwatch-agent
       cn-north-1: 934860584483.dkr.ecr.cn-north-1.amazonaws.com.cn
@@ -819,6 +819,7 @@ agent:
         enabled: false
 dcgmExporter:
   enabled: true
+  enableDRACorrelation: true
   name:
   image:
     repository: dcgm-exporter
@@ -1010,7 +1011,7 @@ neuronMonitor:
   name:
   image:
     repository: neuron-monitor
-    tag: 1.12.0
+    tag: 1.13.0
     repositoryDomainMap:
       public: public.ecr.aws/neuron
   resources:
@@ -1094,7 +1095,7 @@ kubeStateMetrics:
       us-gov-west-1: 013241004608.dkr.ecr.us-gov-west-1.amazonaws.com
     # Used in China/GovCloud regions where the public upstream image isn't available; the helper falls back to repositoryDomainMap[region]/restrictedRepository:restrictedTag
     restrictedRepository: eks/kube-state-metrics
-    restrictedTag: v2.20.0-eksbuild.6
+    restrictedTag: v2.20.0-eksbuild.9
   resources:
     limits:
       cpu: 200m
@@ -1129,7 +1130,7 @@ nodeExporter:
       us-gov-west-1: 013241004608.dkr.ecr.us-gov-west-1.amazonaws.com
     # Used in China/GovCloud regions where the public upstream image isn't available; the helper falls back to repositoryDomainMap[region]/restrictedRepository:restrictedTag
     restrictedRepository: eks/prometheus-node-exporter
-    restrictedTag: v1.12.1-eksbuild.7
+    restrictedTag: v1.12.1-eksbuild.10
   resources:
     limits:
       cpu: 200m
@@ -1189,6 +1190,14 @@ applicationSignals:
 ##
 otelContainerInsights:
   enabled: false
+  ## Correlate DRA-allocated devices to pods on the OTEL metrics path: EFA (dra.net)
+  ## and Neuron (neuron.aws.com), via the agent's awsdevicepodcorrelation processor.
+  ## Requires Kubernetes 1.34+ (the GA resource.k8s.io/v1 DRA API). When false, the
+  ## agent config omits dra_device_types and the agent attempts no ResourceSlice/
+  ## ResourceClaim access — set it false on clusters older than 1.34 or not using DRA.
+  ## GPU DRA correlation is separate and controlled by dcgmExporter.enableDRACorrelation.
+  ## Only takes effect when otelContainerInsights.enabled is true.
+  enableDRACorrelation: true
   ## OTEL-native CI log pipelines (application, host).
   ## Only takes effect when otelContainerInsights.enabled is true.
   logs:
@@ -1258,3 +1267,43 @@ otelContainerInsights:
         enabled: true
         ## Namespace where the Knative Serving components run.
         namespace: knative-serving
+
+## ══════════════════════════════════════════════════════════════════════════════
+## OTEL filters
+## ══════════════════════════════════════════════════════════════════════════════
+##
+## OTEL filters: include and exclude lists for the data that the chart's OTEL
+## pipelines collect. A change restarts the agent pods. See "OTEL filters" in
+## the chart README for details.
+otelFilters:
+  ## Namespaces to keep or drop. An entry is a name, a prefix ending in "*", or
+  ## "*". An empty include list keeps every namespace. Exclude wins over include.
+  ## GPU, Neuron and EFA metrics of a filtered pod stay, without the pod.
+  namespaces:
+    include: []
+    exclude: []
+  ## Metric names to keep or drop, with the same rules as namespaces. This
+  ## filter does not apply to logs. Entries are case-sensitive and match the
+  ## exported names, for example DCGM_FI_DEV_GPU_UTIL.
+  metricNames:
+    include: []
+    exclude: []
+  ## Pod labels to collect (include) and remove (exclude). An entry is a label
+  ## key, a prefix ending in "*", or "*". recommendedExclusions also removes a
+  ## built-in list of high-cardinality labels. For each label, the first rule
+  ## that matches decides:
+  ##   1. exclude: removed
+  ##   2. a named include entry (a key or a prefix, not "*"): kept
+  ##   3. the built-in list, when recommendedExclusions is true: removed
+  ##   4. include "*" or an empty include list: kept
+  ## Any other label is not collected. To keep one label from the built-in
+  ## list, name it in include, for example include: ["*", "pod-template-hash"].
+  podLabels:
+    include: []
+    exclude: []
+    recommendedExclusions: true
+  ## Node labels. The podLabels rules apply.
+  nodeLabels:
+    include: []
+    exclude: []
+    recommendedExclusions: true

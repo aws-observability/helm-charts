@@ -77,6 +77,10 @@ spec:
   env:
   - name: "DCGM_EXPORTER_KUBERNETES"
     value: "true"
+  {{- if .Values.dcgmExporter.enableDRACorrelation }}
+  - name: "KUBERNETES_ENABLE_DRA"
+    value: "true"
+  {{- end }}
   - name: "DCGM_EXPORTER_LISTEN"
     value: "{{ .Values.dcgmExporter.service.address }}"
   - name: NODE_NAME

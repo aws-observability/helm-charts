@@ -335,6 +335,10 @@ Logic:
 {{- if not (kindIs "bool" .Values.otelContainerInsights.logs.enabled) }}
 {{- fail "otelContainerInsights.logs.enabled must be a boolean (true/false)" }}
 {{- end }}
+{{- if not (kindIs "bool" .Values.otelContainerInsights.enableDRACorrelation) }}
+{{- fail "otelContainerInsights.enableDRACorrelation must be a boolean (true/false)" }}
+{{- end }}
+{{- include "otel-container-insights.validate-filters" . }}
 {{- end -}}
 
 {{- define "cloudwatch-agent.build-default-otel-config" -}}
@@ -400,7 +404,8 @@ Helper function to modify customer supplied agent config if ContainerInsights or
 {{- end }}
 
 {{/*
-Helper function to modify cloudwatch-agent YAML config
+Helper function to modify cloudwatch-agent YAML config. Returns the YAML text
+unquoted, so that the caller can hash the same text that it writes.
 */}}
 {{- define "cloudwatch-agent.modify-otel-config" -}}
 {{- $configCopy := deepCopy .OtelConfig }}
@@ -421,7 +426,7 @@ Helper function to modify cloudwatch-agent YAML config
 {{- end }}
 {{- end }}
 
-{{- $configCopy | toYaml | quote }}
+{{- $configCopy | toYaml }}
 {{- end }}
 
 {{/*

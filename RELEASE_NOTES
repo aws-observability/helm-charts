@@ -1,3 +1,26 @@
+========================================================================
+amazon-cloudwatch-observability v7.0.0 (2026-10-27)
+========================================================================
+Labels and metrics no longer available for OTel Container Insights: 
+* OTel Container Insights no longer emits duplicate cAdvisor series (the pod cgroup rollup and the pause/sandbox container_* series; container_network_* is kept) or the node-exporter scrape metrics node_scrape_collector_duration_seconds and node_scrape_collector_success
+* OTel Container Insights no longer emits Karpenter and EKS Auto Mode instance node labels (karpenter.k8s.aws/instance-* except instance-tenancy, eks.amazonaws.com/instance-*, karpenter.sh/do-not-sync-taints, karpenter.sh/initialized, karpenter.sh/registered) or the pod labels pod-template-generation, topology.kubernetes.io/region and topology.kubernetes.io/zone
+* OTel Container Insights no longer emits the deprecated net.host.name, net.host.port and http.scheme attributes (use server.address, server.port and url.scheme) or the resource-level copies of pod, namespace and node (still available on the datapoint and as k8s.* attributes)
+
+New Features:
+* Support vLLM model-server metrics in OTel Container Insights
+* Support KServe control-plane metrics in OTel Container Insights
+* Support Knative Serving metrics in OTel Container Insights
+* Widen the default DCGM field list from 10 to 51 fields
+
+Enhancements:
+* Upgrade CWAgent Operator to v3.8.0
+* Add g7e instance family to DCGM exporter node affinity
+
+Bug Fixes:
+* Fix double-counted pod_cpu_utilization in OTel Container Insights
+* Keep per-core Neuron metrics on nodes running multiple Neuron runtimes
+* Take each series' availability zone and region from its node and pod instead of the cluster scraper
+
 =======================================================================
 amazon-cloudwatch-observability v6.7.0 (2026-09-16)
 ========================================================================

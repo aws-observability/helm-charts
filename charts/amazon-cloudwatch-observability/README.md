@@ -223,6 +223,111 @@ spec:
 Port-level settings only take effect with a workload selector. The Knative control plane in
 `knative-serving` is not sidecar-injected by default.
 
+## OTEL filters
+
+The top-level `otelFilters` block holds the filters for the data that the chart's OTEL
+pipelines collect. Each filter applies only to the data that this section names. The chart
+turns the filters into OTEL processors in the agent configuration.
+
+### Namespaces
+
+`otelFilters.namespaces` applies to OTEL Container Insights metrics and logs. One `include`
+list and one `exclude` list cover both.
+
+The filter drops the pod and container metrics of a filtered namespace, from
+kube-state-metrics, cAdvisor, kubelet, vLLM and the Knative data plane. It does not apply to
+node-level metrics, or to the Karpenter, KEDA, KServe control plane and Knative control plane
+metrics. For logs, it applies to application logs and not to host logs.
+
+The filter never drops GPU, Neuron or EFA device metrics, because a device belongs to a pod
+only for a while. When the pod of a device is in a filtered namespace, the chart keeps the
+device metrics and removes the pod, namespace and container attributes. The device then has
+its node attributes only, like a device that no pod uses.
+
+An entry is an exact namespace name, a prefix followed by `*` (for example `prod-*`), or `*`
+alone. A namespace name is a lowercase DNS-1123 label of at most 63 characters. An empty
+include list, or one that contains `*`, includes every namespace. Exclude wins over include.
+An entry cannot be in both lists. Records without a Kubernetes namespace always pass.
+
+```yaml
+otelFilters:
+  namespaces:
+    exclude: ["kube-system", "test-*"]
+```
+
+### Metric names
+
+`otelFilters.metricNames` applies to OTEL Container Insights metrics. It does not apply to
+logs.
+
+An entry is an exact metric name, a prefix followed by `*` (for example `container_*`), or
+`*` alone. A name can contain letters, digits, `_`, `:` and `.`. An empty include list, or one
+that contains `*`, includes every metric. Exclude wins over include. An entry cannot be in
+both lists. A non-empty include list drops every other Container Insights metric, in every
+pipeline.
+
+The filter runs last before export in every Container Insights metrics pipeline. So the
+entries match the exported metric names. The match is case-sensitive: the entry
+`dcgm_fi_dev_gpu_util` does not match the metric `DCGM_FI_DEV_GPU_UTIL`.
+
+```yaml
+otelFilters:
+  metricNames:
+    include: ["container_*", "kube_*"]
+    exclude: ["kube_replicaset_*"]
+```
+
+### Pod and node labels
+
+`otelFilters.podLabels` and `otelFilters.nodeLabels` decide which pod and node labels arrive
+as `k8s.pod.label.*` and `k8s.node.label.*` attributes. The label rules apply wherever the
+chart attaches pod or node labels. Today that is OTEL Container Insights metrics and logs.
+Metrics and logs share each list.
+
+An entry is a label key, a key prefix followed by `*` (for example `app.kubernetes.io/*`), or
+`*` alone. A label key is an optional DNS subdomain prefix of at most 253 characters and `/`,
+then a name of at most 63 characters. A label can be in both lists, for example include
+`app*` and exclude `app-secret`.
+
+| Key | Effect |
+|-|-|
+| `include` | The labels that the chart collects. An empty list, or one that contains `*`, collects every label. |
+| `exclude` | The labels that the chart removes after it collects them. Exclude wins over include. `exclude: ["*"]` removes every label of that kind. |
+| `recommendedExclusions` | Also removes a built-in list of high-cardinality labels. Examples are the topology, hostname and instance type labels, the Karpenter and EKS Auto Mode instance labels, and controller revision markers. The default is `true`. An unset value also counts as `true`. |
+
+For each label, exclude wins over a named include entry, and a named include entry wins over
+the built-in list. A named entry is a label key or a prefix followed by `*`, but not `*` alone.
+So with `*` or an empty include list, the whole built-in list stays in effect, and every label
+on it is removed. To keep one label from the built-in list, name it in include. To keep every other label too, also add `*`:
+
+```yaml
+otelFilters:
+  nodeLabels:
+    include: ["*", "karpenter.k8s.aws/instance-gpu-name"]
+```
+
+The chart's own processors read five labels: the pod labels `topology.kubernetes.io/region`,
+`topology.kubernetes.io/zone`, `serving.kserve.io/inferenceservice` and `component`, and the
+node label `topology.kubernetes.io/zone`. The chart always collects them. If the include list
+leaves one out, or the exclude list names it, the chart removes it after use.
+
+```yaml
+otelFilters:
+  podLabels:
+    include: ["app*", "team"]
+    exclude: ["app-secret"]
+  nodeLabels:
+    exclude: ["*"]
+```
+
+### A filter change restarts the agent
+
+The agent reads its configuration only at startup. So the chart adds the annotation
+`cloudwatch-agent/otel-config-sha256` to the pods of each agent that has an OTEL
+configuration. The value is the SHA-256 of the agent's final `otelConfig`, after the merge
+with `agents[].otelConfig`. A change to a filter or to `agents[].otelConfig` changes the
+hash, and the operator then rolls the pods of that agent.
+
 ## DCGM metrics
 
 The NVIDIA DCGM exporter runs on every NVIDIA GPU node when `dcgmExporter.enabled` is true,
