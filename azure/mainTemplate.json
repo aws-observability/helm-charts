@@ -1,0 +1,296 @@
+{
+    "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+    "contentVersion": "1.0.0.0",
+    "parameters": {
+        "extensionResourceName": {
+            "type": "string",
+            "metadata": {
+                "description": "The name of the extension."
+            }
+        },
+        "clusterResourceName": {
+            "type": "String",
+            "metadata": {
+                "description": "The name of the existing AKS cluster to install the extension on."
+            }
+        },
+        "clusterName": {
+            "type": "String",
+            "metadata": {
+                "description": "The clusterName value passed to the Amazon CloudWatch Observability Helm chart (values.yaml: clusterName)."
+            }
+        },
+        "region": {
+            "type": "String",
+            "metadata": {
+                "description": "The AWS region CloudWatch metrics and logs should be sent to (values.yaml: region)."
+            }
+        },
+        "roleArn": {
+            "type": "securestring",
+            "metadata": {
+                "description": "IAM role ARN for AKS workload-identity federation, used by the CloudWatch agent to authenticate to AWS (values.yaml: roleArn)."
+            }
+        },
+        "useDualstackEndpoint": {
+            "type": "bool",
+            "defaultValue": false,
+            "metadata": {
+                "description": "values.yaml: useDualstackEndpoint"
+            }
+        },
+        "containerLogs": {
+            "type": "bool",
+            "defaultValue": true,
+            "metadata": {
+                "description": "values.yaml: containerLogs.enabled"
+            }
+        },
+        "applicationSignals": {
+            "type": "bool",
+            "defaultValue": true,
+            "metadata": {
+                "description": "values.yaml: applicationSignals.enabled"
+            }
+        },
+        "otelContainerInsights": {
+            "type": "bool",
+            "defaultValue": true,
+            "metadata": {
+                "description": "values.yaml: otelContainerInsights.enabled"
+            }
+        },
+        "otelLogs": {
+            "type": "bool",
+            "defaultValue": true,
+            "metadata": {
+                "description": "values.yaml: otelContainerInsights.logs.enabled"
+            }
+        },
+        "containerInsights": {
+            "type": "bool",
+            "defaultValue": false,
+            "metadata": {
+                "description": "values.yaml: containerInsights.enabled"
+            }
+        },
+        "kubeStateMetrics": {
+            "type": "bool",
+            "defaultValue": true,
+            "metadata": {
+                "description": "values.yaml: kubeStateMetrics.enabled"
+            }
+        },
+        "nodeExporter": {
+            "type": "bool",
+            "defaultValue": true,
+            "metadata": {
+                "description": "values.yaml: nodeExporter.enabled"
+            }
+        },
+        "dcgmExporter": {
+            "type": "bool",
+            "defaultValue": true,
+            "metadata": {
+                "description": "values.yaml: dcgmExporter.enabled"
+            }
+        },
+        "neuronMonitor": {
+            "type": "bool",
+            "defaultValue": false,
+            "metadata": {
+                "description": "values.yaml: neuronMonitor.enabled"
+            }
+        },
+        "restartPods": {
+            "type": "bool",
+            "defaultValue": false,
+            "metadata": {
+                "description": "values.yaml: manager.applicationSignals.autoMonitor.restartPods"
+            }
+        },
+        "javaRuntimeMetrics": {
+            "type": "bool",
+            "defaultValue": true,
+            "metadata": {
+                "description": "values.yaml: manager.autoInstrumentationConfiguration.java.runtime_metrics.enabled"
+            }
+        },
+        "pythonRuntimeMetrics": {
+            "type": "bool",
+            "defaultValue": true,
+            "metadata": {
+                "description": "values.yaml: manager.autoInstrumentationConfiguration.python.runtime_metrics.enabled"
+            }
+        },
+        "dotnetRuntimeMetrics": {
+            "type": "bool",
+            "defaultValue": true,
+            "metadata": {
+                "description": "values.yaml: manager.autoInstrumentationConfiguration.dotnet.runtime_metrics.enabled"
+            }
+        },
+        "solutionsEnabled": {
+            "type": "bool",
+            "defaultValue": true,
+            "metadata": {
+                "description": "values.yaml: otelContainerInsights.solutions.enabled"
+            }
+        },
+        "keda": {
+            "type": "bool",
+            "defaultValue": true,
+            "metadata": {
+                "description": "values.yaml: otelContainerInsights.solutions.keda.enabled"
+            }
+        },
+        "karpenter": {
+            "type": "bool",
+            "defaultValue": false,
+            "metadata": {
+                "description": "values.yaml: otelContainerInsights.solutions.karpenter.enabled"
+            }
+        },
+        "podDisruptionBudget": {
+            "type": "bool",
+            "defaultValue": false,
+            "metadata": {
+                "description": "values.yaml: podDisruptionBudget.enabled"
+            }
+        },
+        "metricResolution": {
+            "type": "string",
+            "defaultValue": "30s",
+            "metadata": {
+                "description": "values.yaml: otelContainerInsights.metricResolution"
+            },
+            "allowedValues": [
+                "15s",
+                "30s",
+                "60s"
+            ]
+        },
+        "kedaNamespace": {
+            "type": "string",
+            "defaultValue": "kube-system",
+            "metadata": {
+                "description": "values.yaml: otelContainerInsights.solutions.keda.namespace"
+            }
+        },
+        "karpenterNamespace": {
+            "type": "string",
+            "defaultValue": "kube-system",
+            "metadata": {
+                "description": "values.yaml: otelContainerInsights.solutions.karpenter.namespace"
+            }
+        },
+        "resourceProfile": {
+            "type": "string",
+            "defaultValue": "default",
+            "allowedValues": [
+                "small",
+                "default",
+                "large"
+            ],
+            "metadata": {
+                "description": "CPU/memory preset for agent and Fluent Bit (see variables.resourceProfiles)."
+            }
+        }
+    },
+    "variables": {
+        "plan-name": "DONOTMODIFY",
+        "plan-publisher": "DONOTMODIFY",
+        "plan-offerID": "DONOTMODIFY",
+        "releaseTrain": "DONOTMODIFY",
+        "clusterExtensionTypeName": "DONOTMODIFY",
+        "resourceProfiles": {
+            "small": {
+                "agentReqCpu": "100m",
+                "agentReqMem": "128Mi",
+                "agentLimCpu": "250m",
+                "agentLimMem": "256Mi",
+                "fbReqCpu": "25m",
+                "fbReqMem": "25Mi",
+                "fbLimCpu": "250m",
+                "fbLimMem": "128Mi"
+            },
+            "default": {
+                "agentReqCpu": "250m",
+                "agentReqMem": "128Mi",
+                "agentLimCpu": "500m",
+                "agentLimMem": "512Mi",
+                "fbReqCpu": "50m",
+                "fbReqMem": "25Mi",
+                "fbLimCpu": "500m",
+                "fbLimMem": "250Mi"
+            },
+            "large": {
+                "agentReqCpu": "500m",
+                "agentReqMem": "256Mi",
+                "agentLimCpu": "1000m",
+                "agentLimMem": "1Gi",
+                "fbReqCpu": "100m",
+                "fbReqMem": "50Mi",
+                "fbLimCpu": "1000m",
+                "fbLimMem": "500Mi"
+            }
+        },
+        "res": "[variables('resourceProfiles')[parameters('resourceProfile')]]"
+    },
+    "resources": [
+        {
+            "type": "Microsoft.KubernetesConfiguration/extensions",
+            "apiVersion": "2024-11-01",
+            "name": "[parameters('extensionResourceName')]",
+            "properties": {
+                "extensionType": "[variables('clusterExtensionTypeName')]",
+                "autoUpgradeMinorVersion": true,
+                "releaseTrain": "[variables('releaseTrain')]",
+                "configurationSettings": {
+                    "clusterName": "[parameters('clusterName')]",
+                    "region": "[parameters('region')]",
+                    "k8sMode": "AKS",
+                    "useDualstackEndpoint": "[if(parameters('useDualstackEndpoint'), 'true', 'false')]",
+                    "containerLogs.enabled": "[if(parameters('containerLogs'), 'true', 'false')]",
+                    "applicationSignals.enabled": "[if(parameters('applicationSignals'), 'true', 'false')]",
+                    "otelContainerInsights.enabled": "[if(parameters('otelContainerInsights'), 'true', 'false')]",
+                    "otelContainerInsights.logs.enabled": "[if(parameters('otelLogs'), 'true', 'false')]",
+                    "containerInsights.enabled": "[if(parameters('containerInsights'), 'true', 'false')]",
+                    "kubeStateMetrics.enabled": "[if(parameters('kubeStateMetrics'), 'true', 'false')]",
+                    "nodeExporter.enabled": "[if(parameters('nodeExporter'), 'true', 'false')]",
+                    "dcgmExporter.enabled": "[if(parameters('dcgmExporter'), 'true', 'false')]",
+                    "neuronMonitor.enabled": "[if(parameters('neuronMonitor'), 'true', 'false')]",
+                    "manager.applicationSignals.autoMonitor.restartPods": "[if(parameters('restartPods'), 'true', 'false')]",
+                    "manager.autoInstrumentationConfiguration.java.runtime_metrics.enabled": "[if(parameters('javaRuntimeMetrics'), 'true', 'false')]",
+                    "manager.autoInstrumentationConfiguration.python.runtime_metrics.enabled": "[if(parameters('pythonRuntimeMetrics'), 'true', 'false')]",
+                    "manager.autoInstrumentationConfiguration.dotnet.runtime_metrics.enabled": "[if(parameters('dotnetRuntimeMetrics'), 'true', 'false')]",
+                    "otelContainerInsights.solutions.enabled": "[if(parameters('solutionsEnabled'), 'true', 'false')]",
+                    "otelContainerInsights.solutions.keda.enabled": "[if(parameters('keda'), 'true', 'false')]",
+                    "otelContainerInsights.solutions.karpenter.enabled": "[if(parameters('karpenter'), 'true', 'false')]",
+                    "podDisruptionBudget.enabled": "[if(parameters('podDisruptionBudget'), 'true', 'false')]",
+                    "otelContainerInsights.metricResolution": "[parameters('metricResolution')]",
+                    "otelContainerInsights.solutions.keda.namespace": "[parameters('kedaNamespace')]",
+                    "otelContainerInsights.solutions.karpenter.namespace": "[parameters('karpenterNamespace')]",
+                    "agent.resources.requests.cpu": "[variables('res').agentReqCpu]",
+                    "agent.resources.requests.memory": "[variables('res').agentReqMem]",
+                    "agent.resources.limits.cpu": "[variables('res').agentLimCpu]",
+                    "agent.resources.limits.memory": "[variables('res').agentLimMem]",
+                    "containerLogs.fluentBit.resources.requests.cpu": "[variables('res').fbReqCpu]",
+                    "containerLogs.fluentBit.resources.requests.memory": "[variables('res').fbReqMem]",
+                    "containerLogs.fluentBit.resources.limits.cpu": "[variables('res').fbLimCpu]",
+                    "containerLogs.fluentBit.resources.limits.memory": "[variables('res').fbLimMem]"
+                },
+                "configurationProtectedSettings": {
+                    "roleArn": "[parameters('roleArn')]"
+                }
+            },
+            "plan": {
+                "name": "[variables('plan-name')]",
+                "publisher": "[variables('plan-publisher')]",
+                "product": "[variables('plan-offerID')]"
+            },
+            "scope": "[concat('Microsoft.ContainerService/managedClusters/', parameters('clusterResourceName'))]"
+        }
+    ],
+    "outputs": {}
+}

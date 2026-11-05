@@ -320,8 +320,11 @@ Logic:
   All flag combinations are valid. Notable behaviors:
     - otelCI.logs.enabled=true without otelCI.enabled=true is a no-op
       (logs config is only rendered when the parent OTEL CI pipeline is active)
-    - otelCI.enabled=true + containerLogs.enabled=true = dual-publish
-      (both OTEL and FluentBit log pipelines run simultaneously)
+    - otelCI.enabled=true + otelCI.logs.enabled=true + containerLogs.enabled=true
+      = no duplicates: log types collected by OTEL (application container logs,
+      host logs) are removed from the Linux FluentBit config; FluentBit keeps only
+      what OTEL does not collect (dataplane, fluent-bit/cloudwatch-agent container
+      logs). See "cloudwatch-agent.otel-logs-active".
 */ -}}
 {{- if not (kindIs "bool" .Values.containerInsights.enabled) }}
 {{- fail "containerInsights.enabled must be a boolean (true/false)" }}
@@ -335,6 +338,33 @@ Logic:
 {{- if not (kindIs "bool" .Values.otelContainerInsights.logs.enabled) }}
 {{- fail "otelContainerInsights.logs.enabled must be a boolean (true/false)" }}
 {{- end }}
+{{- end -}}
+
+{{/*
+First path segment of the CloudWatch Logs log groups, chosen by k8sMode:
+AKS -> "azure", GKE -> "gcp", anything else (EKS, ROSA, K8S, ...) -> "aws".
+Used for both the Fluent Bit (/<prefix>/containerinsights/...) and OTEL
+(/<prefix>/otel/containerinsights/...) log groups.
+*/}}
+{{- define "cloudwatch-agent.log-group-prefix" -}}
+{{- if eq (.Values.k8sMode | toString) "AKS" -}}
+azure
+{{- else if eq (.Values.k8sMode | toString) "GKE" -}}
+gcp
+{{- else -}}
+aws
+{{- end -}}
+{{- end -}}
+
+{{/*
+Whether the OTEL CI log pipelines are active (otelContainerInsights.enabled AND
+otelContainerInsights.logs.enabled). Returns "true" or an empty string.
+Used by the Linux FluentBit config to skip log types OTEL already publishes.
+*/}}
+{{- define "cloudwatch-agent.otel-logs-active" -}}
+{{- if and .Values.otelContainerInsights.enabled .Values.otelContainerInsights.logs.enabled -}}
+true
+{{- end -}}
 {{- end -}}
 
 {{- define "cloudwatch-agent.build-default-otel-config" -}}
@@ -526,12 +556,16 @@ Name for neuron-monitor
 Get the current recommended cloudwatch agent image for a region
 */}}
 {{- define "cloudwatch-agent.image" -}}
-{{- $imageDomain := "" -}}
-{{- $imageDomain = index .repositoryDomainMap .region -}}
+{{- if .azure.enabled -}}
+{{- $img := required "global.azure.images.cloudwatchAgent is required when global.azure.enabled=true" .azure.images.cloudwatchAgent -}}
+{{- printf "%s/%s:%s" $img.registry $img.image $img.tag -}}
+{{- else -}}
+{{- $imageDomain := index .repositoryDomainMap .region -}}
 {{- if not $imageDomain -}}
 {{- $imageDomain = .repositoryDomainMap.public -}}
 {{- end -}}
 {{- printf "%s/%s:%s" $imageDomain .repository .tag -}}
+{{- end -}}
 {{- end -}}
 
 {{/*
@@ -539,24 +573,32 @@ Get the current recommended cloudwatch agent operator image for a region
 */}}
 {{- define "cloudwatch-agent-operator.image" -}}
 {{- $region := .Values.region | required ".Values.region is required." -}}
-{{- $imageDomain := "" -}}
-{{- $imageDomain = index .Values.manager.image.repositoryDomainMap .Values.region -}}
+{{- if .Values.global.azure.enabled -}}
+{{- $img := required "global.azure.images.cloudwatchAgentOperator is required when global.azure.enabled=true" .Values.global.azure.images.cloudwatchAgentOperator -}}
+{{- printf "%s/%s:%s" $img.registry $img.image $img.tag -}}
+{{- else -}}
+{{- $imageDomain := index .Values.manager.image.repositoryDomainMap .Values.region -}}
 {{- if not $imageDomain -}}
 {{- $imageDomain = .Values.manager.image.repositoryDomainMap.public -}}
 {{- end -}}
 {{- printf "%s/%s:%s" $imageDomain .Values.manager.image.repository .Values.manager.image.tag -}}
+{{- end -}}
 {{- end -}}
 
 {{/*
 Get the current recommended target allocator image for a region
 */}}
 {{- define "target-allocator.image" -}}
-{{- $imageDomain := "" -}}
-{{- $imageDomain = index .repositoryDomainMap .region -}}
+{{- if .azure.enabled -}}
+{{- $img := required "global.azure.images.targetAllocator is required when global.azure.enabled=true" .azure.images.targetAllocator -}}
+{{- printf "%s/%s:%s" $img.registry $img.image $img.tag -}}
+{{- else -}}
+{{- $imageDomain := index .repositoryDomainMap .region -}}
 {{- if not $imageDomain -}}
 {{- $imageDomain = .repositoryDomainMap.public -}}
 {{- end -}}
 {{- printf "%s/%s:%s" $imageDomain .repository .tag -}}
+{{- end -}}
 {{- end -}}
 
 {{/*
@@ -564,12 +606,16 @@ Get the current recommended fluent-bit image for a region
 */}}
 {{- define "fluent-bit.image" -}}
 {{- $region := .Values.region | required ".Values.region is required." -}}
-{{- $imageDomain := "" -}}
-{{- $imageDomain = index .Values.containerLogs.fluentBit.image.repositoryDomainMap .Values.region -}}
+{{- if .Values.global.azure.enabled -}}
+{{- $img := required "global.azure.images.fluentBit is required when global.azure.enabled=true" .Values.global.azure.images.fluentBit -}}
+{{- printf "%s/%s:%s" $img.registry $img.image $img.tag -}}
+{{- else -}}
+{{- $imageDomain := index .Values.containerLogs.fluentBit.image.repositoryDomainMap .Values.region -}}
 {{- if not $imageDomain -}}
 {{- $imageDomain = .Values.containerLogs.fluentBit.image.repositoryDomainMap.public -}}
 {{- end -}}
 {{- printf "%s/%s:%s" $imageDomain .Values.containerLogs.fluentBit.image.repository .Values.containerLogs.fluentBit.image.tag -}}
+{{- end -}}
 {{- end -}}
 
 {{/*
@@ -616,12 +662,16 @@ Get the current recommended fluent-bit Windows image for a region
 */}}
 {{- define "fluent-bit-windows.image" -}}
 {{- $region := .Values.region | required ".Values.region is required." -}}
-{{- $imageDomain := "" -}}
-{{- $imageDomain = index .Values.containerLogs.fluentBit.image.repositoryDomainMap .Values.region -}}
+{{- if .Values.global.azure.enabled -}}
+{{- $img := required "global.azure.images.fluentBitWindows is required when global.azure.enabled=true" .Values.global.azure.images.fluentBitWindows -}}
+{{- printf "%s/%s:%s" $img.registry $img.image $img.tag -}}
+{{- else -}}
+{{- $imageDomain := index .Values.containerLogs.fluentBit.image.repositoryDomainMap .Values.region -}}
 {{- if not $imageDomain -}}
 {{- $imageDomain = .Values.containerLogs.fluentBit.image.repositoryDomainMap.public -}}
 {{- end -}}
 {{- printf "%s/%s:%s" $imageDomain .Values.containerLogs.fluentBit.image.repository .Values.containerLogs.fluentBit.image.tagWindows -}}
+{{- end -}}
 {{- end -}}
 
 {{/*
@@ -629,24 +679,32 @@ Get the current recommended dcgm-exporter image for a region
 */}}
 {{- define "dcgm-exporter.image" -}}
 {{- $region := .Values.region | required ".Values.region is required." -}}
-{{- $imageDomain := "" -}}
-{{- $imageDomain = index .Values.dcgmExporter.image.repositoryDomainMap .Values.region -}}
+{{- if .Values.global.azure.enabled -}}
+{{- $img := required "global.azure.images.dcgmExporter is required when global.azure.enabled=true" .Values.global.azure.images.dcgmExporter -}}
+{{- printf "%s/%s:%s" $img.registry $img.image $img.tag -}}
+{{- else -}}
+{{- $imageDomain := index .Values.dcgmExporter.image.repositoryDomainMap .Values.region -}}
 {{- if not $imageDomain -}}
 {{- $imageDomain = .Values.dcgmExporter.image.repositoryDomainMap.public -}}
 {{- end -}}
 {{- printf "%s/%s:%s" $imageDomain .Values.dcgmExporter.image.repository .Values.dcgmExporter.image.tag -}}
+{{- end -}}
 {{- end -}}
 
 {{/*
 Get the current recommended neuron-monitor image for a region
 */}}
 {{- define "neuron-monitor.image" -}}
-{{- $imageDomain := "" -}}
-{{- $imageDomain = index .Values.neuronMonitor.image.repositoryDomainMap .Values.region -}}
+{{- if .Values.global.azure.enabled -}}
+{{- $img := required "global.azure.images.neuronMonitor is required when global.azure.enabled=true" .Values.global.azure.images.neuronMonitor -}}
+{{- printf "%s/%s:%s" $img.registry $img.image $img.tag -}}
+{{- else -}}
+{{- $imageDomain := index .Values.neuronMonitor.image.repositoryDomainMap .Values.region -}}
 {{- if not $imageDomain -}}
 {{- $imageDomain = .Values.neuronMonitor.image.repositoryDomainMap.public -}}
 {{- end -}}
 {{- printf "%s/%s:%s" $imageDomain .Values.neuronMonitor.image.repository .Values.neuronMonitor.image.tag -}}
+{{- end -}}
 {{- end -}}
 
 {{/*
@@ -676,28 +734,48 @@ Set DCGM_EXPORTER_INTERVAL environment variable for dcgmExporter if accelerated_
 Get the current recommended auto instrumentation java image
 */}}
 {{- define "auto-instrumentation-java.image" -}}
+{{- if .Values.global.azure.enabled -}}
+{{- $img := required "global.azure.images.autoInstrumentationJava is required when global.azure.enabled=true" .Values.global.azure.images.autoInstrumentationJava -}}
+{{- printf "%s/%s:%s" $img.registry $img.image $img.tag -}}
+{{- else -}}
 {{- printf "%s/%s:%s" .Values.manager.autoInstrumentationImage.java.repositoryDomain .Values.manager.autoInstrumentationImage.java.repository .Values.manager.autoInstrumentationImage.java.tag -}}
+{{- end -}}
 {{- end -}}
 
 {{/*
 Get the current recommended auto instrumentation python image
 */}}
 {{- define "auto-instrumentation-python.image" -}}
+{{- if .Values.global.azure.enabled -}}
+{{- $img := required "global.azure.images.autoInstrumentationPython is required when global.azure.enabled=true" .Values.global.azure.images.autoInstrumentationPython -}}
+{{- printf "%s/%s:%s" $img.registry $img.image $img.tag -}}
+{{- else -}}
 {{- printf "%s/%s:%s" .Values.manager.autoInstrumentationImage.python.repositoryDomain .Values.manager.autoInstrumentationImage.python.repository .Values.manager.autoInstrumentationImage.python.tag -}}
+{{- end -}}
 {{- end -}}
 
 {{/*
 Get the current recommended auto instrumentation dotnet image
 */}}
 {{- define "auto-instrumentation-dotnet.image" -}}
+{{- if .Values.global.azure.enabled -}}
+{{- $img := required "global.azure.images.autoInstrumentationDotnet is required when global.azure.enabled=true" .Values.global.azure.images.autoInstrumentationDotnet -}}
+{{- printf "%s/%s:%s" $img.registry $img.image $img.tag -}}
+{{- else -}}
 {{- printf "%s/%s:%s" .Values.manager.autoInstrumentationImage.dotnet.repositoryDomain .Values.manager.autoInstrumentationImage.dotnet.repository .Values.manager.autoInstrumentationImage.dotnet.tag -}}
+{{- end -}}
 {{- end -}}
 
 {{/*
 Get the current recommended auto instrumentation nodejs image
 */}}
 {{- define "auto-instrumentation-nodejs.image" -}}
+{{- if .Values.global.azure.enabled -}}
+{{- $img := required "global.azure.images.autoInstrumentationNodejs is required when global.azure.enabled=true" .Values.global.azure.images.autoInstrumentationNodejs -}}
+{{- printf "%s/%s:%s" $img.registry $img.image $img.tag -}}
+{{- else -}}
 {{- printf "%s/%s:%s" .Values.manager.autoInstrumentationImage.nodejs.repositoryDomain .Values.manager.autoInstrumentationImage.nodejs.repository .Values.manager.autoInstrumentationImage.nodejs.tag -}}
+{{- end -}}
 {{- end -}}
 
 {{/*
@@ -892,12 +970,14 @@ Uses restrictedTag for regions with a repositoryDomainMap entry, public tag othe
 Get the node-exporter image for the configured region using repositoryDomainMap
 */}}
 {{- define "node-exporter.image" -}}
-{{- if and (hasKey .Values.nodeExporter.image.repositoryDomainMap .Values.region) (index .Values.nodeExporter.image.repositoryDomainMap .Values.region) -}}
+{{- if .Values.global.azure.enabled -}}
+{{- $img := required "global.azure.images.nodeExporter is required when global.azure.enabled=true" .Values.global.azure.images.nodeExporter -}}
+{{- printf "%s/%s:%s" $img.registry $img.image $img.tag -}}
+{{- else if and (hasKey .Values.nodeExporter.image.repositoryDomainMap .Values.region) (index .Values.nodeExporter.image.repositoryDomainMap .Values.region) -}}
 {{- $imageDomain := index .Values.nodeExporter.image.repositoryDomainMap .Values.region -}}
 {{- printf "%s/%s:%s" $imageDomain .Values.nodeExporter.image.restrictedRepository .Values.nodeExporter.image.restrictedTag -}}
 {{- else -}}
-{{- $imageDomain := .Values.nodeExporter.image.repositoryDomainMap.public -}}
-{{- printf "%s/%s:%s" $imageDomain .Values.nodeExporter.image.repository .Values.nodeExporter.image.tag -}}
+{{- printf "%s/%s:%s" .Values.nodeExporter.image.repositoryDomainMap.public .Values.nodeExporter.image.repository .Values.nodeExporter.image.tag -}}
 {{- end -}}
 {{- end -}}
 
@@ -931,12 +1011,14 @@ Uses restrictedTag for regions with a repositoryDomainMap entry, public tag othe
 Get the kube-state-metrics image for the configured region using repositoryDomainMap
 */}}
 {{- define "kube-state-metrics.image" -}}
-{{- if and (hasKey .Values.kubeStateMetrics.image.repositoryDomainMap .Values.region) (index .Values.kubeStateMetrics.image.repositoryDomainMap .Values.region) -}}
+{{- if .Values.global.azure.enabled -}}
+{{- $img := required "global.azure.images.kubeStateMetrics is required when global.azure.enabled=true" .Values.global.azure.images.kubeStateMetrics -}}
+{{- printf "%s/%s:%s" $img.registry $img.image $img.tag -}}
+{{- else if and (hasKey .Values.kubeStateMetrics.image.repositoryDomainMap .Values.region) (index .Values.kubeStateMetrics.image.repositoryDomainMap .Values.region) -}}
 {{- $imageDomain := index .Values.kubeStateMetrics.image.repositoryDomainMap .Values.region -}}
 {{- printf "%s/%s:%s" $imageDomain .Values.kubeStateMetrics.image.restrictedRepository .Values.kubeStateMetrics.image.restrictedTag -}}
 {{- else -}}
-{{- $imageDomain := .Values.kubeStateMetrics.image.repositoryDomainMap.public -}}
-{{- printf "%s/%s:%s" $imageDomain .Values.kubeStateMetrics.image.repository .Values.kubeStateMetrics.image.tag -}}
+{{- printf "%s/%s:%s" .Values.kubeStateMetrics.image.repositoryDomainMap.public .Values.kubeStateMetrics.image.repository .Values.kubeStateMetrics.image.tag -}}
 {{- end -}}
 {{- end -}}
 
