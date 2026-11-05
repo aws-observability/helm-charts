@@ -935,6 +935,11 @@ processors:
   {{- include "otel-container-insights.metricsLabelFilter" . | nindent 2 }}
   {{- end }}
 
+  {{- if include "otel-container-insights.metricNamesFilterEnabled" . }}
+
+  {{- include "otel-container-insights.metricNamesFilter" . | nindent 2 }}
+  {{- end }}
+
   transform/cw_k8s_ci_v0_set_cloud_resource_id:
     error_mode: ignore
     metric_statements:
@@ -1005,6 +1010,9 @@ service:
         - transform/cw_k8s_ci_v0_metrics_labels
         {{- end }}
         - awsattributelimit/cw_k8s_ci_v0
+        {{- if include "otel-container-insights.metricNamesFilterEnabled" . }}
+        - filter/cw_k8s_ci_v0_metric_names
+        {{- end }}
         - batch/cw_k8s_ci_v0_cwotel
       exporters:
         - otlphttp/cw_k8s_ci_v0_cwotel
@@ -1037,6 +1045,9 @@ service:
         - transform/cw_k8s_ci_v0_metrics_labels
         {{- end }}
         - awsattributelimit/cw_k8s_ci_v0
+        {{- if include "otel-container-insights.metricNamesFilterEnabled" . }}
+        - filter/cw_k8s_ci_v0_metric_names
+        {{- end }}
         - batch/cw_k8s_ci_v0_cwotel
       exporters:
         - otlphttp/cw_k8s_ci_v0_cwotel
@@ -1065,6 +1076,9 @@ service:
         - transform/cw_k8s_ci_v0_metrics_labels
         {{- end }}
         - awsattributelimit/cw_k8s_ci_v0
+        {{- if include "otel-container-insights.metricNamesFilterEnabled" . }}
+        - filter/cw_k8s_ci_v0_metric_names
+        {{- end }}
         - batch/cw_k8s_ci_v0_cwotel
       exporters:
         - otlphttp/cw_k8s_ci_v0_cwotel
@@ -1092,6 +1106,9 @@ service:
         - transform/cw_k8s_ci_v0_metrics_labels
         {{- end }}
         - awsattributelimit/cw_k8s_ci_v0
+        {{- if include "otel-container-insights.metricNamesFilterEnabled" . }}
+        - filter/cw_k8s_ci_v0_metric_names
+        {{- end }}
         - batch/cw_k8s_ci_v0_cwotel
       exporters:
         - otlphttp/cw_k8s_ci_v0_cwotel
@@ -1119,6 +1136,9 @@ service:
         - transform/cw_k8s_ci_v0_metrics_labels
         {{- end }}
         - awsattributelimit/cw_k8s_ci_v0
+        {{- if include "otel-container-insights.metricNamesFilterEnabled" . }}
+        - filter/cw_k8s_ci_v0_metric_names
+        {{- end }}
         - batch/cw_k8s_ci_v0_cwotel
       exporters:
         - otlphttp/cw_k8s_ci_v0_cwotel
@@ -1147,6 +1167,9 @@ service:
         - transform/cw_k8s_ci_v0_metrics_labels
         {{- end }}
         - awsattributelimit/cw_k8s_ci_v0
+        {{- if include "otel-container-insights.metricNamesFilterEnabled" . }}
+        - filter/cw_k8s_ci_v0_metric_names
+        {{- end }}
         - batch/cw_k8s_ci_v0_cwotel
       exporters:
         - otlphttp/cw_k8s_ci_v0_cwotel
