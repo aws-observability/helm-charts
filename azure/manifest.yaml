@@ -1,7 +1,7 @@
 applicationName: com.crestdata.amazoncloudwatchobservability
 publisher: "Crestdata"
 description: "Amazon CloudWatch Observability CNAB package for Azure Marketplace Kubernetes app (AKS)."
-version: 7.0.1 #Must be in the format of #.#.#
+version: 7.0.0 #Must be in the format of #.#.#
 helmChart: "./amazon-cloudwatch-observability"
 clusterArmTemplate: "./mainTemplate.json"
 uiDefinition: "./createUIDefinition.json"
