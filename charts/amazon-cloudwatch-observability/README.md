@@ -487,6 +487,42 @@ The NVIDIA DCGM exporter runs on every NVIDIA GPU node when `dcgmExporter.enable
 the default. It collects 51 DCGM fields and the driver version label. The list is
 `$metricsConfig` in `templates/linux/dcgm-exporter-daemonset.yaml`.
 
+## Java profiling (experimental)
+
+Continuous profiling for every pod that receives Java auto-instrumentation, with the profiler
+built into the ADOT Java agent that the chart installs. The operator configures the profiler in each
+instrumented Java container to send profiles to the node agent's OTLP HTTP endpoint (see
+[OTLP endpoint](#otlp-endpoint)), which sends them to CloudWatch. Turn it on with:
+
+```bash
+--set-string manager.autoInstrumentationConfiguration.java.profiling.enabled=true
+--set otlp.profiles.enabled=true
+```
+
+`enabled` (`"true"` or `"false"`, as a string) is the only key under
+`manager.autoInstrumentationConfiguration.java.profiling`; any other key fails the install. Restart the
+workloads after you change it.
+
+The operator sets `OTEL_AWS_PROFILER_ENABLED`, `OTEL_AWS_PROFILER_ENDPOINT`, the receiver's payload cap and
+`OTEL_AWS_PROFILER_DATA_DIR=/otel-profiler-data-java/<container>`, on one volume per pod with 160Mi per profiled
+container. It never overrides a variable the container sets in `env` or in a ConfigMap it loads with `envFrom`; a
+value from a Secret is overridden.
+
+- To opt a container out, set `OTEL_AWS_PROFILER_ENABLED: "false"` in its `env` or in such a ConfigMap.
+- To tune ADOT for one workload, set the other `OTEL_AWS_PROFILER_*` variables in the container's env.
+- For heavier settings that need more space, mount your own volume and set `OTEL_AWS_PROFILER_DATA_DIR` to a
+  path on it; a path outside `/otel-profiler-data-java` is not on the operator's volume. Mount it elsewhere: a
+  container that mounts `/otel-profiler-data-java` itself is not profiled.
+- Requires the node agent's OTLP HTTP endpoint (`otlp.enabled`, `otlp.http.enabled`, on by default) with its
+  profiles pipeline (`otlp.profiles.enabled: true`, off by default, needs agent 1.300075.0 or later): profiles go to
+  `otlp.http.port`.
+- Experimental: profile attributes, service names and stored volume may change.
+- With `monitorAllServices`, every Java workload behind a Service is profiled.
+- Profiles are sent unencrypted inside the cluster.
+- `OTEL_AWS_PROFILER_*` variables follow ADOT and may change with it.
+- Fargate pods are not profiled.
+- Helm-only for now: the EKS add-on configuration does not accept `java.profiling` yet.
+
 ## Windows Support
 CloudWatch DaemonSet on Windows is officially supported only for containerd runtime.
 

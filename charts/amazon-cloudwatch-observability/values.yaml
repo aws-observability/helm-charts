@@ -575,6 +575,11 @@ manager:
       #   function_instrument_enabled: "true" # set "true" to enable per-function instrumentation (SDK default: false)
       # dynamic_instrumentation:
       #   enabled: "true"                     # set "true" to enable Dynamic Instrumentation
+      # profiling:
+      #   enabled: "true"                     # "true" enables continuous profiling (experimental), "false" disables it;
+      #                                       # needs the node agent's OTLP HTTP endpoint (otlp.*) and
+      #                                       # otlp.profiles.enabled: true. The only key: tune
+      #                                       # ADOT per workload with OTEL_AWS_PROFILER_* in the container's env.
     python:
       runtime_metrics:
         enabled: "true"

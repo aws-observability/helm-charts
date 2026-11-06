@@ -210,6 +210,32 @@ the user has explicitly set it.
 {{- end -}}
 {{- $_ := set $config $lang $langConfig -}}
 {{- end -}}
+{{- $javaProfilingBlock := dict -}}
+{{- if hasKey (index $config "java") "profiling" }}{{ $javaProfilingBlock = index $config "java" "profiling" }}{{ end }}
+{{- if not (kindIs "map" $javaProfilingBlock) }}{{ fail "manager.autoInstrumentationConfiguration.java.profiling must be a map, for example {\"enabled\": \"true\"}" }}{{ end }}
+{{- /* The schema is exactly one key, enabled. ADOT is tuned per workload with OTEL_AWS_PROFILER_* in the container's
+     own env, which the operator never overrides. */}}
+{{- range $key, $_ := $javaProfilingBlock }}
+{{- if ne $key "enabled" }}{{ fail (printf "manager.autoInstrumentationConfiguration.java.profiling.%s is not a setting: java.profiling accepts only enabled. Tune ADOT per workload with OTEL_AWS_PROFILER_* in the container's env" $key) }}{{ end }}
+{{- end }}
+{{- $javaProfiling := dig "java" "profiling" "enabled" "" $config -}}
+{{- range $key, $value := dig "java" "profiling" dict $config }}{{ if not (kindIs "string" $value) }}{{ fail (printf "manager.autoInstrumentationConfiguration.java.profiling.%s must be a string (\"true\" or \"false\"); use --set-string" $key) }}{{ end }}{{ end }}
+{{- if and (hasKey $javaProfilingBlock "enabled") (not (has $javaProfiling (list "true" "false"))) }}{{ fail (printf "manager.autoInstrumentationConfiguration.java.profiling.enabled must be \"true\" or \"false\", got %q" $javaProfiling) }}{{ end }}
+{{- if eq $javaProfiling "true" }}
+{{- /* Profiles go to the node agent's OTLP HTTP endpoint (otlp.httpEndpointURL, empty when it does not serve OTLP/HTTP),
+     which receives them only with its profiles pipeline (otlp.profiles.enabled). */}}
+{{- $otlpURL := "" }}
+{{- /* The agent CR template also skips the agent named like otelContainerInsights.clusterScraperAgent when OTel
+     Container Insights is off; otlp.nodeAgentRendered does not, so that case is checked here. */}}
+{{- $nodeAgentSkipped := and (not .Values.otelContainerInsights.enabled) (eq (include "cloudwatch-agent.name" .) .Values.otelContainerInsights.clusterScraperAgent) }}
+{{- if and .Values.agent.enabled (not $nodeAgentSkipped) }}{{ $otlpURL = include "otlp.httpEndpointURL" . }}{{ end }}
+{{- if not $otlpURL }}{{ fail "manager.autoInstrumentationConfiguration.java.profiling.enabled requires the node agent's OTLP HTTP endpoint: agent.enabled, otlp.enabled, otlp.http.enabled, and an agents entry named like the node agent (agent.name, default cloudwatch-agent)" }}{{ end }}
+{{- if not .Values.otlp.profiles.enabled }}{{ fail "manager.autoInstrumentationConfiguration.java.profiling.enabled requires otlp.profiles.enabled: without it the node agent has no profiles pipeline (otlp.profiles needs agent image 1.300075.0 or later)" }}{{ end }}
+{{- $_ := set (index $config "java" "profiling") "endpoint" (printf "%s/v1development/profiles" $otlpURL) }}
+{{- /* ADOT drops a profile window whose uncompressed payload exceeds max_payload_bytes (default 64 MiB); the endpoint
+     accepts request bodies up to otlp.httpMaxRequestBodyBytes after decompression. The operator injects this cap. */}}
+{{- $_ := set (index $config "java" "profiling") "max_payload_bytes" (include "otlp.httpMaxRequestBodyBytes" . | trim) }}
+{{- end }}
 {{- $config | toJson -}}
 {{- end -}}
 
