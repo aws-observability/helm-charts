@@ -210,7 +210,20 @@ the user has explicitly set it.
 {{- end -}}
 {{- $_ := set $config $lang $langConfig -}}
 {{- end -}}
+{{- $javaProfilingBlock := index $config "java" "profiling" | default dict -}}
+{{- if not (kindIs "map" $javaProfilingBlock) }}{{ fail "manager.autoInstrumentationConfiguration.java.profiling must be a map, for example {\"enabled\": \"true\"}" }}{{ end }}
+{{- $javaProfiling := dig "java" "profiling" "enabled" "" $config -}}
+{{- range $key, $value := dig "java" "profiling" dict $config }}{{ if not (kindIs "string" $value) }}{{ fail (printf "manager.autoInstrumentationConfiguration.java.profiling.%s must be a string (for example \"true\" or \"30\"); use --set-string" $key) }}{{ end }}{{ end }}
+{{- if and (eq $javaProfiling "true") (ne .Release.Namespace "amazon-cloudwatch") }}{{ fail "manager.autoInstrumentationConfiguration.java.profiling.enabled requires the release namespace amazon-cloudwatch: the operator sends profiles to cloudwatch-agent.amazon-cloudwatch:4318" }}{{ end }}
 {{- $config | toJson -}}
+{{- end -}}
+
+{{/*
+Returns "true" when java.profiling.enabled is "true" in the payload manager.modify-auto-instrumentation-config
+sends to the operator, so the agent's profiles receiver follows what the operator receives.
+*/}}
+{{- define "manager.javaProfilingEnabled" -}}
+{{- include "manager.modify-auto-instrumentation-config" . | fromJson | dig "java" "profiling" "enabled" "" | eq "true" -}}
 {{- end -}}
 
 {{/*
@@ -251,6 +264,9 @@ Logic:
     when applicationSignals.enabled AND applicationSignals.targetAgent matches agentName
   - Includes logs.metrics_collected.kubernetes when containerInsights.enabled AND
     containerInsights.targetAgent matches agentName
+  - Includes opentelemetry.collect.otlp.http_endpoint 0.0.0.0:4318 when
+    manager.autoInstrumentationConfiguration.java.profiling.enabled is "true" AND agentName is
+    cloudwatch-agent, the Service the operator points the Java profiler at
   - Returns minimal {"agent":{"region":"<region>"}} when no feature targets the agent
 */}}
 {{- define "cloudwatch-agent.build-default-config" -}}
@@ -273,6 +289,11 @@ Logic:
 {{- end -}}
 {{- if $needsLogs -}}
   {{- $_ := set $config "logs" (dict "metrics_collected" $metricsCollected) -}}
+{{- end -}}
+{{/* Java profiling: the operator points the ADOT Java profiler at the cloudwatch-agent Service on 4318. The agent
+     builds its profiles pipeline from opentelemetry.collect.otlp; the Application Signals receiver (4316) has none. */}}
+{{- if and (include "manager.javaProfilingEnabled" $ctx | eq "true") (eq $agentName "cloudwatch-agent") -}}
+  {{- $config = mergeOverwrite $config (dict "opentelemetry" (dict "collect" (dict "otlp" (dict "http_endpoint" "0.0.0.0:4318")))) -}}
 {{- end -}}
 {{- $config | toJson -}}
 {{- end -}}

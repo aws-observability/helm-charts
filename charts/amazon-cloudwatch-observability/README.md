@@ -262,6 +262,40 @@ The NVIDIA DCGM exporter runs on every NVIDIA GPU node when `dcgmExporter.enable
 the default. It collects 51 DCGM fields and the driver version label. The list is
 `$metricsConfig` in `templates/linux/dcgm-exporter-daemonset.yaml`.
 
+## Java profiling (experimental)
+
+Continuous profiling for every pod that receives Java auto-instrumentation, with the profiler
+built into the ADOT Java agent that the chart installs. Turn it on with:
+
+```bash
+--set-string manager.autoInstrumentationConfiguration.java.profiling.enabled=true
+```
+
+The operator configures the profiler in each instrumented Java container, and the chart adds an
+OTLP receiver on `0.0.0.0:4318` to the `cloudwatch-agent` agent, which sends the profiles to
+CloudWatch. The release must be in the `amazon-cloudwatch` namespace, with an enabled agent named
+`cloudwatch-agent`. Restart the workloads after you change these values.
+
+Values under `manager.autoInstrumentationConfiguration.java.profiling` must be strings
+(`--set-string`, or quoted in a values file):
+
+| Key | Meaning |
+|---|---|
+| `enabled` | `"true"` turns profiling on |
+| `endpoint` | Not settable: profiles always go to the `cloudwatch-agent` agent |
+| `data_dir` | Base directory of the profiler files, default `/otel-profiler-data-java` |
+| `volume_size_limit` | Size limit of the profiler volume per profiled container, default `160Mi` |
+
+Every other key becomes `OTEL_AWS_PROFILER_<KEY>`, upper-cased, on every profiled container. For
+example, `mode: "cpu"` sets `OTEL_AWS_PROFILER_MODE=cpu`. `values.yaml` lists the options. A
+variable that the container already sets wins.
+
+- Opt a pod or namespace out with the annotation `cloudwatch.aws.amazon.com/java-profiling: "false"`.
+  Windows pods, containers that may export OTLP over gRPC, and containers with a Secret or
+  prefixed `envFrom` are not profiled.
+- With a custom `agent.config`, add `"opentelemetry": {"collect": {"otlp": {"http_endpoint": "0.0.0.0:4318"}}}`
+  yourself. Port 4318 must be free on every node's host network.
+
 ## Windows Support
 CloudWatch DaemonSet on Windows is officially supported only for containerd runtime.
 
