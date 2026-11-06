@@ -575,6 +575,21 @@ manager:
       #   function_instrument_enabled: "true" # set "true" to enable per-function instrumentation (SDK default: false)
       # dynamic_instrumentation:
       #   enabled: "true"                     # set "true" to enable Dynamic Instrumentation
+      # profiling:
+      #   enabled: "true"                     # set "true" to enable continuous profiling (experimental)
+      #   # Values must be strings. Other keys become OTEL_AWS_PROFILER_<KEY>. Defaults shown are ADOT v2.32.0's.
+      #   volume_size_limit: "160Mi"          # profiler volume size limit per profiled container
+      #   data_dir: "/otel-profiler-data-java" # base directory of the profiler files
+      #   mode: "wall"                        # wall | cpu
+      #   wall_interval_ms: "10"              # sampling interval in wall mode
+      #   cpu_interval_ms: "10"               # sampling interval in cpu mode
+      #   memory_enabled: "false"             # "true" adds allocation profiling
+      #   alloc_interval_bytes: "524288"      # allocation sampling interval, in bytes
+      #   window_seconds: "60"                # profile window and export period, 5-300
+      #   aggregation_mode: "full"            # none | full | sum
+      #   export_compression: "gzip"          # gzip, or anything else for none
+      #   export_timeout_ms: "10000"          # timeout for each profile export
+      #   max_payload_bytes: "67108864"       # larger windows are dropped; "0" disables the limit
     python:
       runtime_metrics:
         enabled: "true"
