@@ -22,7 +22,6 @@ DCGM_FI_PROF_NVLINK_RX_BYTES, gauge, NVLink receive rate in bytes per second.
 DCGM_EXP_XID_ERRORS_COUNT, gauge, XID errors observed during the exporter's count window.
 DCGM_EXP_CLOCK_EVENTS_COUNT, gauge, Clock throttle events observed during the exporter's count window.
 DCGM_EXP_GPU_HEALTH_STATUS, gauge, Aggregate DCGM health-check status for the GPU.
-DCGM_FI_DEV_CLOCKS_EVENT_REASONS, gauge, Bitmask of why the clocks are currently throttled.
 DCGM_FI_DEV_CLOCKS_EVENT_REASON_HW_THERM_SLOWDOWN_NS, counter, Time the clocks were slowed by hardware thermal slowdown (in ns).
 DCGM_FI_DEV_CLOCKS_EVENT_REASON_SW_THERM_SLOWDOWN_NS, counter, Time the clocks were slowed by software thermal slowdown (in ns).
 DCGM_FI_DEV_CLOCKS_EVENT_REASON_HW_POWER_BRAKE_SLOWDOWN_NS, counter, Time the clocks were slowed by the hardware power brake (in ns).
