@@ -30,6 +30,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@f43a0e5ff2bd294095638e18286ca9a3d1956744 # v3.6.0
+      # golangci-lint v1.64.2 (Makefile) is built with go1.24 and runs out of memory
+      # when the runner's default Go is newer. Pin the Go used by `make all`.
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: '1.24.x'
+          cache: false
       - name: Build
         run: make all
 
