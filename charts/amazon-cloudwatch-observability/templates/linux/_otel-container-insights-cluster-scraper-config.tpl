@@ -805,9 +805,16 @@ processors:
         - k8s.replicaset.name
         - k8s.job.name
         - k8s.cronjob.name
+      # The annotations and labels that transform/cw_k8s_ci_v0_service_identity
+      # reads (_service-identity.tpl).
+      annotations:
+        {{- include "service-identity.extractAnnotations" . | nindent 8 }}
       labels:
         # $$$1 is Helm escaping: $$$ → $$ (Helm) → $ (OTel env resolver) → literal $1 backreference
         {{- include "otel-container-insights.k8sattributesLabels" (dict "Values" .Values "from" "pod") | trim | nindent 8 }}
+        {{- with include "service-identity.extractLabels" . | trim }}
+        {{- . | nindent 8 }}
+        {{- end }}
     pod_association:
       - sources:
           - from: resource_attribute
@@ -832,6 +839,21 @@ processors:
           - set(resource.attributes["k8s.workload.type"], "CronJob") where resource.attributes["k8s.workload.type"] == nil and resource.attributes["k8s.cronjob.name"] != nil
           - set(resource.attributes["k8s.workload.name"], resource.attributes["k8s.replicaset.name"]) where resource.attributes["k8s.workload.name"] == nil and resource.attributes["k8s.replicaset.name"] != nil
           - set(resource.attributes["k8s.workload.type"], "ReplicaSet") where resource.attributes["k8s.workload.type"] == nil and resource.attributes["k8s.replicaset.name"] != nil
+
+  {{- if .Values.kubeStateMetrics.enabled }}
+
+  # Service identity for kube-state-metrics series, with the same parameters as
+  # the node agent's metrics processor of the same name, so a pod's state
+  # metrics and its resource metrics carry the same service.name and
+  # service.instance.id. The receiver's job name (kube-state-metrics) is kept
+  # only on series about no workload, such as node and namespace series.
+  {{- include "service-identity.processor" (dict "Values" .Values "name" "transform/cw_k8s_ci_v0_service_identity" "groups" (list "metric_statements") "inputs" (list "kserveInferenceService") "receiverDefault" true) | nindent 2 }}
+  {{- end }}
+
+  # The other pipelines that use k8sattributes/cw_k8s_ci_v0_pod scrape the
+  # chart's own control-plane targets and keep the receiver's service identity;
+  # they only drop the inputs that k8sattributes extracted for the chain.
+  {{- include "service-identity.dropInputs" (dict "name" "transform/cw_k8s_ci_v0_drop_service_identity_inputs") | nindent 2 }}
 
   transform/cw_k8s_ci_v0_set_component:
     error_mode: ignore
@@ -1040,6 +1062,9 @@ service:
         - transform/cw_k8s_ci_v0_clear_schema_url
         - transform/cw_k8s_ci_v0_set_cloud_resource_id
         - transform/cw_k8s_ci_v0_ksm_zone
+        # After resourcedetection, which sets the cloud.platform that
+        # deployment.environment.name is built from.
+        - transform/cw_k8s_ci_v0_service_identity
         - transform/cw_k8s_ci_v0_pod_topology
         {{- if include "otel-container-insights.metricsLabelFilterEnabled" . }}
         - transform/cw_k8s_ci_v0_metrics_labels
@@ -1068,6 +1093,7 @@ service:
         - transform/cw_k8s_ci_v0_knative_controlplane_promote
         - k8sattributes/cw_k8s_ci_v0_pod
         - transform/cw_k8s_ci_v0_set_workload
+        - transform/cw_k8s_ci_v0_drop_service_identity_inputs
         - resourcedetection/cw_k8s_ci_v0_knative_controlplane
         - transform/cw_k8s_ci_v0_clear_schema_url
         - transform/cw_k8s_ci_v0_set_cloud_resource_id
@@ -1098,6 +1124,7 @@ service:
         - transform/cw_k8s_ci_v0_karpenter_promote
         - k8sattributes/cw_k8s_ci_v0_pod
         - transform/cw_k8s_ci_v0_set_workload
+        - transform/cw_k8s_ci_v0_drop_service_identity_inputs
         - resourcedetection/cw_k8s_ci_v0_karpenter
         - transform/cw_k8s_ci_v0_clear_schema_url
         - transform/cw_k8s_ci_v0_set_cloud_resource_id
@@ -1128,6 +1155,7 @@ service:
         - transform/cw_k8s_ci_v0_keda_promote
         - k8sattributes/cw_k8s_ci_v0_pod
         - transform/cw_k8s_ci_v0_set_workload
+        - transform/cw_k8s_ci_v0_drop_service_identity_inputs
         - resourcedetection/cw_k8s_ci_v0_keda
         - transform/cw_k8s_ci_v0_clear_schema_url
         - transform/cw_k8s_ci_v0_set_cloud_resource_id
@@ -1159,6 +1187,7 @@ service:
         - transform/cw_k8s_ci_v0_kserve_controlplane_promote
         - k8sattributes/cw_k8s_ci_v0_pod
         - transform/cw_k8s_ci_v0_set_workload
+        - transform/cw_k8s_ci_v0_drop_service_identity_inputs
         - resourcedetection/cw_k8s_ci_v0_kserve_controlplane
         - transform/cw_k8s_ci_v0_clear_schema_url
         - transform/cw_k8s_ci_v0_set_cloud_resource_id

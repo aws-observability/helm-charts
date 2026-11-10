@@ -5,6 +5,7 @@ package scenarios
 
 import (
 	"context"
+	"fmt"
 	"regexp"
 	"strings"
 	"testing"
@@ -170,8 +171,11 @@ func validateAKSApiserverTLSServerName(t *testing.T, agentMap map[string]unstruc
 		"cluster-scraper otelConfig should set server_name for the apiserver TLS scrape on AKS")
 }
 
-// validateAKSServiceAttributes checks the AKS-gated service.*/deployment.environment.name are on the
-// node agent but NOT the cluster-scraper (scraper metrics describe other workloads, not its own).
+// validateAKSServiceAttributes checks the service.*/deployment.environment.name attributes on both
+// agents. The node agent sets them on its own metrics. The cluster-scraper sets them only on
+// kube-state-metrics series, from the pod or workload each series describes (never from the
+// scraper itself), through transform/cw_k8s_ci_v0_service_identity. Its control-plane pipelines
+// keep the receiver's identity and only drop the extracted service identity inputs.
 func validateAKSServiceAttributes(t *testing.T, agentMap map[string]unstructured.Unstructured) {
 	serviceAttrs := []string{"service.name", "service.namespace", "deployment.environment.name"}
 
@@ -183,12 +187,80 @@ func validateAKSServiceAttributes(t *testing.T, agentMap map[string]unstructured
 		}
 	}
 
-	scraper := otelConfigOf(t, agentMap, "cloudwatch-agent-cluster-scraper")
-	if scraper != "" {
-		for _, a := range serviceAttrs {
-			assert.False(t, strings.Contains(scraper, a),
-				"cluster-scraper otelConfig should NOT set %s (scraper metrics describe other workloads)", a)
+	const (
+		identity    = "transform/cw_k8s_ci_v0_service_identity"
+		dropInputs  = "transform/cw_k8s_ci_v0_drop_service_identity_inputs"
+		ksmPipeline = "metrics/cw_k8s_ci_v0_kube_state_metrics"
+	)
+	controlPlane := []string{
+		"metrics/cw_k8s_ci_v0_karpenter",
+		"metrics/cw_k8s_ci_v0_keda",
+		"metrics/cw_k8s_ci_v0_kserve_controlplane",
+		"metrics/cw_k8s_ci_v0_knative_controlplane",
+	}
+
+	scraper := otelConfigMapOf(t, agentMap, "cloudwatch-agent-cluster-scraper")
+	if scraper == nil {
+		return
+	}
+	processors, _, _ := unstructured.NestedMap(scraper, "processors")
+	pipelines, _, _ := unstructured.NestedMap(scraper, "service", "pipelines")
+
+	// Only the service identity processor writes the attributes.
+	_, hasIdentity := processors[identity]
+	assert.True(t, hasIdentity, "cluster-scraper otelConfig should define %s", identity)
+	for name, processor := range processors {
+		if name == identity {
+			continue
 		}
+		text := fmt.Sprint(processor)
+		for _, a := range serviceAttrs {
+			assert.False(t, strings.Contains(text, `"`+a+`"]`),
+				"cluster-scraper processor %s should not set %s; only %s does", name, a, identity)
+		}
+	}
+
+	processorsOf := func(pipeline string) ([]string, bool) {
+		raw, found, _ := unstructured.NestedSlice(pipelines, pipeline, "processors")
+		if !found {
+			return nil, false
+		}
+		names := make([]string, 0, len(raw))
+		for _, p := range raw {
+			if s, ok := p.(string); ok {
+				names = append(names, s)
+			}
+		}
+		return names, true
+	}
+	contains := func(list []string, want string) bool {
+		for _, s := range list {
+			if s == want {
+				return true
+			}
+		}
+		return false
+	}
+
+	// The identity processor runs in the kube-state-metrics pipeline and nowhere else.
+	for name := range pipelines {
+		procs, _ := processorsOf(name)
+		assert.Equal(t, name == ksmPipeline, contains(procs, identity),
+			"cluster-scraper pipeline %s: %s should be used only in %s", name, identity, ksmPipeline)
+	}
+	ksm, found := processorsOf(ksmPipeline)
+	if assert.True(t, found, "cluster-scraper otelConfig should have %s", ksmPipeline) {
+		assert.True(t, contains(ksm, identity), "%s should use %s", ksmPipeline, identity)
+	}
+
+	// The control-plane pipelines describe the chart's own scrape targets: they drop the inputs.
+	for _, name := range controlPlane {
+		procs, found := processorsOf(name)
+		if !found {
+			continue
+		}
+		assert.True(t, contains(procs, dropInputs), "%s should use %s", name, dropInputs)
+		assert.False(t, contains(procs, identity), "%s should not use %s", name, identity)
 	}
 }
 

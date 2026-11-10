@@ -17,8 +17,9 @@
 #      receiver, and the chart reads no scrape labels or annotations of its own
 #      (prometheus.io/*, cloudwatch.aws/*) from pods.
 #   3. Port: declared port > sglang.launch_server's 30000.
-#   4. service.name: annotation, then the InferenceService, then workload, then
-#      pod; no app.kubernetes.io/* label step.
+#   4. service.name from the chart-wide service identity chain
+#      (_service-identity.tpl): annotation, then the InferenceService, then
+#      workload; no app.kubernetes.io/* label step by default.
 #   5. Pod identity reaches resource scope before k8sattributes runs.
 #
 # Assertions run on the parsed otelConfig (PyYAML), not on rendered text.
@@ -55,7 +56,7 @@ RECEIVER = "prometheus/cw_k8s_ci_v0_sglang"
 PIPELINE = "metrics/cw_k8s_ci_v0_sglang"
 KEEP = "filter/cw_k8s_ci_v0_sglang_keep"
 PROMOTE = "transform/cw_k8s_ci_v0_sglang_promote"
-SERVICE_NAME = "transform/cw_k8s_ci_v0_sglang_service_name"
+SERVICE_NAME = "transform/cw_k8s_ci_v0_service_identity"
 IMAGE = "__meta_kubernetes_pod_container_image"
 ANNOTATION = "__meta_kubernetes_pod_annotation_"
 SVC_ANNOTATION = ANNOTATION + "resource_opentelemetry_io_service_name"
@@ -161,14 +162,18 @@ check(f"{PROMOTE} sets aws.service.type to ai_inference",
       'set(resource.attributes["aws.service.type"], "ai_inference")' in promote)
 check(f"{PROMOTE} removes the annotation datapoint attribute",
       'delete_key(attributes, "otel_service_name_annotation")' in promote)
+check(f"{PROMOTE} carries the scraped service.name annotation into the chain's annotation input",
+      any(st.startswith('set(resource.attributes["_tmp.service_identity.annotation.service.name"], attributes["otel_service_name_annotation"])') for st in promote))
 svc = statements(processors, SERVICE_NAME)
-order = [next((i for i, st in enumerate(svc) if st.startswith(f'set(attributes["service.name"], attributes["{k}"])')), -1)
-         for k in ("k8s.pod.name", "k8s.workload.name", "k8s.pod.label.serving.kserve.io/inferenceservice",
-                   "cw.tmp.service_name_annotation")]
-check("service.name is set pod, workload, InferenceService, then annotation (last write wins)",
-      all(i >= 0 for i in order) and order == sorted(order))
-check("the temporary annotation attribute is deleted",
-      'delete_key(attributes, "cw.tmp.service_name_annotation")' in svc)
+R = "resource.attributes"
+def source(attr):
+    want = f'set({R}["service.name"], {R}["{attr}"])'
+    return next((i for i, st in enumerate(svc) if st.startswith(want)), -1)
+check("service.name order: annotation, then InferenceService, then workload, then the job name",
+      0 <= source("_tmp.service_identity.annotation.service.name") < source("k8s.pod.label.serving.kserve.io/inferenceservice")
+      < source("k8s.deployment.name") < source("_tmp.service_identity.unknown_service"))
+check("the chain removes its temporary attributes",
+      bool(svc) and svc[-1].startswith(f'delete_matching_keys({R}, "^_tmp'))
 check("service.name does not use the app.kubernetes.io/* labels",
       not any("app.kubernetes.io" in st for st in svc))
 check("no relabel rule reads an aws.service.type pod label",
@@ -194,8 +199,9 @@ print(f"\n{YELLOW}[solutions.sglang.enabled=false]{RESET}")
 off = otel_config(sys.argv[2], "cloudwatch-agent")
 check("cloudwatch-agent CR still renders an otelConfig", bool(off))
 check(f"no {RECEIVER}", RECEIVER not in (off.get("receivers") or {}))
-check(f"no {KEEP}, {PROMOTE} or {SERVICE_NAME}",
-      not ({KEEP, PROMOTE, SERVICE_NAME} & set(off.get("processors") or {})))
+# The service identity processor is shared by every node metrics pipeline, so it stays.
+check(f"no {KEEP} or {PROMOTE}",
+      not ({KEEP, PROMOTE} & set(off.get("processors") or {})))
 check(f"no {PIPELINE}", PIPELINE not in ((off.get("service") or {}).get("pipelines") or {}))
 
 total = passed + failed

@@ -1203,7 +1203,8 @@ otlp:
 ## ══════════════════════════════════════════════════════════════════════════════
 ##
 ## How the chart sets service.name, service.namespace, service.version and
-## service.instance.id on the telemetry it enriches (today the OTLP endpoint),
+## service.instance.id on the telemetry it enriches (the OTLP endpoint, and
+## OTEL Container Insights metrics, kube-state-metrics and application logs),
 ## per the OpenTelemetry Kubernetes convention: the sender's value, then the
 ## resource.opentelemetry.io/service.* pod annotations, then the workload
 ## names. See "Service identity" in the chart README.

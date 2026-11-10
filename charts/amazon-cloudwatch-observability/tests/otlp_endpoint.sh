@@ -229,6 +229,20 @@ for group in ["log_statements", "trace_statements"]:
     assert statements(cfg, "transform/cw_k8s_service_identity", group) == s, group
 '
 
+check "Service identity -- the OTLP processor has no receiver default, with Container Insights off and on" '
+r = "resource.attributes"
+base = render()[AGENT]["cfg"]["processors"]["transform/cw_k8s_service_identity"]
+for args in [(), ("--set", "otelContainerInsights.enabled=true"),
+             ("--set", "otelContainerInsights.enabled=true", "--set", "kubeStateMetrics.enabled=true")]:
+    p = render(*args)[AGENT]["cfg"]["processors"]["transform/cw_k8s_service_identity"]
+    assert p == base, args
+s = base["metric_statements"][0]["statements"]
+assert s[0] == "set(" + r + "[\"_tmp.service_identity.unknown_service\"], " + r + "[\"service.name\"]) where IsMatch(" + r + "[\"service.name\"], \"^unknown_service\")", s[0]
+assert not any("receiver.service.instance.id" in x for x in s)
+ids = [x for x in s if x.startswith("set(" + r + "[\"service.instance.id\"]") or x.startswith("delete_key(" + r + ", \"service.instance.id\"")]
+assert len(ids) == 2 and "annotation.service.instance.id" in ids[0] and "Concat(" in ids[1], ids
+'
+
 check "Default values — Container Insights enrichment: cluster, topology, cloud.resource_id and k8s.workload overwrite" '
 cfg = render()[AGENT]["cfg"]
 r = "resource.attributes"
