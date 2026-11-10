@@ -52,6 +52,11 @@ func NewK8sClient() (*K8sClient, error) {
 	}, nil
 }
 
+// Clientset returns the typed Kubernetes client, for checks that need calls the helpers here do not wrap.
+func (k *K8sClient) Clientset() kubernetes.Interface {
+	return k.client
+}
+
 func (k *K8sClient) GetNamespace(namespace string) (*v1.Namespace, error) {
 	ns, err := k.client.CoreV1().Namespaces().Get(context.Background(), namespace, metav1.GetOptions{})
 	if err != nil {

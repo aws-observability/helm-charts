@@ -71,7 +71,7 @@ data:
 {{- if $isWorkloadIdentity }}{{- $_ := $.Values.roleArn | required ".Values.roleArn is required when k8sMode is AKS or GKE." -}}{{- end }}
 {{- range .Values.agents }}
 {{- $agent := mergeOverwrite (deepCopy $.Values.agent) . }}
-{{- $agentName := include "cloudwatch-agent.validatedName" ($agent.name | default (include "cloudwatch-agent.name" $)) -}}
+{{- $agentName := include "cloudwatch-agent.resolvedName" (dict "agent" . "context" $) -}}
 {{/* Skip cluster-scraper agent when otelContainerInsights is disabled */}}
 {{- if or $.Values.otelContainerInsights.enabled (ne $agentName $.Values.otelContainerInsights.clusterScraperAgent) }}
 apiVersion: cloudwatch.aws.amazon.com/v1alpha1
@@ -141,9 +141,8 @@ spec:
   affinity: {{- toYaml . | nindent 4 }}
   {{- end }}
   hostNetwork: {{ $agent.hostNetwork }}
-  {{- if eq ($agent.config | toString) "default:otel" }}
-  config: {{ include "cloudwatch-agent.modify-config" (merge (dict "Config" (include "cloudwatch-agent.build-config-default-otel" (dict "agentName" $agentName "context" $) | fromJson)) $ ) }}
-  {{- else if and $agent.config (ne ($agent.config | toString) "default") }}
+  {{- /* "default:otel" is ignored and builds the same config as "default": the OTLP endpoint comes from the otlp values, in otelConfig. */}}
+  {{- if and $agent.config (not (has ($agent.config | toString) (list "default" "default:otel"))) }}
   config: {{ include "cloudwatch-agent.modify-config" (merge (dict "Config" $agent.config) $ ) }}
   {{- else }}
   config: {{ include "cloudwatch-agent.modify-config" (merge (dict "Config" (include "cloudwatch-agent.build-default-config" (dict "agentName" $agentName "context" $) | fromJson)) $ ) }}
