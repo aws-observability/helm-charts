@@ -354,7 +354,7 @@ The entries are label keys. A prefix entry matches every key that starts with it
 */}}
 {{- define "otel-container-insights.recommendedExclusions" -}}
 {{- /* Not the whole karpenter.k8s.aws/instance- prefix: instance-tenancy is a launch property, so it is kept. */}}
-{{- dict
+{{- $list := dict
   "node" (dict
     "prefixes" (list
       "feature.node.kubernetes.io/"
@@ -398,8 +398,66 @@ The entries are label keys. A prefix entry matches every key that starts with it
       "controller-revision-hash"
       "pod-template-generation"
       "topology.kubernetes.io/region"
-      "topology.kubernetes.io/zone"))
-  | toJson }}
+      "topology.kubernetes.io/zone")) }}
+{{- /*
+Node labels that AKS and GKE put on every node, added only for that k8sMode so
+that a custom label with the same key on another platform is kept. As on EKS,
+the list holds labels that the VM size, node image, OS, disk or network set,
+and duplicates of other labels. Labels that group or schedule workloads are
+kept: the node pool (kubernetes.azure.com/agentpool, cloud.google.com/gke-nodepool),
+the pool mode, spot or preemptible capacity, and the accelerator type.
+AKS: the reserved labels in https://learn.microsoft.com/azure/aks/use-labels,
+the deprecated unprefixed copies listed there, and two labels that AKS sets on
+its scale sets (kubelet-identity-client-id, consolidated-additional-properties).
+GKE: the labels that GKE writes into a node pool's kube-labels.
+*/}}
+{{- if eq .Values.k8sMode "AKS" }}
+{{- $_ := set $list.node "keys" (concat $list.node.keys (list
+      "kubernetes.azure.com/cluster"
+      "kubernetes.azure.com/managedby"
+      "kubernetes.azure.com/role"
+      "kubernetes.azure.com/storageprofile"
+      "kubernetes.azure.com/storagetier"
+      "kubernetes.azure.com/node-image-version"
+      "kubernetes.azure.com/network-name"
+      "kubernetes.azure.com/network-subnet"
+      "kubernetes.azure.com/ppg"
+      "kubernetes.azure.com/encrypted-set"
+      "kubernetes.azure.com/fips_enabled"
+      "kubernetes.azure.com/os-sku"
+      "kubernetes.azure.com/os-sku-effective"
+      "kubernetes.azure.com/os-sku-requested"
+      "kubernetes.azure.com/sku-cpu"
+      "kubernetes.azure.com/sku-memory"
+      "kubernetes.azure.com/nodepool-type"
+      "kubernetes.azure.com/scalesetpriority"
+      "kubernetes.azure.com/kubelet-identity-client-id"
+      "kubernetes.azure.com/consolidated-additional-properties"
+      "agentpool"
+      "storageprofile"
+      "storagetier"
+      "accelerator"
+      "kubernetes.io/role"
+      "node-role.kubernetes.io/agent")) }}
+{{- else if eq .Values.k8sMode "GKE" }}
+{{- $_ := set $list.node "keys" (concat $list.node.keys (list
+      "cloud.google.com/gke-boot-disk"
+      "cloud.google.com/gke-container-runtime"
+      "cloud.google.com/gke-cpu-scaling-level"
+      "cloud.google.com/gke-memory-gb-scaling-level"
+      "cloud.google.com/gke-max-pods-per-node"
+      "cloud.google.com/gke-os-distribution"
+      "cloud.google.com/gke-logging-variant"
+      "cloud.google.com/gke-stack-type"
+      "cloud.google.com/gke-netd-ready"
+      "cloud.google.com/gke-local-ssd"
+      "cloud.google.com/machine-family"
+      "cloud.google.com/private-node"
+      "iam.gke.io/gke-metadata-server-enabled"
+      "node.kubernetes.io/masq-agent-ds-ready"
+      "addon.gke.io/node-local-dns-ds-ready")) }}
+{{- end }}
+{{- $list | toJson }}
 {{- end -}}
 
 {{/*

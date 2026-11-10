@@ -221,7 +221,7 @@ then a name of at most 63 characters. A label can be in both lists, for example 
 |-|-|
 | `include` | The labels that the chart collects. An empty list, or one that contains `*`, collects every label. |
 | `exclude` | The labels that the chart removes after it collects them. Exclude wins over include. `exclude: ["*"]` removes every label of that kind. |
-| `recommendedExclusions` | Also removes a built-in list of high-cardinality labels. Examples are the topology, hostname and instance type labels, the Karpenter and EKS Auto Mode instance labels, and controller revision markers. The default is `true`. An unset value also counts as `true`. |
+| `recommendedExclusions` | Also removes a built-in list of high-cardinality labels. Examples are the topology, hostname and instance type labels, the Karpenter and EKS Auto Mode instance labels, and controller revision markers. With `k8sMode` `AKS` or `GKE`, the list also holds the node labels that AKS or GKE sets from the VM size, node image, OS, disk and network, such as `kubernetes.azure.com/sku-cpu` and `cloud.google.com/gke-boot-disk`. The node pool, pool mode, spot and accelerator labels are kept. The default is `true`. An unset value also counts as `true`. |
 
 For each label, exclude wins over a named include entry, and a named include entry wins over
 the built-in list. A named entry is a label key or a prefix followed by `*`, but not `*` alone.
