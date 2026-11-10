@@ -1,0 +1,5 @@
+region: us-west-2
+clusterName: minikube
+# The OTLP endpoint turned off.
+otlp:
+  enabled: false

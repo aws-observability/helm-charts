@@ -1,0 +1,8 @@
+region: us-west-2
+clusterName: minikube
+# Chart defaults: the OTLP endpoint (otlp) is on, with OTEL Container Insights off.
+# The legacy Container Insights receiver is turned off because it cannot read the
+# minikube kubelet (its serving certificate has no IP SAN), which stops the agent
+# from starting. The scenario checks that the agent runs with the OTLP pipelines.
+containerInsights:
+  enabled: false

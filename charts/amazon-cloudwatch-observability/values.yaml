@@ -1170,6 +1170,51 @@ applicationSignals:
   ## The agent in the agents array that receives Application Signals config.
   targetAgent: "cloudwatch-agent"
 
+## ══════════════════════════════════════════════════════════════════════════════
+## OTLP endpoint
+## ══════════════════════════════════════════════════════════════════════════════
+##
+## An OTLP endpoint on every node, served by the node agent (cloudwatch-agent).
+## Workloads send OTLP metrics, traces, logs and profiles to
+## cloudwatch-agent.<release namespace> (gRPC on grpc.port, HTTP on http.port),
+## in plaintext. The telemetry gets the same Kubernetes and cloud attributes,
+## including pod and node labels, as Container Insights gives the same pod, and
+## the otelFilters settings below apply to it. See "OTLP endpoint" in the chart
+## README.
+##
+## The endpoint replaces the agents[].config value "default:otel", which the
+## chart now ignores: otlp.enabled alone turns OTLP on or off. Profiles need
+## agent image 1.300075.0 or later. Another collector that holds the same host ports
+## leaves one of the two pods Pending: change the ports or set enabled to false.
+otlp:
+  enabled: true
+  grpc:
+    enabled: true
+    port: 4317
+  http:
+    enabled: true
+    port: 4318
+  ## Request rate, error and duration metrics computed from the received traces.
+  spanMetrics:
+    enabled: true
+
+## ══════════════════════════════════════════════════════════════════════════════
+## Service identity
+## ══════════════════════════════════════════════════════════════════════════════
+##
+## How the chart sets service.name, service.namespace, service.version and
+## service.instance.id on the telemetry it enriches (today the OTLP endpoint),
+## per the OpenTelemetry Kubernetes convention: the sender's value, then the
+## resource.opentelemetry.io/service.* pod annotations, then the workload
+## names. See "Service identity" in the chart README.
+otelServiceIdentity:
+  ## Also use the pod labels app.kubernetes.io/instance and
+  ## app.kubernetes.io/name for service.name, and app.kubernetes.io/version for
+  ## service.version, after the annotations. Off by default, as the convention
+  ## asks: all pods of one Helm release usually share app.kubernetes.io/instance,
+  ## so they would share a service.name.
+  useAppLabels: false
+
 ## Controls the OTLP-based Container Insights pipeline (node-exporter, kube-state-metrics, cluster-scraper, OTEL collector config).
 ## When enabled, deploys additional resources and injects OTEL config into the CloudWatch Agent for metrics collection via OTLP.
 ##
@@ -1275,8 +1320,9 @@ otelContainerInsights:
 ## ══════════════════════════════════════════════════════════════════════════════
 ##
 ## OTEL filters: include and exclude lists for the data that the chart's OTEL
-## pipelines collect. A change restarts the agent pods. See "OTEL filters" in
-## the chart README for details.
+## pipelines collect: OTEL Container Insights and the OTLP endpoint (otlp). A
+## change restarts the agent pods. See "OTEL filters" in the chart README for
+## details.
 otelFilters:
   ## Namespaces to keep or drop. An entry is a name, a prefix ending in "*", or
   ## "*". An empty include list keeps every namespace. Exclude wins over include.
@@ -1286,7 +1332,8 @@ otelFilters:
     exclude: []
   ## Metric names to keep or drop, with the same rules as namespaces. This
   ## filter does not apply to logs. Entries are case-sensitive and match the
-  ## exported names, for example DCGM_FI_DEV_GPU_UTIL.
+  ## exported names, for example DCGM_FI_DEV_GPU_UTIL. A non-empty include list
+  ## also drops every OTLP metric that is not on it, span metrics included.
   metricNames:
     include: []
     exclude: []

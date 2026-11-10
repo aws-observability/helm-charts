@@ -76,7 +76,9 @@ jobs:
           - feature-targeted-user-config-override
           - multi-agent-leader-election
           - otlp-custom-otel-config
+          - otlp-default
           - otlp-disabled
+          - otlp-disabled-flag
           - otlp-hybrid-metrics-fluentbit
           - otlp-logs-disabled
           - otlp-logs-dual-publish
