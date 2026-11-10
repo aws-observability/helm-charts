@@ -58,18 +58,16 @@ serves inference, so the value is fixed.
 
 ### The vLLM metric service name
 
-`service.name` on the engine's metrics is resolved in this order, highest precedence first. The
-SGLang solution uses the same order.
-
-1. the pod annotation `resource.opentelemetry.io/service.name`
-2. the InferenceService name
-3. the workload name — Deployment, else StatefulSet, DaemonSet, Job or ReplicaSet
-4. the pod name
+`service.name` on the engine's metrics comes from the chart's
+[service identity](#service-identity) chain. On a KServe pod it is the InferenceService name
+unless the pod has a `resource.opentelemetry.io/service.name` annotation. Without KServe it is
+the workload name. The SGLang solution uses the same chain.
 
 The InferenceService outranks the Deployment because in KServe Serverless mode the
 Deployment name embeds the Knative revision generation
 (`<isvc>-predictor-00004-deployment`) and so changes on every redeploy. The
-`app.kubernetes.io/instance` and `app.kubernetes.io/name` labels are not used.
+`app.kubernetes.io/instance` and `app.kubernetes.io/name` labels are used only with
+`otelServiceIdentity.useAppLabels`, after the InferenceService.
 
 The pipeline also promotes the scraped `pod`/`namespace` labels to resource attributes and
 runs `k8sattributes` pod association, so `k8s.workload.name` resolves to the owning
@@ -118,9 +116,10 @@ for vLLM.
 
 ### The SGLang metric service name
 
-`service.name` is resolved as for [vLLM](#the-vllm-metric-service-name): the pod annotation
-`resource.opentelemetry.io/service.name`, then the InferenceService name, then the workload,
-then the pod.
+`service.name` is resolved as for [vLLM](#the-vllm-metric-service-name), from the chart's
+[service identity](#service-identity) chain: the pod annotation
+`resource.opentelemetry.io/service.name`, then the InferenceService name, then (with
+`otelServiceIdentity.useAppLabels`) the `app.kubernetes.io` labels, then the workload chain.
 
 ## KServe control-plane metrics
 
@@ -278,28 +277,8 @@ adds the same attributes that OTEL Container Insights adds for that pod:
   `otelFilters.podLabels` and `otelFilters.nodeLabels`;
 - the cloud and host attributes of the node, `k8s.cluster.name` and `cloud.resource_id`.
 
-The agent also sets the service identity, each attribute only when the sender did not set it,
-per the OpenTelemetry Kubernetes convention. The chart-wide `otelServiceIdentity` values control
-it:
-
-```yaml
-otelServiceIdentity:
-  useAppLabels: false
-```
-
-
-| Attribute | Source, first found |
-|-|-|
-| `service.name` | the `resource.opentelemetry.io/service.name` pod annotation, then the Deployment, ReplicaSet, StatefulSet, DaemonSet, CronJob, Job, pod or container name. With `otelServiceIdentity.useAppLabels`, the `app.kubernetes.io/instance` and `app.kubernetes.io/name` pod labels come after the annotation. A `service.name` that starts with `unknown_service`, the SDK default, counts as not set. |
-| `service.namespace` | the `resource.opentelemetry.io/service.namespace` annotation, then the namespace |
-| `service.version` | the `resource.opentelemetry.io/service.version` annotation, then, with `otelServiceIdentity.useAppLabels`, the `app.kubernetes.io/version` label |
-| `service.instance.id` | the `resource.opentelemetry.io/service.instance.id` annotation, then `<namespace>.<pod>.<container>` |
-| `deployment.environment.name` | `<cloud.platform>:<cluster>/<namespace>` |
-
-The `app.kubernetes.io` labels are off by default, as the
-[OpenTelemetry Kubernetes convention](https://opentelemetry.io/docs/specs/semconv/non-normative/k8s-attributes/#service-attributes)
-asks, because a Helm release usually puts the same `app.kubernetes.io/instance` on all its pods,
-which would give them one `service.name`.
+The agent also sets the service identity, each attribute only when the sender did not set it.
+See [Service identity](#service-identity).
 
 Logs go to the log group `/aws/cwagent/<clusterName>/otlp`, in a stream named
 `<namespace>/<service.namespace>/<service.name>` when those are known. A sender can choose the
@@ -346,6 +325,55 @@ networking, it is reachable on the node's IP addresses on the OTLP ports by anyt
 reach the node on those ports, not only by pods in the cluster. Kubernetes network policies
 do not apply to host-network pods, so restrict the ports with the nodes' security groups or a
 host firewall if other senders must not reach them, or set `otlp.enabled: false`.
+
+## Service identity
+
+The agent sets the service identity on OTLP telemetry and on OTEL Container Insights metrics
+and application logs from one chain, per the OpenTelemetry Kubernetes convention. Each
+attribute is set only when the sender did not set it. The chart-wide `otelServiceIdentity`
+values control it:
+
+```yaml
+otelServiceIdentity:
+  useAppLabels: false
+```
+
+| Attribute | Source, first found |
+|-|-|
+| `service.name` | the `resource.opentelemetry.io/service.name` pod annotation, then the Deployment, ReplicaSet, StatefulSet, DaemonSet, CronJob, Job, pod or container name. With `otelServiceIdentity.useAppLabels`, the `app.kubernetes.io/instance` and `app.kubernetes.io/name` pod labels come after the annotation. A `service.name` that starts with `unknown_service`, the SDK default, counts as not set. |
+| `service.namespace` | the `resource.opentelemetry.io/service.namespace` annotation, then the namespace |
+| `service.version` | the `resource.opentelemetry.io/service.version` annotation, then, with `otelServiceIdentity.useAppLabels`, the `app.kubernetes.io/version` label |
+| `service.instance.id` | the `resource.opentelemetry.io/service.instance.id` annotation, then `<namespace>.<pod>.<container>` |
+| `deployment.environment.name` | `<cloud.platform>:<cluster>/<namespace>` |
+
+The `app.kubernetes.io` labels are off by default, as the
+[OpenTelemetry Kubernetes convention](https://opentelemetry.io/docs/specs/semconv/non-normative/k8s-attributes/#service-attributes)
+asks, because a Helm release usually puts the same `app.kubernetes.io/instance` on all its pods,
+which would give them one `service.name`.
+
+OTEL Container Insights uses the same chain on the node agent's metrics and application logs
+and on the cluster scraper's kube-state-metrics series, so a pod's resource metrics, state
+metrics and logs carry the same service identity. It differs from the OTLP chain in these ways:
+
+- The Prometheus receiver sets `service.name` to the scrape job name (for example `cadvisor` or
+  `kube-state-metrics`). That value counts as not set, so a pod's series are named after the
+  pod's service. The job name is kept only when nothing else is found, as for node-level series
+  such as node-exporter, and kube-state-metrics node and namespace series.
+- The Prometheus receiver also sets `service.instance.id` to the scrape target (`<host>:<port>`,
+  also kept as `server.address` and `server.port`). The target is kept only where `service.name`
+  stays the job name (series about the exporter itself, such as node-exporter, and
+  kube-state-metrics node and namespace series). Elsewhere `service.instance.id` is the
+  annotation or `<namespace>.<pod>.<container>`, and is not set on series with no single
+  container (pod-level series, and kube-state-metrics Deployment, StatefulSet, DaemonSet, Job
+  and CronJob series), as the OpenTelemetry convention asks.
+- On KServe pods, the InferenceService name (KServe's own `serving.kserve.io/inferenceservice`
+  pod label) comes after the `resource.opentelemetry.io/service.name` annotation and before the
+  `app.kubernetes.io` labels.
+- Control-plane series (apiserver, Karpenter, KEDA, Knative and KServe controllers) keep the
+  Prometheus receiver's `service.name` and `service.instance.id`: they describe the chart's
+  scrape targets, not customer services.
+
+Host logs carry no service identity: they come from the node, not from a service.
 
 ## OTEL filters
 

@@ -29,7 +29,59 @@ is a DR-0001 review finding.
 
 The extracted annotations and labels are held in _tmp.service_identity.*
 resource attributes, which the processor removes at the end.
+
+service-identity.processor and service-identity.statements take either the
+root context (the OTLP endpoint) or a dict with:
+
+- Values: the chart values (required);
+- name: the processor name (default transform/cw_k8s_service_identity);
+- groups: the statement groups (default metric_statements, log_statements,
+  trace_statements, profile_statements);
+- inputs: names of further service.name inputs, from
+  service-identity.namedInputs, used after the annotation and before the app
+  labels (default none);
+- receiverDefault: true when the pipeline's receiver sets service.name and
+  service.instance.id itself, as the Prometheus receiver does with the scrape
+  job name and target address. Both then count as not set. The receiver's
+  service.name, held in _tmp.service_identity.unknown_service, is used only
+  when nothing else is found. The receiver's service.instance.id is restored
+  only where service.name ended up as that job name, because the target
+  identifies the scraped job and nothing else. Elsewhere service.instance.id
+  is the annotation or <namespace>.<pod>.<container>, or is not set, as the
+  OpenTelemetry convention asks when the instance is not known (default
+  false).
 */}}
+
+{{/*
+The named service.name inputs a caller can add to the chain, as JSON
+{name: resource attribute}. kserveInferenceService is KServe's own
+serving.kserve.io/inferenceservice pod label, as the Container Insights pod
+k8sattributes extracts it (otel-container-insights.chartLabels).
+*/}}
+{{- define "service-identity.namedInputs" -}}
+{{- dict "kserveInferenceService" "k8s.pod.label.serving.kserve.io/inferenceservice" | toJson }}
+{{- end -}}
+
+{{/* The parameters of service-identity.processor, with defaults, as JSON. */}}
+{{- define "service-identity.params" -}}
+{{- $p := dict "name" "transform/cw_k8s_service_identity" "groups" (list "metric_statements" "log_statements" "trace_statements" "profile_statements") "inputs" (list) "receiverDefault" false }}
+{{- $_ := set $p "useAppLabels" .Values.otelServiceIdentity.useAppLabels }}
+{{- /* The root context (it has .Release) takes the defaults. */}}
+{{- if not (hasKey . "Release") }}
+{{- range $key := list "name" "groups" "inputs" "receiverDefault" }}
+{{- if hasKey $ $key }}
+{{- $_ := set $p $key (index $ $key) }}
+{{- end }}
+{{- end }}
+{{- end }}
+{{- $named := include "service-identity.namedInputs" . | fromJson }}
+{{- range $p.inputs }}
+{{- if not (hasKey $named .) }}
+{{- fail (printf "service-identity: unknown input %q" .) }}
+{{- end }}
+{{- end }}
+{{- toJson $p }}
+{{- end -}}
 
 {{/* Validates otelServiceIdentity. */}}
 {{- define "service-identity.validate" -}}
@@ -69,13 +121,23 @@ resource attributes, which the processor removes at the end.
 
 {{/* The OTTL statements of the chain, in a resource context, as a JSON list. */}}
 {{- define "service-identity.statements" -}}
+{{- $p := include "service-identity.params" . | fromJson }}
 {{- $r := "resource.attributes" }}
 {{- $tmp := "_tmp.service_identity." }}
-{{- $useAppLabels := .Values.otelServiceIdentity.useAppLabels }}
+{{- $useAppLabels := $p.useAppLabels }}
+{{- /* The sender's default: unknown_service*, or with receiverDefault any value the receiver set. */}}
+{{- $isDefault := printf "IsMatch(%s[\"service.name\"], \"^unknown_service\")" $r }}
+{{- if $p.receiverDefault }}
+{{- $isDefault = printf "%s[\"service.name\"] != nil" $r }}
+{{- end }}
 {{- $statements := list
-  (printf "set(%s[\"%sunknown_service\"], %s[\"service.name\"]) where IsMatch(%s[\"service.name\"], \"^unknown_service\")" $r $tmp $r $r)
-  (printf "delete_key(%s, \"service.name\") where IsMatch(%s[\"service.name\"], \"^unknown_service\")" $r $r) }}
+  (printf "set(%s[\"%sunknown_service\"], %s[\"service.name\"]) where %s" $r $tmp $r $isDefault)
+  (printf "delete_key(%s, \"service.name\") where %s" $r $isDefault) }}
 {{- $sources := list (printf "%s[\"%sannotation.service.name\"]" $r $tmp) }}
+{{- $named := include "service-identity.namedInputs" . | fromJson }}
+{{- range $p.inputs }}
+{{- $sources = append $sources (printf "%s[\"%s\"]" $r (index $named .)) }}
+{{- end }}
 {{- if $useAppLabels }}
 {{- $sources = concat $sources (list
   (printf "%s[\"%slabel.app.kubernetes.io/instance\"]" $r $tmp)
@@ -97,20 +159,45 @@ resource attributes, which the processor removes at the end.
 {{- $statements = append $statements (printf "set(%s[\"%s\"], %s) where %s[\"%s\"] == nil and %s != nil" $r $key . $r $key .) }}
 {{- end }}
 {{- end }}
+{{- if $p.receiverDefault }}
+{{- $statements = concat $statements (list
+  (printf "set(%s[\"%sreceiver.service.instance.id\"], %s[\"service.instance.id\"]) where %s[\"service.instance.id\"] != nil" $r $tmp $r $r)
+  (printf "delete_key(%s, \"service.instance.id\")" $r)) }}
+{{- end }}
 {{- $statements = concat $statements (list
   (printf "set(%s[\"service.instance.id\"], %s[\"%sannotation.service.instance.id\"]) where %s[\"service.instance.id\"] == nil and %s[\"%sannotation.service.instance.id\"] != nil" $r $r $tmp $r $r $tmp)
-  (printf "set(%s[\"service.instance.id\"], Concat([%s[\"k8s.namespace.name\"], %s[\"k8s.pod.name\"], %s[\"k8s.container.name\"]], \".\")) where %s[\"service.instance.id\"] == nil and %s[\"k8s.namespace.name\"] != nil and %s[\"k8s.pod.name\"] != nil and %s[\"k8s.container.name\"] != nil" $r $r $r $r $r $r $r $r)
+  (printf "set(%s[\"service.instance.id\"], Concat([%s[\"k8s.namespace.name\"], %s[\"k8s.pod.name\"], %s[\"k8s.container.name\"]], \".\")) where %s[\"service.instance.id\"] == nil and %s[\"k8s.namespace.name\"] != nil and %s[\"k8s.pod.name\"] != nil and %s[\"k8s.container.name\"] != nil" $r $r $r $r $r $r $r $r)) }}
+{{- if $p.receiverDefault }}
+{{- /* After every service.name statement, including the restore of the job name. */}}
+{{- $statements = append $statements (printf "set(%s[\"service.instance.id\"], %s[\"%sreceiver.service.instance.id\"]) where %s[\"service.instance.id\"] == nil and %s[\"service.name\"] == %s[\"%sunknown_service\"] and %s[\"%sreceiver.service.instance.id\"] != nil" $r $r $tmp $r $r $r $tmp $r $tmp) }}
+{{- end }}
+{{- $statements = concat $statements (list
   (printf "set(%s[\"deployment.environment.name\"], Concat([%s[\"cloud.platform\"], Concat([%s[\"k8s.cluster.name\"], %s[\"k8s.namespace.name\"]], \"/\")], \":\")) where %s[\"deployment.environment.name\"] == nil and %s[\"cloud.platform\"] != nil and %s[\"k8s.cluster.name\"] != nil and %s[\"k8s.namespace.name\"] != nil" $r $r $r $r $r $r $r $r)
   (printf "delete_matching_keys(%s, \"^_tmp\\\\.service_identity\\\\.\")" $r)) }}
 {{- toJson $statements }}
 {{- end -}}
 
-{{/* The transform processor that applies the chain to metrics, logs, traces and profiles. */}}
-{{- define "service-identity.processor" -}}
-{{- $statements := include "service-identity.statements" . | fromJsonArray }}
-transform/cw_k8s_service_identity:
+{{/*
+A metrics transform processor named .name that only removes the
+_tmp.service_identity.* inputs, for a pipeline that shares a k8sattributes
+processor with the chain but does not apply it.
+*/}}
+{{- define "service-identity.dropInputs" -}}
+{{ .name }}:
   error_mode: ignore
-  {{- range $group := list "metric_statements" "log_statements" "trace_statements" "profile_statements" }}
+  metric_statements:
+    - context: resource
+      statements:
+        - 'delete_matching_keys(resource.attributes, "^_tmp\\.service_identity\\.")'
+{{- end -}}
+
+{{/* The transform processor that applies the chain, by default to metrics, logs, traces and profiles. */}}
+{{- define "service-identity.processor" -}}
+{{- $p := include "service-identity.params" . | fromJson }}
+{{- $statements := include "service-identity.statements" . | fromJsonArray }}
+{{ $p.name }}:
+  error_mode: ignore
+  {{- range $group := $p.groups }}
   {{ $group }}:
     - context: resource
       statements:
