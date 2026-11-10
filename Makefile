@@ -12,7 +12,7 @@ LINTER = $(TOOLS_BIN_DIR)/golangci-lint
 all: deps tidy check_secrets fmt lint helm-lint helm-flag-matrix helm-yaml-injection
 
 install-goimports:
-	GOBIN=$(TOOLS_BIN_DIR) go install golang.org/x/tools/cmd/goimports@latest
+	GOBIN=$(TOOLS_BIN_DIR) go install golang.org/x/tools/cmd/goimports@v0.40.0
 
 install-golangci-lint:
 	#Install from source for golangci-lint is not recommended based on https://golangci-lint.run/usage/install/#install-from-source so using binary
