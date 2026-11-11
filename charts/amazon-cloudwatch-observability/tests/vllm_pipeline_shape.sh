@@ -5,21 +5,18 @@
 # Pins the shape of the vLLM branch of the OTEL Container Insights pipeline
 # (otelContainerInsights.solutions.vllm).
 #
-# The scrape job finds vLLM servers without configuration: the model container
-# of a KServe predictor, or a container running a vLLM image. What this script
-# guards:
+# vLLM servers are found without configuration: a container running a vLLM image
+# (this job), or the model container of a KServe predictor (the shared KServe
+# model-server receiver, pinned by model_server_pipeline_shape.sh). What this
+# script guards:
 #
 #   1. Discovery stays node-scoped: the image match cannot be done by the API
 #      server, so an unscoped watch would hold every pod in the cluster on
 #      every agent.
-#   2. Only those two matches select targets. The chart reads no scrape labels
-#      or annotations of its own (prometheus.io/*, cloudwatch.aws/*) from pods,
-#      and on KServe pods only the predictor's kserve-container is picked:
-#      transformers and explainers share the container name, and the
-#      queue-proxy serves the model server's metrics a second time.
-#   3. Port precedence: prometheus.kserve.io/port (the serving runtime's) >
-#      declared port > server default. Relabel rules are applied in order and
-#      later writes win, so the order of the rules is the precedence.
+#   2. Only the image selects targets, KServe predictors are left to the shared
+#      receiver, and the chart reads no scrape labels or annotations of its own
+#      (prometheus.io/*, cloudwatch.aws/*) from pods.
+#   3. Port: declared port > vllm serve's 8000.
 #   4. Pod identity reaches resource scope before k8sattributes runs.
 #
 # Assertions run on the parsed otelConfig (PyYAML), not on rendered text.
@@ -119,33 +116,29 @@ check("pod discovery is field-selected to this node",
       sd.get("role") == "pod" and
       any(s.get("field") == "spec.nodeName=${env:K8S_NODE_NAME}" for s in selectors))
 
-# 2. Target selection: KServe predictor container or vLLM image, nothing else.
-detect = first(rules, lambda r: r.get("target_label") == "__tmp_vllm_detected")
-check("detection reads the inferenceservice and component labels, container name and image",
-      detect >= 0 and rules[detect]["source_labels"] == [
-          ISVC, "__meta_kubernetes_pod_label_component",
-          "__meta_kubernetes_pod_container_name", "__meta_kubernetes_pod_container_image"])
-check("on KServe pods only the predictor's kserve-container is detected",
-      detect >= 0 and rules[detect].get("regex", "").startswith(".+;predictor;kserve-container;"))
-keep = first(rules, lambda r: r.get("action") == "keep" and reads(r, "__tmp_vllm_detected"))
-check("only detected targets are kept",
-      keep >= 0 and rules[keep]["source_labels"] == ["__tmp_vllm_detected"] and rules[keep].get("regex") == "true")
+# 2. Target selection: the vLLM image, outside KServe predictors. Predictors are
+#    scraped by the shared KServe model-server receiver (model_server_pipeline_shape.sh).
+IMAGE = "__meta_kubernetes_pod_container_image"
+check("the first rule keeps only vLLM images",
+      bool(rules) and rules[0].get("action") == "keep" and rules[0]["source_labels"] == [IMAGE]
+      and rules[0].get("regex") == "(?i).*vllm.*")
+check("KServe predictors are dropped (the shared receiver scrapes them)",
+      any(r.get("action") == "drop" and r.get("source_labels") == [ISVC, "__meta_kubernetes_pod_label_component",
+          "__meta_kubernetes_pod_container_name"] and r.get("regex") == ".+;predictor;kserve-container" for r in rules))
 check("no relabel rule reads prometheus.io/* or cloudwatch.aws/* from pods",
       not any(("prometheus_io_" in l or "cloudwatch_aws" in l)
               for r in rules for l in r.get("source_labels") or []))
+check(f"{PIPELINE} also takes the shared KServe model-server receiver",
+      "prometheus/cw_k8s_ci_v0_kserve_model_server" in
+      ((((cfg.get("service") or {}).get("pipelines") or {}).get(PIPELINE) or {}).get("receivers") or []))
 
-# 3. Port and path precedence, encoded as rule order.
+# 3. Port: declared, else vllm serve's 8000.
 port_rules = [i for i, r in enumerate(rules) if writes(r, "__tmp_port")]
-ks_port = first(rules, lambda r: writes(r, "__tmp_port") and reads(r, ANNOTATION + "prometheus_kserve_io_port"))
-ks_path = first(rules, lambda r: writes(r, "__metrics_path__") and reads(r, ANNOTATION + "prometheus_kserve_io_path"))
 address = first(rules, lambda r: writes(r, "__address__"))
-check("prometheus.kserve.io/port is applied after the defaults, so it wins",
-      ks_port >= 0 and port_rules[-1] == ks_port)
-check("prometheus.kserve.io/path sets the metrics path", ks_path >= 0)
+check("an undeclared port defaults to 8000",
+      any(writes(r, "__tmp_port") and r.get("replacement") == "8000" for r in rules))
 check("__address__ is set after every port rule",
       address >= 0 and all(i < address for i in port_rules))
-check("annotation rules use the default replacement (no $ to escape)",
-      all("replacement" not in rules[i] for i in (ks_port, ks_path) if i >= 0))
 
 # aws.service.type is fixed by the chart, never read from the pod.
 check("no relabel rule reads an aws.service.type pod label",
@@ -165,6 +158,13 @@ svc_stmts = [st for g in (processors.get(SERVICE_NAME) or {}).get("metric_statem
              for st in g.get("statements") or []]
 check(f"{SERVICE_NAME} takes the InferenceService name from k8s.pod.label.serving.kserve.io/inferenceservice",
       any('service.name"], attributes["k8s.pod.label.serving.kserve.io/inferenceservice"]' in st for st in svc_stmts))
+order = [next((i for i, st in enumerate(svc_stmts) if st.startswith(f'set(attributes["service.name"], attributes["{k}"])')), -1)
+         for k in ("k8s.pod.name", "k8s.workload.name", "k8s.pod.label.serving.kserve.io/inferenceservice",
+                   "cw.tmp.service_name_annotation")]
+check("service.name is set pod, workload, InferenceService, then the service.name annotation (last write wins)",
+      all(i >= 0 for i in order) and order == sorted(order))
+check(f"{PROMOTE} carries the service.name annotation to resource scope",
+      any(st.startswith('set(resource.attributes["cw.tmp.service_name_annotation"]') for st in promote_stmts))
 
 # 4. Processor order.
 def before(a, b):

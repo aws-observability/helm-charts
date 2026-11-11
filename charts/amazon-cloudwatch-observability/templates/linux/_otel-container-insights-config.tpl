@@ -156,40 +156,33 @@ receivers:
               regex: metrics
               action: keep
 
-  {{- if and .Values.otelContainerInsights.solutions.enabled .Values.otelContainerInsights.solutions.vllm.enabled }}
-  # vLLM model-server metrics, scraped per node like the ebs-csi-node job.
-  prometheus/cw_k8s_ci_v0_vllm:
+  {{- if and .Values.otelContainerInsights.solutions.enabled (or .Values.otelContainerInsights.solutions.vllm.enabled .Values.otelContainerInsights.solutions.sglang.enabled) }}
+  # LLM model servers in KServe predictors, scraped once per node and fed to every
+  # model-server pipeline (vLLM, SGLang). KServe does not label the engine, so
+  # each pipeline keeps the series of its own engine by metric name.
+  prometheus/cw_k8s_ci_v0_kserve_model_server:
     config:
       scrape_configs:
-        - job_name: vllm
+        - job_name: kserve-model-server
           scrape_interval: {{ .Values.otelContainerInsights.metricResolution }}
           scrape_timeout: {{ include "otel-container-insights.scrapeTimeout" . }}
           metrics_path: /metrics
-          # Watch only this node's pods: the vLLM match below is on the image, which
-          # the API server cannot filter on, so an unscoped watch would hold every
-          # pod in the cluster on every agent.
+          # Watch only this node's pods.
           kubernetes_sd_configs:
             - role: pod
               selectors:
                 - role: pod
                   field: spec.nodeName=${env:K8S_NODE_NAME}
           relabel_configs:
-            # Found without configuration: the model container of a KServe predictor,
-            # or any container running a vLLM image. KServe names the container of
-            # every InferenceService component kserve-container, so the predictor is
-            # picked by its component label; transformers and explainers are not model
-            # servers. Keyed on the container name rather than the port name: the port
-            # is unnamed in RawDeployment mode, where Knative never renames it.
-            - source_labels: [__meta_kubernetes_pod_label_serving_kserve_io_inferenceservice, __meta_kubernetes_pod_label_component, __meta_kubernetes_pod_container_name, __meta_kubernetes_pod_container_image]
+            # The model container of an InferenceService predictor, whatever its
+            # image. KServe names the container of every component kserve-container;
+            # the component label excludes transformers and explainers, and the
+            # queue-proxy, which serves the model server's metrics a second time, is
+            # not selected. Keyed on the container name rather than the port name:
+            # the port is unnamed in RawDeployment mode.
+            - source_labels: [__meta_kubernetes_pod_label_serving_kserve_io_inferenceservice, __meta_kubernetes_pod_label_component, __meta_kubernetes_pod_container_name]
               separator: ";"
-              regex: '.+;predictor;kserve-container;.*|(?i)[^;]*;[^;]*;[^;]*;.*vllm.*'
-              target_label: __tmp_vllm_detected
-              replacement: "true"
-              action: replace
-            # Only those: the chart reads no scrape labels or annotations of its own
-            # from customer pods.
-            - source_labels: [__tmp_vllm_detected]
-              regex: "true"
+              regex: ".+;predictor;kserve-container"
               action: keep
             - source_labels: [__meta_kubernetes_pod_container_init]
               regex: "true"
@@ -197,27 +190,17 @@ receivers:
             - source_labels: [__meta_kubernetes_pod_phase]
               regex: Running
               action: keep
-            # role: pod gives a declared port's target its address already. A container
-            # declaring none gets the server's default: 8080 for KServe, else
-            # vllm serve's 8000. Joined via `separator` rather than a `$1` in
-            # `replacement`, which would have to survive the collector's $$-unescaping.
-            - source_labels: [__meta_kubernetes_pod_container_port_number, __meta_kubernetes_pod_label_serving_kserve_io_inferenceservice]
+            # Port: the serving runtime's prometheus.kserve.io/port, else the declared
+            # port (role: pod sets it already), else KServe's 8080. Both engines serve
+            # /metrics on their API port, so the port does not depend on the engine.
+            # The annotation rules use the default replacement ($1), which is not part
+            # of the rendered config.
+            - source_labels: [__meta_kubernetes_pod_container_port_number, __meta_kubernetes_pod_container_name]
               separator: ";"
               regex: ";.+"
               target_label: __tmp_port
               replacement: "8080"
               action: replace
-            - source_labels: [__meta_kubernetes_pod_container_port_number, __meta_kubernetes_pod_label_serving_kserve_io_inferenceservice]
-              separator: ";"
-              regex: ";"
-              target_label: __tmp_port
-              replacement: "8000"
-              action: replace
-            # A KServe serving runtime can state its metrics port and path in its
-            # prometheus.kserve.io/* annotations, which KServe copies onto the pod.
-            # They win over the defaults and collapse a multi-port container to one
-            # target. These rules use the default replacement ($1), which is not part
-            # of the rendered config.
             - source_labels: [__meta_kubernetes_pod_annotation_prometheus_kserve_io_port]
               regex: "([0-9]+)"
               target_label: __tmp_port
@@ -238,6 +221,148 @@ receivers:
               action: replace
             - source_labels: [__meta_kubernetes_namespace]
               target_label: namespace
+              action: replace
+            # The OTel semantic-conventions service.name annotation, the first step
+            # of the Kubernetes service.name chain. Empty when unset, which
+            # Prometheus drops.
+            - source_labels: [__meta_kubernetes_pod_annotation_resource_opentelemetry_io_service_name]
+              target_label: otel_service_name_annotation
+              action: replace
+  {{- end }}
+
+  {{- if and .Values.otelContainerInsights.solutions.enabled .Values.otelContainerInsights.solutions.vllm.enabled }}
+  # vLLM servers outside KServe, found by their image. KServe predictors are
+  # scraped once by prometheus/cw_k8s_ci_v0_kserve_model_server instead.
+  prometheus/cw_k8s_ci_v0_vllm:
+    config:
+      scrape_configs:
+        - job_name: vllm
+          scrape_interval: {{ .Values.otelContainerInsights.metricResolution }}
+          scrape_timeout: {{ include "otel-container-insights.scrapeTimeout" . }}
+          metrics_path: /metrics
+          # Watch only this node's pods: the match below is on the image, which the
+          # API server cannot filter on.
+          kubernetes_sd_configs:
+            - role: pod
+              selectors:
+                - role: pod
+                  field: spec.nodeName=${env:K8S_NODE_NAME}
+          relabel_configs:
+            # Found without configuration: a container running vLLM image. The
+            # chart reads no scrape labels or annotations of its own from pods.
+            - source_labels: [__meta_kubernetes_pod_container_image]
+              regex: "(?i).*vllm.*"
+              action: keep
+            - source_labels: [__meta_kubernetes_pod_label_serving_kserve_io_inferenceservice, __meta_kubernetes_pod_label_component, __meta_kubernetes_pod_container_name]
+              separator: ";"
+              regex: ".+;predictor;kserve-container"
+              action: drop
+            # KubeRay pods belong to a Ray scrape, which reads an engine's metrics
+            # through Ray; a Ray image built on this engine's base would otherwise be
+            # scraped on every port the Ray container declares.
+            - source_labels: [__meta_kubernetes_pod_label_ray_io_is_ray_node]
+              regex: "yes"
+              action: drop
+            - source_labels: [__meta_kubernetes_pod_container_init]
+              regex: "true"
+              action: drop
+            - source_labels: [__meta_kubernetes_pod_phase]
+              regex: Running
+              action: keep
+            # role: pod gives a declared port's target its address already. A container
+            # declaring none gets vllm serve's default.
+            - source_labels: [__meta_kubernetes_pod_container_port_number, __meta_kubernetes_pod_container_name]
+              separator: ";"
+              regex: ";.+"
+              target_label: __tmp_port
+              replacement: "8000"
+              action: replace
+            - source_labels: [__meta_kubernetes_pod_ip, __tmp_port]
+              separator: ":"
+              regex: "(.+:[0-9]+)"
+              target_label: __address__
+              action: replace
+            # Promoted to resource scope downstream, so k8sattributes can resolve the
+            # owning Deployment rather than the ReplicaSet.
+            - source_labels: [__meta_kubernetes_pod_name]
+              target_label: pod
+              action: replace
+            - source_labels: [__meta_kubernetes_namespace]
+              target_label: namespace
+              action: replace
+            # The OTel semantic-conventions service.name annotation, the first step
+            # of the Kubernetes service.name chain. Empty when unset, which
+            # Prometheus drops.
+            - source_labels: [__meta_kubernetes_pod_annotation_resource_opentelemetry_io_service_name]
+              target_label: otel_service_name_annotation
+              action: replace
+  {{- end }}
+
+  {{- if and .Values.otelContainerInsights.solutions.enabled .Values.otelContainerInsights.solutions.sglang.enabled }}
+  # SGLang servers outside KServe, found by their image. KServe predictors are
+  # scraped once by prometheus/cw_k8s_ci_v0_kserve_model_server instead.
+  prometheus/cw_k8s_ci_v0_sglang:
+    config:
+      scrape_configs:
+        - job_name: sglang
+          scrape_interval: {{ .Values.otelContainerInsights.metricResolution }}
+          scrape_timeout: {{ include "otel-container-insights.scrapeTimeout" . }}
+          metrics_path: /metrics
+          # Watch only this node's pods: the match below is on the image, which the
+          # API server cannot filter on.
+          kubernetes_sd_configs:
+            - role: pod
+              selectors:
+                - role: pod
+                  field: spec.nodeName=${env:K8S_NODE_NAME}
+          relabel_configs:
+            # Found without configuration: a container running SGLang image. The
+            # chart reads no scrape labels or annotations of its own from pods.
+            - source_labels: [__meta_kubernetes_pod_container_image]
+              regex: "(?i).*sglang.*"
+              action: keep
+            - source_labels: [__meta_kubernetes_pod_label_serving_kserve_io_inferenceservice, __meta_kubernetes_pod_label_component, __meta_kubernetes_pod_container_name]
+              separator: ";"
+              regex: ".+;predictor;kserve-container"
+              action: drop
+            # KubeRay pods belong to a Ray scrape, which reads an engine's metrics
+            # through Ray; a Ray image built on this engine's base would otherwise be
+            # scraped on every port the Ray container declares.
+            - source_labels: [__meta_kubernetes_pod_label_ray_io_is_ray_node]
+              regex: "yes"
+              action: drop
+            - source_labels: [__meta_kubernetes_pod_container_init]
+              regex: "true"
+              action: drop
+            - source_labels: [__meta_kubernetes_pod_phase]
+              regex: Running
+              action: keep
+            # role: pod gives a declared port's target its address already. A container
+            # declaring none gets sglang.launch_server's default.
+            - source_labels: [__meta_kubernetes_pod_container_port_number, __meta_kubernetes_pod_container_name]
+              separator: ";"
+              regex: ";.+"
+              target_label: __tmp_port
+              replacement: "30000"
+              action: replace
+            - source_labels: [__meta_kubernetes_pod_ip, __tmp_port]
+              separator: ":"
+              regex: "(.+:[0-9]+)"
+              target_label: __address__
+              action: replace
+            # Promoted to resource scope downstream, so k8sattributes can resolve the
+            # owning Deployment rather than the ReplicaSet.
+            - source_labels: [__meta_kubernetes_pod_name]
+              target_label: pod
+              action: replace
+            - source_labels: [__meta_kubernetes_namespace]
+              target_label: namespace
+              action: replace
+            # The OTel semantic-conventions service.name annotation, the first step
+            # of the Kubernetes service.name chain. Empty when unset, which
+            # Prometheus drops.
+            - source_labels: [__meta_kubernetes_pod_annotation_resource_opentelemetry_io_service_name]
+              target_label: otel_service_name_annotation
               action: replace
   {{- end }}
 
@@ -534,18 +659,22 @@ processors:
         statements:
           - set(resource.attributes["k8s.pod.name"], attributes["pod"]) where attributes["pod"] != nil
           - set(resource.attributes["k8s.namespace.name"], attributes["namespace"]) where attributes["namespace"] != nil
+          - set(resource.attributes["cw.tmp.service_name_annotation"], attributes["otel_service_name_annotation"]) where attributes["otel_service_name_annotation"] != nil
+          - delete_key(attributes, "otel_service_name_annotation")
           # vLLM only ever serves inference, including when it generates rollouts
           # for a training loop.
           - set(resource.attributes["aws.service.type"], "ai_inference")
 
-  # transform/cw_k8s_ci_v0_set_workload only assigns service.name on AKS and GKE, so
-  # on EKS it stays the Prometheus receiver's default -- the scrape job name.
-  #
-  # Ordered lowest-precedence first, each overwriting unconditionally: a guard on
-  # `service.name == nil` would never fire, because the receiver always sets it.
-  # Effective precedence is InferenceService, then workload (resolved by
-  # set_workload, which runs earlier), then pod. The InferenceService name is
-  # KServe's own pod label, as extracted by k8sattributes.
+  # service.name for model-server series, the same for every engine. Highest
+  # precedence first: the pod annotation resource.opentelemetry.io/service.name
+  # (the first step of the OTel semantic-conventions Kubernetes chain); the
+  # InferenceService, as KServe's own pod label, because in KServe Serverless mode
+  # the Deployment name embeds the revision generation
+  # (<isvc>-predictor-00004-deployment) and changes on every redeploy; the
+  # workload (resolved by set_workload, which runs earlier); then the pod. The
+  # app.kubernetes.io/* label step is opt-in and not applied. Ordered
+  # lowest-precedence first, each overwriting unconditionally, because the
+  # receiver always sets service.name to the job name.
   transform/cw_k8s_ci_v0_vllm_service_name:
     error_mode: ignore
     metric_statements:
@@ -554,6 +683,8 @@ processors:
           - set(attributes["service.name"], attributes["k8s.pod.name"]) where attributes["k8s.pod.name"] != nil
           - set(attributes["service.name"], attributes["k8s.workload.name"]) where attributes["k8s.workload.name"] != nil
           - set(attributes["service.name"], attributes["k8s.pod.label.serving.kserve.io/inferenceservice"]) where attributes["k8s.pod.label.serving.kserve.io/inferenceservice"] != nil
+          - set(attributes["service.name"], attributes["cw.tmp.service_name_annotation"]) where attributes["cw.tmp.service_name_annotation"] != nil
+          - delete_key(attributes, "cw.tmp.service_name_annotation")
           - set(attributes["service.namespace"], attributes["k8s.namespace.name"]) where attributes["k8s.namespace.name"] != nil
 
   # Keep the engine's own series and the instrumentator's http_* (the only
@@ -567,6 +698,67 @@ processors:
     metrics:
       metric:
         - 'not IsMatch(name, "^(vllm:|http_).*")'
+        - 'IsMatch(name, ".*_created$")'
+        - 'type == METRIC_DATA_TYPE_SUMMARY'
+  {{- end }}
+
+  {{- if and .Values.otelContainerInsights.solutions.enabled .Values.otelContainerInsights.solutions.sglang.enabled }}
+  transform/cw_k8s_ci_v0_set_scope_sglang:
+    error_mode: ignore
+    metric_statements:
+      - context: scope
+        statements:
+          - set(scope.name, "github.com/sgl-project/sglang")
+          - set(scope.schema_url, "")
+          - set(attributes["cloudwatch.source"], "cloudwatch-agent")
+          - set(attributes["cloudwatch.solution"], "k8s-otel-container-insights")
+          - set(attributes["cloudwatch.pipeline"], "sglang")
+
+  # Lift the scraped pod identity to resource scope, where k8sattributes'
+  # pod_association looks for it, and carry the service.name annotation there
+  # for transform/cw_k8s_ci_v0_sglang_service_name.
+  transform/cw_k8s_ci_v0_sglang_promote:
+    error_mode: ignore
+    metric_statements:
+      - context: datapoint
+        statements:
+          - set(resource.attributes["k8s.pod.name"], attributes["pod"]) where attributes["pod"] != nil
+          - set(resource.attributes["k8s.namespace.name"], attributes["namespace"]) where attributes["namespace"] != nil
+          - set(resource.attributes["cw.tmp.service_name_annotation"], attributes["otel_service_name_annotation"]) where attributes["otel_service_name_annotation"] != nil
+          - delete_key(attributes, "otel_service_name_annotation")
+          # SGLang only serves inference.
+          - set(resource.attributes["aws.service.type"], "ai_inference")
+
+  # service.name for model-server series, the same for every engine. Highest
+  # precedence first: the pod annotation resource.opentelemetry.io/service.name
+  # (the first step of the OTel semantic-conventions Kubernetes chain); the
+  # InferenceService, as KServe's own pod label, because in KServe Serverless mode
+  # the Deployment name embeds the revision generation
+  # (<isvc>-predictor-00004-deployment) and changes on every redeploy; the
+  # workload (resolved by set_workload, which runs earlier); then the pod. The
+  # app.kubernetes.io/* label step is opt-in and not applied. Ordered
+  # lowest-precedence first, each overwriting unconditionally, because the
+  # receiver always sets service.name to the job name.
+  transform/cw_k8s_ci_v0_sglang_service_name:
+    error_mode: ignore
+    metric_statements:
+      - context: resource
+        statements:
+          - set(attributes["service.name"], attributes["k8s.pod.name"]) where attributes["k8s.pod.name"] != nil
+          - set(attributes["service.name"], attributes["k8s.workload.name"]) where attributes["k8s.workload.name"] != nil
+          - set(attributes["service.name"], attributes["k8s.pod.label.serving.kserve.io/inferenceservice"]) where attributes["k8s.pod.label.serving.kserve.io/inferenceservice"] != nil
+          - set(attributes["service.name"], attributes["cw.tmp.service_name_annotation"]) where attributes["cw.tmp.service_name_annotation"] != nil
+          - delete_key(attributes, "cw.tmp.service_name_annotation")
+          - set(attributes["service.namespace"], attributes["k8s.namespace.name"]) where attributes["k8s.namespace.name"] != nil
+
+  # Keep the engine's own sglang:* series; drop the Python client registry's
+  # python_* and process_*, the *_created timestamps (already consumed for start
+  # timestamps) and Summaries, which the CloudWatch OTLP endpoint rejects.
+  filter/cw_k8s_ci_v0_sglang_keep:
+    error_mode: ignore
+    metrics:
+      metric:
+        - 'not IsMatch(name, "^sglang:.*")'
         - 'IsMatch(name, ".*_created$")'
         - 'type == METRIC_DATA_TYPE_SUMMARY'
   {{- end }}
@@ -1375,7 +1567,7 @@ service:
 
 {{- if and .Values.otelContainerInsights.solutions.enabled .Values.otelContainerInsights.solutions.vllm.enabled }}
     metrics/cw_k8s_ci_v0_vllm:
-      receivers: [prometheus/cw_k8s_ci_v0_vllm]
+      receivers: [prometheus/cw_k8s_ci_v0_vllm, prometheus/cw_k8s_ci_v0_kserve_model_server]
       processors:
         - filter/cw_k8s_ci_v0_scrape_metadata
         - filter/cw_k8s_ci_v0_vllm_keep
@@ -1397,6 +1589,43 @@ service:
         - transform/cw_k8s_ci_v0_clear_schema_url
         - transform/cw_k8s_ci_v0_set_workload
         - transform/cw_k8s_ci_v0_vllm_service_name
+        - transform/cw_k8s_ci_v0_pod_topology
+        {{- if include "otel-container-insights.metricsLabelFilterEnabled" . }}
+        - transform/cw_k8s_ci_v0_metrics_labels
+        {{- end }}
+        - awsattributelimit/cw_k8s_ci_v0
+        {{- if include "otel-container-insights.metricNamesFilterEnabled" . }}
+        - filter/cw_k8s_ci_v0_metric_names
+        {{- end }}
+        - batch/cw_k8s_ci_v0_metrics_dest
+      exporters:
+        - otlphttp/cw_k8s_ci_v0_metrics_dest
+{{- end }}
+
+{{- if and .Values.otelContainerInsights.solutions.enabled .Values.otelContainerInsights.solutions.sglang.enabled }}
+    metrics/cw_k8s_ci_v0_sglang:
+      receivers: [prometheus/cw_k8s_ci_v0_sglang, prometheus/cw_k8s_ci_v0_kserve_model_server]
+      processors:
+        - filter/cw_k8s_ci_v0_scrape_metadata
+        - filter/cw_k8s_ci_v0_sglang_keep
+        - transform/cw_k8s_ci_v0_drop_deprecated_semconv
+        - transform/cw_k8s_ci_v0_set_unit
+        - metricstarttime/cw_k8s_ci_v0
+        - transform/cw_k8s_ci_v0_set_cluster_name
+        - transform/cw_k8s_ci_v0_sglang_promote
+        {{- if include "otel-container-insights.metricsNamespaceFilterEnabled" . }}
+        - filter/cw_k8s_ci_v0_metrics_namespaces
+        {{- end }}
+        - k8sattributes/cw_k8s_ci_v0_pod
+        - transform/cw_k8s_ci_v0_set_node_name
+        - transform/cw_k8s_ci_v0_promote_node_name
+        - resourcedetection/cw_k8s_ci_v0
+        - transform/cw_k8s_ci_v0_set_cloud_resource_id
+        - k8sattributes/cw_k8s_ci_v0_node
+        - transform/cw_k8s_ci_v0_set_scope_sglang
+        - transform/cw_k8s_ci_v0_clear_schema_url
+        - transform/cw_k8s_ci_v0_set_workload
+        - transform/cw_k8s_ci_v0_sglang_service_name
         - transform/cw_k8s_ci_v0_pod_topology
         {{- if include "otel-container-insights.metricsLabelFilterEnabled" . }}
         - transform/cw_k8s_ci_v0_metrics_labels
