@@ -278,35 +278,16 @@ Logic:
 {{- end -}}
 
 {{/*
-Build the "default:otel" CW Agent JSON config: the default config plus an OTLP receiver.
-Accepts a dict with "agentName" (string) and "context" (root context $).
-Returns a dict serialized to JSON.
-
-Adds otlp to whatever collect block build-default-config produced, rather than replacing it, so an
-otelContainerInsights container_insights section survives alongside it.
-
-Endpoints are set explicitly rather than left to the agent default so the receiver accepts traffic
-from other pods.
-*/}}
-{{- define "cloudwatch-agent.build-config-default-otel" -}}
-{{- $config := include "cloudwatch-agent.build-default-config" . | fromJson -}}
-{{- $otlp := dict "opentelemetry" (dict "collect" (dict "otlp" (dict
-      "span_metrics_enabled" true
-      "grpc_endpoint" "0.0.0.0:4317"
-      "http_endpoint" "0.0.0.0:4318"))) -}}
-{{- mergeOverwrite $config $otlp | toJson -}}
-{{- end -}}
-
-{{/*
 Build the default OTEL YAML config for a given agent based on which feature flags target it.
 Accepts a dict with "agentName" (string) and "context" (root context $).
 Returns OTEL YAML string.
 
 Logic:
-  - When otelContainerInsights.enabled is false, return empty config ({})
-  - When otelContainerInsights.targetAgent matches agentName, return node-level OTEL CI config
-  - When otelContainerInsights.clusterScraperAgent matches agentName, return cluster-level OTEL CI config
-  - Default: return empty config ({})
+  - When otelContainerInsights.targetAgent matches agentName, the node-level OTEL CI config
+  - When otelContainerInsights.clusterScraperAgent matches agentName, the cluster-level OTEL CI config
+  - When otlp.enabled is true and agentName is the node agent (cloudwatch-agent.name), the OTLP
+    endpoint config (otlp.config), merged with the node-level OTEL CI config when that applies too
+  - Otherwise, and for the OTEL CI configs when otelContainerInsights.enabled is false: {}
 */}}
 {{- define "cloudwatch-agent.validate-flags" -}}
 {{- /*
@@ -339,20 +320,27 @@ Logic:
 {{- fail "otelContainerInsights.enableDRACorrelation must be a boolean (true/false)" }}
 {{- end }}
 {{- include "otel-container-insights.validate-filters" . }}
+{{- include "otlp.validate" . }}
+{{- include "service-identity.validate" . }}
 {{- end -}}
 
 {{- define "cloudwatch-agent.build-default-otel-config" -}}
 {{- $agentName := .agentName -}}
 {{- $ctx := .context -}}
 {{- include "cloudwatch-agent.validate-flags" $ctx -}}
+{{- $ci := "{}" -}}
 {{- if not $ctx.Values.otelContainerInsights.enabled -}}
-{}
 {{- else if eq $ctx.Values.otelContainerInsights.targetAgent $agentName -}}
-{{- include "otel-container-insights.config" $ctx -}}
+{{- $ci = include "otel-container-insights.config" $ctx -}}
 {{- else if eq $ctx.Values.otelContainerInsights.clusterScraperAgent $agentName -}}
-{{- include "otel-container-insights-cluster-scraper.config" $ctx -}}
+{{- $ci = include "otel-container-insights-cluster-scraper.config" $ctx -}}
+{{- end -}}
+{{- if not (include "otlp.enabledFor" .) -}}
+{{- $ci -}}
+{{- else if eq (trimAll " \n\t" $ci) "{}" -}}
+{{- include "otlp.config" $ctx -}}
 {{- else -}}
-{}
+{{- include "cloudwatch-agent.merge-otel-configs" (dict "Base" $ci "User" (include "otlp.config" $ctx)) -}}
 {{- end -}}
 {{- end -}}
 
@@ -509,6 +497,17 @@ Kubernetes 63-character DNS label limit.
 {{/*
 Name for cloudwatch-agent
 */}}
+{{/*
+The name an agents entry (.agent) renders with: its own name, else agent.name,
+else cloudwatch-agent, after merging it over agent. The agent CR template and
+otlp.nodeAgentRendered both use this, so they agree on which agent is the node
+agent.
+*/}}
+{{- define "cloudwatch-agent.resolvedName" -}}
+{{- $agent := mergeOverwrite (deepCopy .context.Values.agent) .agent }}
+{{- include "cloudwatch-agent.validatedName" ($agent.name | default (include "cloudwatch-agent.name" .context)) -}}
+{{- end -}}
+
 {{- define "cloudwatch-agent.name" -}}
 {{- include "cloudwatch-agent.validatedName" (default "cloudwatch-agent" .Values.agent.name) -}}
 {{- end }}
@@ -946,10 +945,11 @@ Get the kube-state-metrics image for the configured region using repositoryDomai
 {{- end -}}
 
 {{/*
-Merge two OTEL configs. The generated OTLP CI config (Base) takes precedence over the
-user-supplied otelConfig (User) on name collision. For map sections (extensions, receivers,
-processors, exporters) both sets of entries are combined, with generated entries winning on
-key collision. For service.extensions (a list) both lists are concatenated and deduped.
+Merge two OTEL configs. The generated config (Base) takes precedence over the other config
+(User) on name collision: Base is the OTEL CI config and User the OTLP endpoint config, or Base
+is the generated config and User the user-supplied otelConfig. For map sections (extensions,
+receivers, connectors, processors, exporters) both sets of entries are combined, with Base
+entries winning on key collision. For service.extensions (a list) both lists are concatenated and deduped.
 For service.pipelines (a map) both pipeline maps are combined, with generated pipelines
 winning on key collision.
 */}}
@@ -968,9 +968,9 @@ winning on key collision.
     {{- fail (printf "Failed to parse user-supplied otelConfig: %s" (index $user "Error")) }}
   {{- end }}
 {{- end }}
-{{/* Merge top-level map sections: extensions, receivers, processors, exporters */}}
+{{/* Merge top-level map sections: extensions, receivers, connectors, processors, exporters */}}
 {{- $merged := deepCopy $base -}}
-{{- range $section := list "extensions" "receivers" "processors" "exporters" -}}
+{{- range $section := list "extensions" "receivers" "connectors" "processors" "exporters" -}}
   {{- if and (hasKey $user $section) (hasKey $merged $section) -}}
     {{- $_ := set $merged $section (mustMergeOverwrite (index $user $section) (index $merged $section)) -}}
   {{- else if hasKey $user $section -}}

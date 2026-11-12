@@ -38,12 +38,16 @@ fail_count=0
 RENDERED="$(mktemp)"
 trap 'rm -f "$RENDERED"' EXIT
 
+# The OTLP endpoint (otlp) is off in this file, so the assertions over every
+# pipeline see the OTEL CI pipelines only. otlp_endpoint.sh checks that the
+# filters render into the OTLP pipelines the same way.
 render() {
     local filters="$1"
     shift
     helm template "$CHART_DIR" \
         --set region=us-west-2 \
         --set clusterName=test-cluster \
+        --set otlp.enabled=false \
         --set otelContainerInsights.enabled=true \
         --set-json "otelFilters=$filters" "$@" >"$RENDERED" 2>&1
 }
@@ -175,7 +179,7 @@ def sha256(text):
 def render(*args):
     out = subprocess.run(
         ["helm", "template", CHART, "--set", "region=us-west-2",
-         "--set", "clusterName=test-cluster",
+         "--set", "clusterName=test-cluster", "--set", "otlp.enabled=false",
          "--set", "otelContainerInsights.enabled=true", *args],
         check=True, capture_output=True, text=True).stdout
     agents = {}

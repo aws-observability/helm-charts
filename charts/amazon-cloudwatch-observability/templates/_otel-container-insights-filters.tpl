@@ -156,19 +156,22 @@ the namespace from its resource. The metrics and the logs filter both use them.
 {{- end -}}
 
 {{/*
-The namespace filter processor for .signal ("metrics" or "logs"), or nothing
-when it has no conditions. The signal picks the processor name and the record
-type. The metrics filter is added to every pod and container metrics pipeline,
-and the logs filter to the application logs pipeline, before k8sattributes.
-The device pipelines (DCGM, Neuron, EFA) use deviceNamespaces instead.
+The namespace filter processor for .signal ("metrics", "logs" or "traces"), or
+nothing when it has no conditions. The signal picks the processor name and the
+record type. The metrics filter is added to every pod and container metrics
+pipeline, and the logs filter to the application logs pipeline, before
+k8sattributes. The device pipelines (DCGM, Neuron, EFA) use deviceNamespaces
+instead. .name, when set, replaces the processor name: the OTLP pipelines
+(otlp) add their own metrics, logs and traces filters, after k8sattributes,
+which sets the namespace of OTLP telemetry.
 */}}
 {{- define "otel-container-insights.namespaceFilter" -}}
 {{- $conditions := include "otel-container-insights.namespaceConditions" . | fromJsonArray }}
 {{- if $conditions }}
-filter/cw_k8s_ci_v0_{{ .signal }}_namespaces:
+{{ .name | default (printf "filter/cw_k8s_ci_v0_%s_namespaces" .signal) }}:
   error_mode: ignore
   {{ .signal }}:
-    {{ ternary "datapoint" "log_record" (eq .signal "metrics") }}:
+    {{ get (dict "metrics" "datapoint" "logs" "log_record" "traces" "span" "profiles" "profile") .signal }}:
       {{- range $conditions }}
       - '{{ . }}'
       {{- end }}
