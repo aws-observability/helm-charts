@@ -53,7 +53,7 @@ RECEIVER = "prometheus/cw_k8s_ci_v0_vllm"
 PIPELINE = "metrics/cw_k8s_ci_v0_vllm"
 KEEP = "filter/cw_k8s_ci_v0_vllm_keep"
 PROMOTE = "transform/cw_k8s_ci_v0_vllm_promote"
-SERVICE_NAME = "transform/cw_k8s_ci_v0_vllm_service_name"
+SERVICE_NAME = "transform/cw_k8s_ci_v0_service_identity"
 ISVC = "__meta_kubernetes_pod_label_serving_kserve_io_inferenceservice"
 ANNOTATION = "__meta_kubernetes_pod_annotation_"
 
@@ -149,22 +149,53 @@ check(f"{PROMOTE} sets aws.service.type to ai_inference",
       'set(resource.attributes["aws.service.type"], "ai_inference")' in promote_stmts)
 
 # No new attribute key for the InferenceService: service.name comes from KServe's
-# own pod label as extracted by k8sattributes (k8s.pod.label.*).
+# own pod label as extracted by k8sattributes (k8s.pod.label.*), through the
+# chart's service identity chain (_service-identity.tpl).
 check("no relabel rule creates an inferenceservice label",
       not any(r.get("target_label") == "inferenceservice" for r in rules))
 check(f"{PROMOTE} does not set a custom inferenceservice attribute",
       not any('"inferenceservice"' in st for st in promote_stmts))
 svc_stmts = [st for g in (processors.get(SERVICE_NAME) or {}).get("metric_statements") or []
              for st in g.get("statements") or []]
+R = 'resource.attributes'
+def source(attr):
+    """Index of the statement that sets service.name from the resource attribute attr."""
+    want = f'set({R}["service.name"], {R}["{attr}"])'
+    return next((i for i, st in enumerate(svc_stmts) if st.startswith(want)), -1)
+annotation = source("_tmp.service_identity.annotation.service.name")
+isvc = source("k8s.pod.label.serving.kserve.io/inferenceservice")
+deployment = source("k8s.deployment.name")
+job_name = source("_tmp.service_identity.unknown_service")
 check(f"{SERVICE_NAME} takes the InferenceService name from k8s.pod.label.serving.kserve.io/inferenceservice",
-      any('service.name"], attributes["k8s.pod.label.serving.kserve.io/inferenceservice"]' in st for st in svc_stmts))
-order = [next((i for i, st in enumerate(svc_stmts) if st.startswith(f'set(attributes["service.name"], attributes["{k}"])')), -1)
-         for k in ("k8s.pod.name", "k8s.workload.name", "k8s.pod.label.serving.kserve.io/inferenceservice",
-                   "cw.tmp.service_name_annotation")]
-check("service.name is set pod, workload, InferenceService, then the service.name annotation (last write wins)",
-      all(i >= 0 for i in order) and order == sorted(order))
-check(f"{PROMOTE} carries the service.name annotation to resource scope",
-      any(st.startswith('set(resource.attributes["cw.tmp.service_name_annotation"]') for st in promote_stmts))
+      isvc >= 0)
+check("service.name order: annotation, then InferenceService, then workload, then the job name",
+      0 <= annotation < isvc < deployment < job_name)
+# The Prometheus receiver sets service.name to the job name (vllm); it counts as not set.
+check(f"{SERVICE_NAME} sets the receiver's service.name aside whenever it is set",
+      bool(svc_stmts) and svc_stmts[0] == f'set({R}["_tmp.service_identity.unknown_service"], {R}["service.name"]) where {R}["service.name"] != nil')
+# The receiver's service.instance.id (the target address) is always set aside,
+# with no k8s.pod.name guard, and restored only where service.name ended up as
+# the receiver's job name.
+SAVED_ID = f'{R}["_tmp.service_identity.receiver.service.instance.id"]'
+JOB = f'{R}["_tmp.service_identity.unknown_service"]'
+aside = f'set({SAVED_ID}, {R}["service.instance.id"]) where {R}["service.instance.id"] != nil'
+drop = f'delete_key({R}, "service.instance.id")'
+restore = (f'set({R}["service.instance.id"], {SAVED_ID}) where {R}["service.instance.id"] == nil'
+           f' and {R}["service.name"] == {JOB} and {SAVED_ID} != nil')
+check(f"{SERVICE_NAME} sets the receiver's service.instance.id aside unconditionally",
+      aside in svc_stmts and drop in svc_stmts and svc_stmts.index(aside) + 1 == svc_stmts.index(drop))
+check("no service.instance.id statement is guarded on k8s.pod.name",
+      not any("k8s.pod.name\"] != nil" in st for st in svc_stmts
+              if "receiver.service.instance.id" in st or st.startswith(f'delete_key({R}, "service.instance.id")')))
+name_stmts = [i for i, st in enumerate(svc_stmts) if st.startswith(f'set({R}["service.name"]')]
+check("the receiver's service.instance.id is restored only where service.name is the job name, after every service.name statement and before the cleanup",
+      restore in svc_stmts and name_stmts and max(name_stmts) < svc_stmts.index(restore) < len(svc_stmts) - 1
+      and svc_stmts[-1].startswith(f'delete_matching_keys({R}')
+      and sum(1 for st in svc_stmts if st.startswith(f'set({R}["service.instance.id"], {SAVED_ID})')) == 1)
+check("transform/cw_k8s_ci_v0_vllm_service_name is gone",
+      "transform/cw_k8s_ci_v0_vllm_service_name" not in processors)
+check(f"{PROMOTE} carries the scraped service.name annotation into the chain's annotation input",
+      any(st.startswith('set(resource.attributes["_tmp.service_identity.annotation.service.name"], attributes["otel_service_name_annotation"])') for st in promote_stmts))
 
 # 4. Processor order.
 def before(a, b):
