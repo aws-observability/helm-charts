@@ -1,7 +1,8 @@
 region: us-west-2
 clusterName: minikube
-# Exercise config: "default:otel": the node agent gets the default CW Agent JSON config plus an
-# OTLP receiver (0.0.0.0:4317/4318), while the cluster-scraper keeps "default".
+# Exercise config: "default:otel", now an alias of "default": the node agent gets the default CW
+# Agent JSON config, and its OTLP receiver (0.0.0.0:4317/4318) comes from the otlp values, on by
+# default. The cluster-scraper keeps "default".
 # The agents array is respecified in full because --set/list-merge would otherwise clobber it.
 agents:
   - name: cloudwatch-agent

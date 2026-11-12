@@ -1,8 +1,6 @@
 {{- define "otel-container-insights.config" -}}
 extensions:
-  sigv4auth/cw_k8s_ci_v0_metrics_dest:
-    region: {{ .Values.region }}
-    service: monitoring
+  {{- include "otel-shared.extension.sigv4authMetrics" . | nindent 2 }}
 {{- if .Values.otelContainerInsights.logs.enabled }}
   sigv4auth/cw_k8s_ci_v0_logs_dest:
     region: {{ .Values.region }}
@@ -840,52 +838,7 @@ processors:
         statements:
           - set(resource.attributes["k8s.node.name"], attributes["node_name"]) where attributes["node_name"] != nil
 
-  resourcedetection/cw_k8s_ci_v0:
-    {{- if eq .Values.k8sMode "AKS" }}
-    detectors: [aks, azure]
-    aks:
-      resource_attributes:
-        cloud.platform: { enabled: true }
-        cloud.provider: { enabled: true }
-        k8s.cluster.name: { enabled: false }
-    azure:
-      resource_attributes:
-        azure.resourcegroup.name: { enabled: true }
-        azure.vm.name: { enabled: true }
-        azure.vm.scaleset.name: { enabled: true }
-        azure.vm.size: { enabled: true }
-        cloud.account.id: { enabled: true }
-        cloud.platform: { enabled: true }
-        cloud.provider: { enabled: true }
-        cloud.region: { enabled: true }
-        host.id: { enabled: true }
-        host.name: { enabled: true }
-    {{- else if eq .Values.k8sMode "GKE" }}
-    detectors: [gcp]
-    gcp:
-      resource_attributes:
-        cloud.account.id: { enabled: true }
-        cloud.availability_zone: { enabled: true }
-        cloud.platform: { enabled: true }
-        cloud.provider: { enabled: true }
-        cloud.region: { enabled: true }
-        host.id: { enabled: true }
-        host.name: { enabled: true }
-        k8s.cluster.name: { enabled: false }
-    {{- else }}
-    detectors: [eks, ec2]
-    ec2:
-      resource_attributes:
-        host.id: { enabled: true }
-        host.type: { enabled: true }
-        host.name: { enabled: true }
-        host.image.id: { enabled: true }
-        cloud.provider: { enabled: true }
-        cloud.platform: { enabled: true }
-        cloud.region: { enabled: true }
-        cloud.availability_zone: { enabled: true }
-        cloud.account.id: { enabled: true }
-    {{- end }}
+  {{- include "otel-shared.processor.resourcedetection" . | nindent 2 }}
 
   transform/cw_k8s_ci_v0_clear_schema_url:
     error_mode: ignore
@@ -894,20 +847,7 @@ processors:
         statements:
           - set(resource.schema_url, "")
 
-  k8sattributes/cw_k8s_ci_v0_node:
-    auth_type: serviceAccount
-    passthrough: false
-    filter:
-      node_from_env_var: K8S_NODE_NAME
-    extract:
-      metadata:
-        - k8s.node.name
-      labels:
-        {{- include "otel-container-insights.k8sattributesLabels" (dict "Values" .Values "from" "node") | trim | nindent 8 }}
-    pod_association:
-      - sources:
-          - from: resource_attribute
-            name: k8s.node.name
+  {{- include "otel-shared.processor.k8sattributesNode" . | nindent 2 }}
 
   k8sattributes/cw_k8s_ci_v0_pod:
     auth_type: serviceAccount
@@ -944,21 +884,7 @@ processors:
           # Skip digit-only values: on AKS nodes outside availability zones, the zone label holds the fault domain (0, 1, ...), not a zone.
           - set(resource.attributes["cloud.availability_zone"], resource.attributes["k8s.pod.label.topology.kubernetes.io/zone"]) where resource.attributes["k8s.pod.label.topology.kubernetes.io/zone"] != nil and not IsMatch(resource.attributes["k8s.pod.label.topology.kubernetes.io/zone"], "^[0-9]+$")
 
-  awsattributelimit/cw_k8s_ci_v0:
-    max_total_attributes: 150
-    {{- $labelRemovals := include "otel-container-insights.labelRemovals" (dict "Values" .Values) | fromJson }}
-    {{- with $labelRemovals.prefixes }}
-    unconditional_removal_prefixes:
-      {{- range . }}
-      - {{ . | quote }}
-      {{- end }}
-    {{- end }}
-    {{- with $labelRemovals.keys }}
-    unconditional_removal_keys:
-      {{- range . }}
-      - {{ . | quote }}
-      {{- end }}
-    {{- end }}
+  {{- include "otel-shared.processor.awsattributelimit" . | nindent 2 }}
 
   {{- if include "otel-container-insights.metricsLabelFilterEnabled" . }}
 
@@ -1331,12 +1257,7 @@ processors:
 {{- end }}
 
 exporters:
-  otlphttp/cw_k8s_ci_v0_metrics_dest:
-    endpoint: {{ if .Values.otelContainerInsights.cloudwatchMetricsEndpoint }}{{ .Values.otelContainerInsights.cloudwatchMetricsEndpoint | quote }}{{ else }}"https://monitoring.{{ .Values.region }}.amazonaws.com:443"{{ end }}
-    tls:
-      insecure: false
-    auth:
-      authenticator: sigv4auth/cw_k8s_ci_v0_metrics_dest
+  {{- include "otel-shared.exporter.otlphttpMetrics" . | nindent 2 }}
 
 {{- if .Values.otelContainerInsights.logs.enabled }}
   otlphttp/cw_k8s_ci_v0_app_logs_dest:
