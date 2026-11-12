@@ -28,8 +28,7 @@ const (
 	servicePortsTimeout = 3 * time.Minute
 )
 
-// profiles/cw_k8s_otlp is opt-in (otlp.profiles.enabled), off in these scenarios.
-var otlpPipelines = []string{"metrics/cw_k8s_otlp", "traces/cw_k8s_otlp", "logs/cw_k8s_otlp"}
+var otlpPipelines = []string{"metrics/cw_k8s_otlp", "traces/cw_k8s_otlp", "logs/cw_k8s_otlp", "profiles/cw_k8s_otlp"}
 
 // TestOTLPEndpointDefault validates the OTLP endpoint with the chart's default values: the node agent
 // serves OTLP on 0.0.0.0:4317 and 0.0.0.0:4318 from its otelConfig, writes no OTLP receiver into
