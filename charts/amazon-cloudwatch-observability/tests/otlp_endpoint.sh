@@ -40,9 +40,7 @@ trap 'rm -f "$RENDERED"' EXIT
 #   $2  python assertions
 #
 # The assertions run with:
-#   render(*args)        renders the chart with otlp.profiles.enabled=true and the
-#                        extra helm arguments (render_default: without the
-#                        profiles override, so the chart default) and
+#   render(*args)        renders the chart with the extra helm arguments and
 #                        returns a dict per AmazonCloudWatchAgent with cfg (the
 #                        parsed otelConfig, or None), text (the otelConfig
 #                        text), config (the parsed JSON config) and hash (the
@@ -78,23 +76,10 @@ ENRICH = [
 ]
 PROFILES_ENRICH = ["k8sattributes/cw_k8s_otlp_profiles"] + ENRICH[1:]
 
-# Most cases render with otlp.profiles.enabled=true, so the profiles pipeline is
-# covered with every other setting; the "otlp.profiles" cases check the chart
-# default (off) by passing render_default.
-PROFILES_ON = ["--set", "otlp.profiles.enabled=true"]
-
-def render_default(*args):
-    global PROFILES_ON
-    saved, PROFILES_ON = PROFILES_ON, []
-    try:
-        return render(*args)
-    finally:
-        PROFILES_ON = saved
-
 def render(*args):
     out = subprocess.run(
         ["helm", "template", CHART, "--set", "region=us-west-2",
-         "--set", "clusterName=test-cluster", *PROFILES_ON, *args],
+         "--set", "clusterName=test-cluster", *args],
         check=True, capture_output=True, text=True).stdout
     agents = {}
     for raw in re.split(r"^---\s*$", out, flags=re.M):
@@ -612,16 +597,15 @@ cfg = render()[AGENT]["cfg"]
 assert cfg["receivers"]["otlp/cw_k8s_otlp"]["protocols"]["http"]["max_request_body_size"] == 20971520
 '
 
-check "otlp.profiles — off by default: no profiles pipeline, processor, exporter or namespace filter" '
+check "otlp.profiles — on by default, and otlp.profiles.enabled=false removes the pipeline, processor, exporter and namespace filter" '
+assert PROFILES in render()[AGENT]["cfg"]["service"]["pipelines"]
 for args in [(), ("--set-json", "otelFilters={\"namespaces\":{\"exclude\":[\"kube-system\"]}}")]:
-    cfg = render_default(*args)[AGENT]["cfg"]
+    cfg = render("--set", "otlp.profiles.enabled=false", *args)[AGENT]["cfg"]
     assert PROFILES not in cfg["service"]["pipelines"], sorted(cfg["service"]["pipelines"])
     for section, name in [("processors", "k8sattributes/cw_k8s_otlp_profiles"), ("exporters", "otlphttp/cw_k8s_otlp_profiles"),
                           ("processors", "filter/cw_k8s_otlp_profiles_namespaces")]:
         assert name not in cfg[section], (section, name)
     assert sorted(cfg["service"]["pipelines"]) == [LOGS, METRICS, TRACES], sorted(cfg["service"]["pipelines"])
-on = render_default("--set", "otlp.profiles.enabled=true")[AGENT]["cfg"]
-assert PROFILES in on["service"]["pipelines"]
 '
 check_fails "otlp.profiles.enabled — not a boolean" "otlp.profiles.enabled must be a boolean (true/false)" --set-string otlp.profiles.enabled=true
 check_fails "otlp.profiles — unknown key" 'otlp.profiles has an unknown key "endpoint"' --set otlp.profiles.endpoint=x

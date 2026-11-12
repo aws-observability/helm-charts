@@ -626,8 +626,8 @@ service:
         - otlphttp/cw_k8s_otlp_logs
     {{- if $profiles }}
     # Profiles need an agent with the service.profilesSupport feature gate on,
-    # which the agent turns on at startup from v1.300075.0, so the pipeline is
-    # opt-in (otlp.profiles.enabled) until the chart's default image has it.
+    # which the agent turns on at startup from v1.300075.0. otlp.profiles.enabled
+    # turns the pipeline off for an older agent image.
     profiles/cw_k8s_otlp:
       receivers:
         - otlp/cw_k8s_otlp

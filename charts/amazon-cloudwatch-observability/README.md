@@ -212,10 +212,10 @@ port 4318, in plaintext, and exports them to the CloudWatch OTLP endpoints for m
 (X-Ray), logs and profiles. The agent's IAM role needs the permissions to write to those
 endpoints, and traces need CloudWatch Transaction Search to be enabled.
 
-Profiles are off by default (`otlp.profiles.enabled: false`). They need agent image 1.300075.0
+Profiles are on by default (`otlp.profiles.enabled: true`). They need agent image 1.300075.0
 or later, which turns on the collector's profiles support; on an older image the agent does
-not start with profiles enabled. Turn them on with `otlp.profiles.enabled: true` once the agent
-image supports them.
+not start with profiles enabled. If you pin an older agent image, set
+`otlp.profiles.enabled: false`.
 
 A workload sends to the `cloudwatch-agent` Service in the release namespace, which routes to
 the agent on the workload's own node:

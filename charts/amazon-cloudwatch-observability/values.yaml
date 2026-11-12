@@ -1199,10 +1199,10 @@ otlp:
     enabled: true
   ## OTLP profiles, exported to CloudWatch (/v1development/profiles). Needs agent
   ## image 1.300075.0 or later, which turns on the collector's profiles support;
-  ## on an older image the agent does not start with profiles enabled. Off until
-  ## the chart's default image supports profiles.
+  ## on an older image the agent does not start with profiles enabled. Set to
+  ## false when you pin an older agent image.
   profiles:
-    enabled: false
+    enabled: true
 
 ## ══════════════════════════════════════════════════════════════════════════════
 ## Service identity
