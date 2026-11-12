@@ -1292,6 +1292,41 @@ check_fails "Invalid metricNames — recommendedExclusions is for labels only" \
 check_fails "otelContainerInsights.filters with metric names — fails with a pointer to otelFilters" \
     '{}' "$OLD_KEY" --set-json 'otelContainerInsights.filters={"metrics":{"metricNames":{"exclude":["up"]}}}'
 
+# The AKS and GKE node labels on the built-in list apply only to their k8sMode.
+AKS_GKE_HELPERS="
+ROLE = ['--set', 'roleArn=arn:aws:iam::123456789012:role/test']
+def removal_keys(agents, name='$NODE'):
+    cfg = yaml.safe_load(agents[name]['otelConfig'])
+    return cfg['processors']['awsattributelimit/cw_k8s_ci_v0'].get('unconditional_removal_keys', [])
+AKS_KEYS = ['k8s.node.label.kubernetes.azure.com/' + k for k in ('cluster', 'node-image-version', 'sku-cpu', 'sku-memory', 'os-sku', 'consolidated-additional-properties')] + ['k8s.node.label.agentpool']
+GKE_KEYS = ['k8s.node.label.cloud.google.com/' + k for k in ('gke-boot-disk', 'gke-os-distribution', 'machine-family', 'private-node')]
+KEPT = ['k8s.node.label.kubernetes.azure.com/agentpool', 'k8s.node.label.kubernetes.azure.com/mode', 'k8s.node.label.kubernetes.azure.com/priority',
+        'k8s.node.label.kubernetes.azure.com/accelerator', 'k8s.node.label.cloud.google.com/gke-nodepool', 'k8s.node.label.cloud.google.com/gke-spot',
+        'k8s.node.label.cloud.google.com/gke-accelerator']
+"
+
+check_renders "Built-in list — AKS and GKE node labels apply on their k8sMode only, on both agents" "$AKS_GKE_HELPERS
+eks = render()
+aks = render('--set', 'k8sMode=AKS', *ROLE)
+gke = render('--set', 'k8sMode=GKE', *ROLE)
+for name in ('$NODE', '$SCRAPER'):
+    assert not set(AKS_KEYS + GKE_KEYS) & set(removal_keys(eks, name)), name
+    assert set(AKS_KEYS) <= set(removal_keys(aks, name)) and not set(GKE_KEYS) & set(removal_keys(aks, name)), name
+    assert set(GKE_KEYS) <= set(removal_keys(gke, name)) and not set(AKS_KEYS) & set(removal_keys(gke, name)), name
+    for agents in (aks, gke):
+        assert not set(KEPT) & set(removal_keys(agents, name)), name
+    assert set(removal_keys(eks, name)) <= set(removal_keys(aks, name)) and set(removal_keys(eks, name)) <= set(removal_keys(gke, name)), name"
+
+check_renders "Built-in list — a named include entry keeps an AKS built-in label" "$AKS_GKE_HELPERS
+aks = render('--set', 'k8sMode=AKS', *ROLE, '--set-json', 'otelFilters={\"nodeLabels\":{\"include\":[\"*\",\"kubernetes.azure.com/sku-cpu\"]}}')
+keys = removal_keys(aks)
+assert 'k8s.node.label.kubernetes.azure.com/sku-cpu' not in keys and 'k8s.node.label.kubernetes.azure.com/sku-memory' in keys, keys"
+
+check_renders "Built-in list — recommendedExclusions false drops the AKS and GKE entries too" "$AKS_GKE_HELPERS
+for mode in ('AKS', 'GKE'):
+    agents = render('--set', 'k8sMode=' + mode, *ROLE, '--set-json', 'otelFilters={\"nodeLabels\":{\"recommendedExclusions\":false}}')
+    assert not set(AKS_KEYS + GKE_KEYS) & set(removal_keys(agents)), mode"
+
 # ──────────────────────────────────────────────────────────────────────────
 # Summary.
 # ──────────────────────────────────────────────────────────────────────────
