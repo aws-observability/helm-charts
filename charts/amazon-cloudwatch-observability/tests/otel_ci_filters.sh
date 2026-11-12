@@ -38,12 +38,16 @@ fail_count=0
 RENDERED="$(mktemp)"
 trap 'rm -f "$RENDERED"' EXIT
 
+# The OTLP endpoint (otlp) is off in this file, so the assertions over every
+# pipeline see the OTEL CI pipelines only. otlp_endpoint.sh checks that the
+# filters render into the OTLP pipelines the same way.
 render() {
     local filters="$1"
     shift
     helm template "$CHART_DIR" \
         --set region=us-west-2 \
         --set clusterName=test-cluster \
+        --set otlp.enabled=false \
         --set otelContainerInsights.enabled=true \
         --set-json "otelFilters=$filters" "$@" >"$RENDERED" 2>&1
 }
@@ -175,7 +179,7 @@ def sha256(text):
 def render(*args):
     out = subprocess.run(
         ["helm", "template", CHART, "--set", "region=us-west-2",
-         "--set", "clusterName=test-cluster",
+         "--set", "clusterName=test-cluster", "--set", "otlp.enabled=false",
          "--set", "otelContainerInsights.enabled=true", *args],
         check=True, capture_output=True, text=True).stdout
     agents = {}
@@ -847,7 +851,7 @@ check_case "Logs label processor with default values — in the application and 
     '{}' "$LABEL_BLOCKS
 assert pipelines_with('$NODE', '$LOGS_LABELS') == ['logs/cw_k8s_ci_v0_app', 'logs/cw_k8s_ci_v0_node']
 app = pipeline('$NODE', 'logs/cw_k8s_ci_v0_app')
-assert app[-3:] == ['transform/cw_k8s_ci_v0_logs_set_workload', '$LOGS_LABELS', 'batch/cw_k8s_ci_v0_logs_dest'], app
+assert app[-4:] == ['transform/cw_k8s_ci_v0_logs_set_workload', 'transform/cw_k8s_ci_v0_logs_service_identity', '$LOGS_LABELS', 'batch/cw_k8s_ci_v0_logs_dest'], app
 host = pipeline('$NODE', 'logs/cw_k8s_ci_v0_node')
 assert host[-3:] == ['transform/cw_k8s_ci_v0_logs_clear_schema_url', '$LOGS_LABELS', 'batch/cw_k8s_ci_v0_logs_dest'], host
 assert processor('$SCRAPER', '$LOGS_LABELS') is None"
@@ -986,8 +990,8 @@ named = render('--set-json', 'otelFilters={\"nodeLabels\":{\"include\":[\"*\",\"
 for name in ('$NODE', '$SCRAPER'):
     assert default[name]['hash'] != named[name]['hash'], name"
 
-# The chart reads some pod labels itself (vLLM service.name, Knative service
-# type). A pod include list that leaves them out must not break those.
+# The chart reads some pod labels itself (the KServe InferenceService for
+# service.name, Knative service type). A pod include list that leaves them out must not break those.
 check_case "Pod labels include without the chart's labels — still extracted, then removed from metrics and logs" \
     '{"podLabels":{"include":["app"]}}' "$LABEL_BLOCKS
 assert_labels('node', all_labels('node'))
@@ -1010,7 +1014,7 @@ check_case "Pod labels exclude of a chart label — still extracted, read, then 
 assert_labels('pod', [{'tag_name': 'k8s.pod.label.app', 'key': 'app', 'from': 'pod'}] + chart_rules('pod'))
 assert_removals(RECOMMENDED_PREFIXES, merged(RECOMMENDED_KEYS, ['k8s.pod.label.component'], CHART_POD_KEYS))"
 
-check_case "The chart's labels are exactly the labels its processors read, after pod enrichment and before awsattributelimit" \
+check_case "The chart's labels are exactly the labels its processors read, after pod enrichment and before awsattributelimit (metrics) or the label filter (logs)" \
     '{"podLabels":{"include":["app"]}}' "$LABEL_BLOCKS
 import re
 read = set()
@@ -1023,13 +1027,41 @@ for agent in cfg:
             found = set(re.findall(r'attributes\\[\"(k8s\\.(?:node|pod)\\.label\\.[^\"]+)\"\\]', yaml.safe_dump(processor(agent, p), width=10000)))
             if found:
                 enrich = [i for i, q in enumerate(procs) if q.startswith('k8sattributes/')]
-                assert enrich and max(enrich) < procs.index(p) < procs.index('awsattributelimit/cw_k8s_ci_v0'), (agent, name, p)
+                # Logs pipelines have no awsattributelimit: the bound there is the logs label filter.
+                bound = 'awsattributelimit/cw_k8s_ci_v0' if 'awsattributelimit/cw_k8s_ci_v0' in procs else '$LOGS_LABELS'
+                assert enrich and max(enrich) < procs.index(p) < procs.index(bound), (agent, name, p)
             read |= found
 assert read == set(CHART_NODE_KEYS + CHART_POD_KEYS), sorted(read)" --set dcgmExporter.enabled=true --set neuronMonitor.enabled=true \
     --set otelContainerInsights.solutions.vllm.enabled=true \
     --set otelContainerInsights.solutions.kserve.controlPlane.enabled=true \
     --set otelContainerInsights.solutions.knative.dataPlane.enabled=true \
     --set otelContainerInsights.solutions.knative.controlPlane.enabled=true
+
+# kube-state-metrics series on the cluster scraper must get the same service
+# identity as the node agent's metrics for the same pod.
+check_renders "Service identity -- the cluster scraper's kube-state-metrics processor equals the node agent's metrics processor" "
+for args in ((), ('--set', 'otelServiceIdentity.useAppLabels=true'), ('--set', 'k8sMode=AKS', '--set', 'roleArn=arn:aws:iam::123456789012:role/r')):
+    agents = render(*args)
+    node = yaml.safe_load(agents['$NODE']['otelConfig'])
+    scraper = yaml.safe_load(agents['$SCRAPER']['otelConfig'])
+    name = 'transform/cw_k8s_ci_v0_service_identity'
+    assert scraper['processors'][name] == node['processors'][name], args
+    pod = scraper['processors']['k8sattributes/cw_k8s_ci_v0_pod']['extract']
+    assert pod['annotations'] == node['processors']['k8sattributes/cw_k8s_ci_v0_pod']['extract']['annotations'], args
+    tmp = [x['key'] for x in pod['labels'] if x['tag_name'].startswith('_tmp.service_identity.')]
+    assert tmp == (['app.kubernetes.io/instance', 'app.kubernetes.io/name', 'app.kubernetes.io/version'] if args[:2] == ('--set', 'otelServiceIdentity.useAppLabels=true') else []), (args, tmp)
+    ksm = scraper['service']['pipelines']['metrics/cw_k8s_ci_v0_kube_state_metrics']['processors']
+    i = ksm.index(name)
+    assert ksm.index('transform/cw_k8s_ci_v0_set_workload') < i, ksm
+    assert ksm.index('resourcedetection/cw_k8s_ci_v0') < i < ksm.index('awsattributelimit/cw_k8s_ci_v0'), ksm
+    # Every other scraper pipeline that extracts the inputs drops them.
+    for pname, pl in scraper['service']['pipelines'].items():
+        procs = pl['processors']
+        if 'k8sattributes/cw_k8s_ci_v0_pod' in procs and pname != 'metrics/cw_k8s_ci_v0_kube_state_metrics':
+            assert 'transform/cw_k8s_ci_v0_drop_service_identity_inputs' in procs, pname
+    off = yaml.safe_load(render(*args, '--set', 'kubeStateMetrics.enabled=false')['$SCRAPER']['otelConfig'])
+    assert name not in off['processors'], args
+" --set otelContainerInsights.solutions.knative.controlPlane.enabled=true
 
 check_case "Labels include with OTEL logs disabled" \
     '{"nodeLabels":{"include":["team"]},"podLabels":{"include":["app"]}}' "$LABEL_BLOCKS

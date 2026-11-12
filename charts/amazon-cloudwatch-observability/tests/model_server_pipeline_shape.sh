@@ -172,10 +172,12 @@ for engine, pl in PIPELINES.items():
     check(f"the {engine} promote removes the service.name annotation datapoint attribute",
           'delete_key(attributes, "otel_service_name_annotation")' in promote)
 
-svc = {e: [st for g in (processors.get(f"transform/cw_k8s_ci_v0_{e}_service_name") or {}).get("metric_statements") or []
-           for st in g.get("statements") or []] for e in PIPELINES}
-check("every engine pipeline derives service.name with the same statements",
-      bool(svc["vllm"]) and svc["vllm"] == svc["sglang"])
+def pipeline_processors(pl):
+    return (((cfg.get("service") or {}).get("pipelines") or {}).get(pl) or {}).get("processors") or []
+check("every engine pipeline derives service.name from the same processor (transform/cw_k8s_ci_v0_service_identity)",
+      "transform/cw_k8s_ci_v0_service_identity" in processors
+      and all("transform/cw_k8s_ci_v0_service_identity" in pipeline_processors(pl) for pl in PIPELINES.values())
+      and not any(n.endswith("_service_name") for n in processors))
 for engine in PIPELINES:
     _, img = job_rules(cfg, f"prometheus/cw_k8s_ci_v0_{engine}")
     check(f"the {engine} image job leaves KubeRay pods to a Ray scrape",

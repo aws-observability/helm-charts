@@ -58,18 +58,16 @@ serves inference, so the value is fixed.
 
 ### The vLLM metric service name
 
-`service.name` on the engine's metrics is resolved in this order, highest precedence first. The
-SGLang solution uses the same order.
-
-1. the pod annotation `resource.opentelemetry.io/service.name`
-2. the InferenceService name
-3. the workload name — Deployment, else StatefulSet, DaemonSet, Job or ReplicaSet
-4. the pod name
+`service.name` on the engine's metrics comes from the chart's
+[service identity](#service-identity) chain. On a KServe pod it is the InferenceService name
+unless the pod has a `resource.opentelemetry.io/service.name` annotation. Without KServe it is
+the workload name. The SGLang solution uses the same chain.
 
 The InferenceService outranks the Deployment because in KServe Serverless mode the
 Deployment name embeds the Knative revision generation
 (`<isvc>-predictor-00004-deployment`) and so changes on every redeploy. The
-`app.kubernetes.io/instance` and `app.kubernetes.io/name` labels are not used.
+`app.kubernetes.io/instance` and `app.kubernetes.io/name` labels are used only with
+`otelServiceIdentity.useAppLabels`, after the InferenceService.
 
 The pipeline also promotes the scraped `pod`/`namespace` labels to resource attributes and
 runs `k8sattributes` pod association, so `k8s.workload.name` resolves to the owning
@@ -118,9 +116,10 @@ for vLLM.
 
 ### The SGLang metric service name
 
-`service.name` is resolved as for [vLLM](#the-vllm-metric-service-name): the pod annotation
-`resource.opentelemetry.io/service.name`, then the InferenceService name, then the workload,
-then the pod.
+`service.name` is resolved as for [vLLM](#the-vllm-metric-service-name), from the chart's
+[service identity](#service-identity) chain: the pod annotation
+`resource.opentelemetry.io/service.name`, then the InferenceService name, then (with
+`otelServiceIdentity.useAppLabels`) the `app.kubernetes.io` labels, then the workload chain.
 
 ## KServe control-plane metrics
 
@@ -205,16 +204,184 @@ spec:
 Port-level settings only take effect with a workload selector. The Knative control plane in
 `knative-serving` is not sidecar-injected by default.
 
+## OTLP endpoint
+
+The node agent (`cloudwatch-agent`, a DaemonSet) serves an OTLP endpoint on every node, on by
+default. It accepts OTLP metrics, traces, logs and profiles over gRPC on port 4317 and HTTP on
+port 4318, in plaintext, and exports them to the CloudWatch OTLP endpoints for metrics, traces
+(X-Ray), logs and profiles. The agent's IAM role needs the permissions to write to those
+endpoints, and traces need CloudWatch Transaction Search to be enabled. Profiles need agent
+image 1.300075.0 or later, which turns on the collector's profiles support.
+
+A workload sends to the `cloudwatch-agent` Service in the release namespace, which routes to
+the agent on the workload's own node:
+
+```yaml
+env:
+  - name: OTEL_EXPORTER_OTLP_ENDPOINT
+    value: http://cloudwatch-agent.amazon-cloudwatch:4318
+  - name: OTEL_EXPORTER_OTLP_PROTOCOL
+    value: http/protobuf
+```
+
+The SDK appends the signal path, for example `/v1/metrics`. Profiles go to
+`/v1development/profiles` (or the same gRPC service on 4317); `v1development` is the OTLP path
+for a signal at development status. The agent sends nothing for a signal no workload sends.
+
+To turn the endpoint off, or to move it to other ports:
+
+```yaml
+otlp:
+  enabled: true
+  grpc:
+    enabled: true
+    port: 4317
+  http:
+    enabled: true
+    port: 4318
+  spanMetrics:
+    enabled: true
+```
+
+The HTTP endpoint accepts request bodies up to 20 MiB (`max_request_body_size`, the collector
+default, set explicitly). The endpoint is served by the `agents` entry that renders with the
+node agent's name (`agent.name`, default `cloudwatch-agent`); if no entry has that name, the
+chart serves no OTLP endpoint.
+
+Charts and integrations that configure their own senders read the endpoint from the
+`otlp.httpEndpointURL` helper (`http://<node agent>.<release namespace>:<otlp.http.port>`,
+empty when the endpoint does not serve OTLP/HTTP) and the body limit from
+`otlp.httpMaxRequestBodyBytes`, instead of restating them.
+
+At least one protocol must be enabled, the two ports must differ, and a port cannot be one
+that the agent already uses (2000, 4311, 4314, 4315, 4316, 8125, 25826, 25888). The agent pods
+use host networking, so another collector that holds the same ports on the node leaves one of
+the two pods `Pending`. Set `otlp.enabled: false` or change the ports.
+
+### Enrichment
+
+The agent finds the sending pod from the `k8s.pod.uid`, `k8s.pod.name` and
+`k8s.namespace.name` attributes that the sender set, then from the connection's source IP.
+`k8s.pod.ip` is not used: unlike the connection source, it has no exclusion for host-network
+pods, so a host-network sender that sets it would get another host-network pod's attributes. For profiles, as in the agent's own profiles pipeline, it finds the pod
+from `container.id`, which the eBPF profiler sets, then from the connection's source IP. It then
+adds the same attributes that OTEL Container Insights adds for that pod:
+
+- the namespace, pod, container, node and workload attributes (`k8s.*`), including
+  `k8s.workload.name` and `k8s.workload.type`;
+- pod and node labels (`k8s.pod.label.*`, `k8s.node.label.*`), as allowed by
+  `otelFilters.podLabels` and `otelFilters.nodeLabels`;
+- the cloud and host attributes of the node, `k8s.cluster.name` and `cloud.resource_id`.
+
+The agent also sets the service identity, each attribute only when the sender did not set it.
+See [Service identity](#service-identity).
+
+Logs go to the log group `/aws/cwagent/<clusterName>/otlp`, in a stream named
+`<namespace>/<service.namespace>/<service.name>` when those are known. A sender can choose the
+group and stream with the `aws.log.group.name` and `aws.log.stream.name` resource attributes.
+
+With `otlp.spanMetrics.enabled`, the agent also computes request count, error and duration
+metrics from the traces it receives (`traces.span.metrics.*`). These metrics carry the
+resource attributes of the traces, pod and node labels included. A series stops being exported 5 minutes
+after its last span, so a pod that is gone stops adding series.
+
+### Cost control
+
+The `otelFilters` settings apply to OTLP telemetry as they do to OTEL Container Insights. Pod
+and node labels add attributes to every OTLP metric, span, log record and profile. To send OTLP
+telemetry without them:
+
+```yaml
+otelFilters:
+  podLabels:
+    exclude: ["*"]
+  nodeLabels:
+    exclude: ["*"]
+```
+
+This also removes the labels from OTEL Container Insights, which shares the label settings.
+
+### `default:otel`
+
+The `agents[].config` value `default:otel` is ignored: the chart builds the same agent config
+as for `default` (or no value), and `otlp.enabled` alone decides whether the OTLP endpoint is
+on. With `otlp.enabled: false` and `default:otel`, the agent has no OTLP endpoint. The chart does not check the
+agent's other receivers for port conflicts. A custom `agent.config` or `agents[].config`
+(`opentelemetry.collect.otlp`) or a user `agent.otelConfig` / `agents[].otelConfig` may open
+its own OTLP receivers next to the chart's endpoint, but must use other ports than
+`otlp.grpc.port` and `otlp.http.port` (by default 4317 and 4318, which are also the
+`opentelemetry.collect.otlp` defaults). On the same port the agent fails to bind and does not
+start. `default:otel` on an agent other than
+`cloudwatch-agent` no longer adds an OTLP receiver to that agent.
+
+### Security
+
+The endpoint has no TLS and no client authentication. Because the agent pods use host
+networking, it is reachable on the node's IP addresses on the OTLP ports by anything that can
+reach the node on those ports, not only by pods in the cluster. Kubernetes network policies
+do not apply to host-network pods, so restrict the ports with the nodes' security groups or a
+host firewall if other senders must not reach them, or set `otlp.enabled: false`.
+
+## Service identity
+
+The agent sets the service identity on OTLP telemetry and on OTEL Container Insights metrics
+and application logs from one chain, per the OpenTelemetry Kubernetes convention. Each
+attribute is set only when the sender did not set it. The chart-wide `otelServiceIdentity`
+values control it:
+
+```yaml
+otelServiceIdentity:
+  useAppLabels: false
+```
+
+| Attribute | Source, first found |
+|-|-|
+| `service.name` | the `resource.opentelemetry.io/service.name` pod annotation, then the Deployment, ReplicaSet, StatefulSet, DaemonSet, CronJob, Job, pod or container name. With `otelServiceIdentity.useAppLabels`, the `app.kubernetes.io/instance` and `app.kubernetes.io/name` pod labels come after the annotation. A `service.name` that starts with `unknown_service`, the SDK default, counts as not set. |
+| `service.namespace` | the `resource.opentelemetry.io/service.namespace` annotation, then the namespace |
+| `service.version` | the `resource.opentelemetry.io/service.version` annotation, then, with `otelServiceIdentity.useAppLabels`, the `app.kubernetes.io/version` label |
+| `service.instance.id` | the `resource.opentelemetry.io/service.instance.id` annotation, then `<namespace>.<pod>.<container>` |
+| `deployment.environment.name` | `<cloud.platform>:<cluster>/<namespace>` |
+
+The `app.kubernetes.io` labels are off by default, as the
+[OpenTelemetry Kubernetes convention](https://opentelemetry.io/docs/specs/semconv/non-normative/k8s-attributes/#service-attributes)
+asks, because a Helm release usually puts the same `app.kubernetes.io/instance` on all its pods,
+which would give them one `service.name`.
+
+OTEL Container Insights uses the same chain on the node agent's metrics and application logs
+and on the cluster scraper's kube-state-metrics series, so a pod's resource metrics, state
+metrics and logs carry the same service identity. It differs from the OTLP chain in these ways:
+
+- The Prometheus receiver sets `service.name` to the scrape job name (for example `cadvisor` or
+  `kube-state-metrics`). That value counts as not set, so a pod's series are named after the
+  pod's service. The job name is kept only when nothing else is found, as for node-level series
+  such as node-exporter, and kube-state-metrics node and namespace series.
+- The Prometheus receiver also sets `service.instance.id` to the scrape target (`<host>:<port>`,
+  also kept as `server.address` and `server.port`). The target is kept only where `service.name`
+  stays the job name (series about the exporter itself, such as node-exporter, and
+  kube-state-metrics node and namespace series). Elsewhere `service.instance.id` is the
+  annotation or `<namespace>.<pod>.<container>`, and is not set on series with no single
+  container (pod-level series, and kube-state-metrics Deployment, StatefulSet, DaemonSet, Job
+  and CronJob series), as the OpenTelemetry convention asks.
+- On KServe pods, the InferenceService name (KServe's own `serving.kserve.io/inferenceservice`
+  pod label) comes after the `resource.opentelemetry.io/service.name` annotation and before the
+  `app.kubernetes.io` labels.
+- Control-plane series (apiserver, Karpenter, KEDA, Knative and KServe controllers) keep the
+  Prometheus receiver's `service.name` and `service.instance.id`: they describe the chart's
+  scrape targets, not customer services.
+
+Host logs carry no service identity: they come from the node, not from a service.
+
 ## OTEL filters
 
 The top-level `otelFilters` block holds the filters for the data that the chart's OTEL
-pipelines collect. Each filter applies only to the data that this section names. The chart
+pipelines collect: OTEL Container Insights and the OTLP endpoint. Each filter applies only to
+the data that this section names. The chart
 turns the filters into OTEL processors in the agent configuration.
 
 ### Namespaces
 
-`otelFilters.namespaces` applies to OTEL Container Insights metrics and logs. One `include`
-list and one `exclude` list cover both.
+`otelFilters.namespaces` applies to OTEL Container Insights metrics and logs, and to OTLP
+metrics, traces and logs. One `include` list and one `exclude` list cover all of them.
 
 The filter drops the pod and container metrics of a filtered namespace, from
 kube-state-metrics, cAdvisor, kubelet, vLLM and the Knative data plane. It does not apply to
@@ -239,14 +406,14 @@ otelFilters:
 
 ### Metric names
 
-`otelFilters.metricNames` applies to OTEL Container Insights metrics. It does not apply to
-logs.
+`otelFilters.metricNames` applies to OTEL Container Insights metrics and to OTLP metrics,
+span metrics included. It does not apply to logs.
 
 An entry is an exact metric name, a prefix followed by `*` (for example `container_*`), or
 `*` alone. A name can contain letters, digits, `_`, `:` and `.`. An empty include list, or one
 that contains `*`, includes every metric. Exclude wins over include. An entry cannot be in
 both lists. A non-empty include list drops every other Container Insights metric, in every
-pipeline.
+pipeline, and every OTLP metric that is not on it.
 
 The filter runs last before export in every Container Insights metrics pipeline. So the
 entries match the exported metric names. The match is case-sensitive: the entry
@@ -263,8 +430,8 @@ otelFilters:
 
 `otelFilters.podLabels` and `otelFilters.nodeLabels` decide which pod and node labels arrive
 as `k8s.pod.label.*` and `k8s.node.label.*` attributes. The label rules apply wherever the
-chart attaches pod or node labels. Today that is OTEL Container Insights metrics and logs.
-Metrics and logs share each list.
+chart attaches pod or node labels: OTEL Container Insights metrics and logs, and OTLP
+metrics, traces and logs. All of them share each list.
 
 An entry is a label key, a key prefix followed by `*` (for example `app.kubernetes.io/*`), or
 `*` alone. A label key is an optional DNS subdomain prefix of at most 253 characters and `/`,
