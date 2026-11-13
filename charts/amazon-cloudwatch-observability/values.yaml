@@ -807,6 +807,9 @@ agent:
     targetAllocator:
       enabled: false
       image:
+        ## When otelPrometheusMonitor.enabled is true, this Target Allocator image
+        ## MUST support prometheusCR discovery + per-node + the scraper_role config key,
+        ## pinned together with a matching operator image; an older image CrashLoopBackOffs.
         repository: cloudwatch-agent-target-allocator
         tag: 1.1.0
         repositoryDomainMap:
@@ -1221,6 +1224,68 @@ otelServiceIdentity:
   ## asks: all pods of one Helm release usually share app.kubernetes.io/instance,
   ## so they would share a service.name.
   useAppLabels: false
+
+## Scrapes the targets selected by ServiceMonitor and PodMonitor objects
+## (monitoring.coreos.com/v1) and sends the metrics to CloudWatch over OTLP, with
+## cloudwatch.solution k8s-otel-prometheus-monitors. Works with or without
+## otelContainerInsights. The per-node agent (targetAgent below) scrapes each target on
+## its own node; monitors annotated cloudwatch.aws.amazon.com/scraper: cluster-scraper go
+## to the cluster-scraper agent (clusterScraperAgent below) instead. The series always go
+## to the regional CloudWatch endpoint (otelContainerInsights.cloudwatchMetricsEndpoint
+## does not apply to them), and the up metric is kept for every target, so up == 0 shows a
+## target that fails to scrape.
+##
+## ServiceMonitor/PodMonitor CRDs: this chart does not install them. When enabled, the
+## operator runs with --manage-prometheus-crds and creates both CRDs (prometheus-operator
+## v0.92.0 schema) only if they do not exist. A copy installed by prometheus-operator,
+## kube-prometheus-stack, Argo CD or kubectl is left unchanged. The operator never
+## deletes the CRDs and does not set an owner reference, so uninstalling this chart or
+## the EKS add-on leaves the CRDs, and every ServiceMonitor/PodMonitor, in place. To
+## remove them after uninstalling:
+##   kubectl delete crd servicemonitors.monitoring.coreos.com podmonitors.monitoring.coreos.com
+## (this also deletes every ServiceMonitor and PodMonitor in the cluster).
+##
+## IMAGE PREREQUISITE: this drives the Target Allocator with prometheusCR discovery, the
+## per-node allocation strategy, a scraper_role config key and label-selector monitor
+## selectors, and passes --manage-prometheus-crds to the operator. The pinned Target Allocator image
+## (agent.prometheus.targetAllocator.image, default cloudwatch-agent-target-allocator:1.1.0)
+## AND the operator image must both be builds that support these; an older image
+## CrashLoopBackOffs on boot rather than degrading. enabled defaults to false until
+## operator and Target Allocator images with this support are released.
+otelPrometheusMonitor:
+  enabled: false
+  ## Lets the Target Allocator read the Secrets that monitors reference for basicAuth,
+  ## authorization, oauth2 and tlsConfig. It grants the Target Allocator get on Secrets in
+  ## every namespace (no list or watch: it reads each Secret by the name in the monitor).
+  ## Without it those monitors scrape with empty credentials: the target rejects the
+  ## scrape, the Target Allocator logs "Failed to obtain credentials for a ServiceMonitor"
+  ## (or PodMonitor), and no metrics reach CloudWatch for that monitor. The Target
+  ## Allocator sends the credentials to the agents only over its mTLS endpoint, and picks
+  ## up a rotated Secret within about 5 minutes. Only takes effect when enabled is true.
+  readSecrets: false
+  ## The agents in the agents array that scrape ServiceMonitor/PodMonitor targets: the
+  ## per-node agent and the cluster-scraper agent. Each gets a Target Allocator. When
+  ## otelContainerInsights is also enabled, these must match otelContainerInsights.targetAgent
+  ## and otelContainerInsights.clusterScraperAgent (both features share one config per agent).
+  targetAgent: "cloudwatch-agent"
+  clusterScraperAgent: "cloudwatch-agent-cluster-scraper"
+  ## How often the targets are scraped, and how often each agent polls its Target Allocator
+  ## for its targets. Must be in "<N>s" format.
+  scrapeInterval: "30s"
+  ## Kubernetes label selectors (matchLabels and/or matchExpressions) that choose which
+  ## ServiceMonitors and PodMonitors are scraped, for example to leave the monitors that your
+  ## own Prometheus scrapes to it. Unset or {} selects every monitor. Applied on both agents.
+  ##   serviceMonitorSelector:
+  ##     matchLabels:
+  ##       cloudwatch: "true"
+  ##   podMonitorSelector:
+  ##     matchExpressions:
+  ##       - {key: team, operator: In, values: [payments, checkout]}
+  ## Setting either selector needs operator and Target Allocator images that accept a full
+  ## LabelSelector there (see IMAGE PREREQUISITE above); the chart's AmazonCloudWatchAgent CRD
+  ## already does. The operator's admission webhook rejects an invalid selector.
+  serviceMonitorSelector: {}
+  podMonitorSelector: {}
 
 ## Controls the OTLP-based Container Insights pipeline (node-exporter, kube-state-metrics, cluster-scraper, OTEL collector config).
 ## When enabled, deploys additional resources and injects OTEL config into the CloudWatch Agent for metrics collection via OTLP.
