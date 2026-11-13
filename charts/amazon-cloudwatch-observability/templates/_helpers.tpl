@@ -373,6 +373,61 @@ Validates otelPrometheusMonitor when it is enabled. Called from cloudwatch-agent
 {{- range $key := list "serviceMonitorSelector" "podMonitorSelector" -}}
 {{- include "cloudwatch-agent.validate-label-selector" (dict "name" (printf "otelPrometheusMonitor.%s" $key) "selector" (get $pm $key)) -}}
 {{- end -}}
+{{- include "cloudwatch-agent.validate-agent-crd" . -}}
+{{- end -}}
+{{- end -}}
+
+{{/*
+Fails when otelPrometheusMonitor is enabled, crds.upgradeJob is disabled, and the
+AmazonCloudWatchAgent CRD in the cluster is older than this chart's. Helm installs crds/ on
+the first install only and never updates it, so a cluster upgraded with helm upgrade keeps
+the CRD it was first installed with. With an older CRD the API server rejects
+allocationStrategy per-node and label-selector monitor selectors, and drops scraperRole
+without an error, so the cluster-scraper would scrape the per-node agent's monitors.
+With crds.upgradeJob enabled the check is skipped: Helm renders the templates, lookup
+included, before it runs the pre-upgrade hook, so the check would still see the old CRD
+that the hook is about to update.
+lookup returns nothing when there is no cluster to read (helm template, a client-side dry
+run, tools that render offline); the check is then skipped too.
+*/}}
+{{- define "cloudwatch-agent.validate-agent-crd" -}}
+{{- if not (dig "upgradeJob" "enabled" false (.Values.crds | default dict)) -}}
+{{- $crd := lookup "apiextensions.k8s.io/v1" "CustomResourceDefinition" "" "amazoncloudwatchagents.cloudwatch.aws.amazon.com" -}}
+{{- include "cloudwatch-agent.validate-agent-crd-schema" (dict "crd" $crd "Values" .Values "chartVersion" .Chart.Version) -}}
+{{- end -}}
+{{- end -}}
+
+{{/*
+The schema check of cloudwatch-agent.validate-agent-crd, on a CRD object (.crd, empty to skip),
+so it can be tested without a cluster. Accepts a dict with "crd", "Values" and "chartVersion".
+*/}}
+{{- define "cloudwatch-agent.validate-agent-crd-schema" -}}
+{{- $crd := .crd | default dict -}}
+{{- if $crd -}}
+{{- $schema := dict -}}
+{{- range (dig "spec" "versions" list $crd) -}}
+{{- if eq (get . "name") "v1alpha1" -}}
+{{- $schema = . -}}
+{{- end -}}
+{{- end -}}
+{{- $ta := dig "schema" "openAPIV3Schema" "properties" "spec" "properties" "targetAllocator" "properties" dict $schema -}}
+{{- $pcr := dig "prometheusCR" "properties" dict $ta -}}
+{{- $missing := list -}}
+{{- if not (has "per-node" (dig "allocationStrategy" "enum" list $ta)) -}}
+{{- $missing = append $missing "targetAllocator.allocationStrategy per-node" -}}
+{{- end -}}
+{{- if not (hasKey $pcr "scraperRole") -}}
+{{- $missing = append $missing "targetAllocator.prometheusCR.scraperRole" -}}
+{{- end -}}
+{{- $pm := .Values.otelPrometheusMonitor | default dict -}}
+{{- range $key := list "serviceMonitorSelector" "podMonitorSelector" -}}
+{{- if and (get $pm $key) (not (hasKey (dig $key "properties" dict $pcr) "matchExpressions")) -}}
+{{- $missing = append $missing (printf "targetAllocator.prometheusCR.%s as a label selector" $key) -}}
+{{- end -}}
+{{- end -}}
+{{- if $missing -}}
+{{- fail (printf "otelPrometheusMonitor needs the AmazonCloudWatchAgent CRD from this chart version, but the CRD in the cluster (amazoncloudwatchagents.cloudwatch.aws.amazon.com) lacks %s. helm upgrade does not update CRDs, so the cluster still has the CRD from its first install, and crds.upgradeJob, which updates them before each upgrade, is disabled. Set crds.upgradeJob.enabled=true, or apply this chart's CRDs and run the upgrade again: helm pull aws-observability/amazon-cloudwatch-observability --version %s --untar && kubectl apply --server-side --force-conflicts -f amazon-cloudwatch-observability/crds/" (join ", " $missing) .chartVersion) -}}
+{{- end -}}
 {{- end -}}
 {{- end -}}
 
@@ -1121,6 +1176,15 @@ Uses restrictedTag for regions with a repositoryDomainMap entry, public tag othe
 {{/*
 Get the kube-state-metrics image for the configured region using repositoryDomainMap
 */}}
+{{/*
+The crds.upgradeJob kubectl image: repositoryDomainMap[region] when set, else the public registry.
+*/}}
+{{- define "crd-upgrade-job.image" -}}
+{{- $image := .Values.crds.upgradeJob.image -}}
+{{- $domain := index $image.repositoryDomainMap .Values.region | default $image.repositoryDomainMap.public -}}
+{{- printf "%s/%s:%s" $domain $image.repository $image.tag -}}
+{{- end -}}
+
 {{- define "kube-state-metrics.image" -}}
 {{- if and (hasKey .Values.kubeStateMetrics.image.repositoryDomainMap .Values.region) (index .Values.kubeStateMetrics.image.repositoryDomainMap .Values.region) -}}
 {{- $imageDomain := index .Values.kubeStateMetrics.image.repositoryDomainMap .Values.region -}}

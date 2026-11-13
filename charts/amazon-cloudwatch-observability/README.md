@@ -375,6 +375,69 @@ metrics and logs carry the same service identity. It differs from the OTLP chain
 
 Host logs carry no service identity: they come from the node, not from a service.
 
+## CRD updates on helm upgrade
+
+Helm installs the CRDs in `crds/` on the first `helm install` and never updates them on
+`helm upgrade`. A cluster upgraded with `helm upgrade` would keep the CRDs of the chart
+version it was first installed with. The API server would then reject fields that a newer
+chart sets, such as `targetAllocator.allocationStrategy: per-node`, or drop them without an
+error, such as `targetAllocator.prometheusCR.scraperRole`.
+
+The chart therefore runs `crds.upgradeJob`, a Helm pre-install and pre-upgrade hook Job
+(the approach of the kube-prometheus-stack chart's `crds.upgradeJob`). Before Helm applies
+the release, the Job applies the chart's own `crds/` with
+`kubectl apply --server-side --force-conflicts`. Its ConfigMaps, ServiceAccount and RBAC
+(`get` and `patch` on the chart's CRDs by name) are deleted once it succeeds.
+
+- No step is needed for `helm upgrade`. The Job uses `registry.k8s.io/kubectl`; set
+  `crds.upgradeJob.image` to use a mirror.
+- The EKS add-on and Argo CD apply `crds/` themselves. The add-on renders the chart
+  without hooks, so the Job is not part of it.
+- `helm rollback` does not run the Job, so the newer CRDs stay in place.
+- `helm upgrade --no-hooks` skips the Job. Apply the CRDs first:
+  `kubectl apply --server-side --force-conflicts -f amazon-cloudwatch-observability/crds/`.
+- With `crds.upgradeJob.enabled: false`, `otelPrometheusMonitor` checks the installed
+  `AmazonCloudWatchAgent` CRD and fails the upgrade with that command if the CRD is too old.
+
+### Troubleshooting CRD updates
+
+**Check that the installed CRD is current.** This prints the allocation strategies the
+installed `AmazonCloudWatchAgent` CRD accepts. A current CRD lists `per-node`:
+
+```bash
+kubectl get crd amazoncloudwatchagents.cloudwatch.aws.amazon.com \
+  -o jsonpath='{.spec.versions[?(@.name=="v1alpha1")].schema.openAPIV3Schema.properties.spec.properties.targetAllocator.properties.allocationStrategy.enum}'
+```
+
+**The upgrade stops with a failed hook.** Helm applies nothing else when the Job fails.
+The failed Job is kept, so you can read its log:
+
+```bash
+kubectl logs -n amazon-cloudwatch job/amazon-cloudwatch-observability-crd-upgrade
+```
+
+Fix the cause, for example an image the nodes cannot pull (set
+`crds.upgradeJob.image.repositoryDomainMap` for your region to a registry they can reach,
+or `crds.upgradeJob.image.repository` and `tag` for a mirror), and run `helm upgrade` again.
+The next run replaces the failed Job.
+
+**You upgraded with `--no-hooks`, or with the Job disabled, before the CRDs were applied.**
+The API server may have dropped fields it did not know, such as `scraperRole` on the
+cluster-scraper agent, and a later `helm upgrade` does not restore a field that was dropped.
+Apply the CRDs, delete the cluster-scraper agent resource so that Helm creates it again,
+and upgrade:
+
+```bash
+helm pull aws-observability/amazon-cloudwatch-observability --version <chart version> --untar
+kubectl apply --server-side --force-conflicts -f amazon-cloudwatch-observability/crds/
+kubectl delete amazoncloudwatchagent -n amazon-cloudwatch cloudwatch-agent-cluster-scraper
+helm upgrade <release> aws-observability/amazon-cloudwatch-observability -n amazon-cloudwatch ...
+```
+
+Check the result with
+`kubectl get amazoncloudwatchagent -n amazon-cloudwatch cloudwatch-agent-cluster-scraper -o jsonpath='{.spec.targetAllocator.prometheusCR.scraperRole}'`,
+which prints `cluster-scraper` when `otelPrometheusMonitor` is enabled.
+
 ## OTEL filters
 
 The top-level `otelFilters` block holds the filters for the data that the chart's OTEL

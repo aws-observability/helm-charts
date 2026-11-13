@@ -1225,6 +1225,52 @@ otelServiceIdentity:
   ## so they would share a service.name.
   useAppLabels: false
 
+## ══════════════════════════════════════════════════════════════════════════════
+## CRD updates
+## ══════════════════════════════════════════════════════════════════════════════
+##
+## Helm installs the CRDs in this chart's crds/ directory on the first helm install
+## and never updates them on helm upgrade. A cluster upgraded with helm upgrade would
+## keep the CRDs of the chart version it was first installed with, and the API server
+## would reject or drop fields that a newer chart sets on its custom resources (for
+## example targetAllocator.allocationStrategy per-node and
+## targetAllocator.prometheusCR.scraperRole, which otelPrometheusMonitor uses).
+##
+## upgradeJob runs as a Helm pre-install and pre-upgrade hook, before Helm applies
+## the rest of the release, and applies this chart's crds/ with
+## kubectl apply --server-side --force-conflicts. The same approach as the
+## kube-prometheus-stack chart's crds.upgradeJob. It does not run on helm rollback,
+## so a rollback leaves the newer CRDs in place. The hook's ConfigMaps,
+## ServiceAccount, ClusterRole and ClusterRoleBinding are deleted after it succeeds.
+##
+## The EKS add-on and Argo CD apply crds/ themselves (and the add-on renders the chart
+## without hooks), so the Job matters for helm upgrade. With upgradeJob.enabled false,
+## otelPrometheusMonitor checks the installed CRD and fails the upgrade with the
+## kubectl command to run. helm upgrade --no-hooks skips the Job and that check, so the
+## API server rejects or drops the newer fields as it would without the Job.
+crds:
+  upgradeJob:
+    enabled: true
+    image:
+      repository: kubectl
+      tag: v1.35.10
+      repositoryDomainMap:
+        public: registry.k8s.io
+    resources:
+      requests:
+        cpu: 50m
+        memory: 64Mi
+      limits:
+        cpu: 500m
+        memory: 256Mi
+    ## The Job's node selector and tolerations. tolerations falls back to the
+    ## top-level tolerations when unset.
+    nodeSelector: {}
+    tolerations:
+    ## Extra annotations and labels for the Job's pod.
+    podAnnotations: {}
+    podLabels: {}
+
 ## Scrapes the targets selected by ServiceMonitor and PodMonitor objects
 ## (monitoring.coreos.com/v1) and sends the metrics to CloudWatch over OTLP, with
 ## cloudwatch.solution k8s-otel-prometheus-monitors. Works with or without
