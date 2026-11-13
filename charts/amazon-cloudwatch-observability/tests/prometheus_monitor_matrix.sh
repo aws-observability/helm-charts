@@ -51,10 +51,11 @@ OP_FLAG='"--manage-prometheus-crds"'
 # Target Allocator Secret access (otelPrometheusMonitor.readSecrets). The exact verbs are checked below.
 TA_SECRETS_RBAC='resources: \["secrets"\]'
 
-# render <args...> -> echoes the rendered manifests
+# render <args...> -> echoes the rendered manifests. --no-hooks leaves out the crds.upgradeJob
+# hook, whose ConfigMaps hold the CRD files (tests/crd_upgrade_job.sh covers it).
 render() {
     # shellcheck disable=SC2068
-    helm template t "$CHART_DIR" \
+    helm template t "$CHART_DIR" --no-hooks \
         --kube-version 1.35.0 \
         --set region=us-west-2 \
         --set clusterName=test-cluster $@ 2>&1
@@ -556,6 +557,79 @@ for a in (NODE, SCRAPER):
     assert "transform/cw_k8s_ci_v0_metrics_labels" in procs, "%s %s" % (a, procs)
 print("ok")' $MON $extra --set-json 'otelFilters.nodeLabels.include=["beta.kubernetes.io/arch"]'
 done
+
+printf "\n${Y}== installed AmazonCloudWatchAgent CRD check (helm upgrade keeps old CRDs) ==${N}\n"
+# cloudwatch-agent.validate-agent-crd reads the installed CRD with lookup when
+# crds.upgradeJob is disabled. lookup is empty without a cluster, so these cases call its
+# schema check on CRD files through a probe
+# template in a copy of the chart: the bundled CRD, and copies with the parts an older
+# chart's CRD lacks removed.
+CRD_PROBE="$tmp_dir/crd-probe"
+mkdir -p "$CRD_PROBE"
+cp -r "$CHART_DIR" "$CRD_PROBE/chart"
+mkdir -p "$CRD_PROBE/chart/probe"
+cat > "$CRD_PROBE/chart/templates/zz-crd-probe.yaml" <<'EOT'
+{{- $crd := dict }}
+{{- with .Values.probeCRD }}{{ $crd = $.Files.Get (printf "probe/%s.yaml" .) | fromYaml }}{{ end }}
+{{- include "cloudwatch-agent.validate-agent-crd-schema" (dict "crd" $crd "Values" .Values "chartVersion" .Chart.Version) }}
+# crd-check: ok
+EOT
+python3 - "$CHART_DIR/crds/cloudwatch.aws.amazon.com_amazoncloudwatchagents.yaml" "$CRD_PROBE/chart/probe" <<'EOF'
+import copy, sys, yaml
+base = yaml.safe_load(open(sys.argv[1]))
+out = sys.argv[2]
+def ta(d):
+    v = [x for x in d["spec"]["versions"] if x["name"] == "v1alpha1"][0]
+    return v["schema"]["openAPIV3Schema"]["properties"]["spec"]["properties"]["targetAllocator"]["properties"]
+def no_per_node(d):
+    ta(d)["allocationStrategy"]["enum"] = ["consistent-hashing"]
+def no_scraper_role(d):
+    del ta(d)["prometheusCR"]["properties"]["scraperRole"]
+def flat_selectors(d):
+    for k in ("serviceMonitorSelector", "podMonitorSelector"):
+        ta(d)["prometheusCR"]["properties"][k] = {"type": "object", "additionalProperties": {"type": "string"}}
+cases = {"current": [], "no-per-node": [no_per_node], "no-scraper-role": [no_scraper_role],
+         "flat-selectors": [flat_selectors], "old": [no_per_node, no_scraper_role, flat_selectors]}
+for name, edits in cases.items():
+    d = copy.deepcopy(base)
+    for e in edits:
+        e(d)
+    yaml.safe_dump(d, open("%s/%s.yaml" % (out, name), "w"))
+EOF
+# crd_probe <probeCRD or ""> <args...> -> the probe's output, or the render error
+crd_probe() {
+    local crd="$1"; shift
+    # shellcheck disable=SC2068
+    helm template t "$CRD_PROBE/chart" --set region=us-west-2 --set clusterName=test-cluster \
+        ${crd:+--set probeCRD=$crd} --show-only templates/zz-crd-probe.yaml $@ 2>&1
+}
+expect_crd_ok() {
+    local desc="$1"; shift
+    local out
+    out="$(crd_probe "$@")"
+    if printf '%s\n' "$out" | grep -q '^# crd-check: ok$'; then pass "$desc"; else fail "$desc: $(printf '%s' "$out" | head -c 300)"; fi
+}
+expect_crd_fail() {
+    local desc="$1" want="$2"; shift 2
+    local out
+    if out="$(crd_probe "$@")"; then fail "$desc (render succeeded)"
+    elif printf '%s\n' "$out" | grep -qF -- "$want"; then pass "$desc"
+    else fail "$desc (wrong error: $(printf '%s' "$out" | head -c 300))"; fi
+}
+SEL='otelPrometheusMonitor.serviceMonitorSelector={"matchLabels":{"cloudwatch":"true"}}'
+expect_crd_ok   "no CRD to read (helm template, offline render) => check skipped" "" $MON
+expect_crd_ok   "this chart's CRD => passes" current $MON
+expect_crd_ok   "this chart's CRD with a selector => passes" current $MON --set-json "$SEL"
+expect_crd_fail "CRD without per-node => fails" "lacks targetAllocator.allocationStrategy per-node." no-per-node $MON
+expect_crd_fail "CRD without scraperRole => fails" "lacks targetAllocator.prometheusCR.scraperRole." no-scraper-role $MON
+expect_crd_ok   "flat-map selectors, no selector set => passes" flat-selectors $MON
+expect_crd_fail "flat-map selectors with serviceMonitorSelector set => fails" "lacks targetAllocator.prometheusCR.serviceMonitorSelector as a label selector." flat-selectors $MON --set-json "$SEL"
+expect_crd_fail "older chart's CRD => names everything it lacks" \
+    "lacks targetAllocator.allocationStrategy per-node, targetAllocator.prometheusCR.scraperRole." old $MON
+expect_crd_fail "older chart's CRD => tells the user how to apply the CRDs" \
+    "kubectl apply --server-side --force-conflicts -f amazon-cloudwatch-observability/crds/" old $MON
+expect_crd_fail "older chart's CRD => pulls this chart version" \
+    "--version $(awk '/^version:/{print $2}' "$CHART_DIR/Chart.yaml") --untar" old $MON
 
 printf "\n${Y}== Summary ==${N}\n"
 printf "passed: ${G}%s${N}, failed: ${R}%s${N}\n" "$pass_count" "$fail_count"
