@@ -1,0 +1,187 @@
+{{- /*
+CRD update hook (crds.upgradeJob). Helm installs crds/ on the first helm install only and
+never updates it on helm upgrade, so an upgraded cluster keeps the CRDs it was first
+installed with. This pre-install and pre-upgrade hook applies the chart's own crds/ files
+with kubectl apply --server-side, before Helm applies the rest of the release, so the
+custom resources the chart creates are validated against this chart's CRDs. Adapted from
+the kube-prometheus-stack chart's crds.upgradeJob.
+
+Hook order (helm.sh/hook-weight): the ConfigMaps holding the CRDs and the Job's
+ServiceAccount, ClusterRole and ClusterRoleBinding first, then the Job. Helm deletes all of
+them once the hooks succeed (hook-succeeded), so the CRD write access does not stay in the
+cluster; a failed run is kept for inspection and replaced on the next run
+(before-hook-creation). Not run on helm rollback, so a rollback keeps the newer CRDs.
+*/}}
+{{- if .Values.crds.upgradeJob.enabled }}
+{{- $name := printf "%s-crd-upgrade" (include "amazon-cloudwatch-observability.name" .) }}
+{{- $job := .Values.crds.upgradeJob }}
+{{- $crdNames := list }}
+{{- $configMaps := list }}
+{{- range $path, $_ := .Files.Glob "crds/*.yaml" }}
+{{- $crd := $.Files.Get $path | fromYaml }}
+{{- if or (hasKey $crd "Error") (ne (dig "kind" "" $crd) "CustomResourceDefinition") }}
+{{- fail (printf "crds.upgradeJob: %s is not a CustomResourceDefinition" $path) }}
+{{- end }}
+{{- $crdNames = append $crdNames $crd.metadata.name }}
+{{- $cm := printf "%s-%s" $name (index (splitList "." $crd.metadata.name) 0) }}
+{{- $configMaps = append $configMaps (dict "name" $cm "file" (base $path)) }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ $cm }}
+  namespace: {{ $.Release.Namespace }}
+  labels:
+    {{- include "amazon-cloudwatch-observability.labels" $ | nindent 4 }}
+    app.kubernetes.io/component: crd-upgrade
+  annotations:
+    helm.sh/hook: pre-install,pre-upgrade
+    helm.sh/hook-weight: "-10"
+    helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded
+data:
+  {{ base $path }}: |
+    {{- $.Files.Get $path | nindent 4 }}
+{{- end }}
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ $name }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "amazon-cloudwatch-observability.labels" . | nindent 4 }}
+    app.kubernetes.io/component: crd-upgrade
+  annotations:
+    helm.sh/hook: pre-install,pre-upgrade
+    helm.sh/hook-weight: "-10"
+    helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ $name }}
+  labels:
+    {{- include "amazon-cloudwatch-observability.labels" . | nindent 4 }}
+    app.kubernetes.io/component: crd-upgrade
+  annotations:
+    helm.sh/hook: pre-install,pre-upgrade
+    helm.sh/hook-weight: "-10"
+    helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded
+rules:
+  # Read and update only this chart's CRDs. No create: Helm cannot start an upgrade when
+  # one of them is missing (it maps the custom resources first), so the hook only ever
+  # updates CRDs that exist.
+  - apiGroups: ["apiextensions.k8s.io"]
+    resources: ["customresourcedefinitions"]
+    resourceNames:
+      {{- range $crdNames }}
+      - {{ . | quote }}
+      {{- end }}
+    verbs: ["get", "patch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: {{ $name }}
+  labels:
+    {{- include "amazon-cloudwatch-observability.labels" . | nindent 4 }}
+    app.kubernetes.io/component: crd-upgrade
+  annotations:
+    helm.sh/hook: pre-install,pre-upgrade
+    helm.sh/hook-weight: "-10"
+    helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: {{ $name }}
+subjects:
+  - kind: ServiceAccount
+    name: {{ $name }}
+    namespace: {{ .Release.Namespace }}
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ $name }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "amazon-cloudwatch-observability.labels" . | nindent 4 }}
+    app.kubernetes.io/component: crd-upgrade
+  annotations:
+    helm.sh/hook: pre-install,pre-upgrade
+    helm.sh/hook-weight: "-5"
+    helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded
+spec:
+  backoffLimit: 3
+  activeDeadlineSeconds: 240
+  template:
+    metadata:
+      labels:
+        {{- include "amazon-cloudwatch-observability.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: crd-upgrade
+        {{- with $job.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      {{- with $job.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+    spec:
+      serviceAccountName: {{ $name }}
+      restartPolicy: OnFailure
+      nodeSelector:
+        kubernetes.io/os: linux
+        {{- with $job.nodeSelector }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      {{- dict "component" $job "context" $ | include "amazon-cloudwatch-observability.common.tolerations" | nindent 6 }}
+      securityContext:
+        runAsNonRoot: true
+        {{- if ne .Values.k8sMode "ROSA" }}
+        # The kubectl image runs as root by default. OpenShift assigns its own UID.
+        runAsUser: 65534
+        runAsGroup: 65534
+        {{- end }}
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: kubectl
+          image: {{ include "crd-upgrade-job.image" . | quote }}
+          imagePullPolicy: IfNotPresent
+          # The image has no shell: kubectl is the entrypoint.
+          args:
+            - apply
+            - --server-side
+            - --force-conflicts
+            - --field-manager=amazon-cloudwatch-observability-crds
+            - --filename=/crds
+          env:
+            # kubectl writes its discovery cache under $HOME.
+            - name: HOME
+              value: /tmp
+          {{- with $job.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          volumeMounts:
+            - name: crds
+              mountPath: /crds
+              readOnly: true
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: crds
+          projected:
+            sources:
+              {{- range $configMaps }}
+              - configMap:
+                  name: {{ .name }}
+              {{- end }}
+        - name: tmp
+          emptyDir: {}
+{{- end }}
