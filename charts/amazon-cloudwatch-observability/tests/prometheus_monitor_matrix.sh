@@ -557,6 +557,47 @@ for a in (NODE, SCRAPER):
 print("ok")' $MON $extra --set-json 'otelFilters.nodeLabels.include=["beta.kubernetes.io/arch"]'
 done
 
+# otelFilters.namespaces and metricNames apply to the SM/PM pipelines of both agents, with
+# otelContainerInsights off (the monitor-only config, cut from the full config) and on, and
+# with the OTLP endpoint on (its config is merged in) and off. The namespace filter runs
+# before the pod k8sattributes, on the k8s.namespace.name the receiver sets; the metric name
+# filter runs last before batch. Both reuse the Container Insights processors.
+FILTERS='{"namespaces":{"include":["team-*"],"exclude":["kube-system"]},"metricNames":{"include":["http_*","up"],"exclude":["http_debug_*"]}}'
+FILTER_CHECK='
+NSF, MNF, K8S = "filter/cw_k8s_ci_v0_metrics_namespaces", "filter/cw_k8s_ci_v0_metric_names", "k8sattributes/cw_k8s_ci_v0_pod"
+NS = "resource.attributes[\"k8s.namespace.name\"]"
+WANT = {
+    NSF: {"error_mode": "ignore", "metrics": {"datapoint": [
+        NS + " != nil and not (IsMatch(" + NS + ", \"^team-\"))",
+        NS + " != nil and (" + NS + " == \"kube-system\")"]}},
+    MNF: {"error_mode": "ignore", "metrics": {"metric": [
+        "not (IsMatch(name, \"^http_\") or name == \"up\")",
+        "(IsMatch(name, \"^http_debug_\"))"]}},
+}
+'
+for extra in "$NO_OTLP" "" "$CI $NO_OTLP" "$CI"; do
+    expect_py "otelFilters namespaces and metricNames apply to the SM/PM pipelines of both agents${extra:+ ($extra)}" "$FILTER_CHECK"'
+for a in (NODE, SCRAPER):
+    o = agents[a]["otel"]
+    procs = o["service"]["pipelines"][PIPE]["processors"]
+    assert procs.count(NSF) == 1 and procs.index(SCOPE) < procs.index(NSF) == procs.index(K8S) - 1, "%s %s" % (a, procs)
+    assert procs[-3:-1] == ["awsattributelimit/cw_k8s_ci_v0", MNF] and procs[-1].startswith("batch/"), "%s %s" % (a, procs)
+    for name, want in WANT.items():
+        assert o["processors"].get(name) == want, "%s %s %s" % (a, name, o["processors"].get(name))
+print("ok")' $MON $extra --set-json "otelFilters=$FILTERS"
+done
+for value in '{}' '{"namespaces":{"include":["*"]},"metricNames":{"include":["*"]}}'; do
+    for extra in "$NO_OTLP" "$CI $NO_OTLP"; do
+        expect_py "no namespace or metric name filter on the SM/PM pipelines for $value${extra:+ ($extra)}" "$FILTER_CHECK"'
+for a in (NODE, SCRAPER):
+    o = agents[a]["otel"]
+    procs = o["service"]["pipelines"][PIPE]["processors"]
+    assert NSF not in procs and MNF not in procs, "%s %s" % (a, procs)
+    assert NSF not in o["processors"] and MNF not in o["processors"], a
+print("ok")' $MON $extra --set-json "otelFilters=$value"
+    done
+done
+
 printf "\n${Y}== Summary ==${N}\n"
 printf "passed: ${G}%s${N}, failed: ${R}%s${N}\n" "$pass_count" "$fail_count"
 [[ "$fail_count" -eq 0 ]]

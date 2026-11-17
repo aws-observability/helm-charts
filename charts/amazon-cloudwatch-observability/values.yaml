@@ -1238,7 +1238,8 @@ otelServiceIdentity:
 ## to the cluster-scraper agent (clusterScraperAgent below) instead. The series always go
 ## to the regional CloudWatch endpoint (otelContainerInsights.cloudwatchMetricsEndpoint
 ## does not apply to them), and the up metric is kept for every target, so up == 0 shows a
-## target that fails to scrape.
+## target that fails to scrape. otelFilters.namespaces, metricNames and podLabels apply to
+## these series too; a metricNames include list that leaves out up drops up as well.
 ##
 ## ServiceMonitor/PodMonitor CRDs: this chart does not install them. When enabled, the
 ## operator runs with --manage-prometheus-crds and creates both CRDs (prometheus-operator
@@ -1402,20 +1403,24 @@ otelContainerInsights:
 ## ══════════════════════════════════════════════════════════════════════════════
 ##
 ## OTEL filters: include and exclude lists for the data that the chart's OTEL
-## pipelines collect: OTEL Container Insights and the OTLP endpoint (otlp). A
-## change restarts the agent pods. See "OTEL filters" in the chart README for
+## pipelines collect: OTEL Container Insights, the OTLP endpoint (otlp) and the
+## ServiceMonitor/PodMonitor metrics (otelPrometheusMonitor). A change restarts
+## the agent pods. See "OTEL filters" in the chart README for
 ## details.
 otelFilters:
   ## Namespaces to keep or drop. An entry is a name, a prefix ending in "*", or
   ## "*". An empty include list keeps every namespace. Exclude wins over include.
   ## GPU, Neuron and EFA metrics of a filtered pod stay, without the pod.
+  ## ServiceMonitor/PodMonitor metrics are matched by the scraped target's
+  ## namespace, with or without otelContainerInsights.
   namespaces:
     include: []
     exclude: []
   ## Metric names to keep or drop, with the same rules as namespaces. This
   ## filter does not apply to logs. Entries are case-sensitive and match the
   ## exported names, for example DCGM_FI_DEV_GPU_UTIL. A non-empty include list
-  ## also drops every OTLP metric that is not on it, span metrics included.
+  ## also drops every OTLP metric that is not on it, span metrics included, and
+  ## every ServiceMonitor/PodMonitor metric not on it, up included.
   metricNames:
     include: []
     exclude: []

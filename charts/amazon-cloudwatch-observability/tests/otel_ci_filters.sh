@@ -344,6 +344,8 @@ DEVICE_PIPELINES = {'metrics/cw_k8s_ci_v0_dcgm', 'metrics/cw_k8s_ci_v0_neuron', 
 NS_STEPS = ('$METRICS_NS', '$LOGS_NS', '$DEVICE_NS')
 assert CONTROLLER_PIPELINES | DEVICE_PIPELINES | {'metrics/cw_k8s_ci_v0_vllm', 'metrics/cw_k8s_ci_v0_knative_dataplane'} <= rendered, rendered
 assert pipelines_with('$NODE', '$DEVICE_NS') == sorted(DEVICE_PIPELINES), pipelines_with('$NODE', '$DEVICE_NS')
+for agent in ('$NODE', '$SCRAPER'):
+    assert 'metrics/cw_k8s_ci_v0_prometheuscr' in pipelines_with(agent, '$METRICS_NS'), agent
 for agent in cfg:
     c = cfg[agent]
     for name, p in c['service']['pipelines'].items():
@@ -351,7 +353,11 @@ for agent in cfg:
         first_k8s = next((i for i, x in enumerate(procs) if x.startswith('k8sattributes/')), len(procs))
         sources = [c['receivers'][r] for r in p['receivers']] + [
             c['processors'][x] for x in procs[:first_k8s] if not x.startswith('filter/') and x not in NS_STEPS]
+        # The prometheus receiver of the ServiceMonitor/PodMonitor pipeline sets
+        # k8s.namespace.name from the target's Kubernetes service discovery
+        # (__meta_kubernetes_namespace), which its config does not name.
         emits = (any(r.startswith('kubeletstats/') for r in p['receivers'])
+                 or any('target_allocator' in c['receivers'][r] for r in p['receivers'])
                  or any('k8s.namespace.name' in json.dumps(s) for s in sources))
         want = '$DEVICE_NS' if name in DEVICE_PIPELINES else '$METRICS_NS' if name.startswith('metrics/') else '$LOGS_NS'
         filtered = want in procs
@@ -368,6 +374,7 @@ for agent in cfg:
                        if not x.startswith('filter/') and x not in NS_STEPS and 'k8s.namespace.name' in json.dumps(c['processors'][x])]
             assert procs.index(want) > max(setters, default=-1), (agent, name, procs)
 " --set dcgmExporter.enabled=true --set neuronMonitor.enabled=true \
+    --set otelPrometheusMonitor.enabled=true \
     --set otelContainerInsights.solutions.vllm.enabled=true \
     --set otelContainerInsights.solutions.kserve.controlPlane.enabled=true \
     --set otelContainerInsights.solutions.knative.dataPlane.enabled=true \
@@ -1196,7 +1203,7 @@ check_case "Metric names exact entry with dots and a colon is not escaped" \
 assert_metric_names('not (name == \"k8s.pod.cpu:total\")')"
 
 # $extra is unquoted on purpose: it holds zero or two helm arguments.
-for extra in "" "--set otelContainerInsights.logs.enabled=false" "--set kubeStateMetrics.enabled=false"; do
+for extra in "" "--set otelContainerInsights.logs.enabled=false" "--set kubeStateMetrics.enabled=false" "--set otelPrometheusMonitor.enabled=true"; do
     check_case "Metric names — last before batch in every metrics pipeline${extra:+ ($extra)}" \
         '{"metricNames":{"exclude":["x"]}}' "$NAME_BLOCKS
 for agent in ('$NODE', '$SCRAPER'):

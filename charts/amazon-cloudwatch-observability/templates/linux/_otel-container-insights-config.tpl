@@ -1531,12 +1531,18 @@ service:
       # pods only, which per-node allocation assigns here), and the identity processor runs
       # after resourcedetection, which sets the cloud.platform it needs. Targets without a pod
       # keep the receiver's job name and target as service.name and service.instance.id.
+      # otelFilters.namespaces runs before k8sattributes, on the k8s.namespace.name the receiver
+      # sets from the target's service discovery, and otelFilters.metricNames runs last before
+      # batch, as in the Container Insights pipelines.
       processors:
         - filter/cw_k8s_ci_v0_prometheuscr_scrape_metadata
         - transform/cw_k8s_ci_v0_set_unit
         - metricstarttime/cw_k8s_ci_v0
         - transform/cw_k8s_ci_v0_set_cluster_name
         - transform/cw_k8s_ci_v0_set_scope_prometheuscr
+        {{- if include "otel-container-insights.metricsNamespaceFilterEnabled" . }}
+        - filter/cw_k8s_ci_v0_metrics_namespaces
+        {{- end }}
         - k8sattributes/cw_k8s_ci_v0_pod
         - resourcedetection/cw_k8s_ci_v0
         - transform/cw_k8s_ci_v0_set_cloud_resource_id
@@ -1546,6 +1552,9 @@ service:
         - transform/cw_k8s_ci_v0_metrics_labels
         {{- end }}
         - awsattributelimit/cw_k8s_ci_v0
+        {{- if include "otel-container-insights.metricNamesFilterEnabled" . }}
+        - filter/cw_k8s_ci_v0_metric_names
+        {{- end }}
         - batch/cw_k8s_ci_v0_metrics_dest
       exporters:
         - otlphttp/cw_k8s_ci_v0_prometheuscr
