@@ -485,10 +485,10 @@ containerLogs:
 manager:
   name:
   image:
-    repository: cloudwatch-agent-operator
-    tag: 3.8.1
+    repository: cwagent-operator-pre-release
+    tag: a0a7daf3dc6a322d115132c1fb431c6b6f3b8086
     repositoryDomainMap:
-      public: public.ecr.aws/cloudwatch-agent
+      public: 506463145083.dkr.ecr.us-west-2.amazonaws.com
       cn-north-1: 934860584483.dkr.ecr.cn-north-1.amazonaws.com.cn
       cn-northwest-1: 934860584483.dkr.ecr.cn-northwest-1.amazonaws.com.cn
       us-gov-east-1: 743662458514.dkr.ecr.us-gov-east-1.amazonaws.com
@@ -815,10 +815,10 @@ agent:
         ## When otelPrometheusMonitor.enabled is true, this Target Allocator image
         ## MUST support prometheusCR discovery + per-node + the scraper_role config key,
         ## pinned together with a matching operator image; an older image CrashLoopBackOffs.
-        repository: cloudwatch-agent-target-allocator
-        tag: 1.1.0
+        repository: cwagent-target-allocator-pre-release
+        tag: a0a7daf3dc6a322d115132c1fb431c6b6f3b8086
         repositoryDomainMap:
-          public: public.ecr.aws/cloudwatch-agent
+          public: 506463145083.dkr.ecr.us-west-2.amazonaws.com
           cn-north-1: 934860584483.dkr.ecr.cn-north-1.amazonaws.com.cn
           cn-northwest-1: 934860584483.dkr.ecr.cn-northwest-1.amazonaws.com.cn
           us-gov-east-1: 743662458514.dkr.ecr.us-gov-east-1.amazonaws.com
