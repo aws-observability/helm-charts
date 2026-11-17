@@ -45,6 +45,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     strategy:
+      fail-fast: false
       matrix:
         # TODO: add webhooks-disabled
         # Keep sorted alphabetically.
@@ -105,6 +106,28 @@ jobs:
         with:
           driver: docker
           kubernetes-version: ${{ steps.k8s.outputs.version }}
+
+      # Test branch only: minikube has no ECR credentials, so pull the candidate operator and
+      # Target Allocator images on the runner and load them into minikube before the chart installs.
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@5fd3084fc36e372ff1fff382a39b10d03659f355 # v2.2.0
+        with:
+          role-to-assume: ${{ env.TERRAFORM_AWS_ASSUME_ROLE }}
+          aws-region: ${{ env.AWS_DEFAULT_REGION }}
+
+      - name: Load candidate images into minikube
+        run: |
+          set -euo pipefail
+          # Same images as the manager and targetAllocator pins in values.yaml on this branch.
+          registry=506463145083.dkr.ecr.us-west-2.amazonaws.com
+          op=$registry/cwagent-operator-pre-release:a0a7daf3dc6a322d115132c1fb431c6b6f3b8086
+          ta=$registry/cwagent-target-allocator-pre-release:a0a7daf3dc6a322d115132c1fb431c6b6f3b8086
+          aws ecr get-login-password --region us-west-2 | docker login --username AWS --password-stdin "$registry"
+          for img in "$op" "$ta"; do
+            docker pull "$img"
+            minikube image load "$img"
+          done
+          minikube image ls | grep -E "pre-release"
 
       - name: Install Terraform
         uses: hashicorp/setup-terraform@b9cd54a3c349d3f38e8881555d616ced269862dd # v3.1.2
