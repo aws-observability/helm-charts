@@ -8,9 +8,8 @@ Changes that may require action when upgrading:
 
 New Features:
 * Support an OTLP endpoint for metrics, traces, logs and profiles on every node, with OTel Container Insights enrichment, otelFilters and span metrics
-* Support Java continuous profiling with the ADOT Java agent (experimental)
-* Support ServiceMonitor and PodMonitor scraping (otelPrometheusMonitor)
-* Support label selector expressions (matchLabels and matchExpressions) for Target Allocator serviceMonitorSelector and podMonitorSelector
+* Support Java continuous profiling with the ADOT Java SDK (experimental)
+* Support ServiceMonitor and PodMonitor scraping (otelPrometheusMonitor), including label selector expressions (matchLabels and matchExpressions) for serviceMonitorSelector and podMonitorSelector
 * Support namespace, metric name and label filters (otelFilters)
 * Support DRA device-to-pod correlation in OTel Container Insights
 * Support SGLang and Ray metrics in OTel Container Insights
