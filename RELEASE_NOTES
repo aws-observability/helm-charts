@@ -1,12 +1,16 @@
 ========================================================================
 amazon-cloudwatch-observability v8.0.0 (TBD)
 ========================================================================
+Changes that may require action when upgrading:
+* The node agent serves OTLP on every node by default (otlp.enabled: true) on host ports 4317 (gRPC) and 4318 (HTTP). Another collector holding those ports leaves one of the pods Pending, and a custom agent config or otelConfig receiver on those ports stops the agent from starting. Set otlp.enabled: false or change otlp.grpc.port / otlp.http.port. agents[].config "default:otel" is no longer used
+* The OTLP profiles pipeline is on by default (otlp.profiles.enabled: true) and requires CWAgent 1.300075.0 or later. With an older agent.image.tag, set otlp.profiles.enabled: false
+* Target Allocator serviceMonitorSelector and podMonitorSelector are Kubernetes label selectors. An AmazonCloudWatchAgent resource that sets them as a flat label map must move the labels under matchLabels
+
 New Features:
-* Introduce an OTLP endpoint on every node (enabled by default, host ports 4317 and 4318); agents[].config "default:otel" is no longer used
-* Support OTLP profiles (enabled by default, requires CWAgent 1.300075.0 or later)
+* Support an OTLP endpoint for metrics, traces, logs and profiles on every node, with OTel Container Insights enrichment, otelFilters and span metrics
 * Support Java continuous profiling with the ADOT Java agent (experimental)
 * Support ServiceMonitor and PodMonitor scraping (otelPrometheusMonitor)
-* Support label selector expressions for Target Allocator serviceMonitorSelector and podMonitorSelector
+* Support label selector expressions (matchLabels and matchExpressions) for Target Allocator serviceMonitorSelector and podMonitorSelector
 * Support namespace, metric name and label filters (otelFilters)
 * Support DRA device-to-pod correlation in OTel Container Insights
 * Support SGLang and Ray metrics in OTel Container Insights
