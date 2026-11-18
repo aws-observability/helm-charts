@@ -76,7 +76,7 @@ receivers:
                 - dcgm-exporter-service:9400
   {{- end }}
 
-  {{- if .Values.amdMetricsExporter.enabled }}
+  {{- if and (eq .Values.k8sMode "AKS") .Values.amdMonitor.enabled }}
   # AMD Instinct GPUs. The exporter belongs to the AMD GPU Operator, not to this
   # chart; it runs as a DaemonSet on the GPU nodes behind one ClusterIP service.
   # That service is not internalTrafficPolicy: Local the way dcgm-exporter-service
@@ -95,13 +95,13 @@ receivers:
             - role: pod
               namespaces:
                 names:
-                  - {{ .Values.amdMetricsExporter.exporter.namespace }}
+                  - {{ .Values.amdMonitor.exporter.namespace }}
               selectors:
                 - role: pod
                   field: spec.nodeName=${env:K8S_NODE_NAME}
           relabel_configs:
             - source_labels: [__meta_kubernetes_pod_container_port_number]
-              regex: "{{ .Values.amdMetricsExporter.exporter.port }}"
+              regex: "{{ .Values.amdMonitor.exporter.port }}"
               action: keep
           # No pod/namespace relabelling here, unlike the other pod-discovery jobs:
           # the exporter already labels each series with the pod that holds the GPU,
@@ -667,7 +667,7 @@ processors:
           - set(unit, "1") where name == "DCGM_FI_DEV_NVLINK_ECC_ERROR_TOTAL"
           # Neuron explicit mappings
           - set(unit, "By") where IsMatch(name, "^neuroncore_memory_usage_.*")
-          {{- if .Values.amdMetricsExporter.enabled }}
+          {{- if and (eq .Values.k8sMode "AKS") .Values.amdMonitor.enabled }}
           # AMD Device Metrics Exporter explicit mappings (no suffix convention).
           - set(unit, "Cel") where name == "gpu_edge_temperature"
           - set(unit, "Cel") where name == "gpu_junction_temperature"
@@ -758,14 +758,14 @@ processors:
           - set(attributes["cloudwatch.pipeline"], "dcgm")
   {{- end }}
 
-  {{- if .Values.amdMetricsExporter.enabled }}
+  {{- if and (eq .Values.k8sMode "AKS") .Values.amdMonitor.enabled }}
   transform/cw_k8s_ci_v0_set_scope_amd:
     error_mode: ignore
     metric_statements:
       - context: scope
         statements:
           - set(scope.name, "github.com/ROCm/device-metrics-exporter")
-          - set(scope.version, "{{ .Values.amdMetricsExporter.version }}")
+          - set(scope.version, "{{ .Values.amdMonitor.version }}")
           - set(scope.schema_url, "")
           - set(attributes["cloudwatch.source"], "cloudwatch-agent")
           - set(attributes["cloudwatch.solution"], "k8s-otel-container-insights")
@@ -1261,7 +1261,7 @@ processors:
           - delete_key(attributes, "container") where attributes["container"] != nil
   {{- end }}
 
-  {{- if .Values.amdMetricsExporter.enabled }}
+  {{- if and (eq .Values.k8sMode "AKS") .Values.amdMonitor.enabled }}
   # Keep only the exporter's GPU series. Everything it serves is named gpu_* or
   # pcie_*; anything else is the exporter's own instrumentation, such as
   # promhttp_metric_handler_errors_total, which would otherwise be billed as a
@@ -1670,7 +1670,7 @@ service:
         - otlphttp/cw_k8s_ci_v0_metrics_dest
     {{- end }}
 
-    {{- if .Values.amdMetricsExporter.enabled }}
+    {{- if and (eq .Values.k8sMode "AKS") .Values.amdMonitor.enabled }}
     metrics/cw_k8s_ci_v0_amd:
       receivers: [prometheus/cw_k8s_ci_v0_amd]
       processors: [filter/cw_k8s_ci_v0_scrape_metadata, filter/cw_k8s_ci_v0_amd, transform/cw_k8s_ci_v0_set_unit, metricstarttime/cw_k8s_ci_v0, transform/cw_k8s_ci_v0_set_cluster_name, transform/cw_k8s_ci_v0_set_node_name, transform/cw_k8s_ci_v0_promote_node_name, resourcedetection/cw_k8s_ci_v0, transform/cw_k8s_ci_v0_set_scope_amd, transform/cw_k8s_ci_v0_clear_schema_url, transform/cw_k8s_ci_v0_set_cloud_resource_id, awsattributelimit/cw_k8s_ci_v0, batch/cw_k8s_ci_v0_metrics_dest]
