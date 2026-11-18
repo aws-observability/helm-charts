@@ -1170,12 +1170,16 @@ service:
       # single/few consistent-hashing replicas serve the routed monitors (not node-local).
       # Service identity as on the per-node agent: the cluster-wide k8sattributes/cw_k8s_ci_v0_pod
       # finds the scraped pod, and the identity processor runs after resourcedetection.
+      # otelFilters namespaces and metricNames apply as on the per-node agent.
       processors:
         - filter/cw_k8s_ci_v0_prometheuscr_scrape_metadata
         - transform/cw_k8s_ci_v0_set_unit
         - metricstarttime/cw_k8s_ci_v0
         - transform/cw_k8s_ci_v0_set_scope_prometheuscr
         - transform/cw_k8s_ci_v0_set_cluster_name
+        {{- if include "otel-container-insights.metricsNamespaceFilterEnabled" . }}
+        - filter/cw_k8s_ci_v0_metrics_namespaces
+        {{- end }}
         - k8sattributes/cw_k8s_ci_v0_pod
         - resourcedetection/cw_k8s_ci_v0
         - transform/cw_k8s_ci_v0_set_cloud_resource_id
@@ -1185,6 +1189,9 @@ service:
         - transform/cw_k8s_ci_v0_metrics_labels
         {{- end }}
         - awsattributelimit/cw_k8s_ci_v0
+        {{- if include "otel-container-insights.metricNamesFilterEnabled" . }}
+        - filter/cw_k8s_ci_v0_metric_names
+        {{- end }}
         - batch/cw_k8s_ci_v0_cwotel
       exporters:
         - otlphttp/cw_k8s_ci_v0_prometheuscr

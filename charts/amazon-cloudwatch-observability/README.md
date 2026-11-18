@@ -459,19 +459,26 @@ Host logs carry no service identity: they come from the node, not from a service
 ## OTEL filters
 
 The top-level `otelFilters` block holds the filters for the data that the chart's OTEL
-pipelines collect: OTEL Container Insights and the OTLP endpoint. Each filter applies only to
-the data that this section names. The chart
+pipelines collect: OTEL Container Insights, the OTLP endpoint, and the ServiceMonitor and
+PodMonitor metrics that `otelPrometheusMonitor` scrapes. Each filter applies only to the data
+that this section names. The chart
 turns the filters into OTEL processors in the agent configuration.
 
 ### Namespaces
 
-`otelFilters.namespaces` applies to OTEL Container Insights metrics and logs, and to OTLP
-metrics, traces and logs. One `include` list and one `exclude` list cover all of them.
+`otelFilters.namespaces` applies to OTEL Container Insights metrics and logs, to OTLP
+metrics, traces and logs, and to ServiceMonitor and PodMonitor metrics. One `include` list and
+one `exclude` list cover all of them.
 
 The filter drops the pod and container metrics of a filtered namespace, from
 kube-state-metrics, cAdvisor, kubelet, vLLM and the Knative data plane. It does not apply to
 node-level metrics, or to the Karpenter, KEDA, KServe control plane and Knative control plane
 metrics. For logs, it applies to application logs and not to host logs.
+
+For ServiceMonitor and PodMonitor metrics, the filter matches the namespace of the scraped
+target (`k8s.namespace.name`, which the receiver sets from the target's Kubernetes service
+discovery), on the node agent and on the cluster scraper alike. It applies whether or not
+OTEL Container Insights is on. A target without a namespace always passes.
 
 The filter never drops GPU, Neuron or EFA device metrics, because a device belongs to a pod
 only for a while. When the pod of a device is in a filtered namespace, the chart keeps the
@@ -491,16 +498,20 @@ otelFilters:
 
 ### Metric names
 
-`otelFilters.metricNames` applies to OTEL Container Insights metrics and to OTLP metrics,
-span metrics included. It does not apply to logs.
+`otelFilters.metricNames` applies to OTEL Container Insights metrics, to OTLP metrics, span
+metrics included, and to ServiceMonitor and PodMonitor metrics, on the node agent and on the
+cluster scraper. It does not apply to logs.
 
 An entry is an exact metric name, a prefix followed by `*` (for example `container_*`), or
 `*` alone. A name can contain letters, digits, `_`, `:` and `.`. An empty include list, or one
 that contains `*`, includes every metric. Exclude wins over include. An entry cannot be in
 both lists. A non-empty include list drops every other Container Insights metric, in every
-pipeline, and every OTLP metric that is not on it.
+pipeline, and every OTLP, ServiceMonitor and PodMonitor metric that is not on it. That
+includes the `up` series of ServiceMonitor and PodMonitor targets: add `up` to the include list
+to keep it.
 
-The filter runs last before export in every Container Insights metrics pipeline. So the
+The filter runs last before export in every Container Insights and ServiceMonitor/PodMonitor
+metrics pipeline. So the
 entries match the exported metric names. The match is case-sensitive: the entry
 `dcgm_fi_dev_gpu_util` does not match the metric `DCGM_FI_DEV_GPU_UTIL`.
 
@@ -515,8 +526,9 @@ otelFilters:
 
 `otelFilters.podLabels` and `otelFilters.nodeLabels` decide which pod and node labels arrive
 as `k8s.pod.label.*` and `k8s.node.label.*` attributes. The label rules apply wherever the
-chart attaches pod or node labels: OTEL Container Insights metrics and logs, and OTLP
-metrics, traces and logs. All of them share each list.
+chart attaches pod or node labels: OTEL Container Insights metrics and logs, OTLP
+metrics, traces and logs, and the pod labels of ServiceMonitor and PodMonitor metrics. All of
+them share each list.
 
 An entry is a label key, a key prefix followed by `*` (for example `app.kubernetes.io/*`), or
 `*` alone. A label key is an optional DNS subdomain prefix of at most 253 characters and `/`,

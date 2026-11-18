@@ -159,8 +159,8 @@ the namespace from its resource. The metrics and the logs filter both use them.
 The namespace filter processor for .signal ("metrics", "logs" or "traces"), or
 nothing when it has no conditions. The signal picks the processor name and the
 record type. The metrics filter is added to every pod and container metrics
-pipeline, and the logs filter to the application logs pipeline, before
-k8sattributes. The device pipelines (DCGM, Neuron, EFA) use deviceNamespaces
+pipeline and to the ServiceMonitor/PodMonitor pipeline, and the logs filter to
+the application logs pipeline, before k8sattributes. The device pipelines (DCGM, Neuron, EFA) use deviceNamespaces
 instead. .name, when set, replaces the processor name: the OTLP pipelines
 (otlp) add their own metrics, logs and traces filters, after k8sattributes,
 which sets the namespace of OTLP telemetry.
@@ -227,8 +227,8 @@ filter is defined and added to pipelines. Both read otelFilters.namespaces.
 
 {{/*
 JSON list of OTTL metric conditions for otelFilters.metricNames, which applies
-to the Container Insights metrics only. A metric matching any condition is
-dropped. An include list containing "*" includes everything, so it adds no
+to the Container Insights, OTLP and ServiceMonitor/PodMonitor metrics. A metric
+matching any condition is dropped. An include list containing "*" includes everything, so it adds no
 condition. A duplicate entry renders once.
 */}}
 {{- define "otel-container-insights.metricNamesConditions" -}}
@@ -247,7 +247,7 @@ condition. A duplicate entry renders once.
 
 {{/*
 Filter processor that drops metrics by name. Runs last before batch in every
-Container Insights metrics pipeline, so it matches the names that are exported.
+Container Insights and ServiceMonitor/PodMonitor metrics pipeline, so it matches the names that are exported.
 Renders nothing when no condition applies.
 */}}
 {{- define "otel-container-insights.metricNamesFilter" -}}
