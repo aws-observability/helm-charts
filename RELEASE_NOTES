@@ -1,4 +1,28 @@
 ========================================================================
+amazon-cloudwatch-observability v8.0.0 (TBD)
+========================================================================
+New Features:
+* Introduce an OTLP endpoint on every node (enabled by default, host ports 4317 and 4318); agents[].config "default:otel" is no longer used
+* Support OTLP profiles (enabled by default, requires CWAgent 1.300075.0 or later)
+* Support Java continuous profiling with the ADOT Java agent (experimental)
+* Support ServiceMonitor and PodMonitor scraping (otelPrometheusMonitor)
+* Support label selector expressions for Target Allocator serviceMonitorSelector and podMonitorSelector
+* Support namespace, metric name and label filters (otelFilters)
+* Support DRA device-to-pod correlation in OTel Container Insights
+* Support SGLang and Ray metrics in OTel Container Insights
+
+Enhancements:
+* Upgrade CWAgent to 1.300075.0b2061
+* Upgrade CWAgent Operator to v3.9.0
+* Upgrade Target Allocator to v1.2.0
+* Upgrade Fluent Bit to v3.5.9
+* Upgrade Java ADOT SDK to v2.33.0
+* Upgrade Python ADOT SDK to v0.22.0
+* Upgrade Neuron Monitor to v1.13.1
+* Upgrade Kube State Metrics to v2.20.0-eksbuild.11
+* Upgrade Node Exporter to v1.12.1-eksbuild.12
+
+========================================================================
 amazon-cloudwatch-observability v7.0.1 (2026-11-04)
 ========================================================================
 Enhancements:
