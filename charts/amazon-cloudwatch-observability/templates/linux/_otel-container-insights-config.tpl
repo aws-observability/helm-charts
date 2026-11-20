@@ -76,6 +76,38 @@ receivers:
                 - dcgm-exporter-service:9400
   {{- end }}
 
+  {{- if and (eq .Values.k8sMode "AKS") .Values.amdMonitor.enabled }}
+  # AMD Instinct GPUs. The exporter belongs to the AMD GPU Operator, not to this
+  # chart; it runs as a DaemonSet on the GPU nodes behind one ClusterIP service.
+  # That service is not internalTrafficPolicy: Local the way dcgm-exporter-service
+  # is, so scraping it by DNS would give every agent the same arbitrary exporter
+  # pod: each GPU reported once per node, and stamped by
+  # transform/cw_k8s_ci_v0_set_node_name with the scraping agent's node instead of
+  # its own. Discover the exporter pod on this node instead - scraped exactly once,
+  # by the agent that shares its node, which makes the node attribution correct.
+  prometheus/cw_k8s_ci_v0_amd:
+    config:
+      scrape_configs:
+        - job_name: amd-metrics-exporter
+          scrape_interval: {{ .Values.otelContainerInsights.metricResolution }}
+          scrape_timeout: {{ include "otel-container-insights.scrapeTimeout" . }}
+          kubernetes_sd_configs:
+            - role: pod
+              namespaces:
+                names:
+                  - {{ .Values.amdMonitor.exporter.namespace }}
+              selectors:
+                - role: pod
+                  field: spec.nodeName=${env:K8S_NODE_NAME}
+          relabel_configs:
+            - source_labels: [__meta_kubernetes_pod_container_port_number]
+              regex: "{{ .Values.amdMonitor.exporter.port }}"
+              action: keep
+          # No pod/namespace relabelling here, unlike the other pod-discovery jobs:
+          # the exporter already labels each series with the pod that holds the GPU,
+          # and overwriting those would attribute every GPU to the exporter pod.
+  {{- end }}
+
   {{- if .Values.neuronMonitor.enabled }}
   prometheus/cw_k8s_ci_v0_neuron:
     config:
@@ -635,6 +667,50 @@ processors:
           - set(unit, "1") where name == "DCGM_FI_DEV_NVLINK_ECC_ERROR_TOTAL"
           # Neuron explicit mappings
           - set(unit, "By") where IsMatch(name, "^neuroncore_memory_usage_.*")
+          {{- if and (eq .Values.k8sMode "AKS") .Values.amdMonitor.enabled }}
+          # AMD Device Metrics Exporter explicit mappings (no suffix convention).
+          - set(unit, "Cel") where name == "gpu_edge_temperature"
+          - set(unit, "Cel") where name == "gpu_junction_temperature"
+          - set(unit, "Cel") where name == "gpu_memory_temperature"
+          - set(unit, "Cel") where name == "gpu_hbm_temperature"
+          - set(unit, "W") where name == "gpu_package_power"
+          - set(unit, "W") where name == "gpu_average_package_power"
+          - set(unit, "W") where name == "gpu_power_usage"
+          - set(unit, "uJ") where name == "gpu_energy_consumed"
+          - set(unit, "%") where name == "gpu_gfx_activity"
+          - set(unit, "%") where name == "gpu_umc_activity"
+          - set(unit, "%") where name == "gpu_vcn_activity"
+          - set(unit, "%") where name == "gpu_process_cu_occupancy"
+          - set(unit, "MHz") where name == "gpu_clock"
+          - set(unit, "MHz") where name == "gpu_mem_clock"
+          - set(unit, "MHz") where name == "gpu_min_clock"
+          - set(unit, "MHz") where name == "gpu_max_clock"
+          - set(unit, "MBy") where name == "gpu_total_vram"
+          - set(unit, "MBy") where name == "gpu_used_vram"
+          - set(unit, "MBy") where name == "gpu_free_vram"
+          - set(unit, "MBy") where name == "gpu_total_visible_vram"
+          - set(unit, "MBy") where name == "gpu_used_visible_vram"
+          - set(unit, "MBy") where name == "gpu_free_visible_vram"
+          - set(unit, "MBy") where name == "gpu_total_gtt"
+          - set(unit, "MBy") where name == "gpu_used_gtt"
+          - set(unit, "MBy") where name == "gpu_free_gtt"
+          - set(unit, "GBy/s") where name == "gpu_vram_max_bandwidth"
+          - set(unit, "Mbit/s") where name == "pcie_bandwidth"
+          - set(unit, "GBy/s") where name == "pcie_bidirectional_bandwidth"
+          - set(unit, "KBy") where name == "gpu_xgmi_link_rx"
+          - set(unit, "KBy") where name == "gpu_xgmi_link_tx"
+          - set(unit, "1") where name == "gpu_health"
+          # Counter families, matched by pattern rather than by name. ECC is three
+          # severities across 19 hardware blocks and XGMI is five counters across
+          # six neighbours, and none of them end in "_total", so the generic
+          # counter rule above reaches only the three ECC aggregates.
+          - set(unit, "1") where IsMatch(name, "^gpu_ecc_(correct|deferred|uncorrect)_")
+          - set(unit, "1") where IsMatch(name, "^gpu_xgmi_nbr_[0-9]+_")
+          - set(unit, "1") where IsMatch(name, "^pcie_.*_count$")
+          # Throttling residency. The generic ".*_percent$" rule above does not
+          # match these, which end in "_percentage".
+          - set(unit, "%") where IsMatch(name, "^gpu_violation_.*_percentage$")
+          {{- end }}
 
   transform/cw_k8s_ci_v0_set_cluster_name:
     error_mode: ignore
@@ -680,6 +756,20 @@ processors:
           - set(attributes["cloudwatch.source"], "cloudwatch-agent")
           - set(attributes["cloudwatch.solution"], "k8s-otel-container-insights")
           - set(attributes["cloudwatch.pipeline"], "dcgm")
+  {{- end }}
+
+  {{- if and (eq .Values.k8sMode "AKS") .Values.amdMonitor.enabled }}
+  transform/cw_k8s_ci_v0_set_scope_amd:
+    error_mode: ignore
+    metric_statements:
+      - context: scope
+        statements:
+          - set(scope.name, "github.com/ROCm/device-metrics-exporter")
+          - set(scope.version, "{{ .Values.amdMonitor.version }}")
+          - set(scope.schema_url, "")
+          - set(attributes["cloudwatch.source"], "cloudwatch-agent")
+          - set(attributes["cloudwatch.solution"], "k8s-otel-container-insights")
+          - set(attributes["cloudwatch.pipeline"], "amd")
   {{- end }}
 
   {{- if .Values.neuronMonitor.enabled }}
@@ -1171,6 +1261,18 @@ processors:
           - delete_key(attributes, "container") where attributes["container"] != nil
   {{- end }}
 
+  {{- if and (eq .Values.k8sMode "AKS") .Values.amdMonitor.enabled }}
+  # Keep only the exporter's GPU series. Everything it serves is named gpu_* or
+  # pcie_*; anything else is the exporter's own instrumentation, such as
+  # promhttp_metric_handler_errors_total, which would otherwise be billed as a
+  # CloudWatch metric.
+  filter/cw_k8s_ci_v0_amd:
+    error_mode: ignore
+    metrics:
+      metric:
+        - IsMatch(name, "^(gpu_|pcie_)") != true
+  {{- end }}
+
   {{- if .Values.neuronMonitor.enabled }}
   filter/cw_k8s_ci_v0_neuron:
     error_mode: ignore
@@ -1564,6 +1666,14 @@ service:
     metrics/cw_k8s_ci_v0_dcgm:
       receivers: [prometheus/cw_k8s_ci_v0_dcgm]
       processors: [filter/cw_k8s_ci_v0_scrape_metadata, transform/cw_k8s_ci_v0_drop_deprecated_semconv, transform/cw_k8s_ci_v0_set_unit, metricstarttime/cw_k8s_ci_v0, transform/cw_k8s_ci_v0_set_cluster_name, groupbyattrs/cw_k8s_ci_v0_dcgm, transform/cw_k8s_ci_v0_dcgm_promote, {{ if include "otel-container-insights.metricsNamespaceFilterEnabled" . }}transform/cw_k8s_ci_v0_device_namespaces, {{ end }}k8sattributes/cw_k8s_ci_v0_pod, transform/cw_k8s_ci_v0_set_node_name, transform/cw_k8s_ci_v0_promote_node_name, k8sattributes/cw_k8s_ci_v0_node, resourcedetection/cw_k8s_ci_v0, transform/cw_k8s_ci_v0_set_scope_dcgm, transform/cw_k8s_ci_v0_clear_schema_url, transform/cw_k8s_ci_v0_set_cloud_resource_id, transform/cw_k8s_ci_v0_set_workload, transform/cw_k8s_ci_v0_service_identity, transform/cw_k8s_ci_v0_pod_topology, {{ if include "otel-container-insights.metricsLabelFilterEnabled" . }}transform/cw_k8s_ci_v0_metrics_labels, {{ end }}awsattributelimit/cw_k8s_ci_v0, {{ if include "otel-container-insights.metricNamesFilterEnabled" . }}filter/cw_k8s_ci_v0_metric_names, {{ end }}batch/cw_k8s_ci_v0_metrics_dest]
+      exporters:
+        - otlphttp/cw_k8s_ci_v0_metrics_dest
+    {{- end }}
+
+    {{- if and (eq .Values.k8sMode "AKS") .Values.amdMonitor.enabled }}
+    metrics/cw_k8s_ci_v0_amd:
+      receivers: [prometheus/cw_k8s_ci_v0_amd]
+      processors: [filter/cw_k8s_ci_v0_scrape_metadata, filter/cw_k8s_ci_v0_amd, transform/cw_k8s_ci_v0_set_unit, metricstarttime/cw_k8s_ci_v0, transform/cw_k8s_ci_v0_set_cluster_name, transform/cw_k8s_ci_v0_set_node_name, transform/cw_k8s_ci_v0_promote_node_name, resourcedetection/cw_k8s_ci_v0, transform/cw_k8s_ci_v0_set_scope_amd, transform/cw_k8s_ci_v0_clear_schema_url, transform/cw_k8s_ci_v0_set_cloud_resource_id, awsattributelimit/cw_k8s_ci_v0, batch/cw_k8s_ci_v0_metrics_dest]
       exporters:
         - otlphttp/cw_k8s_ci_v0_metrics_dest
     {{- end }}

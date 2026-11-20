@@ -580,6 +580,26 @@ The NVIDIA DCGM exporter runs on every NVIDIA GPU node when `dcgmExporter.enable
 the default. It collects 51 DCGM fields and the driver version label. The list is
 `$metricsConfig` in `templates/linux/dcgm-exporter-daemonset.yaml`.
 
+## AMD GPU metrics
+
+The AMD Device Metrics Exporter is scraped when `amdMonitor.enabled` is true and `k8sMode` is
+`AKS`. It is off by default, and on any other `k8sMode` the block is ignored entirely. Unlike the DCGM exporter, this chart does not deploy it: it ships with the
+[AMD GPU Operator](https://instinct.docs.amd.com/projects/gpu-operator/en/latest/), which runs it
+as a DaemonSet on the GPU nodes and fronts it with a ClusterIP service. Enabling this without an
+exporter in the cluster yields no metrics. AMD also publishes a standalone
+[exporter chart](https://instinct.docs.amd.com/projects/device-metrics-exporter/en/latest/installation/kubernetes-helm.html)
+for clusters that have the `amdgpu` driver but not the operator.
+
+Each agent scrapes only the exporter pod on its own node, found by pod discovery in
+`amdMonitor.exporter.namespace` on `amdMonitor.exporter.port`. Scraping the
+operator's ClusterIP service instead would hand every agent the same arbitrary exporter pod, so a
+GPU would be reported once per node and attributed to the scraping agent's node rather than its
+own. The unit mappings match the exporter's default metric names, so leave `g_metrics_prefix` unset
+in the exporter's ConfigMap; with a prefix the metrics still ship, but without units.
+
+On an AMD-only cluster also set `dcgmExporter.enabled=false`. Its node affinity lists EC2 instance
+types, so on AKS it never schedules, but turning it off avoids the unused resources.
+
 ## Java profiling (experimental)
 
 Continuous profiling for every pod that receives Java auto-instrumentation, with the profiler

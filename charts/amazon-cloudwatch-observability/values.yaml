@@ -1014,6 +1014,24 @@ dcgmExporter:
                   - fargate
   nodeSelector:
     kubernetes.io/os: linux
+## AMD Instinct GPU metrics (MI2xx / MI3xx). Rendered only when k8sMode is AKS;
+## on any other k8sMode this block is ignored entirely.
+##
+## Unlike dcgmExporter, this chart does not deploy the exporter. The AMD Device
+## Metrics Exporter ships with the AMD GPU Operator, which runs it as a DaemonSet
+## on the GPU nodes. This chart only scrapes it, so enabling this without the
+## operator installed yields no metrics.
+amdMonitor:
+  enabled: false
+  ## Where the AMD GPU Operator runs the exporter. Each agent discovers only the
+  ## exporter pod on its own node, so every GPU is scraped exactly once and is
+  ## reported against the node that holds it.
+  exporter:
+    namespace: kube-amd-gpu
+    port: 5000
+  ## Recorded as the OTEL scope version on every metric. Match it to the
+  ## device-metrics-exporter image the operator actually runs.
+  version: v1.4.0
 neuronMonitor:
   enabled: true
   name:
