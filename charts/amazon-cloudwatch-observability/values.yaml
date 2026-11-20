@@ -51,7 +51,7 @@ containerLogs:
   fluentBit:
     image:
       repository: aws-for-fluent-bit
-      tag: 3.5.6
+      tag: 3.5.9
       tagWindows: 2.31.12-windowsservercore
       repositoryDomainMap:
         public: public.ecr.aws/aws-observability
@@ -486,7 +486,7 @@ manager:
   name:
   image:
     repository: cloudwatch-agent-operator
-    tag: 3.8.1
+    tag: 3.9.0
     repositoryDomainMap:
       public: public.ecr.aws/cloudwatch-agent
       cn-north-1: 934860584483.dkr.ecr.cn-north-1.amazonaws.com.cn
@@ -497,11 +497,11 @@ manager:
     java:
       repositoryDomain: public.ecr.aws/aws-observability
       repository: adot-autoinstrumentation-java
-      tag: v2.32.0
+      tag: v2.33.0
     python:
       repositoryDomain: public.ecr.aws/aws-observability
       repository: adot-autoinstrumentation-python
-      tag: v0.21.0
+      tag: v0.22.0
     dotnet:
       repositoryDomain: public.ecr.aws/aws-observability
       repository: adot-autoinstrumentation-dotnet
@@ -816,7 +816,7 @@ agent:
         ## MUST support prometheusCR discovery + per-node + the scraper_role config key,
         ## pinned together with a matching operator image; an older image CrashLoopBackOffs.
         repository: cloudwatch-agent-target-allocator
-        tag: 1.1.0
+        tag: 1.2.0
         repositoryDomainMap:
           public: public.ecr.aws/cloudwatch-agent
           cn-north-1: 934860584483.dkr.ecr.cn-north-1.amazonaws.com.cn
@@ -1103,7 +1103,7 @@ kubeStateMetrics:
       us-gov-west-1: 013241004608.dkr.ecr.us-gov-west-1.amazonaws.com
     # Used in China/GovCloud regions where the public upstream image isn't available; the helper falls back to repositoryDomainMap[region]/restrictedRepository:restrictedTag
     restrictedRepository: eks/kube-state-metrics
-    restrictedTag: v2.20.0-eksbuild.10
+    restrictedTag: v2.20.0-eksbuild.11
   resources:
     limits:
       cpu: 200m
@@ -1138,7 +1138,7 @@ nodeExporter:
       us-gov-west-1: 013241004608.dkr.ecr.us-gov-west-1.amazonaws.com
     # Used in China/GovCloud regions where the public upstream image isn't available; the helper falls back to repositoryDomainMap[region]/restrictedRepository:restrictedTag
     restrictedRepository: eks/prometheus-node-exporter
-    restrictedTag: v1.12.1-eksbuild.11
+    restrictedTag: v1.12.1-eksbuild.12
   resources:
     limits:
       cpu: 200m
