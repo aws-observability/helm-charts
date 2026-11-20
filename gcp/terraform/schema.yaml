@@ -1,0 +1,97 @@
+images:
+  aws-for-fluent-bit:
+    variables:
+      fluent_bit_image_registry:
+        type: REGISTRY
+      fluent_bit_image_repo:
+        type: REPO_WITHOUT_REGISTRY_WITH_NAME
+      fluent_bit_image_tag:
+        type: TAG
+  cloudwatch-agent-operator:
+    variables:
+      cloudwatch_agent_operator_image_registry:
+        type: REGISTRY
+      cloudwatch_agent_operator_image_repo:
+        type: REPO_WITHOUT_REGISTRY_WITH_NAME
+      cloudwatch_agent_operator_image_tag:
+        type: TAG
+  adot-autoinstrumentation-java:
+    variables:
+      auto_instrumentation_java_image_registry:
+        type: REGISTRY
+      auto_instrumentation_java_image_repo:
+        type: REPO_WITHOUT_REGISTRY_WITH_NAME
+      auto_instrumentation_java_image_tag:
+        type: TAG
+  adot-autoinstrumentation-python:
+    variables:
+      auto_instrumentation_python_image_registry:
+        type: REGISTRY
+      auto_instrumentation_python_image_repo:
+        type: REPO_WITHOUT_REGISTRY_WITH_NAME
+      auto_instrumentation_python_image_tag:
+        type: TAG
+  adot-autoinstrumentation-dotnet:
+    variables:
+      auto_instrumentation_dotnet_image_registry:
+        type: REGISTRY
+      auto_instrumentation_dotnet_image_repo:
+        type: REPO_WITHOUT_REGISTRY_WITH_NAME
+      auto_instrumentation_dotnet_image_tag:
+        type: TAG
+  adot-autoinstrumentation-node:
+    variables:
+      auto_instrumentation_nodejs_image_registry:
+        type: REGISTRY
+      auto_instrumentation_nodejs_image_repo:
+        type: REPO_WITHOUT_REGISTRY_WITH_NAME
+      auto_instrumentation_nodejs_image_tag:
+        type: TAG
+  cloudwatch-agent:
+    variables:
+      cloudwatch_agent_image_registry:
+        type: REGISTRY
+      cloudwatch_agent_image_repo:
+        type: REPO_WITHOUT_REGISTRY_WITH_NAME
+      cloudwatch_agent_image_tag:
+        type: TAG
+  cloudwatch-agent-target-allocator:
+    variables:
+      target_allocator_image_registry:
+        type: REGISTRY
+      target_allocator_image_repo:
+        type: REPO_WITHOUT_REGISTRY_WITH_NAME
+      target_allocator_image_tag:
+        type: TAG
+  dcgm-exporter:
+    variables:
+      dcgm_exporter_image_registry:
+        type: REGISTRY
+      dcgm_exporter_image_repo:
+        type: REPO_WITHOUT_REGISTRY_WITH_NAME
+      dcgm_exporter_image_tag:
+        type: TAG
+  neuron-monitor:
+    variables:
+      neuron_monitor_image_registry:
+        type: REGISTRY
+      neuron_monitor_image_repo:
+        type: REPO_WITHOUT_REGISTRY_WITH_NAME
+      neuron_monitor_image_tag:
+        type: TAG
+  kube-state-metrics:
+    variables:
+      kube_state_metrics_image_registry:
+        type: REGISTRY
+      kube_state_metrics_image_repo:
+        type: REPO_WITHOUT_REGISTRY_WITH_NAME
+      kube_state_metrics_image_tag:
+        type: TAG
+  node-exporter:
+    variables:
+      node_exporter_image_registry:
+        type: REGISTRY
+      node_exporter_image_repo:
+        type: REPO_WITHOUT_REGISTRY_WITH_NAME
+      node_exporter_image_tag:
+        type: TAG

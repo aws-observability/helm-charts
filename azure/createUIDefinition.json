@@ -1,0 +1,518 @@
+{
+	"$schema": "https://schema.management.azure.com/schemas/0.1.2-preview/CreateUIDefinition.MultiVm.json#",
+	"handler": "Microsoft.Azure.CreateUIDef",
+	"version": "0.1.2-preview",
+	"parameters": {
+		"config": {
+			"isWizard": false,
+			"basics": {
+				"location": {
+					"visible": false
+				},
+				"resourceGroup": {
+					"allowExisting": true
+				}
+			}
+		},
+		"basics": [
+			{
+				"name": "existingClusterSection",
+				"type": "Microsoft.Common.Section",
+				"elements": [
+					{
+						"name": "clusterLookupControl",
+						"type": "Microsoft.Solutions.ArmApiControl",
+						"request": {
+							"method": "GET",
+							"path": "[concat(subscription().id, '/resourcegroups/', resourceGroup().name,  '/providers/Microsoft.ContainerService/managedClusters?api-version=2024-09-01')]"
+						}
+					},
+					{
+						"name": "existingClusterResourceName",
+						"type": "Microsoft.Common.DropDown",
+						"label": "AKS Cluster Name",
+						"toolTip": "AKS Cluster Resource Name",
+						"constraints": {
+							"allowedValues": "[map(basics('existingClusterSection').clusterLookupControl.value, (item) => parse(concat('{\"label\":\"', item.name, '\",\"value\":\"', item.name, '\"}')))]",
+							"required": true
+						}
+					}
+				]
+			},
+			{
+				"name": "extensionResourceName",
+				"type": "Microsoft.Common.TextBox",
+				"label": "Cluster extension resource name",
+				"defaultValue": "",
+				"toolTip": "Only lowercase alphanumeric characters are allowed, and the value must be 6-30 characters long.",
+				"constraints": {
+					"required": true,
+					"regex": "^[a-z0-9]{6,30}$",
+					"validationMessage": "Only lowercase alphanumeric characters are allowed, and the value must be 6-30 characters long."
+				},
+				"visible": true
+			}
+		],
+		"steps": [
+			{
+				"name": "applicationDetails",
+				"label": "AWS Connection",
+				"elements": [
+					{
+						"name": "clusterName",
+						"type": "Microsoft.Common.TextBox",
+						"label": "CloudWatch Cluster Name",
+						"toolTip": "Identifies this cluster in CloudWatch Container Insights (values.yaml: clusterName).",
+						"defaultValue": "[basics('existingClusterSection').existingClusterResourceName]",
+						"constraints": {
+							"required": true,
+							"regex": "^[a-zA-Z0-9-_]{1,100}$",
+							"validationMessage": "Only alphanumeric characters, hyphens and underscores are allowed."
+						}
+					},
+					{
+						"name": "region",
+						"type": "Microsoft.Common.DropDown",
+						"label": "AWS Region",
+						"toolTip": "The AWS region CloudWatch metrics and logs are sent to (values.yaml: region).",
+						"defaultValue": "us-east-1",
+						"filter": true,
+						"constraints": {
+							"required": true,
+							"allowedValues": [
+								{
+									"label": "us-east-1",
+									"value": "us-east-1"
+								},
+								{
+									"label": "us-east-2",
+									"value": "us-east-2"
+								},
+								{
+									"label": "us-west-1",
+									"value": "us-west-1"
+								},
+								{
+									"label": "us-west-2",
+									"value": "us-west-2"
+								},
+								{
+									"label": "ca-central-1",
+									"value": "ca-central-1"
+								},
+								{
+									"label": "ca-west-1",
+									"value": "ca-west-1"
+								},
+								{
+									"label": "sa-east-1",
+									"value": "sa-east-1"
+								},
+								{
+									"label": "mx-central-1",
+									"value": "mx-central-1"
+								},
+								{
+									"label": "eu-west-1",
+									"value": "eu-west-1"
+								},
+								{
+									"label": "eu-west-2",
+									"value": "eu-west-2"
+								},
+								{
+									"label": "eu-west-3",
+									"value": "eu-west-3"
+								},
+								{
+									"label": "eu-central-1",
+									"value": "eu-central-1"
+								},
+								{
+									"label": "eu-central-2",
+									"value": "eu-central-2"
+								},
+								{
+									"label": "eu-north-1",
+									"value": "eu-north-1"
+								},
+								{
+									"label": "eu-south-1",
+									"value": "eu-south-1"
+								},
+								{
+									"label": "eu-south-2",
+									"value": "eu-south-2"
+								},
+								{
+									"label": "il-central-1",
+									"value": "il-central-1"
+								},
+								{
+									"label": "me-south-1",
+									"value": "me-south-1"
+								},
+								{
+									"label": "me-central-1",
+									"value": "me-central-1"
+								},
+								{
+									"label": "af-south-1",
+									"value": "af-south-1"
+								},
+								{
+									"label": "ap-east-1",
+									"value": "ap-east-1"
+								},
+								{
+									"label": "ap-east-2",
+									"value": "ap-east-2"
+								},
+								{
+									"label": "ap-south-1",
+									"value": "ap-south-1"
+								},
+								{
+									"label": "ap-south-2",
+									"value": "ap-south-2"
+								},
+								{
+									"label": "ap-northeast-1",
+									"value": "ap-northeast-1"
+								},
+								{
+									"label": "ap-northeast-2",
+									"value": "ap-northeast-2"
+								},
+								{
+									"label": "ap-northeast-3",
+									"value": "ap-northeast-3"
+								},
+								{
+									"label": "ap-southeast-1",
+									"value": "ap-southeast-1"
+								},
+								{
+									"label": "ap-southeast-2",
+									"value": "ap-southeast-2"
+								},
+								{
+									"label": "ap-southeast-3",
+									"value": "ap-southeast-3"
+								},
+								{
+									"label": "ap-southeast-4",
+									"value": "ap-southeast-4"
+								},
+								{
+									"label": "ap-southeast-5",
+									"value": "ap-southeast-5"
+								},
+								{
+									"label": "ap-southeast-7",
+									"value": "ap-southeast-7"
+								}
+							]
+						}
+					},
+					{
+						"name": "roleArn",
+						"type": "Microsoft.Common.TextBox",
+						"label": "AWS IAM Role",
+						"toolTip": "IAM role ARN used for AKS workload-identity federation to authenticate the CloudWatch agent to AWS (values.yaml: roleArn).",
+						"constraints": {
+							"required": true,
+							"regex": "^arn:aws[a-zA-Z-]*:iam::[0-9]{12}:role/.+$",
+							"validationMessage": "Enter a valid IAM role ARN, e.g. arn:aws:iam::123456789012:role/CloudWatchAgentRole."
+						}
+					},
+					{
+						"name": "useDualstackEndpoint",
+						"type": "Microsoft.Common.CheckBox",
+						"label": "Use dual-stack (IPv6) AWS endpoints",
+						"toolTip": "values.yaml: useDualstackEndpoint"
+					}
+				]
+			},
+			{
+				"name": "features",
+				"label": "Features",
+				"elements": [
+					{
+						"name": "featuresInfo",
+						"type": "Microsoft.Common.TextBlock",
+						"options": {
+							"text": "Choose which telemetry to collect. Defaults match the chart's defaults for AKS."
+						}
+					},
+					{
+						"name": "containerLogs",
+						"type": "Microsoft.Common.CheckBox",
+						"label": "Container logs (Fluent Bit)",
+						"defaultValue": true,
+						"toolTip": "values.yaml: containerLogs.enabled"
+					},
+					{
+						"name": "applicationSignals",
+						"type": "Microsoft.Common.CheckBox",
+						"label": "Application Signals",
+						"defaultValue": true,
+						"toolTip": "values.yaml: applicationSignals.enabled"
+					},
+					{
+						"name": "otelContainerInsights",
+						"type": "Microsoft.Common.CheckBox",
+						"label": "OpenTelemetry Container Insights",
+						"defaultValue": true,
+						"toolTip": "values.yaml: otelContainerInsights.enabled"
+					},
+					{
+						"name": "otelLogs",
+						"type": "Microsoft.Common.CheckBox",
+						"label": "Collect application and host logs (OpenTelemetry)",
+						"defaultValue": true,
+						"toolTip": "values.yaml: otelContainerInsights.logs.enabled",
+						"visible": "[steps('features').otelContainerInsights]"
+					},
+					{
+						"name": "metricResolution",
+						"type": "Microsoft.Common.DropDown",
+						"label": "Metric resolution",
+						"defaultValue": "30s",
+						"toolTip": "Scrape interval for Container Insights metrics (values.yaml: otelContainerInsights.metricResolution).",
+						"visible": "[steps('features').otelContainerInsights]",
+						"constraints": {
+							"allowedValues": [
+								{
+									"label": "15s",
+									"value": "15s"
+								},
+								{
+									"label": "30s",
+									"value": "30s"
+								},
+								{
+									"label": "60s",
+									"value": "60s"
+								}
+							]
+						}
+					},
+					{
+						"name": "containerInsights",
+						"type": "Microsoft.Common.CheckBox",
+						"label": "Classic Container Insights",
+						"defaultValue": false,
+						"toolTip": "values.yaml: containerInsights.enabled"
+					},
+					{
+						"name": "kubeStateMetrics",
+						"type": "Microsoft.Common.CheckBox",
+						"label": "kube-state-metrics",
+						"defaultValue": true,
+						"toolTip": "values.yaml: kubeStateMetrics.enabled"
+					},
+					{
+						"name": "nodeExporter",
+						"type": "Microsoft.Common.CheckBox",
+						"label": "Node exporter",
+						"defaultValue": true,
+						"toolTip": "values.yaml: nodeExporter.enabled"
+					},
+					{
+						"name": "dcgmExporter",
+						"type": "Microsoft.Common.CheckBox",
+						"label": "NVIDIA GPU metrics (DCGM exporter)",
+						"defaultValue": true,
+						"toolTip": "values.yaml: dcgmExporter.enabled"
+					},
+					{
+						"name": "neuronMonitor",
+						"type": "Microsoft.Common.CheckBox",
+						"label": "AWS Neuron monitor",
+						"defaultValue": false,
+						"toolTip": "Only applies to AWS Inferentia/Trainium nodes (values.yaml: neuronMonitor.enabled)."
+					}
+				]
+			},
+			{
+				"name": "appSignals",
+				"label": "Application Signals",
+				"elements": [
+					{
+						"name": "appSignalsOff",
+						"type": "Microsoft.Common.TextBlock",
+						"visible": "[not(steps('features').applicationSignals)]",
+						"options": {
+							"text": "Application Signals is turned off on the Features tab."
+						}
+					},
+					{
+						"name": "restartPods",
+						"type": "Microsoft.Common.CheckBox",
+						"label": "Restart existing pods to apply auto-instrumentation",
+						"defaultValue": false,
+						"toolTip": "values.yaml: manager.applicationSignals.autoMonitor.restartPods",
+						"visible": "[steps('features').applicationSignals]"
+					},
+					{
+						"name": "javaRuntimeMetrics",
+						"type": "Microsoft.Common.CheckBox",
+						"label": "Java runtime metrics",
+						"defaultValue": true,
+						"toolTip": "values.yaml: manager.autoInstrumentationConfiguration.java.runtime_metrics.enabled",
+						"visible": "[steps('features').applicationSignals]"
+					},
+					{
+						"name": "pythonRuntimeMetrics",
+						"type": "Microsoft.Common.CheckBox",
+						"label": "Python runtime metrics",
+						"defaultValue": true,
+						"toolTip": "values.yaml: manager.autoInstrumentationConfiguration.python.runtime_metrics.enabled",
+						"visible": "[steps('features').applicationSignals]"
+					},
+					{
+						"name": "dotnetRuntimeMetrics",
+						"type": "Microsoft.Common.CheckBox",
+						"label": ".NET runtime metrics",
+						"defaultValue": true,
+						"toolTip": "values.yaml: manager.autoInstrumentationConfiguration.dotnet.runtime_metrics.enabled",
+						"visible": "[steps('features').applicationSignals]"
+					}
+				]
+			},
+			{
+				"name": "solutions",
+				"label": "Solutions",
+				"elements": [
+					{
+						"name": "solutionsOff",
+						"type": "Microsoft.Common.TextBlock",
+						"visible": "[not(steps('features').otelContainerInsights)]",
+						"options": {
+							"text": "Solutions need OpenTelemetry Container Insights, which is turned off on the Features tab."
+						}
+					},
+					{
+						"name": "solutionsEnabled",
+						"type": "Microsoft.Common.CheckBox",
+						"label": "Scrape metrics from well-known cluster components",
+						"defaultValue": true,
+						"toolTip": "values.yaml: otelContainerInsights.solutions.enabled",
+						"visible": "[steps('features').otelContainerInsights]"
+					},
+					{
+						"name": "keda",
+						"type": "Microsoft.Common.CheckBox",
+						"label": "KEDA",
+						"defaultValue": true,
+						"toolTip": "values.yaml: otelContainerInsights.solutions.keda.enabled",
+						"visible": "[and(steps('features').otelContainerInsights, steps('solutions').solutionsEnabled)]"
+					},
+					{
+						"name": "kedaNamespace",
+						"type": "Microsoft.Common.TextBox",
+						"label": "KEDA namespace",
+						"defaultValue": "kube-system",
+						"toolTip": "The AKS KEDA add-on runs in kube-system; self-installed KEDA usually runs in keda (values.yaml: otelContainerInsights.solutions.keda.namespace).",
+						"visible": "[and(steps('features').otelContainerInsights, steps('solutions').solutionsEnabled, steps('solutions').keda)]",
+						"constraints": {
+							"required": true,
+							"regex": "^[a-z0-9]([-a-z0-9]{0,61}[a-z0-9])?$",
+							"validationMessage": "Enter a valid Kubernetes namespace."
+						}
+					},
+					{
+						"name": "karpenter",
+						"type": "Microsoft.Common.CheckBox",
+						"label": "Karpenter (node auto-provisioning)",
+						"defaultValue": false,
+						"toolTip": "values.yaml: otelContainerInsights.solutions.karpenter.enabled",
+						"visible": "[and(steps('features').otelContainerInsights, steps('solutions').solutionsEnabled)]"
+					},
+					{
+						"name": "karpenterNamespace",
+						"type": "Microsoft.Common.TextBox",
+						"label": "Karpenter namespace",
+						"defaultValue": "kube-system",
+						"toolTip": "values.yaml: otelContainerInsights.solutions.karpenter.namespace",
+						"visible": "[and(steps('features').otelContainerInsights, steps('solutions').solutionsEnabled, steps('solutions').karpenter)]",
+						"constraints": {
+							"required": true,
+							"regex": "^[a-z0-9]([-a-z0-9]{0,61}[a-z0-9])?$",
+							"validationMessage": "Enter a valid Kubernetes namespace."
+						}
+					}
+				]
+			},
+			{
+				"name": "advanced",
+				"label": "Advanced",
+				"elements": [
+					{
+						"name": "resourceProfile",
+						"type": "Microsoft.Common.DropDown",
+						"label": "Resource profile",
+						"defaultValue": "Default",
+						"toolTip": "CPU and memory for the CloudWatch agent and Fluent Bit. Small suits clusters under 10 nodes; Large suits busy nodes with many pods.",
+						"constraints": {
+							"allowedValues": [
+								{
+									"label": "Small",
+									"value": "small",
+									"description": "Agent 100m/128Mi request, 250m/256Mi limit; Fluent Bit 25m/25Mi, 250m/128Mi"
+								},
+								{
+									"label": "Default",
+									"value": "default",
+									"description": "Agent 250m/128Mi request, 500m/512Mi limit; Fluent Bit 50m/25Mi, 500m/250Mi"
+								},
+								{
+									"label": "Large",
+									"value": "large",
+									"description": "Agent 500m/256Mi request, 1 CPU/1Gi limit; Fluent Bit 100m/50Mi, 1 CPU/500Mi"
+								}
+							]
+						}
+					},
+					{
+						"name": "podDisruptionBudget",
+						"type": "Microsoft.Common.CheckBox",
+						"label": "Create pod disruption budgets",
+						"defaultValue": false,
+						"toolTip": "values.yaml: podDisruptionBudget.enabled"
+					}
+				]
+			}
+		],
+		"outputs": {
+			"clusterResourceName": "[basics('existingClusterSection').existingClusterResourceName]",
+			"extensionResourceName": "[basics('extensionResourceName')]",
+			"clusterName": "[steps('applicationDetails').clusterName]",
+			"region": "[steps('applicationDetails').region]",
+			"roleArn": "[steps('applicationDetails').roleArn]",
+			"useDualstackEndpoint": "[steps('applicationDetails').useDualstackEndpoint]",
+			"containerLogs": "[steps('features').containerLogs]",
+			"applicationSignals": "[steps('features').applicationSignals]",
+			"otelContainerInsights": "[steps('features').otelContainerInsights]",
+			"otelLogs": "[coalesce(steps('features').otelLogs, true)]",
+			"metricResolution": "[coalesce(steps('features').metricResolution, '30s')]",
+			"containerInsights": "[steps('features').containerInsights]",
+			"kubeStateMetrics": "[steps('features').kubeStateMetrics]",
+			"nodeExporter": "[steps('features').nodeExporter]",
+			"dcgmExporter": "[steps('features').dcgmExporter]",
+			"neuronMonitor": "[steps('features').neuronMonitor]",
+			"restartPods": "[coalesce(steps('appSignals').restartPods, false)]",
+			"javaRuntimeMetrics": "[coalesce(steps('appSignals').javaRuntimeMetrics, true)]",
+			"pythonRuntimeMetrics": "[coalesce(steps('appSignals').pythonRuntimeMetrics, true)]",
+			"dotnetRuntimeMetrics": "[coalesce(steps('appSignals').dotnetRuntimeMetrics, true)]",
+			"solutionsEnabled": "[coalesce(steps('solutions').solutionsEnabled, true)]",
+			"keda": "[coalesce(steps('solutions').keda, true)]",
+			"kedaNamespace": "[coalesce(steps('solutions').kedaNamespace, 'kube-system')]",
+			"karpenter": "[coalesce(steps('solutions').karpenter, false)]",
+			"karpenterNamespace": "[coalesce(steps('solutions').karpenterNamespace, 'kube-system')]",
+			"resourceProfile": "[steps('advanced').resourceProfile]",
+			"podDisruptionBudget": "[steps('advanced').podDisruptionBudget]"
+		}
+	}
+}
