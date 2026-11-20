@@ -1,4 +1,10 @@
 ========================================================================
+amazon-cloudwatch-observability v8.0.1 (TBD)
+========================================================================
+Enhancements:
+* Upgrade DCGM Exporter to 4.7.0-4.9.0-distroless
+
+========================================================================
 amazon-cloudwatch-observability v8.0.0 (TBD)
 ========================================================================
 Changes that may require action when upgrading:
