@@ -7,12 +7,12 @@ HELM=helm
 GOIMPORTS = $(TOOLS_BIN_DIR)/goimports
 LINTER = $(TOOLS_BIN_DIR)/golangci-lint
 
-.PHONY: all deps tidy helm-lint helm-flag-matrix helm-yaml-injection helm-neuron-shape check_secrets fmt lint install-goimports install-golangci-lint
+.PHONY: all deps tidy helm-lint helm-flag-matrix helm-yaml-injection helm-neuron-shape helm-kserve-shape helm-vllm-shape helm-sglang-shape helm-model-server-shape helm-ray-shape helm-knative-shape helm-otel-ci-filters helm-otlp-endpoint helm-availability-zone helm-dcgm-metrics-csv helm-service-identity-exec helm-prometheus-monitor-matrix helm-java-profiling check_secrets fmt lint install-goimports install-golangci-lint
 
-all: deps tidy check_secrets fmt lint helm-lint helm-flag-matrix helm-yaml-injection helm-neuron-shape
+all: deps tidy check_secrets fmt lint helm-lint helm-flag-matrix helm-yaml-injection helm-neuron-shape helm-kserve-shape helm-vllm-shape helm-sglang-shape helm-model-server-shape helm-ray-shape helm-knative-shape helm-otel-ci-filters helm-otlp-endpoint helm-availability-zone helm-dcgm-metrics-csv helm-service-identity-exec helm-prometheus-monitor-matrix helm-java-profiling
 
 install-goimports:
-	GOBIN=$(TOOLS_BIN_DIR) go install golang.org/x/tools/cmd/goimports@latest
+	GOBIN=$(TOOLS_BIN_DIR) go install golang.org/x/tools/cmd/goimports@v0.40.0
 
 install-golangci-lint:
 	#Install from source for golangci-lint is not recommended based on https://golangci-lint.run/usage/install/#install-from-source so using binary
@@ -46,3 +46,42 @@ helm-yaml-injection:
 
 helm-neuron-shape:
 	bash charts/amazon-cloudwatch-observability/tests/neuron_pipeline_shape.sh
+
+helm-kserve-shape:
+	bash charts/amazon-cloudwatch-observability/tests/kserve_pipeline_shape.sh
+
+helm-vllm-shape:
+	bash charts/amazon-cloudwatch-observability/tests/vllm_pipeline_shape.sh
+
+helm-sglang-shape:
+	bash charts/amazon-cloudwatch-observability/tests/sglang_pipeline_shape.sh
+
+helm-model-server-shape:
+	bash charts/amazon-cloudwatch-observability/tests/model_server_pipeline_shape.sh
+
+helm-ray-shape:
+	bash charts/amazon-cloudwatch-observability/tests/ray_pipeline_shape.sh
+
+helm-knative-shape:
+	bash charts/amazon-cloudwatch-observability/tests/knative_pipeline_shape.sh
+
+helm-otel-ci-filters:
+	bash charts/amazon-cloudwatch-observability/tests/otel_ci_filters.sh
+
+helm-otlp-endpoint:
+	bash charts/amazon-cloudwatch-observability/tests/otlp_endpoint.sh
+
+helm-availability-zone:
+	bash charts/amazon-cloudwatch-observability/tests/availability_zone.sh
+
+helm-dcgm-metrics-csv:
+	bash charts/amazon-cloudwatch-observability/tests/dcgm_metrics_csv.sh
+
+helm-service-identity-exec:
+	bash charts/amazon-cloudwatch-observability/tests/service_identity_exec.sh
+
+helm-prometheus-monitor-matrix:
+	bash charts/amazon-cloudwatch-observability/tests/prometheus_monitor_matrix.sh
+
+helm-java-profiling:
+	bash charts/amazon-cloudwatch-observability/tests/java_profiling.sh
