@@ -9,6 +9,10 @@
 #   otelContainerInsights.logs.enabled
 #   containerLogs.enabled
 #
+# It renders with otlp.enabled=false: the OTLP endpoint shares the metrics
+# exporter and signer with Container Insights, so they would show up in every
+# state. tests/otlp_endpoint.sh covers the endpoint.
+#
 # This is a template-level test — it does not deploy anything to a real cluster.
 # Minikube integration tests cover deployment; this script fills the gap for:
 #   (a) testing all 8 combinations quickly without minikube
@@ -56,6 +60,7 @@ run_case() {
     output=$(helm template "$CHART_DIR" \
         --set region=us-west-2 \
         --set clusterName=test-cluster \
+        --set otlp.enabled=false \
         --set "otelContainerInsights.enabled=$enabled" \
         --set "otelContainerInsights.logs.enabled=$logs" \
         --set "containerLogs.enabled=$fb" 2>&1) && exit_code=0 || exit_code=$?

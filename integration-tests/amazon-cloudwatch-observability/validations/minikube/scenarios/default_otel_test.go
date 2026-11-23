@@ -17,8 +17,9 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 )
 
-// TestDefaultOtel validates the config: "default:otel" value, which merges an OTLP receiver onto
-// the default CW Agent config. Asserts on the rendered CR's JSON spec.config, like the other scenarios.
+// TestDefaultOtel validates the config: "default:otel" value. It is an alias of "default": the
+// node agent serves OTLP from the chart's OTLP endpoint (the otlp values, on by default) in its
+// otelConfig, and the JSON spec.config is the default config with no OTLP receiver.
 func TestDefaultOtel(t *testing.T) {
 	k8sClient, err := util.NewK8sClient()
 	require.NoError(t, err, "failed to create k8s client")
@@ -98,26 +99,26 @@ func otlpCollectBlockOf(config map[string]interface{}) map[string]interface{} {
 	return otlp
 }
 
-// validateNodeAgentOtlpReceiver checks the node agent's "default:otel" config carries the OTLP receiver.
+// validateNodeAgentOtlpReceiver checks the node agent still serves OTLP on 0.0.0.0:4317 and
+// 0.0.0.0:4318 with span metrics, which "default:otel" used to add to the JSON config. The
+// receiver now comes from the otlp values and lives in otelConfig; the JSON has none.
 func validateNodeAgentOtlpReceiver(t *testing.T, agentMap map[string]unstructured.Unstructured) {
-	config := configJSONOf(t, agentMap, "cloudwatch-agent")
-	if config == nil {
-		return
+	validateOTLPReceiver(t, agentMap, "cloudwatch-agent", map[string]string{
+		"grpc": "0.0.0.0:4317",
+		"http": "0.0.0.0:4318",
+	})
+	if cfg := otelConfigMapOf(t, agentMap, "cloudwatch-agent"); cfg != nil {
+		receivers, _, _ := unstructured.NestedStringSlice(cfg, "service", "pipelines", "metrics/cw_k8s_otlp", "receivers")
+		assert.Contains(t, receivers, "spanmetrics/cw_k8s_otlp", "the OTLP metrics pipeline should receive span metrics")
 	}
-	otlp := otlpCollectBlockOf(config)
-	if !assert.NotNil(t, otlp, "node agent config should have opentelemetry.collect.otlp for default:otel") {
-		return
+	if config := configJSONOf(t, agentMap, "cloudwatch-agent"); config != nil {
+		assert.Nil(t, otlpCollectBlockOf(config),
+			"node agent JSON config should not have opentelemetry.collect.otlp: default:otel is an alias of default")
 	}
-	// Endpoints are pinned to 0.0.0.0 so the receiver accepts traffic from other pods (the agent
-	// default binds loopback only).
-	assert.Equal(t, "0.0.0.0:4317", otlp["grpc_endpoint"], "otlp grpc_endpoint should be 0.0.0.0:4317")
-	assert.Equal(t, "0.0.0.0:4318", otlp["http_endpoint"], "otlp http_endpoint should be 0.0.0.0:4318")
-	assert.Equal(t, true, otlp["span_metrics_enabled"], "otlp span_metrics_enabled should be true")
 }
 
-// validateNodeAgentDefaultConfigSurvives checks the OTLP receiver was MERGED onto the default config,
-// not substituted for it: the default Container Insights block (logs.metrics_collected.kubernetes)
-// must remain alongside it.
+// validateNodeAgentDefaultConfigSurvives checks the node agent keeps the default config: the
+// default Container Insights block (logs.metrics_collected.kubernetes) must remain.
 func validateNodeAgentDefaultConfigSurvives(t *testing.T, agentMap map[string]unstructured.Unstructured) {
 	config := configJSONOf(t, agentMap, "cloudwatch-agent")
 	if config == nil {
@@ -136,8 +137,8 @@ func validateNodeAgentDefaultConfigSurvives(t *testing.T, agentMap map[string]un
 		"default Container Insights (logs.metrics_collected.kubernetes) should survive the OTLP merge")
 }
 
-// validateClusterScraperNoOtlpReceiver checks the cluster-scraper (config: "default", not
-// "default:otel") does NOT get the OTLP receiver; it describes other workloads, not local ingest.
+// validateClusterScraperNoOtlpReceiver checks the cluster-scraper does NOT get the OTLP receiver,
+// in its JSON config or its otelConfig; it describes other workloads, not local ingest.
 func validateClusterScraperNoOtlpReceiver(t *testing.T, agentMap map[string]unstructured.Unstructured) {
 	config := configJSONOf(t, agentMap, "cloudwatch-agent-cluster-scraper")
 	if config == nil {
@@ -145,4 +146,9 @@ func validateClusterScraperNoOtlpReceiver(t *testing.T, agentMap map[string]unst
 	}
 	assert.Nil(t, otlpCollectBlockOf(config),
 		"cluster-scraper config should NOT have an OTLP receiver (config is plain default)")
+	if cfg := otelConfigMapOf(t, agentMap, "cloudwatch-agent-cluster-scraper"); cfg != nil {
+		receivers, _ := cfg["receivers"].(map[string]interface{})
+		_, has := receivers[otlpReceiver]
+		assert.False(t, has, "cluster-scraper otelConfig should NOT have the OTLP receiver")
+	}
 }

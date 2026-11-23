@@ -1,0 +1,54 @@
+# Java workload for the Java profiling integration test: Tomcat with ADOT injected (Application Signals and the
+# profiler), and a sidecar that requests it once a second. __SERVICE__ is replaced by the test.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: java-profiling-it
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: java-profiling-it
+  namespace: java-profiling-it
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: java-profiling-it
+  template:
+    metadata:
+      labels:
+        app: java-profiling-it
+      annotations:
+        instrumentation.opentelemetry.io/inject-java: "true"
+    spec:
+      containers:
+        - name: app
+          image: public.ecr.aws/docker/library/tomcat:10.1-jre17
+          env:
+            - name: OTEL_SERVICE_NAME
+              value: __SERVICE__
+          ports:
+            - containerPort: 8080
+          resources:
+            requests:
+              cpu: 50m
+              memory: 256Mi
+        - name: load
+          image: public.ecr.aws/docker/library/busybox:1.37
+          command: ["sh", "-c", "while true; do wget -q -O /dev/null http://127.0.0.1:8080/ 2>/dev/null; sleep 1; done"]
+          resources:
+            requests:
+              cpu: 10m
+              memory: 16Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: java-profiling-it
+  namespace: java-profiling-it
+spec:
+  selector:
+    app: java-profiling-it
+  ports:
+    - port: 8080

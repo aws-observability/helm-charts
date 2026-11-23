@@ -5071,6 +5071,13 @@ spec:
                 description: |-
                   PodDisruptionBudget specifies the pod disruption budget configuration to use
                   for the AmazonCloudWatchAgent workload.
+
+                  Only applied in deployment and statefulset modes. In daemonset mode the
+                  operator does not emit a PodDisruptionBudget and this field is ignored:
+                  PDBs do not protect DaemonSet pods from node drains (kubectl drain
+                  skips DaemonSet-managed pods), and the defaulting webhook populates
+                  this field on every CR, so emitting it in daemonset mode would create
+                  PDB objects for all existing daemonset agents on operator upgrade.
                 properties:
                   maxUnavailable:
                     anyOf:
@@ -5092,6 +5099,17 @@ spec:
                       absence of the evicted pod.  So for example you can prevent all voluntary
                       evictions by specifying "100%".
                     x-kubernetes-int-or-string: true
+                type: object
+              podLabels:
+                additionalProperties:
+                  type: string
+                description: |-
+                  PodLabels is the set of labels that will be attached to
+                  Collector pods (Deployment / DaemonSet / StatefulSet pod template).
+                  Operator-managed labels cannot be overridden and are silently ignored
+                  if provided here. The reserved set includes every
+                  `app.kubernetes.io/*` key the operator writes:
+                  managed-by, instance, part-of, component, name, and version.
                 type: object
               podSecurityContext:
                 description: |-
@@ -6630,9 +6648,10 @@ spec:
                   allocationStrategy:
                     description: |-
                       AllocationStrategy determines which strategy the target allocator should use for allocation.
-                      The current option is consistent-hashing.
+                      The options are consistent-hashing and per-node.
                     enum:
                     - consistent-hashing
+                    - per-node
                     type: string
                   enabled:
                     description: Enabled indicates whether to use a target allocation
@@ -6824,13 +6843,55 @@ spec:
                           custom resources as targets or not.
                         type: boolean
                       podMonitorSelector:
-                        additionalProperties:
-                          type: string
                         description: |-
                           PodMonitors to be selected for target discovery.
-                          This is a map of {key,value} pairs. Each {key,value} in the map is going to exactly match a label in a
-                          PodMonitor's meta labels. The requirements are ANDed.
+                          A label selector is a label query over a set of resources. The result of matchLabels and
+                          matchExpressions are ANDed. An empty label selector matches all objects. A null
+                          label selector matches all objects.
+                        properties:
+                          matchExpressions:
+                            description: matchExpressions is a list of label selector
+                              requirements. The requirements are ANDed.
+                            items:
+                              description: |-
+                                A label selector requirement is a selector that contains values, a key, and an operator that
+                                relates the key and values.
+                              properties:
+                                key:
+                                  description: key is the label key that the selector
+                                    applies to.
+                                  type: string
+                                operator:
+                                  description: |-
+                                    operator represents a key's relationship to a set of values.
+                                    Valid operators are In, NotIn, Exists and DoesNotExist.
+                                  type: string
+                                values:
+                                  description: |-
+                                    values is an array of string values. If the operator is In or NotIn,
+                                    the values array must be non-empty. If the operator is Exists or DoesNotExist,
+                                    the values array must be empty. This array is replaced during a strategic
+                                    merge patch.
+                                  items:
+                                    type: string
+                                  type: array
+                                  x-kubernetes-list-type: atomic
+                              required:
+                              - key
+                              - operator
+                              type: object
+                            type: array
+                            x-kubernetes-list-type: atomic
+                          matchLabels:
+                            additionalProperties:
+                              type: string
+                            description: |-
+                              matchLabels is a map of {key,value} pairs. A single {key,value} in the matchLabels
+                              map is equivalent to an element of matchExpressions, whose key field is "key", the
+                              operator is "In", and the values array contains only "value". The requirements are ANDed.
+                            type: object
                         type: object
+                        x-kubernetes-map-type: atomic
                       scrapeInterval:
                         default: 30s
                         description: |-
@@ -6839,14 +6900,66 @@ spec:
                           Default: "30s"
                         format: duration
                         type: string
+                      scraperRole:
+                        description: |-
+                          ScraperRole partitions ServiceMonitor/PodMonitor discovery across CloudWatch agents by the
+                          "cloudwatch.aws.amazon.com/scraper" annotation on the monitor CR. "cluster-scraper" selects only monitors
+                          annotated cloudwatch.aws.amazon.com/scraper: cluster-scraper; empty (default) selects only monitors that are
+                          not so annotated. This lets a heavy/singleton monitor be routed to the central cluster-scraper
+                          agent while all others stay on the per-node agent.
+                        enum:
+                        - cluster-scraper
+                        type: string
                       serviceMonitorSelector:
-                        additionalProperties:
-                          type: string
                         description: |-
                           ServiceMonitors to be selected for target discovery.
-                          This is a map of {key,value} pairs. Each {key,value} in the map is going to exactly match a label in a
-                          ServiceMonitor's meta labels. The requirements are ANDed.
+                          A label selector is a label query over a set of resources. The result of matchLabels and
+                          matchExpressions are ANDed. An empty label selector matches all objects. A null
+                          label selector matches all objects.
+                        properties:
+                          matchExpressions:
+                            description: matchExpressions is a list of label selector
+                              requirements. The requirements are ANDed.
+                            items:
+                              description: |-
+                                A label selector requirement is a selector that contains values, a key, and an operator that
+                                relates the key and values.
+                              properties:
+                                key:
+                                  description: key is the label key that the selector
+                                    applies to.
+                                  type: string
+                                operator:
+                                  description: |-
+                                    operator represents a key's relationship to a set of values.
+                                    Valid operators are In, NotIn, Exists and DoesNotExist.
+                                  type: string
+                                values:
+                                  description: |-
+                                    values is an array of string values. If the operator is In or NotIn,
+                                    the values array must be non-empty. If the operator is Exists or DoesNotExist,
+                                    the values array must be empty. This array is replaced during a strategic
+                                    merge patch.
+                                  items:
+                                    type: string
+                                  type: array
+                                  x-kubernetes-list-type: atomic
+                              required:
+                              - key
+                              - operator
+                              type: object
+                            type: array
+                            x-kubernetes-list-type: atomic
+                          matchLabels:
+                            additionalProperties:
+                              type: string
+                            description: |-
+                              matchLabels is a map of {key,value} pairs. A single {key,value} in the matchLabels
+                              map is equivalent to an element of matchExpressions, whose key field is "key", the
+                              operator is "In", and the values array contains only "value". The requirements are ANDed.
+                            type: object
                         type: object
+                        x-kubernetes-map-type: atomic
                     type: object
                   replicas:
                     description: |-
