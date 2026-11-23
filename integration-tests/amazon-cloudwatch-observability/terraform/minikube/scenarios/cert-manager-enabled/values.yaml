@@ -1,0 +1,10 @@
+region: us-west-2
+clusterName: minikube
+
+# Use cert-manager for both the operator webhook and the agent TLS certificates.
+admissionWebhooks:
+  certManager:
+    enabled: true
+agent:
+  certManager:
+    enabled: true

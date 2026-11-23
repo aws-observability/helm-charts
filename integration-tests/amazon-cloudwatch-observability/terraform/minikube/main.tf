@@ -31,15 +31,37 @@ resource "null_resource" "minikube_start" {
       minikube status
     EOT
   }
-  
+
   provisioner "local-exec" {
     when    = destroy
     command = "minikube delete"
   }
 }
 
-resource "helm_release" "cloudwatch_observability" {
+# cert-manager is a prerequisite for scenarios that set agent.certManager or
+# admissionWebhooks.certManager: the chart creates cert-manager Certificates and
+# Issuers, so the CRDs and the cert-manager webhook must exist first.
+resource "helm_release" "cert_manager" {
+  count      = var.install_cert_manager ? 1 : 0
   depends_on = [null_resource.minikube_start]
+
+  name             = "cert-manager"
+  namespace        = "cert-manager"
+  create_namespace = true
+  repository       = "https://charts.jetstack.io"
+  chart            = "cert-manager"
+  version          = var.cert_manager_version
+  timeout          = 600
+  wait             = true
+
+  set {
+    name  = "crds.enabled"
+    value = "true"
+  }
+}
+
+resource "helm_release" "cloudwatch_observability" {
+  depends_on = [null_resource.minikube_start, helm_release.cert_manager]
 
   name             = "amazon-cloudwatch-observability"
   namespace        = "amazon-cloudwatch"
