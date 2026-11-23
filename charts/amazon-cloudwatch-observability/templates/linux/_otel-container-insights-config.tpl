@@ -91,7 +91,7 @@ receivers:
                 - neuron-monitor-service:8000
   {{- end }}
 
-  {{- if and .Values.tpuMetrics.enabled (eq .Values.k8sMode "GKE") (not .Values.containerInsights.enabled) .Values.otelContainerInsights.enabled }}
+  {{- if and .Values.tpuMetrics.enabled (eq .Values.k8sMode "GKE")}}
   prometheus/cw_k8s_ci_v0_tpu:
     config:
       scrape_configs:
@@ -705,6 +705,19 @@ processors:
           - set(attributes["cloudwatch.pipeline"], "dcgm")
   {{- end }}
 
+  {{- if and .Values.tpuMetrics.enabled (eq .Values.k8sMode "GKE") }}
+  transform/cw_k8s_ci_v0_set_scope_tpu:
+    error_mode: ignore
+    metric_statements:
+      - context: scope
+        statements:
+          - set(scope.name, "tpu-device-plugin")
+          - set(scope.schema_url, "")
+          - set(attributes["cloudwatch.source"], "cloudwatch-agent")
+          - set(attributes["cloudwatch.solution"], "k8s-otel-container-insights")
+          - set(attributes["cloudwatch.pipeline"], "tpu")
+  {{- end }}
+
   {{- if .Values.neuronMonitor.enabled }}
   transform/cw_k8s_ci_v0_set_scope_neuron_monitor:
     error_mode: ignore
@@ -1194,13 +1207,33 @@ processors:
           - delete_key(attributes, "container") where attributes["container"] != nil
   {{- end }}
 
-  {{- if and .Values.tpuMetrics.enabled (eq .Values.k8sMode "GKE") (not .Values.containerInsights.enabled) .Values.otelContainerInsights.enabled }}
+  {{- if and .Values.tpuMetrics.enabled (eq .Values.k8sMode "GKE")}}
   filter/cw_k8s_ci_v0_tpu:
     error_mode: ignore
     metrics:
       metric:
-        - IsMatch(name, "^(tensorcore_utilization_node|memory_bandwidth_utilization_node)$") != true
+        - IsMatch(name, "^(tensorcore_utilization_node|memory_bandwidth_utilization_node|tensorcore_utilization|memory_bandwidth_utilization|duty_cycle|duty_cycle_node|memory_total|memory_total_node|memory_used|memory_used_node)$") != true
 
+  groupbyattrs/cw_k8s_ci_v0_tpu:
+    keys:
+      - pod
+      - namespace
+      - container
+
+  transform/cw_k8s_ci_v0_tpu_promote:
+    error_mode: ignore
+    metric_statements:
+      - context: resource
+        statements:
+          - set(attributes["k8s.pod.name"], attributes["pod"]) where attributes["pod"] != nil
+          - set(attributes["k8s.namespace.name"], attributes["namespace"]) where attributes["namespace"] != nil
+          - set(attributes["k8s.container.name"], attributes["container"]) where attributes["container"] != nil
+      - context: datapoint
+        statements:
+          # Restore raw Prometheus names to datapoint scope (groupbyattrs removed them).
+          - set(attributes["pod"], resource.attributes["pod"]) where resource.attributes["pod"] != nil
+          - set(attributes["namespace"], resource.attributes["namespace"]) where resource.attributes["namespace"] != nil
+          - set(attributes["container"], resource.attributes["container"]) where resource.attributes["container"] != nil
   {{- end }}
 
   {{- if .Values.neuronMonitor.enabled }}
@@ -1595,7 +1628,36 @@ service:
     {{- if .Values.dcgmExporter.enabled }}
     metrics/cw_k8s_ci_v0_dcgm:
       receivers: [prometheus/cw_k8s_ci_v0_dcgm]
-      processors: [filter/cw_k8s_ci_v0_scrape_metadata, transform/cw_k8s_ci_v0_drop_deprecated_semconv, transform/cw_k8s_ci_v0_set_unit, metricstarttime/cw_k8s_ci_v0, transform/cw_k8s_ci_v0_set_cluster_name, groupbyattrs/cw_k8s_ci_v0_dcgm, transform/cw_k8s_ci_v0_dcgm_promote, {{ if include "otel-container-insights.metricsNamespaceFilterEnabled" . }}transform/cw_k8s_ci_v0_device_namespaces, {{ end }}k8sattributes/cw_k8s_ci_v0_pod, transform/cw_k8s_ci_v0_set_node_name, transform/cw_k8s_ci_v0_promote_node_name, k8sattributes/cw_k8s_ci_v0_node, resourcedetection/cw_k8s_ci_v0, transform/cw_k8s_ci_v0_set_scope_dcgm, transform/cw_k8s_ci_v0_clear_schema_url, transform/cw_k8s_ci_v0_set_cloud_resource_id, transform/cw_k8s_ci_v0_set_workload, transform/cw_k8s_ci_v0_service_identity, transform/cw_k8s_ci_v0_pod_topology, {{ if include "otel-container-insights.metricsLabelFilterEnabled" . }}transform/cw_k8s_ci_v0_metrics_labels, {{ end }}awsattributelimit/cw_k8s_ci_v0, {{ if include "otel-container-insights.metricNamesFilterEnabled" . }}filter/cw_k8s_ci_v0_metric_names, {{ end }}batch/cw_k8s_ci_v0_metrics_dest]
+      processors:
+        - filter/cw_k8s_ci_v0_scrape_metadata
+        - transform/cw_k8s_ci_v0_drop_deprecated_semconv
+        - transform/cw_k8s_ci_v0_set_unit
+        - metricstarttime/cw_k8s_ci_v0
+        - transform/cw_k8s_ci_v0_set_cluster_name
+        - groupbyattrs/cw_k8s_ci_v0_dcgm
+        - transform/cw_k8s_ci_v0_dcgm_promote
+        {{- if include "otel-container-insights.metricsNamespaceFilterEnabled" . }}
+        - transform/cw_k8s_ci_v0_device_namespaces
+        {{- end }}
+        - k8sattributes/cw_k8s_ci_v0_pod
+        - transform/cw_k8s_ci_v0_set_node_name
+        - transform/cw_k8s_ci_v0_promote_node_name
+        - k8sattributes/cw_k8s_ci_v0_node
+        - resourcedetection/cw_k8s_ci_v0
+        - transform/cw_k8s_ci_v0_set_scope_dcgm
+        - transform/cw_k8s_ci_v0_clear_schema_url
+        - transform/cw_k8s_ci_v0_set_cloud_resource_id
+        - transform/cw_k8s_ci_v0_set_workload
+        - transform/cw_k8s_ci_v0_service_identity
+        - transform/cw_k8s_ci_v0_pod_topology
+        {{- if include "otel-container-insights.metricsLabelFilterEnabled" . }}
+        - transform/cw_k8s_ci_v0_metrics_labels
+        {{- end }}
+        - awsattributelimit/cw_k8s_ci_v0
+        {{- if include "otel-container-insights.metricNamesFilterEnabled" . }}
+        - filter/cw_k8s_ci_v0_metric_names
+        {{- end }}
+        - batch/cw_k8s_ci_v0_metrics_dest
       exporters:
         - otlphttp/cw_k8s_ci_v0_metrics_dest
     {{- end }}
@@ -1641,12 +1703,25 @@ service:
         - otlphttp/cw_k8s_ci_v0_metrics_dest
     {{- end }}
 
-    {{- if and .Values.tpuMetrics.enabled (eq .Values.k8sMode "GKE") (not .Values.containerInsights.enabled) .Values.otelContainerInsights.enabled }}
+    {{- if and .Values.tpuMetrics.enabled (eq .Values.k8sMode "GKE")}}
     metrics/cw_k8s_ci_v0_tpu:
       receivers: [prometheus/cw_k8s_ci_v0_tpu]
       processors:
         - filter/cw_k8s_ci_v0_tpu
+        - metricstarttime/cw_k8s_ci_v0
         - transform/cw_k8s_ci_v0_set_cluster_name
+        - groupbyattrs/cw_k8s_ci_v0_tpu
+        - transform/cw_k8s_ci_v0_tpu_promote
+        - k8sattributes/cw_k8s_ci_v0_pod
+        - transform/cw_k8s_ci_v0_set_node_name
+        - transform/cw_k8s_ci_v0_promote_node_name
+        - k8sattributes/cw_k8s_ci_v0_node
+        - resourcedetection/cw_k8s_ci_v0
+        - transform/cw_k8s_ci_v0_set_scope_tpu
+        - transform/cw_k8s_ci_v0_clear_schema_url
+        - transform/cw_k8s_ci_v0_set_cloud_resource_id
+        - transform/cw_k8s_ci_v0_set_workload
+        - awsattributelimit/cw_k8s_ci_v0
         - batch/cw_k8s_ci_v0_metrics_dest
       exporters:
         - otlphttp/cw_k8s_ci_v0_metrics_dest
