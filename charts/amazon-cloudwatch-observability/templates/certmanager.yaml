@@ -49,6 +49,10 @@ spec:
 apiVersion: cert-manager.io/v1
 kind: Certificate
 metadata:
+  {{- with .Values.agent.certManager.certificateAnnotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
   labels:
     {{- include "amazon-cloudwatch-observability.labels" . | nindent 4 }}
   name: "amazon-cloudwatch-observability-agent-cert"
@@ -65,14 +69,19 @@ spec:
     - "neuron-monitor-service.{{ .Release.Namespace }}.svc"
     - "node-exporter-service"
     - "node-exporter-service.{{ .Release.Namespace }}.svc"
+    - {{ include "kube-state-metrics.name" . | quote }}
+    - {{ printf "%s.%s.svc" (include "kube-state-metrics.name" .) .Release.Namespace | quote }}
   issuerRef:
-    kind: Issuer
-    name: "agent-ca"
+    {{- include "amazon-cloudwatch-observability.agentCertIssuerRef" . | nindent 4 }}
   secretName: "amazon-cloudwatch-observability-agent-cert"
 ---
 apiVersion: cert-manager.io/v1
 kind: Certificate
 metadata:
+  {{- with .Values.agent.certManager.certificateAnnotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
   labels:
     {{- include "amazon-cloudwatch-observability.labels" . | nindent 4 }}
   name: "amazon-cloudwatch-observability-agent-server-cert"
@@ -83,8 +92,7 @@ spec:
     - "cloudwatch-agent"
     - "cloudwatch-agent.{{ .Release.Namespace }}.svc"
   issuerRef:
-    kind: Issuer
-    name: "agent-ca"
+    {{- include "amazon-cloudwatch-observability.agentCertIssuerRef" . | nindent 4 }}
   secretName: "amazon-cloudwatch-observability-agent-server-cert"
   usages:
     - digital signature
@@ -94,6 +102,10 @@ spec:
 apiVersion: cert-manager.io/v1
 kind: Certificate
 metadata:
+  {{- with .Values.agent.certManager.certificateAnnotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
   labels:
     {{- include "amazon-cloudwatch-observability.labels" . | nindent 4 }}
   name: "amazon-cloudwatch-observability-agent-client-cert"
@@ -101,8 +113,7 @@ metadata:
 spec:
   commonName: "agent-client"
   issuerRef:
-    kind: Issuer
-    name: "agent-ca"
+    {{- include "amazon-cloudwatch-observability.agentCertIssuerRef" . | nindent 4 }}
   secretName: "amazon-cloudwatch-observability-agent-client-cert"
   usages:
     - digital signature
@@ -112,6 +123,10 @@ spec:
 apiVersion: cert-manager.io/v1
 kind: Certificate
 metadata:
+  {{- with .Values.agent.certManager.certificateAnnotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
   labels:
     {{- include "amazon-cloudwatch-observability.labels" . | nindent 4 }}
   name: "amazon-cloudwatch-observability-agent-ta-client-cert"
@@ -119,14 +134,51 @@ metadata:
 spec:
   commonName: "agent-ta-client"
   issuerRef:
-    kind: Issuer
-    name: "agent-ca"
+    {{- include "amazon-cloudwatch-observability.agentCertIssuerRef" . | nindent 4 }}
   secretName: "amazon-cloudwatch-observability-agent-ta-client-cert"
   usages:
     - digital signature
     - key encipherment
     - cert sign
 {{- if not .Values.agent.certManager.issuerRef }}
+{{- /*
+The agent, cluster scraper, target allocator and scrape targets verify each other
+with the ca.crt of a different Secret than the one holding the peer's tls.crt, so
+every agent certificate must be signed by one CA, as with agent.autoGenerateCert.
+A selfSigned Issuer would make each Certificate its own CA, so it only bootstraps
+the CA certificate here, and the leaf certificates use a CA Issuer. The CA Issuer
+has a new name so that releases created with the old selfSigned "agent-ca" Issuer
+see a changed issuerRef and cert-manager reissues their certificates on upgrade.
+*/}}
+---
+apiVersion: cert-manager.io/v1
+kind: Issuer
+metadata:
+  labels:
+    {{- include "amazon-cloudwatch-observability.labels" . | nindent 4 }}
+  name: "agent-selfsigned"
+  namespace: {{ .Release.Namespace }}
+spec:
+  selfSigned: { }
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  {{- with .Values.agent.certManager.certificateAnnotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  labels:
+    {{- include "amazon-cloudwatch-observability.labels" . | nindent 4 }}
+  name: "amazon-cloudwatch-observability-agent-ca"
+  namespace: {{ .Release.Namespace }}
+spec:
+  isCA: true
+  commonName: "agent-ca"
+  issuerRef:
+    kind: Issuer
+    name: "agent-selfsigned"
+  secretName: "amazon-cloudwatch-observability-agent-ca"
 ---
 apiVersion: cert-manager.io/v1
 kind: Issuer
@@ -137,10 +189,11 @@ metadata:
   {{- end }}
   labels:
     {{- include "amazon-cloudwatch-observability.labels" . | nindent 4 }}
-  name: "agent-ca"
+  name: "agent-ca-issuer"
   namespace: {{ .Release.Namespace }}
 spec:
-  selfSigned: { }
+  ca:
+    secretName: "amazon-cloudwatch-observability-agent-ca"
 {{- end }}
 ---
 apiVersion: v1
