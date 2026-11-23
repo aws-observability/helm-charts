@@ -1,0 +1,24 @@
+region: us-west-2
+clusterName: minikube
+# Chart defaults: the OTLP endpoint (otlp) is on, with OTEL Container Insights off.
+# The legacy Container Insights receiver is turned off because it cannot read the
+# minikube kubelet (its serving certificate has no IP SAN), which stops the agent
+# from starting. The scenario checks that the agent runs with the OTLP pipelines.
+containerInsights:
+  enabled: false
+# GitHub-hosted runners are Azure VMs. The agent detects Azure from IMDS and then
+# requires credentials.role_arn for the Azure web-identity chain, so its config
+# translator exits before the collector starts (unrelated to the OTLP endpoint).
+# RUN_IN_AWS makes the agent take EC2 mode, as on the EKS nodes the chart targets.
+agent:
+  env:
+    - name: RUN_IN_AWS
+      value: "True"
+    # The agent's sigv4auth extensions resolve AWS credentials at startup and
+    # the agent exits without them. The runner has no AWS identity, so give it
+    # placeholder static keys: the agent starts, and exports to CloudWatch fail,
+    # which this scenario does not check.
+    - name: AWS_ACCESS_KEY_ID
+      value: "placeholder-access-key-id"
+    - name: AWS_SECRET_ACCESS_KEY
+      value: "placeholder-not-a-real-secret"

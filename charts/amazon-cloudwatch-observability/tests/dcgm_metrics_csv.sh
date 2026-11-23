@@ -20,7 +20,7 @@ if ! command -v python3 >/dev/null 2>&1; then
     exit 1
 fi
 
-# The default field list: 51 fields and the driver version label.
+# The default field list: 50 fields and the driver version label.
 expected_names=(
     DCGM_FI_DEV_GPU_UTIL
     DCGM_FI_DEV_MEM_COPY_UTIL
@@ -45,7 +45,6 @@ expected_names=(
     DCGM_EXP_XID_ERRORS_COUNT
     DCGM_EXP_CLOCK_EVENTS_COUNT
     DCGM_EXP_GPU_HEALTH_STATUS
-    DCGM_FI_DEV_CLOCKS_EVENT_REASONS
     DCGM_FI_DEV_CLOCKS_EVENT_REASON_HW_THERM_SLOWDOWN_NS
     DCGM_FI_DEV_CLOCKS_EVENT_REASON_SW_THERM_SLOWDOWN_NS
     DCGM_FI_DEV_CLOCKS_EVENT_REASON_HW_POWER_BRAKE_SLOWDOWN_NS

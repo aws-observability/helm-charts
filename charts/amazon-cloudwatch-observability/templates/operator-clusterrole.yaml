@@ -54,3 +54,10 @@ rules:
 - apiGroups: [ "policy" ]
   resources: [ "poddisruptionbudgets" ]
   verbs: [ "create","delete","get","list","patch","update","watch" ]
+{{- if eq (include "amazon-cloudwatch-observability.managePrometheusCRDs" .) "true" }}
+# --manage-prometheus-crds: the operator creates the ServiceMonitor/PodMonitor CRDs when
+# they are missing. It never updates or deletes a CRD, so there is no update/patch/delete.
+- apiGroups: [ "apiextensions.k8s.io" ]
+  resources: [ "customresourcedefinitions" ]
+  verbs: [ "create","get","list","watch" ]
+{{- end }}

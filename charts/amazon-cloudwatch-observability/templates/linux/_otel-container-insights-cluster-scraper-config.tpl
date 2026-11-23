@@ -84,6 +84,26 @@ receivers:
               target_label: node
 {{- end }}
 
+{{- if dig "enabled" false (.Values.otelPrometheusMonitor | default dict) }}
+  # otelPrometheusMonitor: when otelContainerInsights is off, cloudwatch-agent.prometheus-monitor-config
+  # keeps only the metrics/cw_k8s_ci_v0_prometheuscr pipeline and the components it lists, so
+  # every component that pipeline uses must be defined in this template.
+  # ServiceMonitor/PodMonitor scraping routed to the cluster-scraper via the
+  # cloudwatch.aws.amazon.com/scraper: cluster-scraper annotation. This agent's Target Allocator serves the
+  # routed scrape jobs (consistent-hashing across the cluster-scraper replicas); this receiver
+  # pulls this collector's assigned shard. Requires the Target Allocator + prometheusCR to be
+  # enabled for otelPrometheusMonitor.clusterScraperAgent and the POD_NAME env (set below).
+  prometheus/cw_k8s_ci_v0_prometheuscr:
+    target_allocator:
+      endpoint: https://{{ .Values.otelPrometheusMonitor.clusterScraperAgent }}-target-allocator-service:80
+      interval: {{ .Values.otelPrometheusMonitor.scrapeInterval }}
+      collector_id: ${env:POD_NAME}
+      tls:
+        ca_file: /etc/amazon-cloudwatch-observability-agent-cert/tls-ca.crt
+        cert_file: /etc/amazon-cloudwatch-observability-agent-ta-client-cert/client.crt
+        key_file: /etc/amazon-cloudwatch-observability-agent-ta-client-cert/client.key
+{{- end }}
+
 {{- if and .Values.otelContainerInsights.solutions.enabled .Values.otelContainerInsights.solutions.karpenter.enabled }}
   prometheus/cw_k8s_ci_v0_karpenter:
     config:
@@ -185,6 +205,16 @@ processors:
     metrics:
       metric:
         - IsMatch(name, "^(up|scrape_duration_seconds|scrape_samples_scraped|scrape_samples_post_metric_relabeling|scrape_series_added)$")
+
+{{- if dig "enabled" false (.Values.otelPrometheusMonitor | default dict) }}
+  # ServiceMonitor/PodMonitor pipeline: drop the scrape metadata series but keep up, so
+  # up == 0 shows a monitor target that fails to scrape (auth rejected, pod down, wrong port).
+  filter/cw_k8s_ci_v0_prometheuscr_scrape_metadata:
+    error_mode: ignore
+    metrics:
+      metric:
+        - IsMatch(name, "^(scrape_duration_seconds|scrape_samples_scraped|scrape_samples_post_metric_relabeling|scrape_series_added)$")
+{{- end }}
 
   # Drop receiver-injected deprecated semconv attributes; their current-spelling
   # twins (server.address, server.port, url.scheme) carry the same values and stay.
@@ -376,6 +406,18 @@ processors:
         cloud.availability_zone: { enabled: false }
         cloud.account.id: { enabled: true }
     {{- end }}
+{{- end }}
+
+{{- if dig "enabled" false (.Values.otelPrometheusMonitor | default dict) }}
+  transform/cw_k8s_ci_v0_set_scope_prometheuscr:
+    error_mode: ignore
+    metric_statements:
+      - context: scope
+        statements:
+          - set(scope.schema_url, "")
+          - set(attributes["cloudwatch.source"], "cloudwatch-agent")
+          - set(attributes["cloudwatch.solution"], "k8s-otel-prometheus-monitors")
+          - set(attributes["cloudwatch.pipeline"], "prometheus-monitors")
 {{- end }}
 
 {{- if and .Values.otelContainerInsights.solutions.enabled .Values.otelContainerInsights.solutions.karpenter.enabled }}
@@ -769,13 +811,16 @@ processors:
       metadata:
         - k8s.node.name
       labels:
-        - tag_name: "k8s.node.label.$$$1"
-          key_regex: "(.*)"
-          from: node
+        {{- include "otel-container-insights.k8sattributesLabels" (dict "Values" .Values "from" "node") | trim | nindent 8 }}
     pod_association:
       - sources:
           - from: resource_attribute
             name: k8s.node.name
+
+  {{- if include "otel-container-insights.metricsNamespaceFilterEnabled" . }}
+
+  {{- include "otel-container-insights.namespaceFilter" (dict "Values" .Values "signal" "metrics") | nindent 2 }}
+  {{- end }}
 
   # Only nodemetadataenricher sets host.id here, so an AZ without it is the scraper's: take the node's zone label
   # instead. This runs after set_cloud_resource_id, so GKE's resource ID still gets the detected zone.
@@ -802,11 +847,16 @@ processors:
         - k8s.replicaset.name
         - k8s.job.name
         - k8s.cronjob.name
+      # The annotations and labels that transform/cw_k8s_ci_v0_service_identity
+      # reads (_service-identity.tpl).
+      annotations:
+        {{- include "service-identity.extractAnnotations" . | nindent 8 }}
       labels:
         # $$$1 is Helm escaping: $$$ → $$ (Helm) → $ (OTel env resolver) → literal $1 backreference
-        - tag_name: "k8s.pod.label.$$$1"
-          key_regex: "(.*)"
-          from: pod
+        {{- include "otel-container-insights.k8sattributesLabels" (dict "Values" .Values "from" "pod") | trim | nindent 8 }}
+        {{- with include "service-identity.extractLabels" . | trim }}
+        {{- . | nindent 8 }}
+        {{- end }}
     pod_association:
       - sources:
           - from: resource_attribute
@@ -831,6 +881,21 @@ processors:
           - set(resource.attributes["k8s.workload.type"], "CronJob") where resource.attributes["k8s.workload.type"] == nil and resource.attributes["k8s.cronjob.name"] != nil
           - set(resource.attributes["k8s.workload.name"], resource.attributes["k8s.replicaset.name"]) where resource.attributes["k8s.workload.name"] == nil and resource.attributes["k8s.replicaset.name"] != nil
           - set(resource.attributes["k8s.workload.type"], "ReplicaSet") where resource.attributes["k8s.workload.type"] == nil and resource.attributes["k8s.replicaset.name"] != nil
+
+  {{- if or .Values.kubeStateMetrics.enabled (dig "enabled" false (.Values.otelPrometheusMonitor | default dict)) }}
+
+  # Service identity for kube-state-metrics and ServiceMonitor/PodMonitor series,
+  # with the same parameters as the node agent's metrics processor of the same
+  # name, so a pod's state metrics, its resource metrics and its monitor series
+  # carry the same service.name and service.instance.id. The receiver's job name
+  # is kept only on series about no workload, such as node and namespace series.
+  {{- include "service-identity.processor" (dict "Values" .Values "name" "transform/cw_k8s_ci_v0_service_identity" "groups" (list "metric_statements") "inputs" (list "kserveInferenceService") "receiverDefault" true) | nindent 2 }}
+  {{- end }}
+
+  # The other pipelines that use k8sattributes/cw_k8s_ci_v0_pod scrape the
+  # chart's own control-plane targets and keep the receiver's service identity;
+  # they only drop the inputs that k8sattributes extracted for the chain.
+  {{- include "service-identity.dropInputs" (dict "name" "transform/cw_k8s_ci_v0_drop_service_identity_inputs") | nindent 2 }}
 
   transform/cw_k8s_ci_v0_set_component:
     error_mode: ignore
@@ -915,47 +980,29 @@ processors:
 
   awsattributelimit/cw_k8s_ci_v0:
     max_total_attributes: 150
+    {{- $labelRemovals := include "otel-container-insights.labelRemovals" (dict "Values" .Values) | fromJson }}
+    {{- with $labelRemovals.prefixes }}
     unconditional_removal_prefixes:
-      - "k8s.node.label.feature.node.kubernetes.io/"
-      - "k8s.node.label.beta.kubernetes.io/"
-      - "k8s.node.label.failure-domain.beta.kubernetes.io/"
-      - "k8s.node.label.alpha.eksctl.io/"
-      # Not the whole karpenter.k8s.aws/instance- prefix: instance-tenancy is a launch property, so it is kept.
-      - "k8s.node.label.karpenter.k8s.aws/instance-cpu"
-      - "k8s.node.label.karpenter.k8s.aws/instance-gpu-"
-      - "k8s.node.label.karpenter.k8s.aws/instance-accelerator-"
-      - "k8s.node.label.eks.amazonaws.com/instance-"
+      {{- range . }}
+      - {{ . | quote }}
+      {{- end }}
+    {{- end }}
+    {{- with $labelRemovals.keys }}
     unconditional_removal_keys:
-      - "k8s.node.label.topology.kubernetes.io/region"
-      - "k8s.node.label.topology.kubernetes.io/zone"
-      - "k8s.node.label.topology.ebs.csi.aws.com/zone"
-      - "k8s.node.label.node.kubernetes.io/instance-type"
-      - "k8s.node.label.kubernetes.io/hostname"
-      - "k8s.node.label.helm.sh/chart"
-      - "k8s.node.label.release"
-      - "k8s.node.label.eks.amazonaws.com/nodegroup-image"
-      - "k8s.node.label.k8s.io/cloud-provider-aws"
-      - "k8s.node.label.eks.amazonaws.com/sourceLaunchTemplateId"
-      - "k8s.node.label.eks.amazonaws.com/sourceLaunchTemplateVersion"
-      - "k8s.pod.label.pod-template-hash"
-      - "k8s.pod.label.controller-revision-hash"
-      - "k8s.pod.label.pod-template-generation"
-      - "k8s.pod.label.topology.kubernetes.io/region"
-      - "k8s.pod.label.topology.kubernetes.io/zone"
-      - "k8s.node.label.karpenter.sh/do-not-sync-taints"
-      - "k8s.node.label.karpenter.sh/initialized"
-      - "k8s.node.label.karpenter.sh/registered"
-      - "k8s.node.label.karpenter.k8s.aws/instance-category"
-      - "k8s.node.label.karpenter.k8s.aws/instance-family"
-      - "k8s.node.label.karpenter.k8s.aws/instance-generation"
-      - "k8s.node.label.karpenter.k8s.aws/instance-size"
-      - "k8s.node.label.karpenter.k8s.aws/instance-memory"
-      - "k8s.node.label.karpenter.k8s.aws/instance-hypervisor"
-      - "k8s.node.label.karpenter.k8s.aws/instance-local-nvme"
-      - "k8s.node.label.karpenter.k8s.aws/instance-ebs-bandwidth"
-      - "k8s.node.label.karpenter.k8s.aws/instance-network-bandwidth"
-      - "k8s.node.label.karpenter.k8s.aws/instance-encryption-in-transit-supported"
-      - "k8s.node.label.karpenter.k8s.aws/instance-capability-flex"
+      {{- range . }}
+      - {{ . | quote }}
+      {{- end }}
+    {{- end }}
+
+  {{- if include "otel-container-insights.metricsLabelFilterEnabled" . }}
+
+  {{- include "otel-container-insights.metricsLabelFilter" . | nindent 2 }}
+  {{- end }}
+
+  {{- if include "otel-container-insights.metricNamesFilterEnabled" . }}
+
+  {{- include "otel-container-insights.metricNamesFilter" . | nindent 2 }}
+  {{- end }}
 
   transform/cw_k8s_ci_v0_set_cloud_resource_id:
     error_mode: ignore
@@ -995,6 +1042,17 @@ exporters:
     auth:
       authenticator: sigv4auth/cw_k8s_ci_v0_cwotel
 
+{{- if dig "enabled" false (.Values.otelPrometheusMonitor | default dict) }}
+  # ServiceMonitor/PodMonitor series always go to the regional endpoint;
+  # otelContainerInsights.cloudwatchMetricsEndpoint applies to Container Insights only.
+  otlphttp/cw_k8s_ci_v0_prometheuscr:
+    endpoint: "https://monitoring.{{ .Values.region }}.amazonaws.com:443"
+    tls:
+      insecure: false
+    auth:
+      authenticator: sigv4auth/cw_k8s_ci_v0_cwotel
+{{- end }}
+
 service:
   # Pin internal self-telemetry off. Without this the collector falls back to its
   # built-in default (metrics level Normal + a Prometheus reader on localhost:8888),
@@ -1023,7 +1081,13 @@ service:
         - resourcedetection/cw_k8s_ci_v0
         - transform/cw_k8s_ci_v0_clear_schema_url
         - transform/cw_k8s_ci_v0_set_cloud_resource_id
+        {{- if include "otel-container-insights.metricsLabelFilterEnabled" . }}
+        - transform/cw_k8s_ci_v0_metrics_labels
+        {{- end }}
         - awsattributelimit/cw_k8s_ci_v0
+        {{- if include "otel-container-insights.metricNamesFilterEnabled" . }}
+        - filter/cw_k8s_ci_v0_metric_names
+        {{- end }}
         - batch/cw_k8s_ci_v0_cwotel
       exporters:
         - otlphttp/cw_k8s_ci_v0_cwotel
@@ -1040,6 +1104,9 @@ service:
         - transform/cw_k8s_ci_v0_ksm_clean_resource
         - groupbyattrs/cw_k8s_ci_v0_ksm
         - transform/cw_k8s_ci_v0_ksm_promote
+        {{- if include "otel-container-insights.metricsNamespaceFilterEnabled" . }}
+        - filter/cw_k8s_ci_v0_metrics_namespaces
+        {{- end }}
         - k8sattributes/cw_k8s_ci_v0_pod
         - k8sattributes/cw_k8s_ci_v0_node
         - transform/cw_k8s_ci_v0_set_workload
@@ -1048,8 +1115,17 @@ service:
         - transform/cw_k8s_ci_v0_clear_schema_url
         - transform/cw_k8s_ci_v0_set_cloud_resource_id
         - transform/cw_k8s_ci_v0_ksm_zone
+        # After resourcedetection, which sets the cloud.platform that
+        # deployment.environment.name is built from.
+        - transform/cw_k8s_ci_v0_service_identity
         - transform/cw_k8s_ci_v0_pod_topology
+        {{- if include "otel-container-insights.metricsLabelFilterEnabled" . }}
+        - transform/cw_k8s_ci_v0_metrics_labels
+        {{- end }}
         - awsattributelimit/cw_k8s_ci_v0
+        {{- if include "otel-container-insights.metricNamesFilterEnabled" . }}
+        - filter/cw_k8s_ci_v0_metric_names
+        {{- end }}
         - batch/cw_k8s_ci_v0_cwotel
       exporters:
         - otlphttp/cw_k8s_ci_v0_cwotel
@@ -1070,14 +1146,55 @@ service:
         - transform/cw_k8s_ci_v0_knative_controlplane_promote
         - k8sattributes/cw_k8s_ci_v0_pod
         - transform/cw_k8s_ci_v0_set_workload
+        - transform/cw_k8s_ci_v0_drop_service_identity_inputs
         - resourcedetection/cw_k8s_ci_v0_knative_controlplane
         - transform/cw_k8s_ci_v0_clear_schema_url
         - transform/cw_k8s_ci_v0_set_cloud_resource_id
         - transform/cw_k8s_ci_v0_pod_topology
+        {{- if include "otel-container-insights.metricsLabelFilterEnabled" . }}
+        - transform/cw_k8s_ci_v0_metrics_labels
+        {{- end }}
         - awsattributelimit/cw_k8s_ci_v0
+        {{- if include "otel-container-insights.metricNamesFilterEnabled" . }}
+        - filter/cw_k8s_ci_v0_metric_names
+        {{- end }}
         - batch/cw_k8s_ci_v0_cwotel
       exporters:
         - otlphttp/cw_k8s_ci_v0_cwotel
+{{- end }}
+
+{{- if dig "enabled" false (.Values.otelPrometheusMonitor | default dict) }}
+    metrics/cw_k8s_ci_v0_prometheuscr:
+      receivers: [prometheus/cw_k8s_ci_v0_prometheuscr]
+      # Central scraper: no per-node (set_node_name/promote_node_name) enrichment, since a
+      # single/few consistent-hashing replicas serve the routed monitors (not node-local).
+      # Service identity as on the per-node agent: the cluster-wide k8sattributes/cw_k8s_ci_v0_pod
+      # finds the scraped pod, and the identity processor runs after resourcedetection.
+      # otelFilters namespaces and metricNames apply as on the per-node agent.
+      processors:
+        - filter/cw_k8s_ci_v0_prometheuscr_scrape_metadata
+        - transform/cw_k8s_ci_v0_set_unit
+        - metricstarttime/cw_k8s_ci_v0
+        - transform/cw_k8s_ci_v0_set_scope_prometheuscr
+        - transform/cw_k8s_ci_v0_set_cluster_name
+        {{- if include "otel-container-insights.metricsNamespaceFilterEnabled" . }}
+        - filter/cw_k8s_ci_v0_metrics_namespaces
+        {{- end }}
+        - k8sattributes/cw_k8s_ci_v0_pod
+        - resourcedetection/cw_k8s_ci_v0
+        - transform/cw_k8s_ci_v0_set_cloud_resource_id
+        - transform/cw_k8s_ci_v0_clear_schema_url
+        - transform/cw_k8s_ci_v0_service_identity
+        {{- if include "otel-container-insights.metricsLabelFilterEnabled" . }}
+        - transform/cw_k8s_ci_v0_metrics_labels
+        {{- end }}
+        - awsattributelimit/cw_k8s_ci_v0
+        {{- if include "otel-container-insights.metricNamesFilterEnabled" . }}
+        - filter/cw_k8s_ci_v0_metric_names
+        {{- end }}
+        - batch/cw_k8s_ci_v0_cwotel
+      exporters:
+        - otlphttp/cw_k8s_ci_v0_prometheuscr
 {{- end }}
 
 {{- if and .Values.otelContainerInsights.solutions.enabled .Values.otelContainerInsights.solutions.karpenter.enabled }}
@@ -1094,11 +1211,18 @@ service:
         - transform/cw_k8s_ci_v0_karpenter_promote
         - k8sattributes/cw_k8s_ci_v0_pod
         - transform/cw_k8s_ci_v0_set_workload
+        - transform/cw_k8s_ci_v0_drop_service_identity_inputs
         - resourcedetection/cw_k8s_ci_v0_karpenter
         - transform/cw_k8s_ci_v0_clear_schema_url
         - transform/cw_k8s_ci_v0_set_cloud_resource_id
         - transform/cw_k8s_ci_v0_pod_topology
+        {{- if include "otel-container-insights.metricsLabelFilterEnabled" . }}
+        - transform/cw_k8s_ci_v0_metrics_labels
+        {{- end }}
         - awsattributelimit/cw_k8s_ci_v0
+        {{- if include "otel-container-insights.metricNamesFilterEnabled" . }}
+        - filter/cw_k8s_ci_v0_metric_names
+        {{- end }}
         - batch/cw_k8s_ci_v0_cwotel
       exporters:
         - otlphttp/cw_k8s_ci_v0_cwotel
@@ -1118,11 +1242,18 @@ service:
         - transform/cw_k8s_ci_v0_keda_promote
         - k8sattributes/cw_k8s_ci_v0_pod
         - transform/cw_k8s_ci_v0_set_workload
+        - transform/cw_k8s_ci_v0_drop_service_identity_inputs
         - resourcedetection/cw_k8s_ci_v0_keda
         - transform/cw_k8s_ci_v0_clear_schema_url
         - transform/cw_k8s_ci_v0_set_cloud_resource_id
         - transform/cw_k8s_ci_v0_pod_topology
+        {{- if include "otel-container-insights.metricsLabelFilterEnabled" . }}
+        - transform/cw_k8s_ci_v0_metrics_labels
+        {{- end }}
         - awsattributelimit/cw_k8s_ci_v0
+        {{- if include "otel-container-insights.metricNamesFilterEnabled" . }}
+        - filter/cw_k8s_ci_v0_metric_names
+        {{- end }}
         - batch/cw_k8s_ci_v0_cwotel
       exporters:
         - otlphttp/cw_k8s_ci_v0_cwotel
@@ -1143,11 +1274,18 @@ service:
         - transform/cw_k8s_ci_v0_kserve_controlplane_promote
         - k8sattributes/cw_k8s_ci_v0_pod
         - transform/cw_k8s_ci_v0_set_workload
+        - transform/cw_k8s_ci_v0_drop_service_identity_inputs
         - resourcedetection/cw_k8s_ci_v0_kserve_controlplane
         - transform/cw_k8s_ci_v0_clear_schema_url
         - transform/cw_k8s_ci_v0_set_cloud_resource_id
         - transform/cw_k8s_ci_v0_pod_topology
+        {{- if include "otel-container-insights.metricsLabelFilterEnabled" . }}
+        - transform/cw_k8s_ci_v0_metrics_labels
+        {{- end }}
         - awsattributelimit/cw_k8s_ci_v0
+        {{- if include "otel-container-insights.metricNamesFilterEnabled" . }}
+        - filter/cw_k8s_ci_v0_metric_names
+        {{- end }}
         - batch/cw_k8s_ci_v0_cwotel
       exporters:
         - otlphttp/cw_k8s_ci_v0_cwotel

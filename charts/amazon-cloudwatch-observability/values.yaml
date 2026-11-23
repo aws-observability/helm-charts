@@ -51,7 +51,7 @@ containerLogs:
   fluentBit:
     image:
       repository: aws-for-fluent-bit
-      tag: 3.4.16
+      tag: 3.5.6
       tagWindows: 2.31.12-windowsservercore
       repositoryDomainMap:
         public: public.ecr.aws/aws-observability
@@ -486,7 +486,7 @@ manager:
   name:
   image:
     repository: cloudwatch-agent-operator
-    tag: 3.7.0
+    tag: 3.8.1
     repositoryDomainMap:
       public: public.ecr.aws/cloudwatch-agent
       cn-north-1: 934860584483.dkr.ecr.cn-north-1.amazonaws.com.cn
@@ -497,11 +497,11 @@ manager:
     java:
       repositoryDomain: public.ecr.aws/aws-observability
       repository: adot-autoinstrumentation-java
-      tag: v2.30.0
+      tag: v2.32.0
     python:
       repositoryDomain: public.ecr.aws/aws-observability
       repository: adot-autoinstrumentation-python
-      tag: v0.19.0
+      tag: v0.21.0
     dotnet:
       repositoryDomain: public.ecr.aws/aws-observability
       repository: adot-autoinstrumentation-dotnet
@@ -509,7 +509,7 @@ manager:
     nodejs:
       repositoryDomain: public.ecr.aws/aws-observability
       repository: adot-autoinstrumentation-node
-      tag: v0.12.0
+      tag: v0.13.0
   applicationSignals:
     autoMonitor:
       # monitorAllServices: true; Defaults to true for regions where AppSignals is supported, false otherwise
@@ -575,6 +575,11 @@ manager:
       #   function_instrument_enabled: "true" # set "true" to enable per-function instrumentation (SDK default: false)
       # dynamic_instrumentation:
       #   enabled: "true"                     # set "true" to enable Dynamic Instrumentation
+      # profiling:
+      #   enabled: "true"                     # "true" enables continuous profiling (experimental), "false" disables it;
+      #                                       # needs the node agent's OTLP HTTP endpoint (otlp.*) and
+      #                                       # otlp.profiles.enabled: true. The only key: tune
+      #                                       # ADOT per workload with OTEL_AWS_PROFILER_* in the container's env.
     python:
       runtime_metrics:
         enabled: "true"
@@ -744,7 +749,7 @@ agent:
   replicas: 1 # The total number non-terminated pods targeted by this AmazonCloudWatchAgent's deployment or statefulSet.
   image:
     repository: cloudwatch-agent
-    tag: 1.300073.0b1828
+    tag: 1.300075.0b2061
     repositoryDomainMap:
       public: public.ecr.aws/cloudwatch-agent
       cn-north-1: 934860584483.dkr.ecr.cn-north-1.amazonaws.com.cn
@@ -807,8 +812,11 @@ agent:
     targetAllocator:
       enabled: false
       image:
+        ## When otelPrometheusMonitor.enabled is true, this Target Allocator image
+        ## MUST support prometheusCR discovery + per-node + the scraper_role config key,
+        ## pinned together with a matching operator image; an older image CrashLoopBackOffs.
         repository: cloudwatch-agent-target-allocator
-        tag: 1.0.0
+        tag: 1.1.0
         repositoryDomainMap:
           public: public.ecr.aws/cloudwatch-agent
           cn-north-1: 934860584483.dkr.ecr.cn-north-1.amazonaws.com.cn
@@ -819,13 +827,11 @@ agent:
         enabled: false
 dcgmExporter:
   enabled: true
+  enableDRACorrelation: true
   name:
   image:
     repository: dcgm-exporter
-    ## 4.6.0-4.8.3-distroless never regenerates /etc/ld.so.cache for its own bundled
-    ## libdcgm.so.4, so dcgm-exporter fails its own library lookup and exits immediately
-    ## (NVIDIA/dcgm-exporter PR #724, fixed in DCGM >= 4.8.4).
-    tag: 4.6.1-4.8.4-distroless
+    tag: 4.7.0-4.9.0-distroless
     repositoryDomainMap:
       public: nvcr.io/nvidia/k8s
       cn-north-1: 934860584483.dkr.ecr.cn-north-1.amazonaws.com.cn
@@ -1033,7 +1039,7 @@ neuronMonitor:
   name:
   image:
     repository: neuron-monitor
-    tag: 1.12.0
+    tag: 1.13.1
     repositoryDomainMap:
       public: public.ecr.aws/neuron
   resources:
@@ -1117,7 +1123,7 @@ kubeStateMetrics:
       us-gov-west-1: 013241004608.dkr.ecr.us-gov-west-1.amazonaws.com
     # Used in China/GovCloud regions where the public upstream image isn't available; the helper falls back to repositoryDomainMap[region]/restrictedRepository:restrictedTag
     restrictedRepository: eks/kube-state-metrics
-    restrictedTag: v2.20.0-eksbuild.6
+    restrictedTag: v2.20.0-eksbuild.10
   resources:
     limits:
       cpu: 200m
@@ -1152,7 +1158,7 @@ nodeExporter:
       us-gov-west-1: 013241004608.dkr.ecr.us-gov-west-1.amazonaws.com
     # Used in China/GovCloud regions where the public upstream image isn't available; the helper falls back to repositoryDomainMap[region]/restrictedRepository:restrictedTag
     restrictedRepository: eks/prometheus-node-exporter
-    restrictedTag: v1.12.1-eksbuild.7
+    restrictedTag: v1.12.1-eksbuild.11
   resources:
     limits:
       cpu: 200m
@@ -1192,6 +1198,121 @@ applicationSignals:
   ## The agent in the agents array that receives Application Signals config.
   targetAgent: "cloudwatch-agent"
 
+## ══════════════════════════════════════════════════════════════════════════════
+## OTLP endpoint
+## ══════════════════════════════════════════════════════════════════════════════
+##
+## An OTLP endpoint on every node, served by the node agent (cloudwatch-agent).
+## Workloads send OTLP metrics, traces, logs and profiles to
+## cloudwatch-agent.<release namespace> (gRPC on grpc.port, HTTP on http.port),
+## in plaintext. The telemetry gets the same Kubernetes and cloud attributes,
+## including pod and node labels, as Container Insights gives the same pod, and
+## the otelFilters settings below apply to it. See "OTLP endpoint" in the chart
+## README.
+##
+## The endpoint replaces the agents[].config value "default:otel", which the
+## chart now ignores: otlp.enabled alone turns OTLP on or off. Profiles need
+## agent image 1.300075.0 or later. Another collector that holds the same host ports
+## leaves one of the two pods Pending: change the ports or set enabled to false.
+otlp:
+  enabled: true
+  grpc:
+    enabled: true
+    port: 4317
+  http:
+    enabled: true
+    port: 4318
+  ## Request rate, error and duration metrics computed from the received traces.
+  spanMetrics:
+    enabled: true
+  ## OTLP profiles, exported to CloudWatch (/v1development/profiles). Needs agent
+  ## image 1.300075.0 or later, which turns on the collector's profiles support;
+  ## on an older image the agent does not start with profiles enabled. Set to
+  ## false when you pin an older agent image.
+  profiles:
+    enabled: true
+
+## ══════════════════════════════════════════════════════════════════════════════
+## Service identity
+## ══════════════════════════════════════════════════════════════════════════════
+##
+## How the chart sets service.name, service.namespace, service.version and
+## service.instance.id on the telemetry it enriches (the OTLP endpoint, and
+## OTEL Container Insights metrics, kube-state-metrics and application logs),
+## per the OpenTelemetry Kubernetes convention: the sender's value, then the
+## resource.opentelemetry.io/service.* pod annotations, then the workload
+## names. See "Service identity" in the chart README.
+otelServiceIdentity:
+  ## Also use the pod labels app.kubernetes.io/instance and
+  ## app.kubernetes.io/name for service.name, and app.kubernetes.io/version for
+  ## service.version, after the annotations. Off by default, as the convention
+  ## asks: all pods of one Helm release usually share app.kubernetes.io/instance,
+  ## so they would share a service.name.
+  useAppLabels: false
+
+## Scrapes the targets selected by ServiceMonitor and PodMonitor objects
+## (monitoring.coreos.com/v1) and sends the metrics to CloudWatch over OTLP, with
+## cloudwatch.solution k8s-otel-prometheus-monitors. Works with or without
+## otelContainerInsights. The per-node agent (targetAgent below) scrapes each target on
+## its own node; monitors annotated cloudwatch.aws.amazon.com/scraper: cluster-scraper go
+## to the cluster-scraper agent (clusterScraperAgent below) instead. The series always go
+## to the regional CloudWatch endpoint (otelContainerInsights.cloudwatchMetricsEndpoint
+## does not apply to them), and the up metric is kept for every target, so up == 0 shows a
+## target that fails to scrape. otelFilters.namespaces, metricNames and podLabels apply to
+## these series too; a metricNames include list that leaves out up drops up as well.
+##
+## ServiceMonitor/PodMonitor CRDs: this chart does not install them. When enabled, the
+## operator runs with --manage-prometheus-crds and creates both CRDs (prometheus-operator
+## v0.92.0 schema) only if they do not exist. A copy installed by prometheus-operator,
+## kube-prometheus-stack, Argo CD or kubectl is left unchanged. The operator never
+## deletes the CRDs and does not set an owner reference, so uninstalling this chart or
+## the EKS add-on leaves the CRDs, and every ServiceMonitor/PodMonitor, in place. To
+## remove them after uninstalling:
+##   kubectl delete crd servicemonitors.monitoring.coreos.com podmonitors.monitoring.coreos.com
+## (this also deletes every ServiceMonitor and PodMonitor in the cluster).
+##
+## IMAGE PREREQUISITE: this drives the Target Allocator with prometheusCR discovery, the
+## per-node allocation strategy, a scraper_role config key and label-selector monitor
+## selectors, and passes --manage-prometheus-crds to the operator. The pinned Target Allocator image
+## (agent.prometheus.targetAllocator.image, default cloudwatch-agent-target-allocator:1.1.0)
+## AND the operator image must both be builds that support these; an older image
+## CrashLoopBackOffs on boot rather than degrading. enabled defaults to false until
+## operator and Target Allocator images with this support are released.
+otelPrometheusMonitor:
+  enabled: false
+  ## Lets the Target Allocator read the Secrets that monitors reference for basicAuth,
+  ## authorization, oauth2 and tlsConfig. It grants the Target Allocator get on Secrets in
+  ## every namespace (no list or watch: it reads each Secret by the name in the monitor).
+  ## Without it those monitors scrape with empty credentials: the target rejects the
+  ## scrape, the Target Allocator logs "Failed to obtain credentials for a ServiceMonitor"
+  ## (or PodMonitor), and no metrics reach CloudWatch for that monitor. The Target
+  ## Allocator sends the credentials to the agents only over its mTLS endpoint, and picks
+  ## up a rotated Secret within about 5 minutes. Only takes effect when enabled is true.
+  readSecrets: false
+  ## The agents in the agents array that scrape ServiceMonitor/PodMonitor targets: the
+  ## per-node agent and the cluster-scraper agent. Each gets a Target Allocator. When
+  ## otelContainerInsights is also enabled, these must match otelContainerInsights.targetAgent
+  ## and otelContainerInsights.clusterScraperAgent (both features share one config per agent).
+  targetAgent: "cloudwatch-agent"
+  clusterScraperAgent: "cloudwatch-agent-cluster-scraper"
+  ## How often the targets are scraped, and how often each agent polls its Target Allocator
+  ## for its targets. Must be in "<N>s" format.
+  scrapeInterval: "30s"
+  ## Kubernetes label selectors (matchLabels and/or matchExpressions) that choose which
+  ## ServiceMonitors and PodMonitors are scraped, for example to leave the monitors that your
+  ## own Prometheus scrapes to it. Unset or {} selects every monitor. Applied on both agents.
+  ##   serviceMonitorSelector:
+  ##     matchLabels:
+  ##       cloudwatch: "true"
+  ##   podMonitorSelector:
+  ##     matchExpressions:
+  ##       - {key: team, operator: In, values: [payments, checkout]}
+  ## Setting either selector needs operator and Target Allocator images that accept a full
+  ## LabelSelector there (see IMAGE PREREQUISITE above); the chart's AmazonCloudWatchAgent CRD
+  ## already does. The operator's admission webhook rejects an invalid selector.
+  serviceMonitorSelector: {}
+  podMonitorSelector: {}
+
 ## Controls the OTLP-based Container Insights pipeline (node-exporter, kube-state-metrics, cluster-scraper, OTEL collector config).
 ## When enabled, deploys additional resources and injects OTEL config into the CloudWatch Agent for metrics collection via OTLP.
 ##
@@ -1212,6 +1333,14 @@ applicationSignals:
 ##
 otelContainerInsights:
   enabled: false
+  ## Correlate DRA-allocated devices to pods on the OTEL metrics path: EFA (dra.net)
+  ## and Neuron (neuron.aws.com), via the agent's awsdevicepodcorrelation processor.
+  ## Requires Kubernetes 1.34+ (the GA resource.k8s.io/v1 DRA API). When false, the
+  ## agent config omits dra_device_types and the agent attempts no ResourceSlice/
+  ## ResourceClaim access — set it false on clusters older than 1.34 or not using DRA.
+  ## GPU DRA correlation is separate and controlled by dcgmExporter.enableDRACorrelation.
+  ## Only takes effect when otelContainerInsights.enabled is true.
+  enableDRACorrelation: true
   ## OTEL-native CI log pipelines (application, host).
   ## Only takes effect when otelContainerInsights.enabled is true.
   logs:
@@ -1254,6 +1383,18 @@ otelContainerInsights:
     ## See the chart README.
     vllm:
       enabled: true
+    ## SGLang — the model server's own metrics (sglang:* series). Scrapes the
+    ## model container of KServe InferenceService pods (shared with vLLM) and any
+    ## container running an SGLang image. The server must be started with
+    ## --enable-metrics.
+    ## See the chart README.
+    sglang:
+      enabled: true
+    ## Ray — Ray core, Ray Serve and ray.serve.llm metrics (ray_* series), from
+    ## every pod KubeRay labels ray.io/is-ray-node, on the port KubeRay names
+    ## metrics. See the chart README.
+    ray:
+      enabled: true
     ## KServe — operator health from the kserve-controller-manager, via its
     ## kube-rbac-proxy on :8443. Scraped by the cluster-scraper.
     kserve:
@@ -1276,3 +1417,49 @@ otelContainerInsights:
         enabled: true
         ## Namespace where the Knative Serving components run.
         namespace: knative-serving
+
+## ══════════════════════════════════════════════════════════════════════════════
+## OTEL filters
+## ══════════════════════════════════════════════════════════════════════════════
+##
+## OTEL filters: include and exclude lists for the data that the chart's OTEL
+## pipelines collect: OTEL Container Insights, the OTLP endpoint (otlp) and the
+## ServiceMonitor/PodMonitor metrics (otelPrometheusMonitor). A change restarts
+## the agent pods. See "OTEL filters" in the chart README for
+## details.
+otelFilters:
+  ## Namespaces to keep or drop. An entry is a name, a prefix ending in "*", or
+  ## "*". An empty include list keeps every namespace. Exclude wins over include.
+  ## GPU, Neuron and EFA metrics of a filtered pod stay, without the pod.
+  ## ServiceMonitor/PodMonitor metrics are matched by the scraped target's
+  ## namespace, with or without otelContainerInsights.
+  namespaces:
+    include: []
+    exclude: []
+  ## Metric names to keep or drop, with the same rules as namespaces. This
+  ## filter does not apply to logs. Entries are case-sensitive and match the
+  ## exported names, for example DCGM_FI_DEV_GPU_UTIL. A non-empty include list
+  ## also drops every OTLP metric that is not on it, span metrics included, and
+  ## every ServiceMonitor/PodMonitor metric not on it, up included.
+  metricNames:
+    include: []
+    exclude: []
+  ## Pod labels to collect (include) and remove (exclude). An entry is a label
+  ## key, a prefix ending in "*", or "*". recommendedExclusions also removes a
+  ## built-in list of high-cardinality labels. For each label, the first rule
+  ## that matches decides:
+  ##   1. exclude: removed
+  ##   2. a named include entry (a key or a prefix, not "*"): kept
+  ##   3. the built-in list, when recommendedExclusions is true: removed
+  ##   4. include "*" or an empty include list: kept
+  ## Any other label is not collected. To keep one label from the built-in
+  ## list, name it in include, for example include: ["*", "pod-template-hash"].
+  podLabels:
+    include: []
+    exclude: []
+    recommendedExclusions: true
+  ## Node labels. The podLabels rules apply.
+  nodeLabels:
+    include: []
+    exclude: []
+    recommendedExclusions: true
