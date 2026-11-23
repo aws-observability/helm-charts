@@ -9,7 +9,8 @@
 #   - both agents get a Target Allocator with prometheusCR discovery and read-only RBAC;
 #   - with otelContainerInsights off, each agent's config holds only the SM/PM pipeline;
 #   - with both on, no component is defined twice and the shared definitions match;
-#   - the SM/PM series carry cloudwatch.solution k8s-otel-prometheus-monitors.
+#   - the SM/PM series carry cloudwatch.solution k8s-otel-prometheus-monitors;
+#   - the SM/PM series carry k8s.workload.name and k8s.workload.type.
 #
 # This is a template-level test (helm template only); it does not deploy to a cluster.
 # The operator's create-if-missing behavior is covered by the operator's pkg/crdmanager
@@ -596,6 +597,22 @@ for a in (NODE, SCRAPER):
     assert NSF not in o["processors"] and MNF not in o["processors"], a
 print("ok")' $MON $extra --set-json "otelFilters=$value"
     done
+done
+
+printf "\n${Y}== k8s.workload.name and k8s.workload.type on the SM/PM pipelines ==${N}\n"
+# Both agents derive the workload attributes from the owner names that the pod
+# k8sattributes adds, so the step runs after it, with otelContainerInsights off and on.
+for extra in "$NO_OTLP" "$CI $NO_OTLP"; do
+    expect_py "set_workload after the pod k8sattributes on both SM/PM pipelines${extra:+ ($extra)}" '
+W, K8S = "transform/cw_k8s_ci_v0_set_workload", "k8sattributes/cw_k8s_ci_v0_pod"
+for a in (NODE, SCRAPER):
+    o = agents[a]["otel"]
+    procs = o["service"]["pipelines"][PIPE]["processors"]
+    assert procs.count(W) == 1 and procs.index(K8S) < procs.index(W) < procs.index("transform/cw_k8s_ci_v0_service_identity"), "%s %s" % (a, procs)
+    stmts = " ".join(s for ms in o["processors"][W]["metric_statements"] for s in ms["statements"])
+    for attr in ("k8s.workload.name", "k8s.workload.type"):
+        assert attr in stmts, "%s %s does not set %s" % (a, W, attr)
+print("ok")' $MON $extra
 done
 
 printf "\n${Y}== Summary ==${N}\n"

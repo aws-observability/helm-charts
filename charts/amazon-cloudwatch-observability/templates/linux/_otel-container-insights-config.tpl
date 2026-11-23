@@ -1531,6 +1531,8 @@ service:
       # pods only, which per-node allocation assigns here), and the identity processor runs
       # after resourcedetection, which sets the cloud.platform it needs. Targets without a pod
       # keep the receiver's job name and target as service.name and service.instance.id.
+      # transform/cw_k8s_ci_v0_set_workload sets k8s.workload.name and k8s.workload.type
+      # from the owner names k8sattributes adds, as in the Container Insights pipelines.
       # otelFilters.namespaces runs before k8sattributes, on the k8s.namespace.name the receiver
       # sets from the target's service discovery, and otelFilters.metricNames runs last before
       # batch, as in the Container Insights pipelines.
@@ -1547,6 +1549,7 @@ service:
         - resourcedetection/cw_k8s_ci_v0
         - transform/cw_k8s_ci_v0_set_cloud_resource_id
         - transform/cw_k8s_ci_v0_clear_schema_url
+        - transform/cw_k8s_ci_v0_set_workload
         - transform/cw_k8s_ci_v0_service_identity
         {{- if include "otel-container-insights.metricsLabelFilterEnabled" . }}
         - transform/cw_k8s_ci_v0_metrics_labels

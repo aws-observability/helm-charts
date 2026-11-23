@@ -1170,6 +1170,7 @@ service:
       # single/few consistent-hashing replicas serve the routed monitors (not node-local).
       # Service identity as on the per-node agent: the cluster-wide k8sattributes/cw_k8s_ci_v0_pod
       # finds the scraped pod, and the identity processor runs after resourcedetection.
+      # k8s.workload.name and k8s.workload.type come from the owner names, as on the per-node agent.
       # otelFilters namespaces and metricNames apply as on the per-node agent.
       processors:
         - filter/cw_k8s_ci_v0_prometheuscr_scrape_metadata
@@ -1184,6 +1185,7 @@ service:
         - resourcedetection/cw_k8s_ci_v0
         - transform/cw_k8s_ci_v0_set_cloud_resource_id
         - transform/cw_k8s_ci_v0_clear_schema_url
+        - transform/cw_k8s_ci_v0_set_workload
         - transform/cw_k8s_ci_v0_service_identity
         {{- if include "otel-container-insights.metricsLabelFilterEnabled" . }}
         - transform/cw_k8s_ci_v0_metrics_labels
