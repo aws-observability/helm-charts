@@ -24,5 +24,5 @@ variable "install_cert_manager" {
 
 variable "cert_manager_version" {
   type    = string
-  default = "v1.17.0"
+  default = "v1.21.3"
 }

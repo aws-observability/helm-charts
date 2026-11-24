@@ -12,7 +12,7 @@ resource "null_resource" "validator" {
   depends_on = [module.base.helm_release]
 
   provisioner "local-exec" {
-    command = "go test ${var.test_dir} -v -run=TestCertManagerEnabled"
+    command = "go test ${var.test_dir} -v -run=TestCertManager"
   }
 }
 

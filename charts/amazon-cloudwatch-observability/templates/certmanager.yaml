@@ -74,6 +74,7 @@ spec:
   issuerRef:
     {{- include "amazon-cloudwatch-observability.agentCertIssuerRef" . | nindent 4 }}
   secretName: "amazon-cloudwatch-observability-agent-cert"
+  duration: {{ include "amazon-cloudwatch-observability.agentCertDuration" . }}
 ---
 apiVersion: cert-manager.io/v1
 kind: Certificate
@@ -94,6 +95,7 @@ spec:
   issuerRef:
     {{- include "amazon-cloudwatch-observability.agentCertIssuerRef" . | nindent 4 }}
   secretName: "amazon-cloudwatch-observability-agent-server-cert"
+  duration: {{ include "amazon-cloudwatch-observability.agentCertDuration" . }}
   usages:
     - digital signature
     - key encipherment
@@ -115,6 +117,7 @@ spec:
   issuerRef:
     {{- include "amazon-cloudwatch-observability.agentCertIssuerRef" . | nindent 4 }}
   secretName: "amazon-cloudwatch-observability-agent-client-cert"
+  duration: {{ include "amazon-cloudwatch-observability.agentCertDuration" . }}
   usages:
     - digital signature
     - key encipherment
@@ -136,6 +139,7 @@ spec:
   issuerRef:
     {{- include "amazon-cloudwatch-observability.agentCertIssuerRef" . | nindent 4 }}
   secretName: "amazon-cloudwatch-observability-agent-ta-client-cert"
+  duration: {{ include "amazon-cloudwatch-observability.agentCertDuration" . }}
   usages:
     - digital signature
     - key encipherment
@@ -154,6 +158,10 @@ see a changed issuerRef and cert-manager reissues their certificates on upgrade.
 apiVersion: cert-manager.io/v1
 kind: Issuer
 metadata:
+  {{- with .Values.agent.certManager.issuerAnnotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
   labels:
     {{- include "amazon-cloudwatch-observability.labels" . | nindent 4 }}
   name: "agent-selfsigned"
@@ -175,6 +183,12 @@ metadata:
 spec:
   isCA: true
   commonName: "agent-ca"
+  duration: {{ include "amazon-cloudwatch-observability.agentCertDuration" . }}
+  privateKey:
+    # A renewed CA keeps its key, so leaves signed before and after a CA
+    # renewal verify against either ca.crt. cert-manager 1.18 and later
+    # default to Always.
+    rotationPolicy: Never
   issuerRef:
     kind: Issuer
     name: "agent-selfsigned"
@@ -194,6 +208,15 @@ metadata:
 spec:
   ca:
     secretName: "amazon-cloudwatch-observability-agent-ca"
+{{- /* Created by the chart, like the agent Secrets below, so helm uninstall removes the CA private key. */}}
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  labels:
+    {{- include "amazon-cloudwatch-observability.labels" . | nindent 4 }}
+  name: "amazon-cloudwatch-observability-agent-ca"
+  namespace: {{ .Release.Namespace }}
 {{- end }}
 ---
 apiVersion: v1

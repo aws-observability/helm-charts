@@ -40,13 +40,14 @@ render() {
 }
 
 render default
-render enabled --set agent.certManager.enabled=true
+render enabled --set agent.certManager.enabled=true --set otelContainerInsights.enabled=true
 render custom-agents --set agent.certManager.enabled=true \
     --set 'agents[0].name=cloudwatch-agent' --set 'agents[1].name=team-a-agent'
 render issuer-ref --set agent.certManager.enabled=true \
     --set agent.certManager.issuerRef.kind=ClusterIssuer \
     --set agent.certManager.issuerRef.name=corp-ca \
     --set agent.certManager.issuerAnnotations.ignored=true
+render expiry --set agent.certManager.enabled=true --set agent.autoGenerateCert.expiryDays=365
 render annotations --set agent.certManager.enabled=true \
     --set agent.certManager.certificateAnnotations.team=observability \
     --set agent.certManager.issuerAnnotations.owner=platform
@@ -124,6 +125,14 @@ if ca:
     check("enabled: CA Certificate is issued by a selfSigned Issuer",
           ref.get("kind") == "Issuer" and "selfSigned" in bootstrap.get("spec", {}), ref)
 
+if ca:
+    spec = ca[0]["spec"]
+    check("enabled: CA lasts as long as autoGenerateCert", spec.get("duration") == "87600h", spec.get("duration"))
+    check("enabled: CA keeps its private key on renewal",
+          (spec.get("privateKey") or {}).get("rotationPolicy") == "Never", spec.get("privateKey"))
+secrets = {d["metadata"]["name"] for d in docs if d.get("kind") == "Secret"}
+check("enabled: the chart creates the CA Secret, so helm uninstall removes it", CA_SECRET in secrets)
+
 ca_issuers = [i for i in issuers.values() if (i["spec"].get("ca") or {}).get("secretName") == CA_SECRET]
 check("enabled: one CA Issuer backed by the CA Secret", len(ca_issuers) == 1, sorted(issuers))
 ca_issuer = ca_issuers[0]["metadata"]["name"] if ca_issuers else None
@@ -132,6 +141,9 @@ for secret, cert in sorted(certs.items()):
     ref = cert["spec"]["issuerRef"]
     check(f"enabled: {secret} is signed by the CA Issuer",
           ref.get("kind") == "Issuer" and ref.get("name") == ca_issuer and not cert["spec"].get("isCA"), ref)
+
+for secret, cert in sorted(certs.items()):
+    check(f"enabled: {secret} lasts as long as autoGenerateCert", cert["spec"].get("duration") == "87600h", cert["spec"].get("duration"))
 
 # A selfSigned Issuer must not sign an agent leaf certificate: each one would be
 # its own CA, and no TLS client would trust its peer.
@@ -142,6 +154,21 @@ check("enabled: no agent certificate is self-signed",
 # Upgrades from the old chart: the CA Issuer must not reuse the old selfSigned
 # Issuer's name, or cert-manager keeps the self-signed certificates.
 check("enabled: the old agent-ca Issuer name is not reused", "agent-ca" not in issuers, sorted(issuers))
+
+# The chart creates the agent Secrets empty and cert-manager fills them. A volume that
+# names the keys it needs (items) does not mount until they exist, so the pod waits for
+# the certificate instead of starting without one.
+for d in docs:
+    spec = None
+    if d.get("kind") in ("DaemonSet", "Deployment", "StatefulSet"):
+        spec = d["spec"]["template"]["spec"]
+    elif d.get("kind") == "AmazonCloudWatchAgent":
+        spec = d.get("spec", {})
+    for v in (spec or {}).get("volumes") or []:
+        secret = v.get("secret") or {}
+        if secret.get("secretName", "").startswith("amazon-cloudwatch-observability-agent-"):
+            check(f"enabled: {d['metadata']['name']} volume {v['name']} waits for its certificate keys",
+                  bool(secret.get("items")) and not secret.get("optional"), secret)
 
 check("enabled: every agent Secret the agent mounts has a Certificate",
       mounted_agent_secrets(docs) <= set(certs), sorted(mounted_agent_secrets(docs) - set(certs)))
@@ -188,6 +215,15 @@ for secret, cert in sorted(agent_certs(docs).items()):
 ca_issuer = [i for i in objects(docs, "Issuer").values() if (i["spec"].get("ca") or {}).get("secretName") == CA_SECRET]
 check("annotations: the CA Issuer has issuerAnnotations",
       bool(ca_issuer) and (ca_issuer[0]["metadata"].get("annotations") or {}).get("owner") == "platform")
+bootstrap = objects(docs, "Issuer").get("agent-selfsigned", {})
+check("annotations: the selfSigned Issuer has issuerAnnotations",
+      (bootstrap.get("metadata", {}).get("annotations") or {}).get("owner") == "platform")
+
+# expiryDays sets the cert-manager durations too.
+docs = load("expiry")
+durations = {c["spec"]["secretName"]: c["spec"].get("duration") for c in objects(docs, "Certificate").values()}
+check("expiry: agent.autoGenerateCert.expiryDays sets every agent Certificate duration",
+      set(durations.values()) == {"8760h"} and len(durations) == 5, durations)
 
 print(f"cert-manager render tests: {passed} passed, {failed} failed")
 sys.exit(1 if failed else 0)
