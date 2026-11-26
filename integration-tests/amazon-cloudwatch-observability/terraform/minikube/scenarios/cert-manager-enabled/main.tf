@@ -1,0 +1,27 @@
+// Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+// SPDX-License-Identifier: Apache-2.0
+
+module "base" {
+  source               = "../.."
+  helm_dir             = var.helm_dir
+  helm_values_file     = "${path.module}/values.yaml"
+  install_cert_manager = true
+}
+
+resource "null_resource" "validator" {
+  depends_on = [module.base.helm_release]
+
+  provisioner "local-exec" {
+    command = "go test ${var.test_dir} -v -run=TestCertManager"
+  }
+}
+
+variable "test_dir" {
+  type    = string
+  default = "../../../../validations/minikube/scenarios"
+}
+
+variable "helm_dir" {
+  type    = string
+  default = "../../../../../../charts/amazon-cloudwatch-observability"
+}
