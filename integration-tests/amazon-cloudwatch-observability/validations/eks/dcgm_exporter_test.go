@@ -57,12 +57,12 @@ func TestDcgmExporterHealthy(t *testing.T) {
 	}
 	require.NoError(t, err, "get DaemonSet %s", dcgmExporterName)
 	desired := ds.Status.DesiredNumberScheduled
-	if desired == 0 {
-		if expectGPU {
-			require.FailNow(t, "no dcgm-exporter pod scheduled",
-				"DaemonSet %s still wants 0 pods after %s on a GPU cluster; check the node instance type and the chart's dcgmExporter affinity",
-				dcgmExporterName, dcgmReadyTimeout)
-		}
+	switch dcgmVerdict(desired) {
+	case dcgmVerdictFail:
+		require.FailNow(t, "no dcgm-exporter pod scheduled",
+			"DaemonSet %s still wants 0 pods after %s on a GPU cluster; check the node instance type and the chart's dcgmExporter affinity",
+			dcgmExporterName, dcgmReadyTimeout)
+	case dcgmVerdictSkip:
 		t.Skipf("DaemonSet %s wants 0 pods: no NVIDIA GPU node in this cluster", dcgmExporterName)
 	}
 	t.Logf("DaemonSet %s wants %d pod(s)", dcgmExporterName, desired)
