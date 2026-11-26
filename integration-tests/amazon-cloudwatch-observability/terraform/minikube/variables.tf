@@ -15,3 +15,14 @@ variable "helm_values_file" {
   type        = string
   description = "Path to helm values file for the specific scenario"
 }
+
+variable "install_cert_manager" {
+  type        = bool
+  default     = false
+  description = "Install cert-manager before the chart, for scenarios that use the chart's certManager options"
+}
+
+variable "cert_manager_version" {
+  type    = string
+  default = "v1.21.3"
+}

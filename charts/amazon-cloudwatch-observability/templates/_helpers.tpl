@@ -1232,3 +1232,27 @@ winning on key collision.
 {{- end -}}
 {{- $out | toYaml -}}
 {{- end -}}
+
+{{/*
+issuerRef for the agent cert-manager Certificates: agent.certManager.issuerRef when
+set, otherwise the chart's CA Issuer from certmanager.yaml. A customer issuer must
+sign every agent certificate from one CA, because each TLS client trusts the
+ca.crt of a different Secret than the one its peer presents.
+*/}}
+{{- define "amazon-cloudwatch-observability.agentCertIssuerRef" -}}
+{{- if .Values.agent.certManager.issuerRef -}}
+{{- toYaml .Values.agent.certManager.issuerRef }}
+{{- else -}}
+kind: Issuer
+name: "agent-ca-issuer"
+{{- end -}}
+{{- end -}}
+
+{{/*
+duration of the agent cert-manager Certificates: agent.autoGenerateCert.expiryDays,
+so they last as long as the Helm-generated certificates. Not every TLS endpoint
+that uses them is known to reload a renewed certificate without a restart.
+*/}}
+{{- define "amazon-cloudwatch-observability.agentCertDuration" -}}
+{{- printf "%dh" (mul (.Values.agent.autoGenerateCert.expiryDays | int) 24) -}}
+{{- end -}}
