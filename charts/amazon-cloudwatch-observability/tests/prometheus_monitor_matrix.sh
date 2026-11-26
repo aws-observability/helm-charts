@@ -671,6 +671,10 @@ expect_crd_fail "older chart's CRD => tells the user how to apply the CRDs" \
     "kubectl apply --server-side --force-conflicts -f amazon-cloudwatch-observability/crds/" old $MON
 expect_crd_fail "older chart's CRD => pulls this chart version" \
     "--version $(awk '/^version:/{print $2}' "$CHART_DIR/Chart.yaml") --untar" old $MON
+expect_crd_fail "older chart's CRD, Job disabled => says so and how to turn it on" \
+    "crds.upgradeJob, which updates them before each upgrade, is disabled. Set crds.upgradeJob.enabled=true" old $MON --set crds.upgradeJob.enabled=false
+expect_crd_fail "older chart's CRD, Job enabled in a region without a mirror => names the region, not enabled=true" \
+    "crds.upgradeJob, which updates them before each upgrade, doesn't run in cn-north-1, which can't pull its image without a crds.upgradeJob.image.repositoryDomainMap entry for the region. Apply this chart's CRDs" old $MON --set region=cn-north-1
 
 printf "\n${Y}== Summary ==${N}\n"
 printf "passed: ${G}%s${N}, failed: ${R}%s${N}\n" "$pass_count" "$fail_count"

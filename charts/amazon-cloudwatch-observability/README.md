@@ -470,8 +470,17 @@ the release, the Job applies the chart's own `crds/` with
 `kubectl apply --server-side --force-conflicts`. Its ConfigMaps, ServiceAccount and RBAC
 (`get` and `patch` on the chart's CRDs by name) are deleted once it succeeds.
 
-- No step is needed for `helm upgrade`. The Job uses `registry.k8s.io/kubectl`; set
-  `crds.upgradeJob.image` to use a mirror.
+- No step is needed for `helm upgrade` when the nodes can pull `registry.k8s.io/kubectl`.
+  This adds `registry.k8s.io` to the registries the chart pulls from on every
+  `helm install` and `helm upgrade`. If the nodes pull images through a mirror or have
+  restricted egress, mirror the image and set `crds.upgradeJob.image.repositoryDomainMap.public`,
+  `crds.upgradeJob.image.repository` and `crds.upgradeJob.image.tag` to it, or set
+  `crds.upgradeJob.enabled: false`. Otherwise the Job can't start and every install and
+  upgrade fails at the hook.
+- The Job updates only the chart's CRDs that are already installed, because it may only
+  `patch` them. Helm installs `crds/` on the first install only, so a CRD that a later chart
+  version adds (for example `DcgmExporter` and `NeuronMonitor`, added in chart 1.5.2) is not
+  created by `helm upgrade` or by the Job. Apply `crds/` to add it.
 - The EKS add-on applies `crds/` itself and renders the chart without hooks, so the Job is
   not part of it.
 - Argo CD also applies `crds/` itself on every sync. It would map the hook to `PreSync` and

@@ -469,7 +469,12 @@ so it can be tested without a cluster. Accepts a dict with "crd", "Values" and "
 {{- end -}}
 {{- end -}}
 {{- if $missing -}}
-{{- fail (printf "otelPrometheusMonitor needs the AmazonCloudWatchAgent CRD from this chart version, but the CRD in the cluster (amazoncloudwatchagents.cloudwatch.aws.amazon.com) lacks %s. helm upgrade does not update CRDs, so the cluster still has the CRD from its first install, and crds.upgradeJob, which updates them before each upgrade, is disabled. Set crds.upgradeJob.enabled=true, or apply this chart's CRDs and run the upgrade again: helm pull aws-observability/amazon-cloudwatch-observability --version %s --untar && kubectl apply --server-side --force-conflicts -f amazon-cloudwatch-observability/crds/" (join ", " $missing) .chartVersion) -}}
+{{- $why := "is disabled. Set crds.upgradeJob.enabled=true, or apply" -}}
+{{- if dig "upgradeJob" "enabled" false (.Values.crds | default dict) -}}
+{{- /* Enabled but not rendered: an isolated or sovereign region without an image mirror. */ -}}
+{{- $why = printf "doesn't run in %s, which can't pull its image without a crds.upgradeJob.image.repositoryDomainMap entry for the region. Apply" (.Values.region | toString) -}}
+{{- end -}}
+{{- fail (printf "otelPrometheusMonitor needs the AmazonCloudWatchAgent CRD from this chart version, but the CRD in the cluster (amazoncloudwatchagents.cloudwatch.aws.amazon.com) lacks %s. helm upgrade does not update CRDs, so the cluster still has the CRD from its first install, and crds.upgradeJob, which updates them before each upgrade, %s this chart's CRDs and run the upgrade again: helm pull aws-observability/amazon-cloudwatch-observability --version %s --untar && kubectl apply --server-side --force-conflicts -f amazon-cloudwatch-observability/crds/" (join ", " $missing) $why .chartVersion) -}}
 {{- end -}}
 {{- end -}}
 {{- end -}}
@@ -1217,12 +1222,6 @@ Uses restrictedTag for regions with a repositoryDomainMap entry, public tag othe
 {{- end -}}
 
 {{/*
-Get the kube-state-metrics image for the configured region using repositoryDomainMap
-*/}}
-{{/*
-The crds.upgradeJob kubectl image: repositoryDomainMap[region] when set, else the public registry.
-*/}}
-{{/*
 The crds.upgradeJob image. In a region with a repositoryDomainMap entry, the image comes from
 that registry as restrictedRepository:restrictedTag (falling back to repository:tag), the same
 way as kube-state-metrics.image, because regional mirrors use their own path and tag.
@@ -1253,6 +1252,27 @@ Without the Job, cloudwatch-agent.validate-agent-crd checks the installed CRD in
 {{- if and (dig "enabled" false $job) (or $mapped (not $isolated)) -}}true{{- end -}}
 {{- end -}}
 
+{{/*
+The crds/ files that the crds.upgradeJob hook applies, as a JSON list. Takes a dict with
+"files" (every crds/ file, as dicts with "path" and "name") and "installed" (the names of
+those CRDs found in the cluster). The Job may only patch CRDs, and Helm never installs a
+crds/ file that is new since a cluster's first install, so only the installed CRDs are
+applied; the others stay missing, as they would without the Job. When none is found (helm
+template and client-side dry runs, where lookup is empty), every file is applied.
+*/}}
+{{- define "crd-upgrade-job.select" -}}
+{{- $selected := list -}}
+{{- range .files -}}
+{{- if or (not $.installed) (has .name $.installed) -}}
+{{- $selected = append $selected . -}}
+{{- end -}}
+{{- end -}}
+{{- toJson $selected -}}
+{{- end -}}
+
+{{/*
+Get the kube-state-metrics image for the configured region using repositoryDomainMap
+*/}}
 {{- define "kube-state-metrics.image" -}}
 {{- if and (hasKey .Values.kubeStateMetrics.image.repositoryDomainMap .Values.region) (index .Values.kubeStateMetrics.image.repositoryDomainMap .Values.region) -}}
 {{- $imageDomain := index .Values.kubeStateMetrics.image.repositoryDomainMap .Values.region -}}

@@ -13,6 +13,7 @@
 #     crds/ itself and would otherwise run the hook before it creates the CRDs;
 #   - the Job runs kubectl apply --server-side on Linux nodes, as non-root;
 #   - a region with a repositoryDomainMap entry pulls <entry>/<restrictedRepository>:<restrictedTag>;
+#   - only the chart's CRDs found in the cluster are applied (every file when none is found);
 #   - nothing renders with upgradeJob disabled, without hooks (how the EKS add-on renders
 #     the chart), or in an isolated or sovereign region (China, GovCloud, ISO, EU Sovereign
 #     Cloud) without a repositoryDomainMap entry.
@@ -209,6 +210,31 @@ for case in "us-west-2|true" "me-central-1|true" "il-central-1|true" "cn-north-1
     desc="hook renders=$want in $region${extra:+ ($extra)}, so the installed-CRD check runs=$([[ $want == true ]] && echo false || echo true)"
     if [[ "$got" == "$want" ]]; then pass "$desc"; else fail "$desc: got $got"; fi
 done
+
+printf "\n${Y}== only installed CRDs ==${N}\n"
+# The Job may only patch, so it applies only the chart's CRDs found in the cluster
+# (crd-upgrade-job.select): Helm never installs a crds/ file that is new since a cluster's
+# first install, and applying a missing CRD would be forbidden and fail the upgrade. lookup
+# is empty offline, so this probes the helper with the installed names as input.
+cat > "$GATE_DIR/chart/templates/zz-select.yaml" <<'EOT'
+{{- $files := list }}
+{{- range $path, $_ := .Files.Glob "crds/*.yaml" }}
+{{- $files = append $files (dict "path" $path "name" ($.Files.Get $path | fromYaml).metadata.name) }}
+{{- end }}
+# selected: {{ range (include "crd-upgrade-job.select" (dict "files" $files "installed" (.Values.probeInstalled | default list)) | fromJsonArray) }}{{ .name }} {{ end }}
+EOT
+select_crds() { helm template t "$GATE_DIR/chart" --set region=us-west-2 --set clusterName=c --show-only templates/zz-select.yaml "$@" 2>&1 | sed -n 's/^# selected: //p' | xargs; }
+sorted() { tr ' ' '\n' <<< "$1" | sort | xargs; }
+ALL="$(for f in "$CHART_DIR"/crds/*.yaml; do python3 -c 'import sys,yaml; print(yaml.safe_load(open(sys.argv[1]))["metadata"]["name"])' "$f"; done | sort | xargs)"
+AGENT=amazoncloudwatchagents.cloudwatch.aws.amazon.com
+INSTR=instrumentations.cloudwatch.aws.amazon.com
+got="$(select_crds)"
+if [[ "$(sorted "$got")" == "$ALL" ]]; then pass "none found (offline render) => every crds/ file"; else fail "none found => every crds/ file: got '$got', want '$ALL'"; fi
+got="$(select_crds --set-json "probeInstalled=[\"$AGENT\",\"$INSTR\"]")"
+if [[ "$(sorted "$got")" == "$AGENT $INSTR" ]]; then pass "some installed => only those (the missing CRDs are not applied)"; else fail "some installed => only those: got '$got'"; fi
+# shellcheck disable=SC2086
+got="$(select_crds --set-json "probeInstalled=$(python3 -c 'import json,sys; print(json.dumps(sys.argv[1:]))' $ALL)")"
+if [[ "$(sorted "$got")" == "$ALL" ]]; then pass "all installed => every crds/ file"; else fail "all installed => every crds/ file: got '$got'"; fi
 
 printf "\n${Y}== Summary ==${N}\n"
 printf "passed: ${G}%s${N}, failed: ${R}%s${N}\n" "$pass_count" "$fail_count"

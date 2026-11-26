@@ -1251,6 +1251,8 @@ otelServiceIdentity:
 ## kube-prometheus-stack chart's crds.upgradeJob. It does not run on helm rollback,
 ## so a rollback leaves the newer CRDs in place. The hook's ConfigMaps,
 ## ServiceAccount, ClusterRole and ClusterRoleBinding are deleted after it succeeds.
+## The Job may only patch CRDs, so it updates only the chart's CRDs that are already
+## installed; a CRD that a later chart version adds is not created (apply crds/ for that).
 ##
 ## The EKS add-on applies crds/ itself and renders the chart without hooks. Argo CD also
 ## applies crds/ itself on every sync; the hook objects carry argocd.argoproj.io/hook: Skip,
@@ -1261,6 +1263,10 @@ otelServiceIdentity:
 ## there only when image.repositoryDomainMap has an entry for the region. With a region
 ## entry, the image is <entry>/<restrictedRepository>:<restrictedTag> (repository and tag
 ## when those are empty), as for kube-state-metrics.
+## Elsewhere every helm install and upgrade pulls the image from repositoryDomainMap.public.
+## Nodes behind a mirror or restricted egress need the image mirrored there (set
+## repositoryDomainMap.public, repository and tag) or upgradeJob.enabled false; otherwise
+## the Job can't start and the install or upgrade fails at the hook.
 ##
 ## Without the Job (upgradeJob.enabled false, or one of those regions without an entry),
 ## otelPrometheusMonitor checks the installed CRD and fails the upgrade with the kubectl

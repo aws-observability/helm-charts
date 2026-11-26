@@ -20,19 +20,33 @@ When a chart has any argocd.argoproj.io/hook annotation, Argo CD ignores every h
 in it. This Job is the chart's only Helm hook today. A new Helm hook added to this chart
 must also carry an argocd.argoproj.io/hook annotation (for example PreSync), or Argo CD
 will not run it.
+
+The Job only patches CRDs, so it applies only the chart's CRDs that are already in the
+cluster (crd-upgrade-job.select). Helm never installs a crds/ file that is new since a
+cluster's first install, and applying a missing CRD would need create, which RBAC can't
+limit to this chart's CRD names.
 */}}
 {{- if include "crd-upgrade-job.enabled" . }}
 {{- $name := printf "%s-crd-upgrade" (include "amazon-cloudwatch-observability.name" .) }}
 {{- $job := .Values.crds.upgradeJob }}
-{{- $crdNames := list }}
-{{- $configMaps := list }}
+{{- $files := list }}
+{{- $installed := list }}
 {{- range $path, $_ := .Files.Glob "crds/*.yaml" }}
 {{- $crd := $.Files.Get $path | fromYaml }}
 {{- if or (hasKey $crd "Error") (ne (dig "kind" "" $crd) "CustomResourceDefinition") }}
 {{- fail (printf "crds.upgradeJob: %s is not a CustomResourceDefinition" $path) }}
 {{- end }}
-{{- $crdNames = append $crdNames $crd.metadata.name }}
-{{- $cm := printf "%s-%s" $name (index (splitList "." $crd.metadata.name) 0) }}
+{{- $files = append $files (dict "path" $path "name" $crd.metadata.name) }}
+{{- if lookup "apiextensions.k8s.io/v1" "CustomResourceDefinition" "" $crd.metadata.name }}
+{{- $installed = append $installed $crd.metadata.name }}
+{{- end }}
+{{- end }}
+{{- $crdNames := list }}
+{{- $configMaps := list }}
+{{- range (include "crd-upgrade-job.select" (dict "files" $files "installed" $installed) | fromJsonArray) }}
+{{- $path := .path }}
+{{- $crdNames = append $crdNames .name }}
+{{- $cm := printf "%s-%s" $name (index (splitList "." .name) 0) }}
 {{- $configMaps = append $configMaps (dict "name" $cm "file" (base $path)) }}
 ---
 apiVersion: v1
@@ -80,9 +94,8 @@ metadata:
     helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded
     argocd.argoproj.io/hook: Skip
 rules:
-  # Read and update only this chart's CRDs. No create: Helm cannot start an upgrade when
-  # one of them is missing (it maps the custom resources first), so the hook only ever
-  # updates CRDs that exist.
+  # Read and update only this chart's CRDs. No create: the Job applies only the CRDs that
+  # are installed (crd-upgrade-job.select), and RBAC can't limit create by name.
   - apiGroups: ["apiextensions.k8s.io"]
     resources: ["customresourcedefinitions"]
     resourceNames:
