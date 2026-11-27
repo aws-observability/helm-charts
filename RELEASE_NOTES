@@ -1,17 +1,11 @@
 ========================================================================
-<<<<<<< HEAD
-amazon-cloudwatch-observability v8.0.1 (TBD)
+amazon-cloudwatch-observability v8.0.1 (2026-11-20)
 ========================================================================
 Enhancements:
 * Upgrade DCGM Exporter to 4.7.0-4.9.0-distroless
 
 ========================================================================
-amazon-cloudwatch-observability v8.0.0 (TBD)
-||||||| c94058a
-amazon-cloudwatch-observability v8.0.0 (TBD)
-=======
 amazon-cloudwatch-observability v8.0.0 (2026-11-19)
->>>>>>> 4e24b06
 ========================================================================
 OTLP endpoint and profiles enabled by default:
 * The node agent serves OTLP on host ports 4317 (gRPC) and 4318 (HTTP) by default (set otlp.enabled: false or change otlp.grpc.port / otlp.http.port if another collector or receiver uses them)
