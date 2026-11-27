@@ -1,6 +1,25 @@
 apiVersion: v1
 entries:
   amazon-cloudwatch-observability:
+  - annotations:
+      artifacthub.io/links: |
+        - name: Upgrade guide
+          url: https://github.com/aws-observability/helm-charts/blob/main/charts/amazon-cloudwatch-observability/UPGRADING.md
+    apiVersion: v2
+    appVersion: 1.0.0
+    created: "2026-11-27T16:59:07.585881252Z"
+    description: A Helm chart for Amazon CloudWatch Observability
+    digest: 6a6240ec49d1191165f100db58dba79b2646da5267a97b4ba6bd0c0f99863978
+    home: https://aws.amazon.com/cloudwatch/
+    maintainers:
+    - name: kausyas
+    name: amazon-cloudwatch-observability
+    sources:
+    - https://github.com/aws-observability/helm-charts/tree/main/charts/amazon-cloudwatch-observability
+    type: application
+    urls:
+    - https://github.com/aws-observability/helm-charts/releases/download/amazon-cloudwatch-observability-8.0.1/amazon-cloudwatch-observability-8.0.1.tgz
+    version: 8.0.1
   - apiVersion: v2
     appVersion: 1.0.0
     created: "2026-11-27T13:00:18.228218802Z"
@@ -841,4 +860,4 @@ entries:
     urls:
     - https://github.com/aws-observability/helm-charts/releases/download/amazon-cloudwatch-observability-1.4.0/amazon-cloudwatch-observability-1.4.0.tgz
     version: 1.4.0
-generated: "2026-11-27T13:00:18.228546604Z"
+generated: "2026-11-27T16:59:07.58625331Z"
