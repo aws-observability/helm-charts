@@ -9,3 +9,7 @@ sources:
   - https://github.com/aws-observability/helm-charts/tree/main/charts/amazon-cloudwatch-observability
 maintainers:
   - name: kausyas
+annotations:
+  artifacthub.io/links: |
+    - name: Upgrade guide
+      url: https://github.com/aws-observability/helm-charts/blob/main/charts/amazon-cloudwatch-observability/UPGRADING.md
