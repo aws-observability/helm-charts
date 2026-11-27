@@ -185,6 +185,17 @@ true
 {{- end -}}
 
 {{/*
+"true" in the isolated and sovereign regions, which can't reach public registries such as
+registry.k8s.io: China (cn-), GovCloud (us-gov-), the ISO regions (us-iso-, us-isob-,
+us-isof-, eu-isoe-) and the EU Sovereign Cloud (eusc-). Shared by
+manager.serviceEventsSupported and crd-upgrade-job.enabled, so the two region lists can't
+drift apart.
+*/}}
+{{- define "amazon-cloudwatch-observability.isolatedRegion" -}}
+{{- if regexMatch "cn-.*|.*-iso[a-z]*-.*|us-gov-.*|eusc-.*" (.Values.region | toString) -}}true{{- end -}}
+{{- end -}}
+
+{{/*
 Helper function to determine whether Service Events is supported in the region.
 Returns false for regions where Service Events should be disabled.
 Note: Service Events only runs when Application Signals is enabled, so unsupported/iso regions
@@ -194,7 +205,7 @@ Signals becomes available while Service Events does not.
 */}}
 {{- define "manager.serviceEventsSupported" -}}
 {{- $region := .Values.region | required ".Values.region is required." -}}
-{{- if regexMatch "me-central-1|me-south-1|il-central-1|cn-.*|.*-iso[a-z]*-.*|us-gov-.*|eusc-.*" $region -}}
+{{- if or (include "amazon-cloudwatch-observability.isolatedRegion" .) (regexMatch "me-central-1|me-south-1|il-central-1" $region) -}}
 false
 {{- else -}}
 true
@@ -403,6 +414,67 @@ Validates otelPrometheusMonitor when it is enabled. Called from cloudwatch-agent
 {{- end -}}
 {{- range $key := list "serviceMonitorSelector" "podMonitorSelector" -}}
 {{- include "cloudwatch-agent.validate-label-selector" (dict "name" (printf "otelPrometheusMonitor.%s" $key) "selector" (get $pm $key)) -}}
+{{- end -}}
+{{- include "cloudwatch-agent.validate-agent-crd" . -}}
+{{- end -}}
+{{- end -}}
+
+{{/*
+Fails when otelPrometheusMonitor is enabled, the crds.upgradeJob hook doesn't render
+(disabled, or an isolated or sovereign region without an image mirror), and the
+AmazonCloudWatchAgent CRD in the cluster is older than this chart's. Helm installs crds/ on
+the first install only and never updates it, so a cluster upgraded with helm upgrade keeps
+the CRD it was first installed with. With an older CRD the API server rejects
+allocationStrategy per-node and label-selector monitor selectors, and drops scraperRole
+without an error, so the cluster-scraper would scrape the per-node agent's monitors.
+With the hook rendered the check is skipped: Helm renders the templates, lookup
+included, before it runs the pre-upgrade hook, so the check would still see the old CRD
+that the hook is about to update.
+lookup returns nothing when there is no cluster to read (helm template, a client-side dry
+run, tools that render offline); the check is then skipped too.
+*/}}
+{{- define "cloudwatch-agent.validate-agent-crd" -}}
+{{- if not (include "crd-upgrade-job.enabled" .) -}}
+{{- $crd := lookup "apiextensions.k8s.io/v1" "CustomResourceDefinition" "" "amazoncloudwatchagents.cloudwatch.aws.amazon.com" -}}
+{{- include "cloudwatch-agent.validate-agent-crd-schema" (dict "crd" $crd "Values" .Values "chartVersion" .Chart.Version) -}}
+{{- end -}}
+{{- end -}}
+
+{{/*
+The schema check of cloudwatch-agent.validate-agent-crd, on a CRD object (.crd, empty to skip),
+so it can be tested without a cluster. Accepts a dict with "crd", "Values" and "chartVersion".
+*/}}
+{{- define "cloudwatch-agent.validate-agent-crd-schema" -}}
+{{- $crd := .crd | default dict -}}
+{{- if $crd -}}
+{{- $schema := dict -}}
+{{- range (dig "spec" "versions" list $crd) -}}
+{{- if eq (get . "name") "v1alpha1" -}}
+{{- $schema = . -}}
+{{- end -}}
+{{- end -}}
+{{- $ta := dig "schema" "openAPIV3Schema" "properties" "spec" "properties" "targetAllocator" "properties" dict $schema -}}
+{{- $pcr := dig "prometheusCR" "properties" dict $ta -}}
+{{- $missing := list -}}
+{{- if not (has "per-node" (dig "allocationStrategy" "enum" list $ta)) -}}
+{{- $missing = append $missing "targetAllocator.allocationStrategy per-node" -}}
+{{- end -}}
+{{- if not (hasKey $pcr "scraperRole") -}}
+{{- $missing = append $missing "targetAllocator.prometheusCR.scraperRole" -}}
+{{- end -}}
+{{- $pm := .Values.otelPrometheusMonitor | default dict -}}
+{{- range $key := list "serviceMonitorSelector" "podMonitorSelector" -}}
+{{- if and (get $pm $key) (not (hasKey (dig $key "properties" dict $pcr) "matchExpressions")) -}}
+{{- $missing = append $missing (printf "targetAllocator.prometheusCR.%s as a label selector" $key) -}}
+{{- end -}}
+{{- end -}}
+{{- if $missing -}}
+{{- $why := "is disabled. Set crds.upgradeJob.enabled=true, or apply" -}}
+{{- if dig "upgradeJob" "enabled" false (.Values.crds | default dict) -}}
+{{- /* Enabled but not rendered: an isolated or sovereign region without an image mirror. */ -}}
+{{- $why = printf "doesn't run in %s, which can't pull its image without a crds.upgradeJob.image.repositoryDomainMap entry for the region. Apply" (.Values.region | toString) -}}
+{{- end -}}
+{{- fail (printf "otelPrometheusMonitor needs the AmazonCloudWatchAgent CRD from this chart version, but the CRD in the cluster (amazoncloudwatchagents.cloudwatch.aws.amazon.com) lacks %s. helm upgrade does not update CRDs, so the cluster still has the CRD from its first install, and crds.upgradeJob, which updates them before each upgrade, %s this chart's CRDs and run the upgrade again: helm pull aws-observability/amazon-cloudwatch-observability --version %s --untar && kubectl apply --server-side --force-conflicts -f amazon-cloudwatch-observability/crds/" (join ", " $missing) $why .chartVersion) -}}
 {{- end -}}
 {{- end -}}
 {{- end -}}
@@ -1147,6 +1219,55 @@ Uses restrictedTag for regions with a repositoryDomainMap entry, public tag othe
 {{- else -}}
 {{- .Values.kubeStateMetrics.image.tag -}}
 {{- end -}}
+{{- end -}}
+
+{{/*
+The crds.upgradeJob image. In a region with a repositoryDomainMap entry, the image comes from
+that registry as restrictedRepository:restrictedTag (falling back to repository:tag), the same
+way as kube-state-metrics.image, because regional mirrors use their own path and tag.
+Elsewhere it is repositoryDomainMap.public/repository:tag.
+*/}}
+{{- define "crd-upgrade-job.image" -}}
+{{- $image := .Values.crds.upgradeJob.image -}}
+{{- $domain := index $image.repositoryDomainMap .Values.region -}}
+{{- if $domain -}}
+{{- printf "%s/%s:%s" $domain ($image.restrictedRepository | default $image.repository) ($image.restrictedTag | default $image.tag) -}}
+{{- else -}}
+{{- printf "%s/%s:%s" $image.repositoryDomainMap.public $image.repository $image.tag -}}
+{{- end -}}
+{{- end -}}
+
+{{/*
+"true" when the crds.upgradeJob hook renders: crds.upgradeJob.enabled, and the Job's image can
+be pulled in the region. The public image (registry.k8s.io) can't be reached from the
+isolated and sovereign regions (amazon-cloudwatch-observability.isolatedRegion), so there
+the Job renders only with a crds.upgradeJob.image.repositoryDomainMap entry for the region.
+Without the Job, cloudwatch-agent.validate-agent-crd checks the installed CRD instead.
+*/}}
+{{- define "crd-upgrade-job.enabled" -}}
+{{- $job := dig "upgradeJob" dict (.Values.crds | default dict) -}}
+{{- $region := .Values.region | toString -}}
+{{- $mapped := index (dig "image" "repositoryDomainMap" dict $job) $region -}}
+{{- $isolated := include "amazon-cloudwatch-observability.isolatedRegion" . -}}
+{{- if and (dig "enabled" false $job) (or $mapped (not $isolated)) -}}true{{- end -}}
+{{- end -}}
+
+{{/*
+The crds/ files that the crds.upgradeJob hook applies, as a JSON list. Takes a dict with
+"files" (every crds/ file, as dicts with "path" and "name") and "installed" (the names of
+those CRDs found in the cluster). The Job may only patch CRDs, and Helm never installs a
+crds/ file that is new since a cluster's first install, so only the installed CRDs are
+applied; the others stay missing, as they would without the Job. When none is found (helm
+template and client-side dry runs, where lookup is empty), every file is applied.
+*/}}
+{{- define "crd-upgrade-job.select" -}}
+{{- $selected := list -}}
+{{- range .files -}}
+{{- if or (not $.installed) (has .name $.installed) -}}
+{{- $selected = append $selected . -}}
+{{- end -}}
+{{- end -}}
+{{- toJson $selected -}}
 {{- end -}}
 
 {{/*
