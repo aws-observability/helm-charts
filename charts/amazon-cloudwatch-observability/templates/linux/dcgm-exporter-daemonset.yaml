@@ -50,6 +50,10 @@ DCGM_FI_DEV_NVLINK_CRC_DATA_ERROR_TOTAL, counter, NVLink data CRC errors for all
 DCGM_FI_DEV_NVLINK_RECOVERY_FAILED_TOTAL, counter, NVLink link recoveries that failed and took the link down (NVLink 5 and later).
 DCGM_FI_DEV_NVLINK_ECC_ERROR_TOTAL, counter, NVLink ECC data errors for all links.
 DCGM_FI_DRIVER_VERSION, label, Driver Version.` }}
+{{- $dcgmAffinity := .Values.dcgmExporter.affinity -}}
+{{- if eq .Values.k8sMode "AKS" -}}
+{{- $dcgmAffinity = .Values.dcgmExporter.affinityAKS -}}
+{{- end }}
 apiVersion: cloudwatch.aws.amazon.com/v1alpha1
 kind: DcgmExporter
 metadata:
@@ -64,7 +68,7 @@ spec:
   nodeSelector: {{- toYaml . | nindent 4 }}
   {{- end }}
   serviceAccount: {{ template "dcgm-exporter.serviceAccountName" . }}
-  {{- with .Values.dcgmExporter.affinity }}
+  {{- with $dcgmAffinity }}
   affinity: {{- toYaml . | nindent 4 }}
   {{- end }}
   {{- with .Values.dcgmExporter.resources }}
