@@ -791,16 +791,20 @@ agent:
   autoGenerateCert:
     enabled: true
     expiryDays: 3650 # 10 years
-  ## TLS Certificate Option 2: Use certManager to generate self-signed certificate.
-  ## certManager must be enabled. If enabled, it takes precedence over option 1.
+  ## TLS Certificate Option 2: Use cert-manager to issue the agent certificates.
+  ## cert-manager must be installed. If enabled, it takes precedence over option 1.
   certManager:
     enabled: false
-    ## Provide the issuer kind and name to do the cert auth job.
-    ## By default, OpenTelemetry Operator will use self-signer issuer.
+    ## Issuer for the agent certificates. By default the chart creates a self-signed
+    ## CA and a CA Issuer from it. A custom issuer must sign every agent certificate
+    ## from one CA, because the agent, cluster scraper, target allocator and scrape
+    ## targets verify each other with that CA.
     issuerRef: {}
     # kind:
     # name:
-    ## Annotations for the cert and issuer if cert-manager is enabled.
+    ## The agent Certificates, and the chart's CA, last agent.autoGenerateCert.expiryDays.
+    ## Annotations for the agent Certificates, and for the chart's Issuers when
+    ## issuerRef is not set.
     certificateAnnotations: {}
     issuerAnnotations: {}
   serviceAccount:
@@ -1229,6 +1233,70 @@ otelServiceIdentity:
   ## asks: all pods of one Helm release usually share app.kubernetes.io/instance,
   ## so they would share a service.name.
   useAppLabels: false
+
+## ══════════════════════════════════════════════════════════════════════════════
+## CRD updates
+## ══════════════════════════════════════════════════════════════════════════════
+##
+## Helm installs the CRDs in this chart's crds/ directory on the first helm install
+## and never updates them on helm upgrade. A cluster upgraded with helm upgrade would
+## keep the CRDs of the chart version it was first installed with, and the API server
+## would reject or drop fields that a newer chart sets on its custom resources (for
+## example targetAllocator.allocationStrategy per-node and
+## targetAllocator.prometheusCR.scraperRole, which otelPrometheusMonitor uses).
+##
+## upgradeJob runs as a Helm pre-install and pre-upgrade hook, before Helm applies
+## the rest of the release, and applies this chart's crds/ with
+## kubectl apply --server-side --force-conflicts. The same approach as the
+## kube-prometheus-stack chart's crds.upgradeJob. It does not run on helm rollback,
+## so a rollback leaves the newer CRDs in place. The hook's ConfigMaps,
+## ServiceAccount, ClusterRole and ClusterRoleBinding are deleted after it succeeds.
+## The Job may only patch CRDs, so it updates only the chart's CRDs that are already
+## installed; a CRD that a later chart version adds is not created (apply crds/ for that).
+##
+## The EKS add-on applies crds/ itself and renders the chart without hooks. Argo CD also
+## applies crds/ itself on every sync; the hook objects carry argocd.argoproj.io/hook: Skip,
+## so Argo CD does not run the Job. The Job matters for helm upgrade.
+##
+## The image comes from registry.k8s.io, which the isolated and sovereign regions (China,
+## GovCloud, the ISO regions and the EU Sovereign Cloud) can't reach, so the Job renders
+## there only when image.repositoryDomainMap has an entry for the region. With a region
+## entry, the image is <entry>/<restrictedRepository>:<restrictedTag> (repository and tag
+## when those are empty), as for kube-state-metrics.
+## Elsewhere every helm install and upgrade pulls the image from repositoryDomainMap.public.
+## Nodes behind a mirror or restricted egress need the image mirrored there (set
+## repositoryDomainMap.public, repository and tag) or upgradeJob.enabled false; otherwise
+## the Job can't start and the install or upgrade fails at the hook.
+##
+## Without the Job (upgradeJob.enabled false, or one of those regions without an entry),
+## otelPrometheusMonitor checks the installed CRD and fails the upgrade with the kubectl
+## command to run. helm upgrade --no-hooks skips the Job and that check, so the API server
+## rejects or drops the newer fields as it would without the Job.
+crds:
+  upgradeJob:
+    enabled: true
+    image:
+      repository: kubectl
+      tag: v1.35.10
+      ## Path and tag in a regional mirror (used for regions in repositoryDomainMap).
+      restrictedRepository: ""
+      restrictedTag: ""
+      repositoryDomainMap:
+        public: registry.k8s.io
+    resources:
+      requests:
+        cpu: 50m
+        memory: 64Mi
+      limits:
+        cpu: 500m
+        memory: 256Mi
+    ## The Job's node selector and tolerations. tolerations falls back to the
+    ## top-level tolerations when unset.
+    nodeSelector: {}
+    tolerations:
+    ## Extra annotations and labels for the Job's pod.
+    podAnnotations: {}
+    podLabels: {}
 
 ## Scrapes the targets selected by ServiceMonitor and PodMonitor objects
 ## (monitoring.coreos.com/v1) and sends the metrics to CloudWatch over OTLP, with

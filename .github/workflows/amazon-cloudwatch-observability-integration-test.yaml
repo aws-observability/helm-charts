@@ -55,6 +55,7 @@ jobs:
           - appsignals-disabled-multi-agents
           - appsignals-enabled-multi-agents
           - appsignals-unsupported
+          - cert-manager-enabled
           - certificate-recreate-disabled
           - certificate-recreate-enabled
           - configmap-permission-scoping

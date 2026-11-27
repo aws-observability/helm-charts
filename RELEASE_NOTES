@@ -1,4 +1,5 @@
 ========================================================================
+<<<<<<< HEAD
 amazon-cloudwatch-observability v8.0.1 (TBD)
 ========================================================================
 Enhancements:
@@ -6,6 +7,11 @@ Enhancements:
 
 ========================================================================
 amazon-cloudwatch-observability v8.0.0 (TBD)
+||||||| c94058a
+amazon-cloudwatch-observability v8.0.0 (TBD)
+=======
+amazon-cloudwatch-observability v8.0.0 (2026-11-19)
+>>>>>>> 4e24b06
 ========================================================================
 OTLP endpoint and profiles enabled by default:
 * The node agent serves OTLP on host ports 4317 (gRPC) and 4318 (HTTP) by default (set otlp.enabled: false or change otlp.grpc.port / otlp.http.port if another collector or receiver uses them)
@@ -15,7 +21,11 @@ OTLP endpoint and profiles enabled by default:
 Target Allocator selector format:
 * serviceMonitorSelector and podMonitorSelector under the AmazonCloudWatchAgent targetAllocator.prometheusCR are now Kubernetes label selectors (move flat label maps under matchLabels)
 
+CRD update Job enabled by default:
+* helm install and helm upgrade run a hook Job with registry.k8s.io/kubectl to apply the chart's CRDs (mirror the image or set crds.upgradeJob.enabled: false if the nodes cannot pull from registry.k8s.io)
+
 New Features:
+* Update the chart's CRDs on helm upgrade with a pre-install/pre-upgrade hook Job (crds.upgradeJob)
 * Support an OTLP endpoint for metrics, traces, logs and profiles on every node, with OTel Container Insights enrichment, otelFilters and span metrics
 * Support Java continuous profiling with the ADOT Java SDK (experimental)
 * Support ServiceMonitor and PodMonitor scraping (otelPrometheusMonitor), including label selector expressions (matchLabels and matchExpressions) for serviceMonitorSelector and podMonitorSelector
@@ -33,6 +43,10 @@ Enhancements:
 * Upgrade Neuron Monitor to v1.13.1
 * Upgrade Kube State Metrics to v2.20.0-eksbuild.11
 * Upgrade Node Exporter to v1.12.1-eksbuild.12
+
+Bug Fixes:
+* Fix agent.certManager.enabled: the chart renders and all agent certificates are signed by one CA
+* Apply agent.certManager.issuerRef and agent.certManager.certificateAnnotations to the agent certificates
 
 ========================================================================
 amazon-cloudwatch-observability v7.0.1 (2026-11-04)

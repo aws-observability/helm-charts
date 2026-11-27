@@ -1,0 +1,19 @@
+region: us-west-2
+clusterName: minikube
+
+# Use cert-manager for both the operator webhook and the agent TLS certificates.
+admissionWebhooks:
+  certManager:
+    enabled: true
+agent:
+  certManager:
+    enabled: true
+
+# OTel Container Insights deploys node-exporter and kube-state-metrics, which serve
+# the cert-manager agent certificate; the validation connects to both. Legacy
+# Container Insights is off because its kubelet receiver cannot verify minikube's
+# kubelet certificate.
+containerInsights:
+  enabled: false
+otelContainerInsights:
+  enabled: true
