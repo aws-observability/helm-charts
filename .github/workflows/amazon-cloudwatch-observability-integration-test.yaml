@@ -12,6 +12,11 @@ on:
       - main
       - release-*
   workflow_dispatch:
+    inputs:
+      operator_image_tag:
+        description: 'EKS-GPU only: operator image tag (manager.image.tag); empty means the chart default'
+        required: false
+        default: ''
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref_name }}
   cancel-in-progress: true
@@ -256,6 +261,97 @@ jobs:
             cd integration-tests/amazon-cloudwatch-observability/terraform/eks/java-profiling
             terraform destroy --auto-approve
 
+  # DCGM Exporter on a g4dn.xlarge GPU node: fails if dcgm-exporter is not Ready, restarts, or serves no
+  # DCGM_FI_ series. A GPU node costs money, so the AWS steps run only on manual runs and on changes to the
+  # manager or dcgmExporter image block in the chart's values.yaml (.github/scripts/gpu_test_gate.sh).
+  # Otherwise every later step skips and the job still ends in success, which verify-all requires.
+  EKS-IntegrationTest-GPU:
+    name: EKS GPU
+    needs: [ Minikube-IntegrationTests ]
+    runs-on: ubuntu-latest
+    timeout-minutes: 75
+    steps:
+      - uses: actions/checkout@f43a0e5ff2bd294095638e18286ca9a3d1956744 # v3.6.0
+        with:
+          fetch-depth: 0
+
+      - name: Decide whether to run the GPU test
+        id: gate
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          BASE_REF: ${{ github.base_ref }}
+          BEFORE_SHA: ${{ github.event.before }}
+        run: |
+          case "$EVENT_NAME" in
+            workflow_dispatch) run=true ;;
+            pull_request) run=$(bash .github/scripts/gpu_test_gate.sh "origin/$BASE_REF" HEAD) ;;
+            push) run=$(bash .github/scripts/gpu_test_gate.sh "$BEFORE_SHA" HEAD) ;;
+            *) run=false ;;
+          esac
+          echo "run=$run" >> "$GITHUB_OUTPUT"
+          echo "GPU test runs: $run"
+
+      - name: Generate testing id
+        if: steps.gate.outputs.run == 'true'
+        run: echo TESTING_ID="${{ github.run_id }}-${{ github.run_number }}" >> $GITHUB_ENV
+
+      - name: Configure AWS Credentials
+        if: steps.gate.outputs.run == 'true'
+        uses: aws-actions/configure-aws-credentials@5fd3084fc36e372ff1fff382a39b10d03659f355 # v2.2.0
+        with:
+          role-to-assume: ${{ env.TERRAFORM_AWS_ASSUME_ROLE }}
+          aws-region: ${{ env.AWS_DEFAULT_REGION }}
+
+      #  local directory to store the kubernetes config
+      - name: Create kubeconfig directory
+        if: steps.gate.outputs.run == 'true'
+        run: mkdir -p ${{ github.workspace }}/../../../.kube
+
+      - name: Set KUBECONFIG environment variable
+        if: steps.gate.outputs.run == 'true'
+        run: echo KUBECONFIG="${{ github.workspace }}/../../../.kube/config" >> $GITHUB_ENV
+
+      - name: Install Terraform
+        if: steps.gate.outputs.run == 'true'
+        uses: hashicorp/setup-terraform@b9cd54a3c349d3f38e8881555d616ced269862dd # v3.1.2
+        with:
+          terraform_version: "1.1.7"
+
+      - name: Verify Terraform version
+        if: steps.gate.outputs.run == 'true'
+        run: terraform --version
+
+      - name: Terraform apply
+        if: steps.gate.outputs.run == 'true'
+        uses: nick-fields/retry@14672906e672a08bd6eeb15720e9ed3ce869cdd4 # v2.9.0
+        env:
+          OPERATOR_IMAGE_TAG: ${{ inputs.operator_image_tag }}
+        with:
+          max_attempts: 1
+          timeout_minutes: 70 # EKS about 20 minutes, device plugin and chart up to 10, validator up to 20, destroy about 15
+          retry_wait_seconds: 5
+          command: |
+            cd integration-tests/amazon-cloudwatch-observability/terraform/eks/gpu
+            terraform init
+            if terraform apply -auto-approve \
+                -var="kube_dir=${{ github.workspace }}/../../../.kube" \
+                -var="operator_image_tag=${OPERATOR_IMAGE_TAG}"; then
+              terraform destroy -auto-approve
+            else
+              terraform destroy -auto-approve && exit 1
+            fi
+
+      - name: Terraform destroy
+        if: ${{ (cancelled() || failure()) && steps.gate.outputs.run == 'true' }}
+        uses: nick-fields/retry@14672906e672a08bd6eeb15720e9ed3ce869cdd4 # v2.9.0
+        with:
+          max_attempts: 3
+          timeout_minutes: 8
+          retry_wait_seconds: 5
+          command: |
+            cd integration-tests/amazon-cloudwatch-observability/terraform/eks/gpu
+            terraform destroy --auto-approve
+
   EKS-IntegrationTest-Win2022:
     name: EKS Win2022
     needs: [ Minikube-IntegrationTests ]
@@ -380,8 +476,8 @@ jobs:
 
   verify-all:
     name: Verify All Integration Test Jobs
-    needs: [ Build, Minikube-IntegrationTests, EKS-IntegrationTest, EKS-IntegrationTest-Win2022,
-             EKS-IntegrationTest-Win2019 ]
+    needs: [ Build, Minikube-IntegrationTests, EKS-IntegrationTest, EKS-IntegrationTest-GPU,
+             EKS-IntegrationTest-Win2022, EKS-IntegrationTest-Win2019 ]
     runs-on: ubuntu-latest
     if: always()
     steps:

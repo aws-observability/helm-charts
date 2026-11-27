@@ -6,6 +6,7 @@
 package eks
 
 import (
+	"context"
 	"regexp"
 	"testing"
 
@@ -13,6 +14,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	appsV1 "k8s.io/api/apps/v1"
 	v1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 const (
@@ -28,7 +30,7 @@ const (
 	kubeStateMetricsName = "kube-state-metrics"
 	clusterScraperName   = "cloudwatch-agent-cluster-scraper"
 	nodeExporterName     = "node-exporter"
-	podNameRegex         = "(" + agentName + "|" + agentNameWindows + "|" + operatorName + "|" + fluentBitName + "|" + fluentBitNameWindows + "|" + kubeStateMetricsName + "|" + clusterScraperName + "|" + nodeExporterName + ")-*"
+	podNameRegex         = "(" + agentName + "|" + agentNameWindows + "|" + operatorName + "|" + fluentBitName + "|" + fluentBitNameWindows + "|" + dcgmExporterName + "|" + kubeStateMetricsName + "|" + clusterScraperName + "|" + nodeExporterName + ")-*"
 	serviceNameRegex     = agentName + "(-headless|-monitoring)?|" + agentNameWindows + "(-headless|-monitoring)?|" + addOnName + "-webhook-service|" + dcgmExporterName + "-service|" + neuronMonitor + "-service|" + kubeStateMetricsName + "|" + clusterScraperName + "-monitoring|" + nodeExporterName + "-service"
 	daemonSetNameRegex   = agentName + "|" + agentNameWindows + "|" + fluentBitName + "|" + fluentBitNameWindows + "|" + dcgmExporterName + "|" + neuronMonitor + "|" + nodeExporterName
 )
@@ -39,6 +41,27 @@ const (
 	serviceCount    = serviceCountLinux + serviceCountWindows
 	daemonSetCount  = daemonSetCountLinux + daemonSetCountWindows
 )
+
+// TestPodNameRegexAcceptsDcgmExporter needs no cluster. On a GPU node the operator runs a
+// dcgm-exporter DaemonSet pod in the namespace, so TestResourcesGenerated must accept its name.
+func TestPodNameRegexAcceptsDcgmExporter(t *testing.T) {
+	match, err := regexp.MatchString(podNameRegex, dcgmExporterName+"-x7k2p")
+	assert.NoError(t, err)
+	assert.True(t, match, "podNameRegex %q does not match a dcgm-exporter pod", podNameRegex)
+}
+
+// TestExpectedPodCountAddsDcgmExporter needs no cluster. The dcgm-exporter DaemonSet only
+// schedules on NVIDIA GPU instance types, so the pod count depends on how many it wants.
+func TestExpectedPodCountAddsDcgmExporter(t *testing.T) {
+	assert.Equal(t, podCount, expectedPodCount(0), "CPU cluster: no dcgm-exporter pod")
+	assert.Equal(t, podCount+2, expectedPodCount(2), "two GPU nodes: two dcgm-exporter pods")
+}
+
+// expectedPodCount is the fixed pod count plus one dcgm-exporter pod per node the dcgm-exporter
+// DaemonSet wants (its desiredNumberScheduled): 0 on a CPU-only cluster, 1 per GPU node.
+func expectedPodCount(dcgmDesired int32) int {
+	return podCount + int(dcgmDesired)
+}
 
 func TestResourcesGenerated(t *testing.T) {
 
@@ -53,9 +76,15 @@ func TestResourcesGenerated(t *testing.T) {
 	assert.Equal(t, namespace, ns.Name)
 
 	// Validating the number of pods and status
+	dcgm, err := k8sClient.Clientset().AppsV1().DaemonSets(namespace).Get(context.Background(), dcgmExporterName, metav1.GetOptions{})
+	assert.NoError(t, err)
+	var dcgmDesired int32
+	if dcgm != nil {
+		dcgmDesired = dcgm.Status.DesiredNumberScheduled
+	}
 	pods, err := k8sClient.ListPods(namespace)
 	assert.NoError(t, err)
-	assert.Len(t, pods.Items, podCount)
+	assert.Len(t, pods.Items, expectedPodCount(dcgmDesired))
 	for _, pod := range pods.Items {
 		t.Logf("pod: " + pod.Name + " namespace:" + pod.Namespace)
 		assert.Contains(t, []v1.PodPhase{v1.PodRunning, v1.PodPending}, pod.Status.Phase)
