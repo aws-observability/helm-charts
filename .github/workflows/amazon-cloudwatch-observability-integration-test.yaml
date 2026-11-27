@@ -267,7 +267,7 @@ jobs:
   # Otherwise every later step skips and the job still ends in success, which verify-all requires.
   EKS-IntegrationTest-GPU:
     name: EKS GPU
-    needs: [ Minikube-IntegrationTests ]
+    needs: [ Build ]
     runs-on: ubuntu-latest
     timeout-minutes: 75
     steps:
